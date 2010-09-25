@@ -464,8 +464,7 @@ function GUB.RuneBar:SetRuneBarLayout(UnitBarF)
   local RuneLocation = UB.RuneLocation
   local Padding = UB.RunePadding
   local RuneSize = UB.RuneSize
-  local DrawEdge = UB.DrawEdge
-  local Vertical = UB.Vertical
+  local DrawEdge = UB.CooldownDrawEdge
   local x = 0
   local y = 0
 
