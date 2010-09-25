@@ -2,11 +2,13 @@
 ## Title: Galvin's UnitBars
 ## Notes: Displays health, power, rune, and combo points bars that can be moved around.
 ## Author: Galvin
-## Version: 0.1
+## Version: 0.05
+## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB
 
 # Ace Libraries
 
+#@no-lib-strip@
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
 Libs\AceAddon-3.0\AceAddon-3.0.xml
@@ -21,6 +23,8 @@ Libs\AceConfig-3.0\AceConfig-3.0.xml
 
 Libs\LibSharedMedia-3.0\lib.xml
 Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
+#@end-no-lib-strip@
+
 
 # Localization
 
