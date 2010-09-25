@@ -34,5 +34,3 @@ externals:
     Libs/AceGUI-3.0-SharedMediaWidgets:
         url: svn://svn.wowace.com/wow/ace-gui-3-0-shared-media-widgets/mainline/trunk
         tag: latest
-
-enable-nolib-creation: no
