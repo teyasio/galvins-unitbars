@@ -240,6 +240,42 @@ local function CreateSlashOptions()
 end
 
 -------------------------------------------------------------------------------
+-- CreateAlphaOption
+--
+-- Creates an alpha option slider.
+--
+-- Usage: AlphaOption = CreateAlphaOption(BarType, Order)
+--
+-- BarType       Type of options being created.
+-- Order         Order number.
+--
+-- AlphaOption   Option table for changing the alpha of any bar.
+-------------------------------------------------------------------------------
+-- Commented out for now since there is a bug with animationgroups with the frame not being an alpha of 1.
+
+--[[local function CreateAlphaOption(BarType, Order)
+  local c = 0
+
+  local AlphaOption = {
+    type = 'range',
+    name = 'Alpha',
+    order = 2,
+    desc = 'Changes the alpha of the bar',
+    min = 0,
+    max = 100,
+    step = 1,
+    get = function()
+            return UnitBars[BarType].General.Alpha * 100
+          end,
+    set = function(Info, Value)
+            UnitBars[BarType].General.Alpha = Value / 100
+            UnitBarsF[BarType]:SetAttr('frame', 'alpha')
+          end,
+  }
+  return AlphaOption
+end --]]
+
+-------------------------------------------------------------------------------
 -- CreateComboBarColorsOptions
 --
 -- Creates combo bar color options for background and bar.
@@ -909,7 +945,7 @@ end
 --
 -- Creates options for a Rune Bar.
 --
--- Subfunction of CreateUnitBarOptions()
+-- Subfunction of CreateBarGeneralOptions()
 --
 -- Usage: RuneBarOptions = CreateRuneBarOptions(BarType, Order, Name)
 --
@@ -926,10 +962,10 @@ local function CreateRuneBarOptions(BarType, Order, Name)
     dialogInline = true,
     order = Order,
     get = function(Info)
-            return UnitBars[BarType][Info[#Info]]
+            return UnitBars[BarType].General[Info[#Info]]
           end,
     set = function(Info, Value)
-            UnitBars[BarType][Info[#Info]] = Value
+            UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
             GUB[BarType]:SetRuneBarLayout(UnitBarsF[BarType])
@@ -965,7 +1001,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         order = 5,
         desc = 'Rotates the rune bar',
         disabled = function()
-                     return not UnitBars.RuneBar.BarMode
+                     return not UnitBars.RuneBar.General.BarMode
                    end,
         min = RuneBarAngleMin,
         max = RuneBarAngleMax,
@@ -977,7 +1013,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         order = 6,
         desc = 'Set the Amount of space between each rune',
         disabled = function()
-                     return not UnitBars.RuneBar.BarMode
+                     return not UnitBars.RuneBar.General.BarMode
                    end,
         min = RuneBarPaddingMin,
         max = RuneBarPaddingMax,
@@ -1002,7 +1038,7 @@ end
 --
 -- Creates options for a combo points bar.
 --
--- Subfunction of CreateUnitBarOptions()
+-- Subfunction of CreateBarGeneralOptions()
 --
 -- Usage: ComboBarOptions = CreateComboBarOptions(BarType, Order, Name)
 --
@@ -1019,10 +1055,10 @@ local function CreateComboBarOptions(BarType, Order, Name)
     dialogInline = true,
     order = Order,
     get = function(Info)
-            return UnitBars[BarType][Info[#Info]]
+            return UnitBars[BarType].General[Info[#Info]]
           end,
     set = function(Info, Value)
-            UnitBars[BarType][Info[#Info]] = Value
+            UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
             GUB[BarType]:SetComboBarLayout(UnitBarsF[BarType])
@@ -1129,28 +1165,31 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
           },
         },
       },
-      TextType = {
-        type = 'select',
-        name = 'Text Type',
+      General = {
+        type = 'group',
+        name = 'General',
+        dialogInline = true,
         order = 2,
-        values = TextTypeDropdown,
-        style = 'dropdown',
-        desc = 'Changes the look of the value text in the bar',
-        get = function()
-                return UnitBars[BarType].TextType
-              end,
-        set = function(Info, Value)
-                UnitBars[BarType].TextType = Value
+        args = {
+          TextType = {
+            type = 'select',
+            name = 'Text Type',
+            order = 1,
+            values = TextTypeDropdown,
+            style = 'dropdown',
+            desc = 'Changes the look of the value text in the bar',
+            get = function()
+                    return UnitBars[BarType].General.TextType
+                  end,
+            set = function(Info, Value)
+                    UnitBars[BarType].General.TextType = Value
 
-                -- Redraw the bar to show the texttype change.
-                UnitBarsF[BarType]:Update()
-              end,
-
-      },
-      BlankLine = {
-        type = 'header',
-        name = '',
-        order = 100,
+                    -- Redraw the bar to show the texttype change.
+                    UnitBarsF[BarType]:Update()
+                  end,
+          },
+--          Alpha = CreateAlphaOption(BarType, 3),
+        },
       },
       Reset = {
         type = 'execute',
@@ -1194,7 +1233,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   -- Remove options based on type of bar.
   if BarType == 'RuneBar' or BarType == 'ComboBar' then
 
-    UBO.TextType = nil
+    UBO.General = nil
     UBO.Text = nil
 
     -- Remove options Background and Bar if a runebar.
@@ -1239,7 +1278,7 @@ local function CreateCopySettingsOptions(Order, Name)
   local CopySettings = {
     All = false,
     Status = false,
-    TextType = false,
+    General = false,
     Background = false,
     Bar = false,
     Text = false,
@@ -1290,7 +1329,7 @@ local function CreateCopySettingsOptions(Order, Name)
         order = 3,
         disabled = function()
                      return CopySettingsFrom == nil or CopySettingsTo == nil or
-                            CopySettingsTo == CopySettingsFrom
+                            CopySettingsFrom == CopySettingsTo
                    end,
         get = function(Info)
                 return CopySettings[Info[#Info]]
@@ -1316,9 +1355,9 @@ local function CreateCopySettingsOptions(Order, Name)
                      end,
             desc = 'Copy the status settings',
           },
-          TextType = {
+          General = {
             type = 'toggle',
-            name = 'Text Type',
+            name = 'General',
             order = 3,
             hidden = function(Info)
                         local Value = CopySettings.All or
@@ -1327,7 +1366,7 @@ local function CreateCopySettingsOptions(Order, Name)
                         CopySettingsHidden[Info[#Info]] = Value
                         return Value
                      end,
-            desc = 'Copy the text type setting',
+            desc = 'Copy the general settings',
           },
           Background = {
             type = 'toggle',
@@ -1373,7 +1412,8 @@ local function CreateCopySettingsOptions(Order, Name)
         name = 'Copy Settings',
         order = 100,
         disabled = function()
-                     return CopySettingsFrom == '' or CopySettingsTo == '' or
+                     return CopySettingsFrom == nil or CopySettingsTo == nil or
+                            CopySettingsFrom == CopySettingsTo or
                             not ListChecked(CopySettings, CopySettingsHidden)
                    end,
         confirm = function()
@@ -1394,8 +1434,8 @@ local function CreateCopySettingsOptions(Order, Name)
                    if CopySettings.Status and not CopySettingsHidden.Status then
                      GUB.UnitBars:CopyTableValues(Source.Status, Dest.Status)
                    end
-                   if CopySettings.TextType and not CopySettingsHidden.TextType then
-                     Dest.TextType = Source.TextType
+                   if CopySettings.General and not CopySettingsHidden.General then
+                     GUB.UnitBars:CopyTableValues(Source.General, Dest.General)
                    end
                    if CopySettings.Background and not CopySettingsHidden.Background then
                      GUB.UnitBars:CopyTableValues(Source.Background, Dest.Background)

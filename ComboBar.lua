@@ -287,15 +287,16 @@ function GUB.ComboBar:SetComboBarLayout(UnitBarF)
 
   -- Get the unitbar data.
   local UB = UnitBarF.UnitBar
+  local Gen = UB.General
 
   local ComboWidth = UB.Bar.ComboWidth
   local ComboHeight = UB.Bar.ComboHeight
-  local Padding = UB.ComboPadding
+  local Padding = Gen.ComboPadding
   local x = 0
   local y = 0
 
   -- Get the offsets based on angle.
-  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(ComboWidth + Padding, ComboHeight + Padding, UB.ComboAngle)
+  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(ComboWidth + Padding, ComboHeight + Padding, Gen.ComboAngle)
 
   -- Set up the combo point positions.
   for ComboIndex, CF in ipairs(UnitBarF.ComboF) do

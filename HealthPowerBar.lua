@@ -61,7 +61,7 @@ local PowerRunic = 6
 -- Note: If the TextType is not found or MaxValue is equal to zero then '' gets returned.
 -------------------------------------------------------------------------------
 local function GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
-  local TextType = StatusBar.UnitBar.TextType
+  local TextType = StatusBar.UnitBar.General.TextType
   if MaxValue == 0 then
     return ''
   elseif TextType == 'whole' then
@@ -305,10 +305,12 @@ end
 -- Usage: SetAttrHap(Object, Attr)
 --
 -- Object       Object being changed:
+--               'frame' for the entire frame.
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
 --               'text' for text (StatusBar.Txt).
 -- Attr         Type of attribute being applied to object:
+--               'alpha'     Alpha setting for the frame.
 --               'color'     Color being set to the object.
 --               'size'      Size being set to the object.
 --               'padding'   Amount of padding set to the object.

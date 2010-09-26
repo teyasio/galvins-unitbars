@@ -150,9 +150,12 @@ GUB.UnitBars = {}
 --                        ShowAlways       The unitbar will be shown all the time.
 --                        ShowActive       Show the unitbar if there is activity.
 --                        HideNoCombat     Don't hide the unitbar when not in combat.
+-- General
+--   Alpha              100 means the bar is completely visible, 0 would make it invisible.
 --
 -- UnitBars health and power fields
---   TextType           What type of numeric text to display.
+--   General
+--     TextType         What type of numeric text to display.
 --                        'none'     No value gets displayed.
 --                        'whole'    Value gets displayed as a Whole number.
 --                        'percent'  Value gets displayed as a percentage.
@@ -175,22 +178,25 @@ GUB.UnitBars = {}
 
 --
 -- Runebar fields
---   BarModeAngle         Angle in degrees in which way the bar will be displayed.  Only works in barmode.
+--   General
+--     BarModeAngle       Angle in degrees in which way the bar will be displayed.  Only works in barmode.
 --                        Must be a multiple of 45 degrees and not 360.
---   BarMode              If true the runes are displayed from left to right forming a bar of runes.
---   RuneSwap             If true runes can be dragged and drop to swap positions. Otherwise
+--     BarMode            If true the runes are displayed from left to right forming a bar of runes.
+--     RuneSwap           If true runes can be dragged and drop to swap positions. Otherwise
 --                        nothing happens when a rune is dropped on another rune.
---   CooldownDrawEdge     If true a line is drawn on the clock face cooldown animation.
---   HideCooldownFlash    If true a flash cooldown animation is not shown when a rune comes off cooldown.
---   RuneSize             Width and Hight of all the runes.
---   RunePadding          For barmode only, the amount of space between the runes.
+--     CooldownDrawEdge   If true a line is drawn on the clock face cooldown animation.
+--     HideCooldownFlash  If true a flash cooldown animation is not shown when a rune comes off cooldown.
+--     RuneSize           Width and Hight of all the runes.
+--     RunePadding        For barmode only, the amount of space between the runes.
+--
 --   RuneBarOrder         The order the runes are displayed from left to right in barmode.
 --                        RuneBarOrder[Rune slot 1 to 6] = The rune frame on screen.
 --   RuneLocation         Contains the x, y location of the runes on screen when not in barmode.
 --
 -- Combobar fields
---   ComboPadding         The amount of space in pixels between each combo point box.
---   ComboAngle           Angle in degrees in which way the bar will be displayed.
+--   General
+--     ComboPadding       The amount of space in pixels between each combo point box.
+--     ComboAngle         Angle in degrees in which way the bar will be displayed.
 --                        Must be a multiple of 45 degrees and not 360.
 --   ComboColorAll        If true then all the combo boxes are set to one color.
 --                        if false then each combo box can be set a different color.
@@ -223,7 +229,6 @@ local UnitBarRefresh = nil
 local UnitBarsParent = nil
 local UnitBars = nil
 local UnitBarsF = {}
-
 local BgTexture = 'Blizzard Tooltip'
 local BdTexture = 'Blizzard Tooltip'
 local StatusBarTexture = 'Blizzard'
@@ -279,7 +284,9 @@ local Defaults = {
         ShowActive    = false,
         HideNoCombat  = false
       },
-      TextType = 'percent',
+      General = {
+        TextType = 'percent',
+      },
       Background = {
         BackdropSettings = {
           BgTexture = BgTexture,
@@ -321,7 +328,9 @@ local Defaults = {
         ShowActive    = false,
         HideNoCombat  = false
       },
-      TextType = 'percent',
+      General = {
+        TextType = 'percent',
+      },
       Background = {
         BackdropSettings = {
           BgTexture = BgTexture,
@@ -362,7 +371,9 @@ local Defaults = {
         ShowActive    = false,
         HideNoCombat  = false
       },
-      TextType = 'percent',
+      General = {
+        TextType = 'percent',
+      },
       Background = {
         BackdropSettings = {
           BgTexture = BgTexture,
@@ -404,7 +415,9 @@ local Defaults = {
         ShowActive    = false,
         HideNoCombat  = false
       },
-      TextType = 'percent',
+      General = {
+        TextType = 'percent',
+      },
       Background = {
         BackdropSettings = {
           BgTexture = BgTexture,
@@ -445,7 +458,9 @@ local Defaults = {
         ShowActive    = false,
         HideNoCombat  = false
       },
-      TextType = 'percent',
+      General = {
+        TextType = 'percent',
+      },
       Background = {
         BackdropSettings = {
           BgTexture = BgTexture,
@@ -486,13 +501,15 @@ local Defaults = {
         ShowActive    = false,
         HideNoCombat  = false
       },
-      BarModeAngle = 90,
-      BarMode = true,  -- Must be true for default or no default rune positions get created.
-      CooldownDrawEdge = false,
-      HideCooldownFlash = true,
-      RuneSize = 22,
-      RuneSwap = true,
-      RunePadding = 0,
+      General = {
+        BarModeAngle = 90,
+        BarMode = true,  -- Must be true for default or no default rune positions gets created.
+        CooldownDrawEdge = false,
+        HideCooldownFlash = true,
+        RuneSize = 22,
+        RuneSwap = true,
+        RunePadding = 0,
+      },
       RuneBarOrder = {[1] = 1, [2] = 2, [3] = 5, [4] = 6, [5] = 3, [6] = 4},
       RuneLocation = {[1] = {}, [2] = {}, [3] = {}, [4] = {}, [5] = {}, [6] = {}},
     },
@@ -508,8 +525,10 @@ local Defaults = {
         ShowActive    = true,
         HideNoCombat  = false
       },
-      ComboAngle = 90,
-      ComboPadding = 5,
+      General = {
+        ComboAngle = 90,
+        ComboPadding = 5,
+      },
       ComboColorAll = false,
       Background = {
         BackdropSettings = {
@@ -589,7 +608,6 @@ local function UnitBarsRegisterEvents()
 end
 
 local function UnitBarsUnregisterEvents()
-  print('unregister events')
   GUB:UnregisterEvent('UNIT_HEALTH')
   GUB:UnregisterEvent('UNIT_MAXHEALTH')
   GUB:UnregisterEvent('UNIT_RAGE')
@@ -674,7 +692,6 @@ function GUB.UnitBars:CopyTableValues(Source, Dest)
 
     -- Check to see if key exists in destination before setting value
     elseif Dest[k] then
-      print(k, v)
       Dest[k] = v
     end
   end
@@ -831,10 +848,11 @@ local function HideUnitBar(UnitBarF, HideBar)
 
       -- Fade the unitbar out then hide it.
       -- Set fadeout frames to hide them selves after they fade out.
-      FadeOut:SetScript('OnFinished', function(self)
+     FadeOut:SetScript('OnFinished', function(self)
                                         self:GetParent():Hide()
                                         self:SetScript('OnFinished', nil)
                                       end)
+
       FadeOut:Play()
     else
       UnitBarF.Anchor:Hide()
@@ -1421,7 +1439,10 @@ local function CreateUnitBars(UnitBarDB)
 
         -- Set the animation group values.
         FadeOut:SetLooping('NONE')
+        FadeOutA:SetSmoothing('OUT')
+
         FadeOutA:SetChange(-1)
+        FadeOutA:SetOrder(1)
 
         -- Save the animation and border to the unitbar frame.
         UnitBarF.FadeOut = FadeOut
