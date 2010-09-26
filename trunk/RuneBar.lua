@@ -148,7 +148,7 @@ local function SwapRunes(UnitBarF, Rune1, Rune2)
   local RuneId2 = Rune2.RuneId
 
   -- Only swap the rune order in barmode.
-  if UnitBarF.UnitBar.BarMode then
+  if UnitBarF.UnitBar.General.BarMode then
 
     -- Find the runes first.
     for RuneIndex, Rune in ipairs(RuneBarOrder) do
@@ -207,7 +207,7 @@ local function RuneTrackerOnResize(self, Width, Height)
   local DragRune = self:GetParent()
 
   -- Do nothing if runeswap is not turned on
-  if not DragRune.UnitBarF.UnitBar.RuneSwap then
+  if not DragRune.UnitBarF.UnitBar.General.RuneSwap then
     return
   end
   local RuneF = DragRune.UnitBarF.RuneF
@@ -297,7 +297,7 @@ local function RuneBarStopMoving(self, Button)
       SwapRunes(UnitBarF, self, RuneF)
 
     -- Move the rune if we're not in bar mode.
-    elseif not UnitBarF.UnitBar.BarMode then
+    elseif not UnitBarF.UnitBar.General.BarMode then
       self.RuneLocation.x, self.RuneLocation.y = GUB.UnitBars:RestoreRelativePoints(self)
     end
 
@@ -379,7 +379,7 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
 
         -- Start an onupdate to stop the flash cooldown animation
         -- if HideCooldownFlash is set to true.
-        if self.UnitBar.HideCooldownFlash then
+        if self.UnitBar.General.HideCooldownFlash then
           RuneF:SetScript('OnUpdate' , RuneStopFlashOnUpdate)
         end
       end
@@ -457,19 +457,21 @@ function GUB.RuneBar:SetRuneBarLayout(UnitBarF)
 
   -- Get the unitbar data.
   local UB = UnitBarF.UnitBar
+  local Gen = UB.General
 
   local RuneF = UnitBarF.RuneF
 
-  local BarMode = UB.BarMode
+  local BarMode = Gen.BarMode
+  local Padding = Gen.RunePadding
+  local RuneSize = Gen.RuneSize
+  local DrawEdge = Gen.CooldownDrawEdge
+
   local RuneLocation = UB.RuneLocation
-  local Padding = UB.RunePadding
-  local RuneSize = UB.RuneSize
-  local DrawEdge = UB.CooldownDrawEdge
   local x = 0
   local y = 0
 
   -- Get the offsets based on angle.
-  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(RuneSize + Padding, RuneSize + Padding, UB.BarModeAngle)
+  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(RuneSize + Padding, RuneSize + Padding, Gen.BarModeAngle)
 
   -- Set up the rune positions
   for _, Rune in ipairs(UB.RuneBarOrder) do
