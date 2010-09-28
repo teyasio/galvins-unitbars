@@ -168,8 +168,7 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   SetStatusBarValue(self.StatusBar, CurrValue, MaxValue)
 
   -- Set the IsActive flag.
-  local IsActive = CurrValue < MaxValue
-  self.IsActive = IsActive
+  self.IsActive = CurrValue < MaxValue
 
   -- Do a status check for active status.
   self:StatusCheck()
@@ -452,4 +451,3 @@ function GUB.HapBar:CreateHapBar(UnitBarF, Anchor)
   UnitBarF.Border = Border
   UnitBarF.StatusBar = StatusBar
 end
-
