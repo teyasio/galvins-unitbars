@@ -148,7 +148,7 @@ GUB.UnitBars = {}
 --                        HideWhenDead     Hide the unitbar when the player is dead.
 --                        HideInVehicle    Hide the unitbar if a vehicle.
 --                        ShowAlways       The unitbar will be shown all the time.
---                        ShowActive       Show the unitbar if there is activity.
+--                        HideNotActive    Hide the unitbar if its not active.
 --                        HideNoCombat     Don't hide the unitbar when not in combat.
 -- General
 --   Alpha              100 means the bar is completely visible, 0 would make it invisible.
@@ -281,7 +281,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
-        ShowActive    = false,
+        HideNotActive = false,
         HideNoCombat  = false
       },
       General = {
@@ -325,7 +325,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
-        ShowActive    = false,
+        HideNotActive = false,
         HideNoCombat  = false
       },
       General = {
@@ -368,7 +368,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
-        ShowActive    = false,
+        HideNotActive = false,
         HideNoCombat  = false
       },
       General = {
@@ -412,7 +412,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
-        ShowActive    = false,
+        HideNotActive = false,
         HideNoCombat  = false
       },
       General = {
@@ -455,7 +455,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
-        ShowActive    = false,
+        HideNotActive = false,
         HideNoCombat  = false
       },
       General = {
@@ -498,7 +498,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
-        ShowActive    = false,
+        HideNotActive = false,
         HideNoCombat  = false
       },
       General = {
@@ -522,7 +522,7 @@ local Defaults = {
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = false,
-        ShowActive    = true,
+        HideNotActive = true,
         HideNoCombat  = false
       },
       General = {
@@ -579,8 +579,7 @@ local CheckEvent = {
   UNIT_ENERGY = 3, UNIT_MAXENERGY = 3,
   UNIT_RUNIC_POWER = 6, UNIT_RUNIC_POWER = 6,
   RUNE_POWER_UPDATE = 'runepower', RUNE_TYPE_UPDATE = 'runetype',
-  UNIT_COMBO_POINTS = 'combo',
-  PLAYER_TARGET_CHANGED = 'targetchanged'
+  UNIT_COMBO_POINTS = 'combo'
 }
 
 -- Share tables with the whole addon.
@@ -1106,8 +1105,8 @@ local function StatusCheckShowHide(UnitBarF)
     elseif Status.ShowAlways then
       ShowUnitBar = true
 
-    -- Get the active status based on ShowActive when not in combat.
-    elseif not InCombat and Status.ShowActive then
+    -- Get the idle status based on HideNotActive when not in combat.
+    elseif not InCombat and Status.HideNotActive then
       ShowUnitBar = UnitBarF.IsActive
 
     -- Hide if not in combat with the HideNoCombat status.
@@ -1388,7 +1387,7 @@ local function SetUnitBarsLayout()
     end
 
     -- Set the IsActive flag to true.
-    UnitBarF.IsActive = true
+    UnitBarF.IsActive = false
 
     -- Disable the unitbar.
     UnitBarF.Enabled = false
@@ -1678,7 +1677,9 @@ function GUB:OnInitialize()
   -- Create the unitbars.
   CreateUnitBars()
 
+--@debug@
   GUBfdata = UnitBarsF -- debugging 00000000000000000000000000000000000
+--@end-debug@
 end
 
 -------------------------------------------------------------------------------
@@ -1707,8 +1708,10 @@ function GUB:OnEnable()
   -- Set the unitbars status and show the unitbars.
   GUB:UnitBarsUpdateStatus()
 
-    GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+--@debug@
+  GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
   GUBdata = UnitBars
+--@end-debug@
 end
 
 function GUB:OnDisable()

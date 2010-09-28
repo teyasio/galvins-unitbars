@@ -25,7 +25,7 @@ bars, The only flag it can't override is never show.
    Hide when Dead     Hide the bar when the player is dead.
    Hide in Vehicle    Hide the bar if a vehicle.
    Show Always        The bar will be shown all the time.
-   Show when Active   Show the bar if there is activity.
+   Hide not Active    Hide the bar when it's not active.
    Hide no Combat     Don't hide the bar when not in combat.
 
 * Copy Settings
@@ -49,19 +49,19 @@ padding happens is based on the location of the bars relative to the bar you're 
 
 For example you have a health, rage, and target health bar.  You want all three to be perfectly lined up with 
 each other.  So if the rage bar is the bar you want first, then health second, and target health third.  First 
-you move the rage bar in the exact spot you want the other two bars to be lined up with.  It doesn't matter where 
-the other two bars are as long as the health bar is above the other two.  Horizontal position is not important.
+you move the health bar in the exact spot you want the other two bars to be lined up with.  It doesn't matter where 
+the other two bars are as long as the rage bar is above or below the other two.  Horizontal position is not important.
 
-Once that is done go to tools then align.  Pick the player power since this contains your rage if you're a warrior.
+Once that is done go to tools then align.  Pick player power since this contains your rage if you're a warrior.
 Next pick the two other bars from the list below.  So you would check off player health and target health.
 Since we want our bars to be perfectly spaced apart vertically we'll enable vertical padding.  Then use the
-slider to pick how much padding you want.  Also since we want our bars to be lined up their right side we need
-to choose 'right' from the alignment drop down menu.  After that click align.  You should instantly see the tree
+slider to pick how much padding you want.  Also since we want our bars to be lined up by their right side we need
+to choose 'right' from the alignment drop down menu.  After that click align.  You should instantly see the three
 bars all lined up vertically by their right side.
 
-Once the align is clicked the tool going into a real time mode. What this allows you to do is change the alignment
-left or right or change the padding without having to click align each time.  But if you change the bars or primary
-bar to align with you'll need to click again .
+Once align is clicked the tool will go into a real time mode. What this allows you to do is change the alignment
+left or right or change the padding without having to click align each time.  But if you change the bars or the 
+primary bar to align with you'll need to click align again.
 
 
 * Profiles

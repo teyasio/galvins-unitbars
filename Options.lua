@@ -228,6 +228,7 @@ local function CreateSlashOptions()
                  if MainOptionsFrame:IsVisible() then
                    GUB:Print('Must close blizzard options first')
                  else
+
                    -- Open a movable options frame.
                    LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
                  end
@@ -1151,11 +1152,11 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             order = 4,
             desc = 'Bar will always be shown',
           },
-          ShowActive = {
+          HideNotActive = {
             type = 'toggle',
-            name = 'Show when Active',
+            name = 'Hide not Active',
             order = 5,
-            desc = 'Bar will be shown if there is activty in it',
+            desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
           },
           HideNoCombat = {
             type = 'toggle',
@@ -1494,7 +1495,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
   local AlignOptions = {
     type = 'group',
     name = Name,
-    desc = 'Align one or more unitbars with another',
+    desc = 'Align one or more bars with another',
     order = Order,
     args = {
       AlignmentBar = {
