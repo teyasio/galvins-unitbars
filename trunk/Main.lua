@@ -17,7 +17,7 @@ LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 -- Setup shared media and LibBackdrop
 -------------------------------------------------------------------------------
 local LSM = LibStub('LibSharedMedia-3.0')
-local CataVersion400 = select(4,GetBuildInfo()) >= 40000
+local CataVersion = select(4,GetBuildInfo()) >= 40000
 
 GUB.UnitBars = {}
 
@@ -224,6 +224,12 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --     RuneSize           Width and Hight of all the runes.
 --     RunePadding        For barmode only, the amount of space between the runes.
 --
+--   Text
+--     ColorAll           If true then all the combo boxes are set to one color.
+--                        if false then each combo box can be set a different color.
+--     FontSettings       Contains the settings for the text.
+--     Color              Current color of the text for the bar.
+--
 --   RuneBarOrder         The order the runes are displayed from left to right in barmode.
 --                        RuneBarOrder[Rune slot 1 to 6] = The rune frame on screen.
 --   RuneLocation         Contains the x, y location of the runes on screen when not in barmode.
@@ -233,14 +239,16 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --     ComboPadding       The amount of space in pixels between each combo point box.
 --     ComboAngle         Angle in degrees in which way the bar will be displayed.
 --                        Must be a multiple of 45 degrees and not 360.
---   ColorAll             If true then all the combo boxes are set to one color.
---                        if false then each combo box can be set a different color.
 --   Background
+--     ColorAll           If true then all the combo boxes are set to one color.
+--                        if false then each combo box can be set a different color.
 --     BackdropSettings   Contains the settings for background, forground, and padding for each combo point box.
 --     Color              Contains just one background color for all the combo point boxes.
 --                        Only works when ComboColorAll is true.
 --     Color[1 to 5]      Contains the background colors of all the combo point boxes.
 --   Bar
+--     ColorAll           If true then all the combo boxes are set to one color.
+--                        if false then each combo box can be set a different color.
 --     ComboWidth         The width of each combo point box.
 --     ComboHeight        The height of each combo point box.
 --     Padding            Amount of padding on the forground of each combo point box.
@@ -598,8 +606,8 @@ local Defaults = {
       Other = {
         Scale = 1,
       },
-      ColorAll = false,
       Text = {
+        ColorAll = false,
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
@@ -643,8 +651,8 @@ local Defaults = {
       Other = {
         Scale = 1,
       },
-      ColorAll = false,
       Background = {
+        ColorAll = false,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -663,6 +671,7 @@ local Defaults = {
         },
       },
       Bar = {
+        ColorAll = false,
         ComboWidth = 40,
         ComboHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -765,7 +774,7 @@ GUB.UnitBars.MouseOverDesc = 'Modifier + left mouse button to drag'
 -- Register and unregister event functions.
 -------------------------------------------------------------------------------
 local function RegisterEvents()
-  if not CataVersion400 then
+  if not CataVersion then
     GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_RAGE', 'UnitBarsUpdate')
@@ -786,7 +795,7 @@ local function RegisterEvents()
 end
 
 local function UnregisterEvents()
-  if not CataVersion400 then
+  if not CataVersion then
     GUB:UnregisterEvent('UNIT_HEALTH')
     GUB:UnregisterEvent('UNIT_MAXHEALTH')
     GUB:UnregisterEvent('UNIT_RAGE')
@@ -1140,7 +1149,7 @@ function GUB:UnitBarsUpdate(Event, ...)
   UnitBarRefresh = 4.0
 
   -- Convert event if not using WoW 4.0
-  if not CataVersion400 then
+  if not CataVersion then
     local PowerEvent = ConvertEvent[Event]
     if PowerEvent then
       UpdateUnitBars(PowerEvent, select(1, ...), EventToPowerType[Event])

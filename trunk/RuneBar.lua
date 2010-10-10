@@ -533,7 +533,7 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
-  local ColorAll = UB.ColorAll
+  local Text = UB.Text
 
   -- Frame.
   if Object == nil or Object == 'frame' then
@@ -542,7 +542,7 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
     end
   end
 
-  local FontSettings = UB.Text.FontSettings
+  local FontSettings = Text.FontSettings
   for _, RF in pairs(self.RuneF) do
     local RuneId = RF.RuneId
 
@@ -557,10 +557,10 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
         local TextColor = nil
 
         -- Get all color if ColorAll is true.
-        if ColorAll then
-          TextColor = UB.Text.Color
+        if Text.ColorAll then
+          TextColor = Text.Color
         else
-          TextColor = UB.Text.Color[RuneId]
+          TextColor = Text.Color[RuneId]
         end
         Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
       end

@@ -234,7 +234,9 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
-  local ColorAll = UB.ColorAll
+  local Background = UB.Background
+  local Bar = UB.Bar
+  local Padding = Bar.Padding
 
   -- Frame.
   if Object == nil or Object == 'frame' then
@@ -251,14 +253,14 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
       local BgColor = nil
 
       -- Get all color if ColorAll is true.
-      if ColorAll then
-        BgColor = UB.Background.Color
+      if Background.ColorAll then
+        BgColor = Background.Color
       else
-        BgColor = UB.Background.Color[ComboIndex]
+        BgColor = Background.Color[ComboIndex]
       end
 
       if Attr == nil or Attr == 'backdrop' then
-        Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+        Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(Background.BackdropSettings))
         Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
       if Attr == nil or Attr == 'color' then
@@ -268,11 +270,8 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
 
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
-      local StatusBar = CF.StatusBar
       local Border = CF.Border
-
-      local Bar = UB.Bar
-      local Padding = Bar.Padding
+      local StatusBar = CF.StatusBar
 
       if Attr == nil or Attr == 'texture' then
         StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
@@ -285,7 +284,7 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
         local BarColor = nil
 
         -- Get all color if ColorAll is true.
-        if ColorAll then
+        if Bar.ColorAll then
           BarColor = Bar.Color
         else
           BarColor = Bar.Color[ComboIndex]
