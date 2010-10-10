@@ -10,10 +10,23 @@ local MyAddon, GUB = ...
 
 GUB.ComboBar = {}
 
--- shared tables from Main.lua
-local CheckEvent = GUB.UnitBars.CheckEvent
-local UnitBarsF = GUB.UnitBars.UnitBarsF
+-- shared from Main.lua
 local LSM = GUB.UnitBars.LSM
+local CheckEvent = GUB.UnitBars.CheckEvent
+local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+
+-- localize some globals.
+local _
+local abs, floor, pairs, ipairs, type, math, table, select =
+      abs, floor, pairs, ipairs, type, math, table, select
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -21,12 +34,20 @@ local LSM = GUB.UnitBars.LSM
 -- UnitBarF = UnitBarsF[]
 --
 -- UnitBarF.UnitBar          Reference to the unitbar data for the combobar.
--- UnitBarF.ComboF           Reference to ComboF.
+-- UnitBarF.OffsetFrame      Offset frame this is a parent of ComboF[]
+--                           This is used for rotation offset in SetComboBarLayout()
+-- UnitBarF.ColorAllNames[]  List of names to be used in the color all options panel.
+-- UnitBarF.ComboF[]         Array of combo points from 1 to 5. This also
+--                           contains the frame of the combo point.
+--
 -- UnitBarF.ComboPoints      The number of combo points last displayed.
 --
--- ComboF                    Array of combo points from 1 to 5
--- ComboF[ComboPoint].Anchor
+-- ComboF[Combo].Anchor
 --                           Reference to unitbar anchor for moving.
+-- ComboF[Combo].Border      Border frame for each combo point.
+-- ComboF[Combo].StatusBar   Statusbar for each combo point.
+-- Border.TooltipName        Tooltip text to display for mouse over when bars are unlocked.
+-- Border.TooltipDesc        Description under the name for mouse over.
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
 
@@ -115,15 +136,14 @@ function GUB.ComboBar:UpdateComboBar(Event)
     return
   end
 
-  -- Set this IsActive flag
-  local IsActive = ComboPoints > 0
-  self.IsActive = IsActive
-
   -- Save the current number of combo points.
   self.ComboPoints = ComboPoints
 
   -- Display the combo points
   RefreshComboBar(self.ComboF)
+
+  -- Set this IsActive flag
+  self.IsActive = ComboPoints > 0
 
   -- Do a status check for active status.
   self:StatusCheck()
@@ -198,11 +218,13 @@ end
 -- Object       Object being changed:
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
+--               'frame' for the frame.
 -- Attr         Type of attribute being applied to object:
 --               'color'   Color being set to the object.
 --               'size'    Size being set to the object.
 --               'padding' Amount of padding set to the object.
 --               'texture' One or more textures set to the object.
+--               'scale'   Scale settings being set to the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -212,7 +234,14 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
-  local ComboColorAll = UB.ComboColorAll
+  local ColorAll = UB.ColorAll
+
+  -- Frame.
+  if Object == nil or Object == 'frame' then
+    if Attr == nil or Attr == 'scale' then
+      self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+  end
 
   for ComboIndex, CF in ipairs(self.ComboF) do
 
@@ -221,8 +250,8 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
       local Border = CF.Border
       local BgColor = nil
 
-      -- Get all color if ComboColorAll is true.
-      if ComboColorAll then
+      -- Get all color if ColorAll is true.
+      if ColorAll then
         BgColor = UB.Background.Color
       else
         BgColor = UB.Background.Color[ComboIndex]
@@ -249,12 +278,14 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
         StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
         StatusBar:GetStatusBarTexture():SetHorizTile(false)
         StatusBar:GetStatusBarTexture():SetVertTile(false)
+        StatusBar:SetOrientation(Bar.FillDirection)
+        StatusBar:SetRotatesTexture(Bar.RotateTexture)
       end
       if Attr == nil or Attr == 'color' then
         local BarColor = nil
 
-        -- Get all color if ComboColorAll is true.
-        if ComboColorAll then
+        -- Get all color if ColorAll is true.
+        if ColorAll then
           BarColor = Bar.Color
         else
           BarColor = Bar.Color[ComboIndex]
@@ -292,19 +323,19 @@ function GUB.ComboBar:SetComboBarLayout(UnitBarF)
   local ComboWidth = UB.Bar.ComboWidth
   local ComboHeight = UB.Bar.ComboHeight
   local Padding = Gen.ComboPadding
+  local Angle = Gen.ComboAngle
   local x = 0
   local y = 0
+  local BorderWidth = 0
+  local BorderHeight = 0
+  local OffsetFX = 0
+  local OffsetFY = 0
 
   -- Get the offsets based on angle.
-  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(ComboWidth + Padding, ComboHeight + Padding, Gen.ComboAngle)
+  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(ComboWidth + Padding, ComboHeight + Padding, Angle)
 
   -- Set up the combo point positions.
   for ComboIndex, CF in ipairs(UnitBarF.ComboF) do
-
-    -- Set the location of the combo box.
-    local Border = CF.Border
-    Border:ClearAllPoints()
-    Border:SetPoint('TOPLEFT', x, y)
 
     -- Set the combo box min/max values
     local StatusBar = CF.StatusBar
@@ -312,69 +343,110 @@ function GUB.ComboBar:SetComboBarLayout(UnitBarF)
     StatusBar:SetMinMaxValues(0, 1)
     StatusBar:SetValue(0)
 
-    x = x + XOffset
-    y = y + YOffset
+    -- Calculate the x and y location before setting the location if angle is > 180.
+    if Angle > 180 and ComboIndex > 1 then
+      x = x + XOffset
+      y = y + YOffset
+    end
+
+    -- Set the location of the combo box.
+    local Border = CF.Border
+    Border:ClearAllPoints()
+    Border:SetPoint('TOPLEFT', x, y)
+
+    -- Calculate the border width
+    if XOffset ~= 0 then
+      BorderWidth = BorderWidth + abs(XOffset)
+      if ComboIndex == 1 then
+        BorderWidth = BorderWidth - Padding
+      end
+    else
+      BorderWidth = ComboWidth
+    end
+
+    -- Calculate the border height.
+    if YOffset ~= 0 then
+      BorderHeight = BorderHeight + abs(YOffset)
+      if ComboIndex == 1 then
+        BorderHeight = BorderHeight - Padding
+      end
+    else
+      BorderHeight = ComboHeight
+    end
+
+    -- Get the x y for the frame offset.
+    if x < 0 then
+      OffsetFX = abs(x)
+    end
+    if y > 0 then
+      OffsetFY = -y
+    end
+
+    -- Calculate the x and y location after setting location if angle <= 180.
+    if Angle <= 180 then
+      x = x + XOffset
+      y = y + YOffset
+    end
   end
+
+  -- Set the x, y location off the offset frame.
+  local OffsetFrame = UnitBarF.OffsetFrame
+  OffsetFrame:ClearAllPoints()
+  OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
+  OffsetFrame:SetWidth(1)
+  OffsetFrame:SetHeight(1)
 
   -- Set the attributes for the combobar
   UnitBarF:SetAttr(nil, nil)
 
-  -- Save size data to UnitBarF.
-  UnitBarF.Width = (ComboWidth + Padding) * MaxComboPoints - Padding
-  UnitBarF.Height = ComboHeight
-
   -- Update combo points
   RefreshComboBar(UnitBarF.ComboF)
-end
 
--------------------------------------------------------------------------------
--- CreateComboFrame
---
--- Usage: ComboF = CreateComboFrame(Parent)
---
--- Anchor       The Unitbars anchor frame.
--- ComboF       Combo frame.
--------------------------------------------------------------------------------
-local function CreateComboFrame(Anchor)
-  local ComboF = {}
-
-  local Border = CreateFrame('Frame', nil, Anchor)
-  local StatusBar = CreateFrame('StatusBar', nil, Border)
-
-  -- Make the border frame top when clicked.
-  Border:SetToplevel(true)
-
-  -- Save a reference to the anchor for moving.
-  Border.Anchor = Anchor
-
-  -- Save the frames.
-  ComboF.Border = Border
-  ComboF.StatusBar = StatusBar
-
-  return ComboF
+  -- Save size data to UnitBarF.
+  UnitBarF.Width = BorderWidth
+  UnitBarF.Height = BorderHeight
 end
 
 -------------------------------------------------------------------------------
 -- CreateComboBar
 --
--- Usage: GUB.ComboBar:CreateComboBar(UnitBarF, Anchor)
+-- Usage: GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the combo bar.
+-- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
---
--- CB           Combo bar frame.
+-- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:CreateComboBar(UnitBarF, Anchor)
+function GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
 
-  -- Save a reference to the parent frame for readability.
+  -- Create the offset frame.
+  local OffsetFrame = CreateFrame('Frame', nil, ScaleFrame)
+
+  local ColorAllNames = {}
   local ComboF = {}
-  local CF = nil
 
   for ComboPoint = 1, MaxComboPoints do
-    local CF = CreateComboFrame(Anchor)
+    local CF = {}
 
-    -- Save the name for tooltips.
-    CF.Border.Name = strconcat('Combo ', ComboPoint)
+    local Border = CreateFrame('Frame', nil, OffsetFrame)
+
+    local StatusBar = CreateFrame('StatusBar', nil, Border)
+
+    -- Make the border frame top when clicked.
+    Border:SetToplevel(true)
+
+    -- Save a reference to the anchor for moving.
+    Border.Anchor = Anchor
+
+    -- Save the frames.
+    CF.Border = Border
+    CF.StatusBar = StatusBar
+
+    -- Save the text for tooltips/options.
+    local Name = strconcat('Combo ', ComboPoint)
+    CF.Border.TooltipName = Name
+    CF.Border.TooltipDesc = MouseOverDesc
+    ColorAllNames[ComboPoint] = Name
 
     -- Save a reference to the unitbar anchor for moving.
     CF.Anchor = Anchor
@@ -382,7 +454,10 @@ function GUB.ComboBar:CreateComboBar(UnitBarF, Anchor)
     ComboF[ComboPoint] = CF
   end
 
+  -- Save the color all names.
+  UnitBarF.ColorAllNames = ColorAllNames
 
-  -- Save a reference to ComboF.
+  -- Save the offset frame and Combo frame.
+  UnitBarF.OffsetFrame = OffsetFrame
   UnitBarF.ComboF = ComboF
 end

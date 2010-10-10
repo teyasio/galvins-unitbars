@@ -10,8 +10,8 @@ local MyAddon, GUB = ...
 
 GUB.Options = {}
 
-local UnitBarsF = GUB.UnitBars.UnitBarsF
 local LSM = GUB.UnitBars.LSM
+local UnitBarsF = GUB.UnitBars.UnitBarsF
 local Defaults = GUB.UnitBars.Defaults
 local HelpText = GUB.Help.HelpText
 
@@ -41,16 +41,10 @@ local AddonOptionsName = MyAddon .. 'options'
 local AddonProfileName = MyAddon .. 'profile'
 local AddonSlashName = MyAddon .. 'slash'
 
--- Powertype constants
-local PowerMana = 0
-local PowerRage = 1
-local PowerFocus = 2
-local PowerEnergy = 3
-local PowerRunic = 6
-
 local MainOptionsFrame = nil
 local ProfileFrame = nil
 
+local SlashOptions = nil
 local MainOptions = nil
 local ProfileOptions = nil
 
@@ -58,50 +52,62 @@ local UnitBars = nil
 local PlayerClass = nil
 local PlayerPowerType = nil
 
-local FontOffsetXMin = -100
-local FontOffsetXMax = 100
-local FontOffsetYMin = -50
-local FontOffsetYMax = 50
-
+local FontOffsetXMin = -150
+local FontOffsetXMax = 150
+local FontOffsetYMin = -150
+local FontOffsetYMax = 150
 local FontShadowOffsetMin = 0
 local FontShadowOffsetMax = 10
 
 local UnitBarPaddingMin = -20
 local UnitBarPaddingMax = 20
-
+local UnitBarBgTileSizeMin = 1
+local UnitBarBgTileSizeMax = 100
 local UnitBarBorderSizeMin = 2
 local UnitBarBorderSizeMax = 32
-
 local UnitBarFontSizeMin = 6
-local UnitBarFontSizeMax = 24
+local UnitBarFontSizeMax = 64
+local UnitBarFontFieldWidthMin = 20
+local UnitBarFontFieldWidthMax = 400
+local UnitBarScaleMin = 0.10
+local UnitBarScaleMax = 4
 
 local HapBarWidthMin = 10
 local HapBarWidthMax = 500
 local HapBarHeightMin = 10
-local HapBarHeightMax = 100
+local HapBarHeightMax = 500
+local HapBarWidthSoftMax = 300
+local HapBarHeightSoftMax = 300
 
-local RuneBarAngleMin = 0
-local RuneBarAngleMax = 315
-
+local RuneBarAngleMin = 45
+local RuneBarAngleMax = 360
 local RuneBarSizeMin = 10
 local RuneBarSizeMax = 100
-
 local RuneBarPaddingMin = -10
 local RuneBarPaddingMax = 50
 
 local ComboBarPaddingMin = -10
 local ComboBarPaddingMax = 50
-
-local ComboBarAngleMin = 0
-local ComboBarAngleMax = 315
-
+local ComboBarAngleMin = 45
+local ComboBarAngleMax = 360
 local ComboBarWidthMin = 10
 local ComboBarWidthMax = 100
 local ComboBarHeightMin = 10
 local ComboBarHeightMax = 100
 
-local VerticalPaddingMin = -10
-local VerticalPaddingMax = 50
+local HolyBarSizeMin = 10
+local HolyBarSizeMax = 100
+local HolyBarScaleMin = 0.05
+local HolyBarScaleMax = 1.20
+local HolyBarPaddingMin = -50
+local HolyBarPaddingMax = 50
+local HolyBarFadeOutMin = 0
+local HolyBarFadeOutMax = 5
+local HolyBarAngleMin = 45
+local HolyBarAngleMax = 360
+
+local AlignmentPaddingMin = -10
+local AlignmentPaddingMax = 50
 
 local FontStyleDropdown = {
   NONE = "None",
@@ -118,11 +124,25 @@ local FontHAlignDropdown = {
   RIGHT = 'Right'
 }
 
+local FontPositionDropdown = {
+  LEFT = 'Left',
+  RIGHT = 'Right',
+  TOP = 'Top',
+  BOTTOM = 'Bottom',
+  TOPLEFT = 'Top Left',
+  TOPRIGHT = 'Top Right',
+  BOTTOMLEFT = 'Bottom Left',
+  BOTTOMRIGHT = 'Bottom Right',
+  CENTER = 'Center'
+}
+
 local TextTypeDropdown = {
   none = 'No value',
   percent = 'Percentage',
   max = 'Value / Max Value',
-  whole = 'Whole Number'
+  whole = 'Whole',
+  maxpercent = 'Max and Percentage',
+  wholepercent = 'Whole and Percentage'
 }
 
 local UnitBarsSelectDropdown = {
@@ -132,13 +152,32 @@ local UnitBarsSelectDropdown = {
   TargetPower = Defaults.profile.TargetPower.Name,
   MainPower = Defaults.profile.MainPower.Name,
   RuneBar = Defaults.profile.RuneBar.Name,
-  ComboBar = Defaults.profile.ComboBar.Name
+  ComboBar = Defaults.profile.ComboBar.Name,
+  HolyBar = Defaults.profile.HolyBar.Name
 }
 
-local AlignmentBarsDropdown = {
-  left = 'Left',
-  right = 'Right'
+local AlignBarsDropdown = {
+  horizontal = {
+    top = 'Top',
+    bottom = 'Bottom',
+  },
+  vertical = {
+    left = 'Left',
+    right = 'Right',
+  }
 }
+
+local AlignmentTypeDropdown = {
+  vertical = 'Vertical Alignment',
+  horizontal = 'Horizontal Alignment'
+}
+
+local BarFillDirectionDropdown = {
+  HORIZONTAL = 'Horizontal',
+  VERTICAL = 'Vertical'
+}
+
+--local BarTileDropdown = {
 
 --*****************************************************************************
 --
@@ -225,15 +264,18 @@ local function CreateSlashOptions()
         order = 2,
         desc = 'Opens a movable options frame',
         func = function()
-                 if MainOptionsFrame:IsVisible() then
-                   GUB:Print('Must close blizzard options first')
-                 else
 
-                   -- Open a movable options frame.
-                   LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
+                 -- Hide blizz blizz options if it's opened.
+                 if InterfaceOptionsFrame:IsVisible() then
+                   InterfaceOptionsFrame:Hide()
+
+                   -- Hide the UI panel behind blizz options.
+                  -- HideUIPanel(GameMenuFrame)
                  end
-               end,
 
+                 -- Open a movable options frame.
+                 LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
+               end,
       },
     },
   }
@@ -277,32 +319,42 @@ end
 end --]]
 
 -------------------------------------------------------------------------------
--- CreateComboBarColorsOptions
+-- CreateColorAllOptions
 --
--- Creates combo bar color options for background and bar.
+-- Creates all color options for background and bar. That support multiple colors.
 --
 -- Subfunction of CreateBackgroundOptions()
 -- Subfunction of CreateBarOptions()
 --
--- Usage: ComboOptions = (BarType, ColorTable, Order, Name)
+-- Usage: ColorAllOptions = (BarType, Object, MaxColors, Order, Name)
 --
 -- BarType       Type of options being created.
--- ColorTable    Table containing the color.
---                 Should be Background or Bar
+-- Object        Can be 'bg', 'bar', or 'text'
+-- MaxColors     Maximum number of colors can be 5 or 6.
 -- Order         Order number.
 -- Name          Name text
 --
--- ComboOptions  Options table for the Combobar.
+-- ColorAllOptions  Options table for the Combobar.
 -------------------------------------------------------------------------------
-local function CreateComboBarColorsOptions(BarType, ColorTable, Order, Name)
-  local ComboBarColorsOptions = {
+local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ...)
+  local ColorAllNames = UnitBarsF[BarType].ColorAllNames
+  local UnitBarTable = nil
+  if Object == 'bg' then
+    UnitBarTable = 'Background'
+  elseif Object == 'bar' then
+    UnitBarTable = 'Bar'
+  elseif Object == 'text' then
+    UnitBarTable = 'Text'
+  end
+
+  local ColorAllOptions = {
     type = 'group',
     name = Name,
     order = Order,
     dialogInline = true,
     get = function(Info)
-            -- Info.arg[1] = power color index.
-            local c = UnitBars[BarType][ColorTable].Color
+            -- Info.arg[1] = color index.
+            local c = UnitBars[BarType][UnitBarTable].Color
 
             if Info.arg[1] ~= 0 then
               c = c[Info.arg[1]]
@@ -310,101 +362,124 @@ local function CreateComboBarColorsOptions(BarType, ColorTable, Order, Name)
             return c.r, c.g, c.b, c.a
           end,
     set = function(Info, r, g, b, a)
-            local c = UnitBars[BarType][ColorTable].Color
+            local c = UnitBars[BarType][UnitBarTable].Color
 
             if Info.arg[1] ~= 0 then
               c = c[Info.arg[1]]
             end
             c.r, c.g, c.b, c.a = r, g, b, a
 
-            -- Set the color to the combo bar
-            UnitBarsF[BarType]:SetAttr(nil, 'color')
+            -- Set the color to the bar
+            UnitBarsF[BarType]:SetAttr(Object, 'color')
           end,
     args = {
-      ComboBarColorAllToggle = {
+      ColorAllToggle = {
         type = 'toggle',
         name = 'All',
         order = 1,
-        desc = 'If checked all boxes can be set with one color',
+        desc = 'If checked everything can be set to one color',
         get = function()
-                return UnitBars[BarType].ComboColorAll
+                return UnitBars[BarType].ColorAll
               end,
         set = function(Info, Value)
-                UnitBars[BarType].ComboColorAll = Value
+                UnitBars[BarType].ColorAll = Value
 
                 -- Refresh colors when changing between all and normal.
-                UnitBarsF[BarType]:SetAttr(nil, 'color')
+                UnitBarsF[BarType]:SetAttr(Object, 'color')
               end,
       },
-      ComboBarColorAll = {
+      ColorAll = {
         type = 'color',
         name = 'Color',
         order = 2,
         hasAlpha = true,
-        desc = 'Change the color of all the combo boxes',
+        desc = 'Set everything to one color',
         hidden = function()
-                   return not UnitBars[BarType].ComboColorAll
+                   return not UnitBars[BarType].ColorAll
                  end,
         arg = {0},
       },
-      ComboBarColor1 = {
+      Color1 = {
         type = 'color',
-        name = 'Combo 1',
-        order = 10,
+        name = function()
+                 return ColorAllNames[1]
+               end,
+        order = 3,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ComboColorAll
+                   return UnitBars[BarType].ColorAll
                  end,
         hasAlpha = true,
         arg = {1},
       },
-      ComboBarColor2 = {
+      Color2 = {
         type = 'color',
-        name = 'Combo 2',
-        order = 11,
+        name = function()
+                 return ColorAllNames[2]
+               end,
+        order = 4,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ComboColorAll
+                   return UnitBars[BarType].ColorAll
                  end,
         hasAlpha = true,
         arg = {2},
       },
-      ComboBarColor3 = {
+      Color3 = {
         type = 'color',
-        name = 'Combo 3',
-        order = 12,
+        name = function()
+                 return ColorAllNames[3]
+               end,
+        order = 5,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ComboColorAll
+                   return UnitBars[BarType].ColorAll
                  end,
         hasAlpha = true,
         arg = {3},
       },
-      ComboBarColor4 = {
+      Color4 = {
         type = 'color',
-        name = 'Combo 4',
-        order = 13,
+        name = function()
+                 return ColorAllNames[4]
+               end,
+        order = 6,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ComboColorAll
+                   return UnitBars[BarType].ColorAll
                  end,
         hasAlpha = true,
         arg = {4},
       },
-      ComboBarColor5 = {
+      Color5 = {
         type = 'color',
-        name = 'Combo 5',
-        order = 14,
+        name = function()
+                 return ColorAllNames[5]
+               end,
+        order = 7,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ComboColorAll
+                   return UnitBars[BarType].ColorAll
                  end,
         hasAlpha = true,
         arg = {5},
       },
+      Color6 = {
+        type = 'color',
+        name = function()
+                 return ColorAllNames[6]
+               end,
+        order = 8,
+        hasAlpha = true,
+        hidden = function()
+                   return MaxColors < 6 or UnitBars[BarType].ColorAll
+                 end,
+        hasAlpha = true,
+        arg = {6},
+      },
     },
   }
-  return ComboBarColorsOptions
+  return ColorAllOptions
 end
 
 -------------------------------------------------------------------------------
@@ -455,10 +530,26 @@ local function CreateBackgroundOptions(BarType, Order, Name)
             dialogControl = 'LSM30_Background',
             values = LSM:HashTable('background'),
           },
+          BdTile = {
+            type = 'toggle',
+            name = 'Tile Background',
+            order = 3,
+          },
+          BdTileSize = {
+            type = 'range',
+            name = 'Background Tile Size',
+            order = 4,
+            disabled = function()
+                         return not UnitBars[BarType].Background.BackdropSettings.BdTile
+                       end,
+            min = UnitBarBgTileSizeMin,
+            max = UnitBarBgTileSizeMax,
+            step = 1,
+          },
           BdSize = {
             type = 'range',
             name = 'Border Thickness',
-            order = 3,
+            order = 5,
             min = UnitBarBorderSizeMin,
             max = UnitBarBorderSizeMax,
             step = 2,
@@ -466,7 +557,7 @@ local function CreateBackgroundOptions(BarType, Order, Name)
           BgColor = {
             type = 'color',
             name = 'Background Color',
-            order = 4,
+            order = 6,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Background.Color
@@ -533,7 +624,7 @@ local function CreateBackgroundOptions(BarType, Order, Name)
   -- Remove the Background color options and add a Combo Color options for combobar only.
   if BarType == 'ComboBar' then
     BackgroundOptions.args.Textures.args.BgColor = nil
-    BackgroundOptions.args.ComboColors = CreateComboBarColorsOptions(BarType, 'Background', 2, 'Colors')
+    BackgroundOptions.args.ComboColors = CreateColorAllOptions(BarType, 'bg', 5, 2, 'Colors')
   end
 
   return BackgroundOptions
@@ -602,10 +693,25 @@ local function CreateTextOptions(BarType, Order, Name)
             max = UnitBarFontSizeMax,
             step = 1,
           },
+          Width = {
+            type = 'range',
+            name = 'Field Width',
+            order = 5,
+            min = UnitBarFontFieldWidthMin,
+            max = UnitBarFontFieldWidthMax,
+            step = 1,
+          },
+          Position = {
+            type = 'select',
+            name = 'Position',
+            order = 6,
+            style = 'dropdown',
+            values = FontPositionDropdown,
+          },
           TextColor = {
             type = 'color',
             name = 'Color',
-            order = 5,
+            order = 7,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Text.Color
@@ -623,7 +729,7 @@ local function CreateTextOptions(BarType, Order, Name)
         type = 'group',
         name = 'Offsets',
         dialogInline = true,
-        order = 2,
+        order = 3,
         get = function(Info)
                 return UnitBars[BarType].Text.FontSettings[Info[#Info]]
               end,
@@ -660,6 +766,13 @@ local function CreateTextOptions(BarType, Order, Name)
       },
     },
   }
+
+  -- Remove the text color options and add a text Color options for runebar only.
+  if BarType == 'RuneBar' then
+    TextOptions.args.Font.args.TextColor = nil
+    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 6, 2, 'Colors')
+  end
+
   return TextOptions
 end
 
@@ -738,19 +851,19 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
   -- Remove power color options based on class.
   if BarType == 'PlayerPower' or BarType == 'MainPower' then
     local PCO = PowerColorsOptions.args
-    if PlayerPowerType ~= PowerMana then
+    if PlayerPowerType ~= 'MANA' then
       PCO.ManaColor = nil
     end
-    if PlayerPowerType ~= PowerRage and PlayerClass ~= 'DRUID' then
+    if PlayerPowerType ~= 'RAGE' and PlayerClass ~= 'DRUID' then
       PCO.RageColor = nil
     end
-    if PlayerPowerType ~= PowerFocus then
+    if PlayerPowerType ~= 'FOCUS' then
       PCO.FocusColor = nil
     end
-    if PlayerPowerType ~= PowerEnergy and PlayerClass ~= 'DRUID' then
+    if PlayerPowerType ~= 'ENERGY' and PlayerClass ~= 'DRUID' then
       PCO.EnergyColor = nil
     end
-    if PlayerPowerType ~= PowerRunic then
+    if PlayerPowerType ~= 'RUNIC_POWER' then
       PCO.RunicColor = nil
     end
   end
@@ -793,7 +906,7 @@ local function CreateBarOptions(BarType, Order, Name)
                 if BarType == 'ComboBar' then
                   GUB.ComboBar:SetComboBarLayout(UnitBarsF.ComboBar)
                 else
-                  UnitBarsF[BarType]:SetAttr('bar', 'size')
+                  UnitBarsF[BarType]:SetAttr('bar', Info.arg[1])
                 end
               end,
         args = {
@@ -803,53 +916,63 @@ local function CreateBarOptions(BarType, Order, Name)
             order = 1,
             dialogControl = 'LSM30_Statusbar',
             values = LSM:HashTable('statusbar'),
-            get = function()
-                    return UnitBars[BarType].Bar.StatusBarTexture
-                  end,
-            set = function(Info, Value)
-                    UnitBars[BarType].Bar.StatusBarTexture = Value
-
-                    -- Update combo bar layout if its a combobar.
-                    if BarType == 'ComboBar' then
-                      GUB.ComboBar:SetComboBarLayout(UnitBarsF.ComboBar)
-                    else
-                      UnitBarsF[BarType]:SetAttr('bar', 'texture')
-                    end
-                  end,
+            arg = {'texture'},
+          },
+          FillDirection = {
+            type = 'select',
+            name = 'Fill Direction',
+            order = 2,
+            values = BarFillDirectionDropdown,
+            style = 'dropdown',
+            arg = {'texture'},
+          },
+          RotateTexture = {
+            type = 'toggle',
+            name = 'Rotate Texture',
+            order = 3,
+            arg = {'texture'},
           },
           HapWidth = {
             type = 'range',
             name = 'Width',
-            order = 2,
+            order = 6,
+            desc = 'Values up to 500 can be typed in',
             min = HapBarWidthMin,
             max = HapBarWidthMax,
+            softMax = HapBarWidthSoftMax,
             step = 1,
+            arg = {'size'},
           },
           HapHeight = {
             type = 'range',
             name = 'Height',
-            order = 3,
+            order = 7,
+            desc = 'Values up to 500 can be typed in',
             min = HapBarHeightMin,
             max = HapBarHeightMax,
+            softMax = HapBarHeightSoftMax,
             step = 1,
+            arg = {'size'},
           },
           ComboWidth = {
             type = 'range',
             name = 'Width',
-            order = 4,
+            order = 8,
             desc = 'Changes the width of all the combo boxes',
             min = ComboBarWidthMin,
             max = ComboBarWidthMax,
             step = 1,
+            arg = {'size'},
           },
           ComboHeight = {
             type = 'range',
             name = 'Height',
-            order = 5,
+            order =9,
             desc = 'Changes the height of all the combo boxes',
             min = ComboBarHeightMin,
             max = ComboBarHeightMax,
             step = 1,
+            arg = {'size'},
           },
           BarColor = {
             type = 'color',
@@ -933,7 +1056,7 @@ local function CreateBarOptions(BarType, Order, Name)
     BarOptions.args.General.args.BarColor = nil
     BarOptions.args.General.args.HapWidth = nil
     BarOptions.args.General.args.HapHeight = nil
-    BarOptions.args.ComboColors = CreateComboBarColorsOptions(BarType, 'Bar', 2, 'Colors')
+    BarOptions.args.ComboColors = CreateColorAllOptions(BarType, 'bar', 5, 2, 'Colors')
   else
     BarOptions.args.General.args.ComboWidth = nil
     BarOptions.args.General.args.ComboHeight = nil
@@ -946,7 +1069,7 @@ end
 --
 -- Creates options for a Rune Bar.
 --
--- Subfunction of CreateBarGeneralOptions()
+-- Subfunction of CreateUnitBarOptions()
 --
 -- Usage: RuneBarOptions = CreateRuneBarOptions(BarType, Order, Name)
 --
@@ -969,7 +1092,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
-            GUB[BarType]:SetRuneBarLayout(UnitBarsF[BarType])
+            GUB.RuneBar:SetRuneBarLayout(UnitBarsF[BarType])
           end,
     args = {
       BarMode = {
@@ -984,22 +1107,40 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         order = 2,
         desc = 'Runes can be swapped by dragging a rune on another rune',
       },
-      CooldownDrawEdge = {
+      CooldownText = {
         type = 'toggle',
-        name = 'Draw Edge',
+        name = 'Cooldown Text',
         order = 3,
-        desc = 'Shows a line on the cooldown clock face',
+        desc = 'Show cooldown text',
+      },
+      CooldownAnimation = {
+        type = 'toggle',
+        name = 'Cooldown Animation',
+        order = 4,
+        desc = 'Shows the cooldown animation',
       },
       HideCooldownFlash = {
         type = 'toggle',
         name = 'Hide Flash',
-        order = 4,
+        order = 5,
+        disabled = function()
+                     return not UnitBars[BarType].General.CooldownAnimation
+                   end,
         desc = 'Hides the flash animation after a rune comes off cooldown',
+      },
+      CooldownDrawEdge = {
+        type = 'toggle',
+        name = 'Draw Edge',
+        order = 6,
+        disabled = function()
+                     return not UnitBars[BarType].General.CooldownAnimation
+                   end,
+        desc = 'Shows a line on the cooldown animation',
       },
       BarModeAngle = {
         type = 'range',
         name = 'Rotation',
-        order = 5,
+        order = 7,
         desc = 'Rotates the rune bar',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -1039,7 +1180,7 @@ end
 --
 -- Creates options for a combo points bar.
 --
--- Subfunction of CreateBarGeneralOptions()
+-- Subfunction of CreateUnitBarOptions()
 --
 -- Usage: ComboBarOptions = CreateComboBarOptions(BarType, Order, Name)
 --
@@ -1062,7 +1203,7 @@ local function CreateComboBarOptions(BarType, Order, Name)
             UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
-            GUB[BarType]:SetComboBarLayout(UnitBarsF[BarType])
+            GUB.ComboBar:SetComboBarLayout(UnitBarsF[BarType])
           end,
     args = {
       ComboPadding = {
@@ -1086,6 +1227,88 @@ local function CreateComboBarOptions(BarType, Order, Name)
     },
   }
   return ComboBarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateHolyBarOptions
+--
+-- Creates options for a holy power bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: HolyBarOptions = CreateHolyBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- HolyBarOptions       Options table for the combo points bar.
+-------------------------------------------------------------------------------
+local function CreateHolyBarOptions(BarType, Order, Name)
+  local HolyBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UnitBars[BarType].General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UnitBars[BarType].General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            GUB.HolyBar:SetHolyBarLayout(UnitBarsF[BarType])
+          end,
+    args = {
+      HolyAngle = {
+        type = 'range',
+        name = 'Holy Rotation',
+        order = 1,
+        desc = 'Rotates the holy bar',
+        min = HolyBarAngleMin,
+        max = HolyBarAngleMax,
+        step = 45,
+      },
+      HolySize = {
+        type = 'range',
+        name = 'Holy Size',
+        order = 2,
+        desc = 'Sets the size of all the holy power runes',
+        min = HolyBarSizeMin,
+        max = HolyBarSizeMax,
+        step = 1,
+      },
+      HolyScale = {
+        type = 'range',
+        name = 'Holy Scale',
+        order = 3,
+        desc = 'Sets the scale of all the holy power runes',
+        min = HolyBarScaleMin,
+        max = HolyBarScaleMax,
+        step = 0.01,
+        isPercent = true,
+      },
+      HolyPadding = {
+        type = 'range',
+        name = 'Holy Padding',
+        order = 4,
+        desc = 'Set the Amount of space between each holy rune',
+        min = HolyBarPaddingMin,
+        max = HolyBarPaddingMax,
+        step = 1,
+      },
+      HolyFadeOutTime = {
+        type = 'range',
+        name = 'Holy Fadeout Time',
+        order = 5,
+        desc = 'The amount of time in seconds to fade out a holy rune',
+        min = HolyBarFadeOutMin,
+        max = HolyBarFadeOutMax,
+        step = 1,
+      },
+    },
+  }
+  return HolyBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -1156,6 +1379,9 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             type = 'toggle',
             name = 'Hide not Active',
             order = 5,
+            hidden  = function()
+                        return BarType == 'RuneBar'
+                      end,
             desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
           },
           HideNoCombat = {
@@ -1192,35 +1418,52 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 --          Alpha = CreateAlphaOption(BarType, 3),
         },
       },
-      Reset = {
-        type = 'execute',
-        name = 'Reset to Defaults',
-        order = 101,
-        desc = 'Resets back to the defaults for this bar without changing its location',
-        confirm = true,
-        func = function()
+      Other = {
+        type = 'group',
+        name = 'Other',
+        dialogInline = true,
+        order = 100,
+        args = {
+          Scale = {
+            type = 'range',
+            name = 'Scale',
+            order = 1,
+            desc = 'Changes the scale of the bar',
+            min = UnitBarScaleMin,
+            max = UnitBarScaleMax,
+            step = 1,
+            get = function()
+                    return UnitBars[BarType].Other.Scale
+            end,
+            set = function(Info, Value)
+                    UnitBars[BarType].Other.Scale = Value
+                    UnitBarsF[BarType]:SetAttr('frame', 'scale')
+                  end,
+            step = 0.01,
+            isPercent  = true,
+          },
+          Reset = {
+            type = 'execute',
+            name = 'Reset to Defaults',
+            order = 2,
+            desc = 'Resets back to the defaults for this bar without changing its location',
+            confirm = true,
+            func = function()
 
-                 -- Preserve bar location
-                 local UB = UnitBars[BarType]
-                 local x, y =  UB.x, UB.y
+                     -- Preserve bar location
+                     local UB = UnitBars[BarType]
+                     local x, y =  UB.x, UB.y
 
-                 GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
+                     GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
 
-                 UB.x, UB.y = x, y
+                     UB.x, UB.y = x, y
 
-                 -- Redo everything to show any possible changes.
-                 GUB:OnEnable()
-               end,
+                     -- Redo everything to show any possible changes.
+                     GUB:OnEnable()
+                   end,
+          },
+        },
       },
-
-      -- Background
-      Background = CreateBackgroundOptions(BarType, 1000, 'Background'),
-
-      -- Bar
-      Bar = CreateBarOptions(BarType, 1001, 'Bar'),
-
-      -- Text
-      Text = CreateTextOptions(BarType, 1002, 'Text'),
     },
   }
 
@@ -1231,27 +1474,41 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   local UBO = UnitBarOptions.args
 
-  -- Remove options based on type of bar.
-  if BarType == 'RuneBar' or BarType == 'ComboBar' then
-
-    UBO.General = nil
-    UBO.Text = nil
-
-    -- Remove options Background and Bar if a runebar.
-    if BarType == 'RuneBar' then
-      UBO.Background = nil
-      UBO.Bar = nil
-    end
+  -- Add background options
+  if BarType ~= 'RuneBar' then
+    UBO.Background = CreateBackgroundOptions(BarType, 1000, 'Background')
   end
 
-  -- Add runebar options if a runebar
+  -- Add bar options
+  if BarType ~= 'RuneBar' and BarType ~= 'HolyBar' then
+    UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
+  end
+
+  -- Add text options
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' then
+    UBO.Text = CreateTextOptions(BarType, 1002, 'Text')
+    if BarType == 'RuneBar' then
+      UBO.General = nil
+    end
+  else
+
+    -- Remove the general options
+    UBO.General = nil
+  end
+
+  -- Add runebar options
   if BarType == 'RuneBar' then
     UBO.RuneBar = CreateRuneBarOptions(BarType, 3, 'General')
   end
 
-  -- Add combobar options if a combobar
+  -- Add combobar options
   if BarType == 'ComboBar' then
-    UBO.ComboBar = CreateComboBarOptions(BarType, 4, 'General')
+    UBO.ComboBar =  CreateComboBarOptions(BarType, 4, 'General')
+  end
+
+  -- Add holybar options
+  if BarType == 'HolyBar' then
+    UBO.HolyBar = CreateHolyBarOptions(BarType, 5, 'General')
   end
 
   return UnitBarOptions
@@ -1362,17 +1619,27 @@ local function CreateCopySettingsOptions(Order, Name)
             order = 3,
             hidden = function(Info)
                         local Value = CopySettings.All or
-                                CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ComboBar' or
-                                CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ComboBar'
+                                CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or
+                                CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar'
                         CopySettingsHidden[Info[#Info]] = Value
                         return Value
                      end,
             desc = 'Copy the general settings',
           },
+          Other = {
+            type = 'toggle',
+            name = 'Other',
+            order = 4,
+            hidden = function(Info)
+                       CopySettingsHidden[Info[#Info]] = true
+                       return false
+                     end,
+            desc = 'Copy the other settings',
+          },
           Background = {
             type = 'toggle',
             name = 'Background',
-            order = 4,
+            order = 5,
             hidden = function(Info)
                        local Value = CopySettings.All or
                                CopySettingsFrom == 'RuneBar' or CopySettingsTo == 'RuneBar'
@@ -1384,10 +1651,11 @@ local function CreateCopySettingsOptions(Order, Name)
           Bar = {
             type = 'toggle',
             name = 'Bar',
-            order = 5,
+            order = 6,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'RuneBar' or CopySettingsTo == 'RuneBar'
+                               CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'HolyBar' or
+                               CopySettingsTo == 'RuneBar' or CopySettingsTo == 'HolyBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -1396,11 +1664,11 @@ local function CreateCopySettingsOptions(Order, Name)
           Text = {
             type = 'toggle',
             name = 'Text',
-            order = 6,
+            order = 7,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ComboBar' or
-                               CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ComboBar'
+                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or
+                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -1437,6 +1705,9 @@ local function CreateCopySettingsOptions(Order, Name)
                    end
                    if CopySettings.General and not CopySettingsHidden.General then
                      GUB.UnitBars:CopyTableValues(Source.General, Dest.General)
+                   end
+                   if CopySettings.Other and not CopySettingsHidden.Other then
+                     GUB.UnitBars:CopyTableValues(Source.Other, Dest.Other)
                    end
                    if CopySettings.Background and not CopySettingsHidden.Background then
                      GUB.UnitBars:CopyTableValues(Source.Background, Dest.Background)
@@ -1476,11 +1747,22 @@ end
 -- Name             Name for the option to appear in the tree.
 --
 -- AlignOptions     Options table for alignment.
+--
+-- NOTES:
+-- BarsHidden[BarType]    If true then that bar can't be checked off.
+--                        If false then then that bar can be checked off.
+-- BarsChecked[BarType]   If true then that bar has been checked off.
+--                        If false then thatb bar hasn't been checked off.
+--
+-- To build the BarsToAlign list:
+-- If the bartype is not hidden then BarsToAlign[BarType] is set
+-- to the true/false value found in BarsChecked.  If the bartype is hidden
+-- then BarsToAlign[BarType] is set to false.
 -------------------------------------------------------------------------------
 local function CreateAlignUnitBarsOptions(Order, Name)
-  local Alignment = 'left'
-  local VPadding = 0
-  local VPadEnabled = false
+  local AlignmentType = 'vertical'
+  local Padding = 0
+  local PadEnabled = false
 
   local AlignmentBar = nil
   local AlignmentBarName = nil
@@ -1488,9 +1770,20 @@ local function CreateAlignUnitBarsOptions(Order, Name)
 
   -- List of bars to align.
   local BarsToAlign = {}
+
   -- List of bars for the check boxes.
   local BarsChecked = {}
   local BarsHidden = {}
+
+  local Alignment = {
+    vertical = 'left',
+    horizontal = 'top'
+  }
+
+  -- Function inside of a function.  But yeah I didn't want to call this huge thing in 4 different places.
+  local function AlignBars()
+    GUB.UnitBars:AlignUnitBars(AlignmentBar, BarsToAlign, AlignmentType, Alignment[AlignmentType], PadEnabled, Padding)
+  end
 
   local AlignOptions = {
     type = 'group',
@@ -1621,6 +1914,19 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      return string.format('Align Combo Bar with %s', AlignmentBarName)
                    end
           },
+          HolyBar = {
+            type = 'toggle',
+            name = 'Holy Bar',
+            order = 7,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'HolyBar'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return string.format('Align Combo Bar with %s', AlignmentBarName)
+                   end
+          },
         },
       },
       AlignmentSettings = {
@@ -1632,52 +1938,70 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      return not ListChecked(BarsChecked, BarsHidden)
                    end,
         args = {
-          Alignment = {
+          AlignmentType = {
             type = 'select',
-            name = 'Alignment',
+            name = 'Type of Alignment',
             order = 1,
-            desc = 'Align each bar to the left or right',
-            values = AlignmentBarsDropdown,
-            style = 'dropdown',
+            desc = 'Align bars vertically or horizontally',
+            values = AlignmentTypeDropdown,
             get = function()
-                    return Alignment
+                    return AlignmentType
                   end,
             set = function(Info, Value)
-                    Alignment = Value
+                    AlignmentType = Value
                     if ARealTime then
-                      GUB.UnitBars:AlignUnitBars(AlignmentBar, BarsToAlign, Alignment, VPadEnabled, VPadding)
+                      AlignBars()
                     end
                   end,
           },
-          VPadEnabled = {
-            type = 'toggle',
-            name = 'Enable Padding',
+          Alignment = {
+            type = 'select',
+            name = 'Alignment',
             order = 2,
+            desc = 'Align each bar to the left or right',
+            values = function()
+                       return AlignBarsDropdown[AlignmentType]
+                     end,
+            style = 'dropdown',
             get = function()
-                    return VPadEnabled
+                    return Alignment[AlignmentType]
                   end,
             set = function(Info, Value)
-                    VPadEnabled = Value
+                    Alignment[AlignmentType] = Value
+                    if ARealTime then
+                      AlignBars()
+                    end
                   end,
           },
-          VPadding = {
-            type = 'range',
-            name = 'Veritcal Padding',
+          PadEnabled = {
+            type = 'toggle',
+            name = 'Enable Padding',
             order = 3,
-            disabled = function()
-                         return not VPadEnabled
-                       end,
-            desc = 'The amount of padding vertically in pixels',
-            min = VerticalPaddingMin,
-            max = VerticalPaddingMax,
-            step = 1,
             get = function()
-                    return VPadding
+                    return PadEnabled
                   end,
             set = function(Info, Value)
-                    VPadding = Value
+                    PadEnabled = Value
+                  end,
+          },
+          Padding = {
+            type = 'range',
+            name = 'Padding',
+            order = 4,
+            disabled = function()
+                         return not PadEnabled
+                       end,
+            desc = 'The amount of padding between bars',
+            min = AlignmentPaddingMin,
+            max = AlignmentPaddingMax,
+            step = 1,
+            get = function()
+                    return Padding
+                  end,
+            set = function(Info, Value)
+                    Padding = Value
                     if ARealTime then
-                      GUB.UnitBars:AlignUnitBars(AlignmentBar, BarsToAlign, Alignment, VPadEnabled, VPadding)
+                      AlignBars()
                     end
                   end,
           },
@@ -1705,7 +2029,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      BarsToAlign[BarType] = false
                    end
                  end
-                 GUB.UnitBars:AlignUnitBars(AlignmentBar, BarsToAlign, Alignment, VPadEnabled, VPadding)
+                   AlignBars()
 
                  --Allow real time ajustments for Vertical Padding and alignement
                  ARealTime = true
@@ -1778,16 +2102,22 @@ local function CreateMainOptions()
             order = 4,
             desc = 'Turns off mouse over tooltips when bars are not locked',
           },
+          HideTooltipsDesc = {
+            type = 'toggle',
+            name = 'Hide Tooltips Desc',
+            order = 5,
+            desc = 'Turns off the description in mouse over tooltips when bars are not locked',
+          },
           SmoothUpdate = {
             type = 'toggle',
             name = 'Smooth Update',
-            order = 5,
+            order = 6,
             desc = 'Health and power bars will update smoothly if checked',
           },
           FadeOutTime = {
             type = 'range',
             name = 'Fadeout Time',
-            order = 6,
+            order = 7,
             desc = 'The amount of time in seconds to fade out a bar',
             min = 0,
             max = 5,
@@ -1833,6 +2163,9 @@ local function CreateMainOptions()
 
           -- Combobar group.
           ComboBar = CreateUnitBarOptions('ComboBar', 5, 'Combo Bar'),
+
+          -- Holybar group.
+          HolyBar = CreateUnitBarOptions('HolyBar', 6, 'Holy Bar'),
         },
       },
 --=============================================================================
@@ -1882,13 +2215,6 @@ local function CreateMainOptions()
       },
     },
   }
-
-  -- Remove main power is class is not a druid.  Doing it like this to make
-  -- code easier to maintain and follow.
- -- if PlayerClass ~= 'DRUID' then
- --   MainOptions.args.UnitBars.args.MainPower = nil
- -- end
-
   return MainOptions
 end
 

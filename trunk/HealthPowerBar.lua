@@ -10,33 +10,46 @@ local MyAddon, GUB = ...
 
 GUB.HapBar = {}
 
--- shared tables from Main.lua
-local CheckEvent = GUB.UnitBars.CheckEvent
-local UnitBarsF = GUB.UnitBars.UnitBarsF
+-- shared from Main.lua
 local LSM = GUB.UnitBars.LSM
+local CheckPowerType = GUB.UnitBars.CheckPowerType
+local CheckEvent = GUB.UnitBars.CheckEvent
+local PowerTypeToNumber = GUB.UnitBars.PowerTypeToNumber
+local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+
+-- localize some globals.
+local _
+local abs, floor, pairs, ipairs, type, math, table, select =
+      abs, floor, pairs, ipairs, type, math, table, select
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
 
 -------------------------------------------------------------------------------
 -- Locals
 --
 -- UnitBarF = UnitBarsF[]
 --
+-- UnitBarF.UnitBar         Reference to the unitbar data for the health and power bar.
 -- UnitBarF.Border          Border frame for the health and power bar.
 -- UnitBarF.StatusBar       The Statusbar for the health and power bar.
 --
 -- Border.Anchor            Reference to the anchor for moving.
--- Border.Name              Name to display when mouse over while the bars are
---                          not locked.
+-- Border.TooltipName       Tooltip text to display for mouse over when bars are unlocked.
+-- Border.TooltipDesc       Description under the name for mouse over.
 -- Border.UnitBarF          Reference to unitbarF for for onsizechange.
 --
 -- StatusBar.UnitBar        Reference to unitbar data for GetStatusBarTextValue()
 -------------------------------------------------------------------------------
 
 -- Powertype constants
-local PowerMana = 0
-local PowerRage = 1
-local PowerFocus = 2
-local PowerEnergy = 3
-local PowerRunic = 6
+local PowerMana = PowerTypeToNumber['MANA']
+local PowerEnergy = PowerTypeToNumber['ENERGY']
 
 --*****************************************************************************
 --
@@ -47,8 +60,7 @@ local PowerRunic = 6
 -------------------------------------------------------------------------------
 -- GetStatusBarTextValue
 --
--- Returns two parameters to be used in SetFormattedText.  In percent, whole number,
--- max, or ''.
+-- Returns one or more args to be used in SetFormattedText.
 --
 -- Usage: FormatString, ... = GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
 --
@@ -62,6 +74,7 @@ local PowerRunic = 6
 -------------------------------------------------------------------------------
 local function GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
   local TextType = StatusBar.UnitBar.General.TextType
+
   if MaxValue == 0 then
     return ''
   elseif TextType == 'whole' then
@@ -70,6 +83,10 @@ local function GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
     return '%d%%', math.ceil(CurrValue / MaxValue * 100)
   elseif TextType == 'max' then
     return '%d / %d', CurrValue, MaxValue
+  elseif TextType == 'maxpercent' then
+    return '%d / %d %d%%', CurrValue, MaxValue, math.ceil(CurrValue / MaxValue * 100)
+  elseif TextType == 'wholepercent' then
+    return '%d %d%%', CurrValue, math.ceil(CurrValue / MaxValue * 100)
   else
     return ''
   end
@@ -179,38 +196,40 @@ end
 --
 -- Updates the power of the current player or target.
 --
--- Usage: UpdatePowerBar(Event, Unit, PowerType)
+-- Usage: UpdatePowerBar(Event, Unit, UpdatePowerType, PowerType)
 --
--- Event      * If nil then PowerType will be used instead.
---            * If it's not a power event then the power bar doesn't get updated.
---            * If it didn't match with the units powertype or the powertype
---              passed then the bar won't be updated.
---            Example: UNIT_MANA wouldn't match powertype rage.
--- Unit       player or target.
--- PowerType  If nil then units current powertype is used.
---
--- NOTE:  When updating 'player' power the PowerType must match the players
---        default power type.
+-- Event                If nil no event check will be done.
+-- UpdatePowerType      If true then the current unit power type must equal
+--                      this value.
+--                      If false then the PowerType gets updated instead.
+-- PowerType            String format. This is based on UpdatePowerType.
+--                      If nil then current units powertype is used only
+--                      if UpdatePowerType is equal to false.
 -------------------------------------------------------------------------------
-function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType)
+function GUB.HapBar:UpdatePowerBar(Event, Unit, UpdatePowerType, PowerType)
 
-  -- Return if the unitbar is disabled.
-  if not self.Enabled then
+  -- Return if the unitbar is disabled, or event is not a power event.
+  -- or powertype is not for a powerbar
+  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'power' or
+     PowerType ~= nil and CheckPowerType[PowerType] ~= 'power' then
     return
   end
 
-  -- If event is not nil then get unit's powertype.
-  if PowerType == nil then
-    PowerType = UnitPowerType(Unit)
-  end
-  if Event ~= nil then
-    local Value = CheckEvent[Event]
+  -- Convert powertype into a number.
+  PowerType = PowerTypeToNumber[PowerType]
 
-    -- If the converted event doesn't match the powertype then return.
-    if Value ~= PowerType then
-      return
-    end
+  local CurrPowerType = UnitPowerType(Unit)
+
+  -- If PowerType is nil then use the current units powertype.
+  if PowerType == nil then
+    PowerType = CurrPowerType
   end
+
+  -- Return if UpdatePowerType is true and PowerType is not equal to CurrPowerType
+  if UpdatePowerType and PowerType ~= CurrPowerType then
+    return
+  end
+
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
   local UB = self.UnitBar
@@ -245,7 +264,7 @@ end
 --
 --*****************************************************************************
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- EnableMouseClicksHap (EnableMouseClicks) [UnitBar assigned function]
 --
 -- This will enable or disbale mouse clicks for the rune icons.
@@ -304,18 +323,18 @@ end
 -- Usage: SetAttrHap(Object, Attr)
 --
 -- Object       Object being changed:
---               'frame' for the entire frame.
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
 --               'text' for text (StatusBar.Txt).
+--               'frame' for the frame.
 -- Attr         Type of attribute being applied to object:
---               'alpha'     Alpha setting for the frame.
 --               'color'     Color being set to the object.
 --               'size'      Size being set to the object.
 --               'padding'   Amount of padding set to the object.
 --               'texture'   One or more textures set to the object.
 --               'font'      Font settings being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
+--               'scale'     Scale settings being set to the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -325,6 +344,13 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
+
+  -- Frame.
+  if Object == nil or Object == 'frame' then
+    if Attr == nil or Attr == 'scale' then
+      self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+  end
 
   -- Background (Border).
   if Object == nil or Object == 'bg' then
@@ -354,6 +380,8 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
       StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
       StatusBar:GetStatusBarTexture():SetHorizTile(false)
       StatusBar:GetStatusBarTexture():SetVertTile(false)
+      StatusBar:SetOrientation(Bar.FillDirection)
+      StatusBar:SetRotatesTexture(Bar.RotateTexture)
     end
 
     -- Make sure theres a hash table for color.  Power bars don't use hash color tables.
@@ -404,9 +432,6 @@ function GUB.HapBar:SetHapBarLayout(UnitBarF)
   Border:ClearAllPoints()
   Border:SetPoint('TOPLEFT', 0, 0)
 
-  -- Save the name for tooltips.
-  Border.Name = UnitBarF.UnitBar.Name
-
   local StatusBar = UnitBarF.StatusBar
   StatusBar:SetMinMaxValues(0, 100)
   StatusBar:SetValue(0)
@@ -426,20 +451,24 @@ end
 -------------------------------------------------------------------------------
 -- CreateHapBar
 --
--- Usage: CreateHapBar(UnitBarF, Anchor)
+-- Usage: CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the health and power bar.
+-- UB           Unitbar data.
 -- Anchor       Unitbar's anchor.
---
--- SB           StatusBar frame.
+-- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.HapBar:CreateHapBar(UnitBarF, Anchor)
-  local Border = CreateFrame('Frame', nil, Anchor)
+function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
+  local Border = CreateFrame('Frame', nil, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   StatusBar.Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
 
   -- Make the border frame top when clicked.
   Border:SetToplevel(true)
+
+  -- Save the text for tooltips.
+  Border.TooltipName = UB.Name
+  Border.TooltipDesc = MouseOverDesc
 
   -- Save a reference to the anchor for moving.
   Border.Anchor = Anchor
