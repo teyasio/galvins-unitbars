@@ -17,7 +17,7 @@ LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 -- Setup shared media and LibBackdrop
 -------------------------------------------------------------------------------
 local LSM = LibStub('LibSharedMedia-3.0')
-
+local CataVersion400 = select(4,GetBuildInfo()) >= 40000
 
 GUB.UnitBars = {}
 
@@ -733,6 +733,21 @@ local CheckEvent = {
   UNIT_COMBO_POINTS = 'combo'
 }
 
+local EventToPowerType = {
+  UNIT_MANA = 'MANA', UNIT_MAXMANA = 'MANA',
+  UNIT_RAGE = 'RAGE', UNIT_MAXRAGE = 'RAGE',
+  UNIT_FOCUS = 'FOCUS', UNIT_MAXFOCUS = 'FOCUS',
+  UNIT_ENERGY = 'ENERGY', UNIT_MAXENERGY = 'ENERGY',
+  UNIT_RUNIC_POWER = 'RUNIC_POWER', UNIT_MAXRUNIC_POWER = 'RUNIC_POWER',
+}
+
+local ConvertEvent = {
+  UNIT_MANA = 'UNIT_POWER', UNIT_MAXMANA = 'UNIT_MAXPOWER',
+  UNIT_RAGE = 'UNIT_POWER', UNIT_MAXRAGE = 'UNIT_MAXPOWER',
+  UNIT_FOCUS = 'UNIT_POWER', UNIT_MAXFOCUS = 'UNIT_MAXPOWER',
+  UNIT_ENERGY = 'UNIT_POWER', UNIT_MAXENERGY = 'UNIT_MAXPOWER',
+  UNIT_RUNIC_POWER = 'UNIT_POWER', UNIT_RUNIC_POWER = 'UNIT_MAXPOWER',
+}
 
 -- Share with the whole addon.
 GUB.UnitBars.LSM = LSM
@@ -748,19 +763,45 @@ GUB.UnitBars.MouseOverDesc = 'Modifier + left mouse button to drag'
 -- Register and unregister event functions.
 -------------------------------------------------------------------------------
 local function RegisterEvents()
-  GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
-  GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
-  GUB:RegisterEvent('UNIT_POWER', 'UnitBarsUpdate')
-  GUB:RegisterEvent('UNIT_MAXPOWER', 'UnitBarsUpdate')
-  GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
+  if not CataVersion400 then
+    GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_RAGE', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXRAGE', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MANA', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXMANA', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_ENERGY', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXENERGY', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_RUNIC_POWER', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXRUNIC_POWER', 'UnitBarsUpdate')
+  else
+    GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_POWER', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_MAXPOWER', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
+  end
 end
 
 local function UnregisterEvents()
-  GUB:UnregisterEvent('UNIT_HEALTH')
-  GUB:UnregisterEvent('UNIT_MAXHEALTH')
-  GUB:UnregisterEvent('UNIT_POWER')
-  GUB:UnregisterEvent('UNIT_MAXPOWER')
-  GUB:UnregisterEvent('UNIT_COMBO_POINTS')
+  if not CataVersion400 then
+    GUB:UnregisterEvent('UNIT_HEALTH')
+    GUB:UnregisterEvent('UNIT_MAXHEALTH')
+    GUB:UnregisterEvent('UNIT_RAGE')
+    GUB:UnregisterEvent('UNIT_MAXRAGE')
+    GUB:UnregisterEvent('UNIT_MANA')
+    GUB:UnregisterEvent('UNIT_MAXMANA')
+    GUB:UnregisterEvent('UNIT_ENERGY')
+    GUB:UnregisterEvent('UNIT_MAXENERGY')
+    GUB:UnregisterEvent('UNIT_RUNIC_POWER')
+    GUB:UnregisterEvent('UNIT_MAXRUNIC_POWER')
+  else
+    GUB:UnregisterEvent('UNIT_HEALTH')
+    GUB:UnregisterEvent('UNIT_MAXHEALTH')
+    GUB:UnregisterEvent('UNIT_POWER')
+    GUB:UnregisterEvent('UNIT_MAXPOWER')
+    GUB:UnregisterEvent('UNIT_COMBO_POINTS')
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -813,6 +854,21 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- ConvertPowerEvent
+--
+-- Converts a 3.3 power event into a 4.0 event.  Only used when running
+-- on WoW 3.3
+-------------------------------------------------------------------------------
+local function ConvertPowerEvent(Event, ...)
+  local UnitPower = ConvertEvent[Event]
+  if UnitPower then
+    local PowerType = EventToPowerType[Event]
+    local Unit = select(1, ...)
+  end
+  return UnitPower, Unit, PowerType
+end
 
 -------------------------------------------------------------------------------
 -- CopyTableValues
@@ -968,8 +1024,19 @@ end
 -- Displays all the unitbars unless Event, Unit are specified.
 -------------------------------------------------------------------------------
 local function UpdateUnitBars(Event, ...)
-  for _, UBF in pairs(UnitBarsF) do
-    UBF:Update(Event, ...)
+
+  -- Backward compatability for 3.3
+  if not CataVersion400 then
+    local UnitPower, Unit, PowerType = ConvertPowerEvent(Event, ...)
+    if UnitPower then
+      for _, UBF in pairs(UnitBarsF) do
+        UBF:Update(UnitPower, Unit, PowerType)
+      end
+    end
+  else
+    for _, UBF in pairs(UnitBarsF) do
+      UBF:Update(Event, ...)
+    end
   end
 end
 
