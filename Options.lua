@@ -325,6 +325,7 @@ end --]]
 --
 -- Subfunction of CreateBackgroundOptions()
 -- Subfunction of CreateBarOptions()
+-- Subfunction of CreateTextOptions()
 --
 -- Usage: ColorAllOptions = (BarType, Object, MaxColors, Order, Name)
 --
@@ -336,7 +337,7 @@ end --]]
 --
 -- ColorAllOptions  Options table for the Combobar.
 -------------------------------------------------------------------------------
-local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ...)
+local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
   local ColorAllNames = UnitBarsF[BarType].ColorAllNames
   local UnitBarTable = nil
   if Object == 'bg' then
@@ -379,10 +380,10 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 1,
         desc = 'If checked everything can be set to one color',
         get = function()
-                return UnitBars[BarType].ColorAll
+                return UnitBars[BarType][UnitBarTable].ColorAll
               end,
         set = function(Info, Value)
-                UnitBars[BarType].ColorAll = Value
+                UnitBars[BarType][UnitBarTable].ColorAll = Value
 
                 -- Refresh colors when changing between all and normal.
                 UnitBarsF[BarType]:SetAttr(Object, 'color')
@@ -395,7 +396,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         hasAlpha = true,
         desc = 'Set everything to one color',
         hidden = function()
-                   return not UnitBars[BarType].ColorAll
+                   return not UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         arg = {0},
       },
@@ -407,7 +408,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 3,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ColorAll
+                   return UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {1},
@@ -420,7 +421,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 4,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ColorAll
+                   return UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {2},
@@ -433,7 +434,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 5,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ColorAll
+                   return UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {3},
@@ -446,7 +447,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 6,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ColorAll
+                   return UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {4},
@@ -459,7 +460,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 7,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType].ColorAll
+                   return UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {5},
@@ -472,7 +473,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name, ..
         order = 8,
         hasAlpha = true,
         hidden = function()
-                   return MaxColors < 6 or UnitBars[BarType].ColorAll
+                   return MaxColors < 6 or UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {6},
