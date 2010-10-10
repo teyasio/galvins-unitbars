@@ -776,14 +776,13 @@ local function RegisterEvents()
     GUB:RegisterEvent('UNIT_MAXENERGY', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_RUNIC_POWER', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXRUNIC_POWER', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
   else
     GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_POWER', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXPOWER', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
   end
+  GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
 end
 
 local function UnregisterEvents()
@@ -798,14 +797,13 @@ local function UnregisterEvents()
     GUB:UnregisterEvent('UNIT_MAXENERGY')
     GUB:UnregisterEvent('UNIT_RUNIC_POWER')
     GUB:UnregisterEvent('UNIT_MAXRUNIC_POWER')
-    GUB:UnregisterEvent('UNIT_COMBO_POINTS')
   else
     GUB:UnregisterEvent('UNIT_HEALTH')
     GUB:UnregisterEvent('UNIT_MAXHEALTH')
     GUB:UnregisterEvent('UNIT_POWER')
     GUB:UnregisterEvent('UNIT_MAXPOWER')
-    GUB:UnregisterEvent('UNIT_COMBO_POINTS')
   end
+  GUB:UnregisterEvent('UNIT_COMBO_POINTS')
 end
 
 -------------------------------------------------------------------------------
@@ -858,24 +856,6 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
-
--------------------------------------------------------------------------------
--- ConvertPowerEvent
---
--- Converts a 3.3 power event into a 4.0 event.  Only used when running
--- on WoW 3.3.  Returns nil if using wow 4.0.
--------------------------------------------------------------------------------
-local function ConvertPowerEvent(Event, ...)
-  if CataVersion400 then
-    return nil
-  end
-  local UnitPower = ConvertEvent[Event]
-  if UnitPower then
-    local PowerType = EventToPowerType[Event]
-    local Unit = select(1, ...)
-  end
-  return UnitPower, Unit, PowerType
-end
 
 -------------------------------------------------------------------------------
 -- CopyTableValues
@@ -1032,14 +1012,7 @@ end
 -------------------------------------------------------------------------------
 local function UpdateUnitBars(Event, ...)
   for _, UBF in pairs(UnitBarsF) do
-
-    -- Backward compatability for 3.3
-    local UnitPower, Unit, PowerType = ConvertPowerEvent(Event, ...)
-    if UnitPower then
-      UBF:Update(UnitPower, Unit, PowerType)
-    else
-      UBF:Update(Event, ...)
-    end
+    UBF:Update(Event, ...)
   end
 end
 
@@ -1165,6 +1138,16 @@ function GUB:UnitBarsUpdate(Event, ...)
 
   -- Start unit bar refresh timer.
   UnitBarRefresh = 4.0
+
+  -- Convert event if not using WoW 4.0
+  if not CataVersion400 then
+    local PowerEvent = ConvertEvent[Event]
+    if PowerEvent then
+      UpdateUnitBars(PowerEvent, select(1, ...), EventToPowerType[Event])
+      return
+    end
+  end
+
   UpdateUnitBars(Event, ...)
 end
 
