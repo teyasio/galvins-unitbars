@@ -733,6 +733,7 @@ local CheckEvent = {
   UNIT_COMBO_POINTS = 'combo'
 }
 
+-- For older versions of WoW
 local EventToPowerType = {
   UNIT_MANA = 'MANA', UNIT_MAXMANA = 'MANA',
   UNIT_RAGE = 'RAGE', UNIT_MAXRAGE = 'RAGE',
@@ -741,6 +742,7 @@ local EventToPowerType = {
   UNIT_RUNIC_POWER = 'RUNIC_POWER', UNIT_MAXRUNIC_POWER = 'RUNIC_POWER',
 }
 
+-- For older versions of WoW
 local ConvertEvent = {
   UNIT_MANA = 'UNIT_POWER', UNIT_MAXMANA = 'UNIT_MAXPOWER',
   UNIT_RAGE = 'UNIT_POWER', UNIT_MAXRAGE = 'UNIT_MAXPOWER',
@@ -774,6 +776,7 @@ local function RegisterEvents()
     GUB:RegisterEvent('UNIT_MAXENERGY', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_RUNIC_POWER', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXRUNIC_POWER', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
   else
     GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
@@ -795,6 +798,7 @@ local function UnregisterEvents()
     GUB:UnregisterEvent('UNIT_MAXENERGY')
     GUB:UnregisterEvent('UNIT_RUNIC_POWER')
     GUB:UnregisterEvent('UNIT_MAXRUNIC_POWER')
+    GUB:UnregisterEvent('UNIT_COMBO_POINTS')
   else
     GUB:UnregisterEvent('UNIT_HEALTH')
     GUB:UnregisterEvent('UNIT_MAXHEALTH')
@@ -859,9 +863,12 @@ end
 -- ConvertPowerEvent
 --
 -- Converts a 3.3 power event into a 4.0 event.  Only used when running
--- on WoW 3.3
+-- on WoW 3.3.  Returns nil if using wow 4.0.
 -------------------------------------------------------------------------------
 local function ConvertPowerEvent(Event, ...)
+  if CataVersion400 then
+    return nil
+  end
   local UnitPower = ConvertEvent[Event]
   if UnitPower then
     local PowerType = EventToPowerType[Event]
@@ -1024,17 +1031,13 @@ end
 -- Displays all the unitbars unless Event, Unit are specified.
 -------------------------------------------------------------------------------
 local function UpdateUnitBars(Event, ...)
+  for _, UBF in pairs(UnitBarsF) do
 
-  -- Backward compatability for 3.3
-  if not CataVersion400 then
+    -- Backward compatability for 3.3
     local UnitPower, Unit, PowerType = ConvertPowerEvent(Event, ...)
     if UnitPower then
-      for _, UBF in pairs(UnitBarsF) do
-        UBF:Update(UnitPower, Unit, PowerType)
-      end
-    end
-  else
-    for _, UBF in pairs(UnitBarsF) do
+      UBF:Update(UnitPower, Unit, PowerType)
+    else
       UBF:Update(Event, ...)
     end
   end

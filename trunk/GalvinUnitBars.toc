@@ -2,7 +2,7 @@
 ## Title: Galvin's UnitBars
 ## Notes: Displays health, power, rune, combo, and holy bars that can be moved around.
 ## Author: Galvin
-## Version: 0.33
+## Version: 0.35
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB
 
