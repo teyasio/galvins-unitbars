@@ -339,26 +339,34 @@ end
 local function RuneCooldownOnUpdate(self, Elapsed)
   local Start, Duration, RuneReady = GetRuneCooldown(self.RuneId)
 
-  -- Display cooldown text if cooldown text option is true.
+  -- Get the amount of time left on cooldown.
+  local TimeElapsed = GetTime() - Start
+  local RuneTime = Duration - TimeElapsed
+
+  -- Display the time left if cooldowntext is true
   if self.CooldownText then
-    local TimeElapsed = GetTime() - Start
     if TimeElapsed >= 0 then
-      local TimeLeft = floor(Duration - TimeElapsed) + 1
-      if TimeLeft < self.LastTime then
-        self.LastTime = TimeLeft
-        if TimeLeft < 1 then
+      local Seconds = floor(RuneTime)
+      if Seconds < self.LastTime then
+        self.LastTime = Seconds
+        if Seconds < 0 then
           self.Txt:SetText('')
         else
-          self.Txt:SetText(TimeLeft)
+          self.Txt:SetText(Seconds + 1)
         end
       end
     end
   end
+
   if RuneReady then
     self.OnCooldown = false
 
-     -- Hide cooldown flash if HideCooldownFlash is set to true.
-    if self.CooldownAnimation and self.HideCooldownFlash then
+    -- Set text to blank in case rune came off cooldown early.
+    self.Txt:SetText('')
+
+    -- Hide cooldown flash if HideCooldownFlash is set to true.
+    -- Or stop the animation if the rune came off cooldown early.
+    if self.CooldownAnimation and (self.HideCooldownFlash or RuneTime > 0) then
       CooldownFrame_SetTimer(self.Cooldown, 0, 0, 0)
     end
     self:SetScript('OnUpdate', nil)

@@ -321,7 +321,7 @@ end --]]
 -------------------------------------------------------------------------------
 -- CreateColorAllOptions
 --
--- Creates all color options for background and bar. That support multiple colors.
+-- Creates all color options for background, bar, and text. That support multiple colors.
 --
 -- Subfunction of CreateBackgroundOptions()
 -- Subfunction of CreateBarOptions()
@@ -335,7 +335,7 @@ end --]]
 -- Order         Order number.
 -- Name          Name text
 --
--- ColorAllOptions  Options table for the Combobar.
+-- ColorAllOptions  Options table for the bartype.
 -------------------------------------------------------------------------------
 local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
   local ColorAllNames = UnitBarsF[BarType].ColorAllNames

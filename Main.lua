@@ -1607,9 +1607,9 @@ end
 -------------------------------------------------------------------------------
 local function SetUnitBarsLayout()
 
-  -- Set the unitbar parent frame values
+  -- Set the unitbar parent frame values.
   UnitBarsParent:ClearAllPoints()
-  UnitBarsParent:SetPoint(UnitBars.Point, 'UIParent', UnitBars.RelativePoint, UnitBars.Px, UnitBars.Py)
+  UnitBarsParent:SetPoint(UnitBars.Point, UIParent, UnitBars.RelativePoint, UnitBars.Px, UnitBars.Py)
   UnitBarsParent:SetWidth(1)
   UnitBarsParent:SetHeight(1)
 
@@ -1698,6 +1698,7 @@ local function CreateUnitBars(UnitBarDB)
         GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
       end
       if next(UnitBarF) then
+
         -- Create an animation for fade out.
         local FadeOut = Anchor:CreateAnimationGroup()
         local FadeOutA = FadeOut:CreateAnimation('Alpha')
@@ -1707,7 +1708,7 @@ local function CreateUnitBars(UnitBarDB)
         FadeOutA:SetChange(-1)
         FadeOutA:SetOrder(1)
 
-        -- Save the animation the unitbar frame.
+        -- Save the animation to the unitbar frame.
         UnitBarF.FadeOut = FadeOut
         UnitBarF.FadeOutA = FadeOutA
 
@@ -2033,10 +2034,9 @@ function GUB:OnInitialize()
 
   -- Create the unitbars.
   CreateUnitBars()
-
---@debug@
+--@do-not-package@
   GUBfdata = UnitBarsF -- debugging 00000000000000000000000000000000000
---@end-debug@
+--@end-do-not-package@
 end
 
 -------------------------------------------------------------------------------
@@ -2061,11 +2061,10 @@ function GUB:OnEnable()
 
   -- Set the unitbars status and show the unitbars.
   GUB:UnitBarsUpdateStatus()
-
---@debug@
+--@do-not-package@
   GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
   GUBdata = UnitBars
---@end-debug@
+--@end-do-not-package@
 end
 
 function GUB:OnDisable()
