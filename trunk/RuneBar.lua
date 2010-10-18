@@ -334,7 +334,7 @@ end
 -------------------------------------------------------------------------------
 -- RuneCooldownOnUpdate
 --
--- Displays numeric cooldown text and stops the flash animation
+-- Displays numeric cooldown text and stops the flash animation.
 -------------------------------------------------------------------------------
 local function RuneCooldownOnUpdate(self, Elapsed)
   local Start, Duration, RuneReady = GetRuneCooldown(self.RuneId)

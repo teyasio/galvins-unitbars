@@ -150,6 +150,8 @@ local UnitBarsSelectDropdown = {
   PlayerPower = Defaults.profile.PlayerPower.Name,
   TargetHealth = Defaults.profile.TargetHealth.Name,
   TargetPower = Defaults.profile.TargetPower.Name,
+  FocusHealth = Defaults.profile.FocusHealth.Name,
+  FocusPower = Defaults.profile.FocusPower.Name,
   MainPower = Defaults.profile.MainPower.Name,
   RuneBar = Defaults.profile.RuneBar.Name,
   ComboBar = Defaults.profile.ComboBar.Name,
@@ -327,7 +329,7 @@ end --]]
 -- Subfunction of CreateBarOptions()
 -- Subfunction of CreateTextOptions()
 --
--- Usage: ColorAllOptions = (BarType, Object, MaxColors, Order, Name)
+-- Usage: ColorAllOptions = CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
 --
 -- BarType       Type of options being created.
 -- Object        Can be 'bg', 'bar', or 'text'
@@ -1043,7 +1045,7 @@ local function CreateBarOptions(BarType, Order, Name)
   }
 
   -- Add power colors for power bars only.
-  if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'MainPower' then
+  if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'FocusPower' or BarType == 'MainPower' then
 
     -- Remove the BarColor options
     BarOptions.args.General.args.BarColor = nil
@@ -1632,8 +1634,9 @@ local function CreateCopySettingsOptions(Order, Name)
             name = 'Other',
             order = 4,
             hidden = function(Info)
-                       CopySettingsHidden[Info[#Info]] = true
-                       return false
+                       local Value = CopySettings.All
+                       CopySettingsHidden[Info[#Info]] = Value
+                       return Value
                      end,
             desc = 'Copy the other settings',
           },
@@ -1876,10 +1879,36 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      return string.format('Align Target Power with %s', AlignmentBarName)
                    end
           },
+          FocusHealth = {
+            type = 'toggle',
+            name = 'Focus Health',
+            order = 5,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'FocusHealth'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return string.format('Align Focus Health with %s', AlignmentBarName)
+                   end
+          },
+          FocusPower = {
+            type = 'toggle',
+            name = 'Focus Power',
+            order = 6,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'FocusPower'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return string.format('Align Focus Power with %s', AlignmentBarName)
+                   end
+          },
           MainPower = {
             type = 'toggle',
             name = 'Main Power',
-            order = 5,
+            order = 7,
             hidden = function(Info)
                        local Value = AlignmentBar == 'MainPower'
                        BarsHidden[Info[#Info]] = Value
@@ -1892,7 +1921,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
           RuneBar = {
             type = 'toggle',
             name = 'Rune Bar',
-            order = 6,
+            order = 8,
             hidden = function(Info)
                        local Value = AlignmentBar == 'RuneBar'
                        BarsHidden[Info[#Info]] = Value
@@ -1905,7 +1934,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
           ComboBar = {
             type = 'toggle',
             name = 'Combo Bar',
-            order = 7,
+            order = 9,
             hidden = function(Info)
                        local Value = AlignmentBar == 'ComboBar'
                        BarsHidden[Info[#Info]] = Value
@@ -1918,7 +1947,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
           HolyBar = {
             type = 'toggle',
             name = 'Holy Bar',
-            order = 7,
+            order = 10,
             hidden = function(Info)
                        local Value = AlignmentBar == 'HolyBar'
                        BarsHidden[Info[#Info]] = Value
@@ -2151,22 +2180,28 @@ local function CreateMainOptions()
           PlayerPower = CreateUnitBarOptions('PlayerPower', 2, 'Player Power'),
 
           -- Target Health group.
-          TargetHealth = CreateUnitBarOptions('TargetHealth', 2, 'Target Health'),
+          TargetHealth = CreateUnitBarOptions('TargetHealth', 3, 'Target Health'),
 
           -- Target Power group.
-          TargetPower = CreateUnitBarOptions('TargetPower', 3, 'Target Power'),
+          TargetPower = CreateUnitBarOptions('TargetPower', 4, 'Target Power'),
+
+          -- Focus Health group.
+          FocusHealth = CreateUnitBarOptions('FocusHealth', 5, 'Focus Health'),
+
+          -- Focus Power group.
+          FocusPower = CreateUnitBarOptions('FocusPower', 6, 'Focus Power'),
 
           -- Main Power group.
-          MainPower = CreateUnitBarOptions('MainPower', 4, 'Main Power', 'Druids only: Shown when in cat or bear form'),
+          MainPower = CreateUnitBarOptions('MainPower', 7, 'Main Power', 'Druids only: Shown when in cat or bear form'),
 
           -- Runebar group.
-          RuneBar = CreateUnitBarOptions('RuneBar', 4, 'Rune Bar'),
+          RuneBar = CreateUnitBarOptions('RuneBar', 8, 'Rune Bar'),
 
           -- Combobar group.
-          ComboBar = CreateUnitBarOptions('ComboBar', 5, 'Combo Bar'),
+          ComboBar = CreateUnitBarOptions('ComboBar', 9, 'Combo Bar'),
 
           -- Holybar group.
-          HolyBar = CreateUnitBarOptions('HolyBar', 6, 'Holy Bar'),
+          HolyBar = CreateUnitBarOptions('HolyBar', 10, 'Holy Bar'),
         },
       },
 --=============================================================================

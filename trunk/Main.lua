@@ -118,6 +118,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- InVehicle            Set to true if the player is in a vehicle.
 -- IsDead               Set to true if the player is dead.
 -- HasTarget            Set to true if the player has a target.
+-- HasFocus             Set to true if the player has a focus.
 --
 -- PlayerPowerType      The main power type for the player.
 -- FadeOutTime          Time in seconds to fade the unitbars.
@@ -261,6 +262,7 @@ local InCombat = false
 local InVehicle = false
 local IsDead = false
 local HasTarget = false
+local HasFocus = false
 local PlayerPowerType = nil
 local PlayerClass = nil
 local Initialized = false
@@ -318,10 +320,11 @@ local Defaults = {
     HideTooltips = false,
     HideTooltipsDesc = false,
     FadeOutTime = 1.0,
+-- Player Health
     PlayerHealth = {
       Name = 'Player Health',
       x = 0,
-      y = 0,
+      y = 150,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -371,8 +374,276 @@ local Defaults = {
         Color = {r = 1, g = 1, b = 1, a = 1},
       }
     },
+-- Player Power
     PlayerPower = {
       Name = 'Player Power',
+      x = 0,
+      y = 120,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+    },
+-- Target Health
+    TargetHealth = {
+      Name = 'Target Health',
+      x = 0,
+      y = 90,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      }
+    },
+-- Target Power
+    TargetPower = {
+      Name = 'Target Power',
+      x = 0,
+      y = 60,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+    },
+-- Focus Health
+    FocusHealth = {
+      Name = 'Focus Health',
+      x = 0,
+      y = 30,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      }
+    },
+-- Focus Power
+    FocusPower = {
+      Name = 'Focus Power',
+      x = 0,
+      y = 0,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+    },
+-- Main Power
+    MainPower = {
+      Name = 'Main Power',
       x = 0,
       y = -30,
       Status = {
@@ -423,167 +694,11 @@ local Defaults = {
         Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
-    TargetHealth = {
-      Name = 'Target Health',
-      x = 0,
-      y = -60,
-      Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        ShowAlways    = true,
-        HideNotActive = false,
-        HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
-      },
-      Other = {
-        Scale = 1,
-      },
-      Background = {
-        BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      Text = {
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'CENTER',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      }
-    },
-    TargetPower = {
-      Name = 'Target Power',
-      x = 0,
-      y = -90,
-      Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        ShowAlways    = true,
-        HideNotActive = false,
-        HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
-      },
-      Other = {
-        Scale = 1,
-      },
-      Background = {
-        BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-      },
-      Text = {
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'CENTER',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-    },
-    MainPower = {
-      Name = 'Main Power',
-      x = 0,
-      y = -120,
-      Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        ShowAlways    = true,
-        HideNotActive = false,
-        HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
-      },
-      Other = {
-        Scale = 1,
-      },
-      Background = {
-        BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-      },
-      Text = {
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'CENTER',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-    },
+-- RuneBar
     RuneBar = {
       Name = 'Rune Bar',
       x = 0,
-      y = -150,
+      y = -60,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -632,10 +747,11 @@ local Defaults = {
       RuneBarOrder = {[1] = 1, [2] = 2, [3] = 5, [4] = 6, [5] = 3, [6] = 4},
       RuneLocation = {[1] = {}, [2] = {}, [3] = {}, [4] = {}, [5] = {}, [6] = {}},
     },
+-- ComboBar
     ComboBar = {
       Name = 'Combo Bar',
       x = 0,
-      y = -180,
+      y = -90,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -688,10 +804,11 @@ local Defaults = {
         }
       }
     },
+-- HolyBar
     HolyBar = {
       Name = 'Holy Bar',
       x = 0,
-      y = -210,
+      y = -120,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -826,6 +943,7 @@ local function RegisterOtherEvents()
   GUB:RegisterEvent('PLAYER_REGEN_ENABLED', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_REGEN_DISABLED', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_TARGET_CHANGED', 'UnitBarsUpdateStatus')
+  GUB:RegisterEvent('PLAYER_FOCUS_CHANGED', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('UNIT_DISPLAYPOWER', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_DEAD', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_UNGHOST', 'UnitBarsUpdateStatus')
@@ -849,7 +967,7 @@ local function InitializePowerTypeColor()
     local Color = PowerBarColor[PCT]
     local r, g, b = Color.r, Color.g, Color.b
     for BarType, UB in pairs(UnitBars) do
-      if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'MainPower' then
+      if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'FocusPower' or BarType == 'MainPower' then
         local Bar = UB.Bar
         if Bar.Color == nil then
           Bar.Color = {}
@@ -1173,6 +1291,7 @@ function GUB:UnitBarsUpdateStatus(Event)
   InVehicle = UnitHasVehicleUI('player')
   IsDead = UnitIsDeadOrGhost('player') == 1
   HasTarget = UnitExists('target') == 1
+  HasFocus = UnitExists('focus') == 1
   for _, UBF in pairs(UnitBarsF) do
     UBF:StatusCheck()
 
@@ -1386,6 +1505,20 @@ local function StatusCheckTarget(UnitBarF)
 end
 
 -------------------------------------------------------------------------------
+-- StatusCheckFocus (StatusCheck) [UnitBar assigned function]
+--
+-- Disable/Enable the focus unitbar frame.
+-------------------------------------------------------------------------------
+local function StatusCheckFocus(UnitBarF)
+  if StatusCheckShowNever(UnitBarF) then
+
+    -- If the player has a focus then enable this unitbar frame.
+    UnitBarF.Enabled = HasFocus
+  end
+  StatusCheckShowHide(UnitBarF)
+end
+
+-------------------------------------------------------------------------------
 -- StatusCheckMainPower (StatusCheck) [UnitBar assigned function]
 --
 -- Disable/Enable the mainpower unitbar frame.
@@ -1399,7 +1532,6 @@ local function StatusCheckMainPower(UnitBarF)
   StatusCheckShowHide(UnitBarF)
 end
 
-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 -- SetFunction
 --
@@ -1462,6 +1594,16 @@ local function UnitBarsAssignFunctions()
                              GUB.HapBar.UpdatePowerBar(self, Event, 'target', true, PowerType)
                            end
                          end
+  Func.FocusHealth[n] = function(self, Event, Unit)
+                           if Unit == nil or Unit == 'focus' then
+                             GUB.HapBar.UpdateHealthBar(self, Event, 'focus')
+                           end
+                         end
+  Func.FocusPower[n]  = function(self, Event, Unit, PowerType)
+                           if Unit == nil or Unit == 'focus' then
+                             GUB.HapBar.UpdatePowerBar(self, Event, 'focus', true, PowerType)
+                           end
+                         end
   Func.MainPower[n]    = function(self, Event, Unit)
                            if  Unit == nil or Unit == 'player' then
                              GUB.HapBar.UpdatePowerBar(self, Event, 'player', false, 'MANA')
@@ -1492,13 +1634,14 @@ local function UnitBarsAssignFunctions()
 
   SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'RuneBar', 'HolyBar')
   SetFunction(Func, n, StatusCheckTarget, 'TargetHealth', 'TargetPower', 'ComboBar')
+  SetFunction(Func, n, StatusCheckFocus, 'FocusHealth', 'FocusPower')
   Func.MainPower[n] = StatusCheckMainPower
 
   -- Enable mouse click functions.
   n = 'EnableMouseClicks' -- UnitBarF[]:EnableMouseClicks(Enable)
   f = GUB.HapBar.EnableMouseClicksHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.EnableMouseClicksRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.EnableMouseClicksCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableMouseClicksHoly, 'HolyBar')
@@ -1507,7 +1650,7 @@ local function UnitBarsAssignFunctions()
   n = 'EnableScreenClamp' -- UnitBarF[]:EnableScreenClamp(Enable)
   f = GUB.HapBar.EnableScreenClampHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.EnableScreenClampRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.EnableScreenClampCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableScreenClampHoly, 'HolyBar')
@@ -1516,7 +1659,7 @@ local function UnitBarsAssignFunctions()
   n = 'FrameSetScript'  -- UnitBarF[]:FrameSetScript(Enable)
   f = GUB.HapBar.FrameSetScriptHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.FrameSetScriptRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.FrameSetScriptCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.FrameSetScriptHoly, 'HolyBar')
@@ -1525,7 +1668,7 @@ local function UnitBarsAssignFunctions()
   n = 'SetAttr' -- UnitBarF[]:SetAttr(Object, Attr)
   f = GUB.HapBar.SetAttrHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.SetAttrRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.SetAttrCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.SetAttrHoly, 'HolyBar')
