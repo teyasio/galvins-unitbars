@@ -152,6 +152,8 @@ local UnitBarsSelectDropdown = {
   TargetPower = Defaults.profile.TargetPower.Name,
   FocusHealth = Defaults.profile.FocusHealth.Name,
   FocusPower = Defaults.profile.FocusPower.Name,
+  PetHealth = Defaults.profile.PetHealth.Name,
+  PetPower = Defaults.profile.PetPower.Name,
   MainPower = Defaults.profile.MainPower.Name,
   RuneBar = Defaults.profile.RuneBar.Name,
   ComboBar = Defaults.profile.ComboBar.Name,
@@ -1045,7 +1047,8 @@ local function CreateBarOptions(BarType, Order, Name)
   }
 
   -- Add power colors for power bars only.
-  if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'FocusPower' or BarType == 'MainPower' then
+  if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'FocusPower' or BarType == 'PetPower' or
+     BarType == 'MainPower' then
 
     -- Remove the BarColor options
     BarOptions.args.General.args.BarColor = nil
@@ -1905,10 +1908,36 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      return string.format('Align Focus Power with %s', AlignmentBarName)
                    end
           },
+          PetHealth = {
+            type = 'toggle',
+            name = 'Pet Health',
+            order = 7,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'PetHealth'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return string.format('Align Pet Health with %s', AlignmentBarName)
+                   end
+          },
+          PetPower = {
+            type = 'toggle',
+            name = 'Pet Power',
+            order = 8,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'PetPower'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return string.format('Align Pet Power with %s', AlignmentBarName)
+                   end
+          },
           MainPower = {
             type = 'toggle',
             name = 'Main Power',
-            order = 7,
+            order = 9,
             hidden = function(Info)
                        local Value = AlignmentBar == 'MainPower'
                        BarsHidden[Info[#Info]] = Value
@@ -1921,7 +1950,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
           RuneBar = {
             type = 'toggle',
             name = 'Rune Bar',
-            order = 8,
+            order = 10,
             hidden = function(Info)
                        local Value = AlignmentBar == 'RuneBar'
                        BarsHidden[Info[#Info]] = Value
@@ -1934,7 +1963,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
           ComboBar = {
             type = 'toggle',
             name = 'Combo Bar',
-            order = 9,
+            order = 11,
             hidden = function(Info)
                        local Value = AlignmentBar == 'ComboBar'
                        BarsHidden[Info[#Info]] = Value
@@ -1947,7 +1976,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
           HolyBar = {
             type = 'toggle',
             name = 'Holy Bar',
-            order = 10,
+            order = 12,
             hidden = function(Info)
                        local Value = AlignmentBar == 'HolyBar'
                        BarsHidden[Info[#Info]] = Value
@@ -2191,17 +2220,23 @@ local function CreateMainOptions()
           -- Focus Power group.
           FocusPower = CreateUnitBarOptions('FocusPower', 6, 'Focus Power'),
 
+          -- Pet Health group.
+          PetHealth = CreateUnitBarOptions('PetHealth', 7, 'Pet Health', 'Classes with pets only'),
+
+          -- Pet Power group.
+          PetPower = CreateUnitBarOptions('PetPower', 8, 'Pet Power', 'Classes with pets only'),
+
           -- Main Power group.
-          MainPower = CreateUnitBarOptions('MainPower', 7, 'Main Power', 'Druids only: Shown when in cat or bear form'),
+          MainPower = CreateUnitBarOptions('MainPower', 9, 'Main Power', 'Druids only: Shown when in cat or bear form'),
 
           -- Runebar group.
-          RuneBar = CreateUnitBarOptions('RuneBar', 8, 'Rune Bar'),
+          RuneBar = CreateUnitBarOptions('RuneBar', 10, 'Rune Bar'),
 
           -- Combobar group.
-          ComboBar = CreateUnitBarOptions('ComboBar', 9, 'Combo Bar'),
+          ComboBar = CreateUnitBarOptions('ComboBar', 11, 'Combo Bar'),
 
           -- Holybar group.
-          HolyBar = CreateUnitBarOptions('HolyBar', 10, 'Holy Bar'),
+          HolyBar = CreateUnitBarOptions('HolyBar', 12, 'Holy Bar'),
         },
       },
 --=============================================================================

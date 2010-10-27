@@ -119,6 +119,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- IsDead               Set to true if the player is dead.
 -- HasTarget            Set to true if the player has a target.
 -- HasFocus             Set to true if the player has a focus.
+-- HasPet               Set to true if the player has a pet.
 --
 -- PlayerPowerType      The main power type for the player.
 -- FadeOutTime          Time in seconds to fade the unitbars.
@@ -263,6 +264,7 @@ local InVehicle = false
 local IsDead = false
 local HasTarget = false
 local HasFocus = false
+local HasPet = false
 local PlayerPowerType = nil
 local PlayerClass = nil
 local Initialized = false
@@ -641,11 +643,118 @@ local Defaults = {
         Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
+-- Pet Health
+    PetHealth = {
+      Name = 'Pet Health',
+      x = 0,
+      y = -30,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      }
+    },
+-- Pet Power
+    PetPower = {
+      Name = 'Pet Power',
+      x = 0,
+      y = -60,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        TextType = 'percent',
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0, g = 0, b = 0, a = 1},
+      },
+      Bar = {
+        HapWidth = 170,
+        HapHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+    },
 -- Main Power
     MainPower = {
       Name = 'Main Power',
       x = 0,
-      y = -30,
+      y = -90,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -698,7 +807,7 @@ local Defaults = {
     RuneBar = {
       Name = 'Rune Bar',
       x = 0,
-      y = -60,
+      y = -120,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -751,7 +860,7 @@ local Defaults = {
     ComboBar = {
       Name = 'Combo Bar',
       x = 0,
-      y = -90,
+      y = -150,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -808,7 +917,7 @@ local Defaults = {
     HolyBar = {
       Name = 'Holy Bar',
       x = 0,
-      y = -120,
+      y = -180,
       Status = {
         ShowNever     = false,
         HideWhenDead  = true,
@@ -949,6 +1058,7 @@ local function RegisterOtherEvents()
   GUB:RegisterEvent('PLAYER_UNGHOST', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_ALIVE', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
+  GUB:RegisterEvent('UNIT_PET', 'UnitBarsUpdateStatus')
 
   -- Register rune power events
   GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdate')
@@ -967,7 +1077,8 @@ local function InitializePowerTypeColor()
     local Color = PowerBarColor[PCT]
     local r, g, b = Color.r, Color.g, Color.b
     for BarType, UB in pairs(UnitBars) do
-      if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'FocusPower' or BarType == 'MainPower' then
+      if BarType == 'PlayerPower' or BarType == 'TargetPower' or
+         BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'MainPower' then
         local Bar = UB.Bar
         if Bar.Color == nil then
           Bar.Color = {}
@@ -1284,7 +1395,12 @@ end
 -- Event handler that hides/shows the unitbars based on their current settings.
 -- This also updates all unitbars that are visible.
 -------------------------------------------------------------------------------
-function GUB:UnitBarsUpdateStatus(Event)
+function GUB:UnitBarsUpdateStatus(Event, Unit)
+
+  -- Do nothing if the unit is not 'player'.
+  if Unit ~= nil and Unit ~= 'player' then
+    return
+  end
 
   -- Set the vehicle and combat flags
   InCombat = UnitAffectingCombat('player') == 1
@@ -1292,6 +1408,7 @@ function GUB:UnitBarsUpdateStatus(Event)
   IsDead = UnitIsDeadOrGhost('player') == 1
   HasTarget = UnitExists('target') == 1
   HasFocus = UnitExists('focus') == 1
+  HasPet = select(1, HasPetUI()) ~= nil
   for _, UBF in pairs(UnitBarsF) do
     UBF:StatusCheck()
 
@@ -1519,6 +1636,20 @@ local function StatusCheckFocus(UnitBarF)
 end
 
 -------------------------------------------------------------------------------
+-- StatusCheckPet (StatusCheck) [UnitBar assigned function]
+--
+-- Disable/Enable the pet unitbar frame.
+-------------------------------------------------------------------------------
+local function StatusCheckPet(UnitBarF)
+  if StatusCheckShowNever(UnitBarF) then
+
+    -- If the player has a pet then enable this unitbar frame.
+    UnitBarF.Enabled = HasPet
+  end
+  StatusCheckShowHide(UnitBarF)
+end
+
+-------------------------------------------------------------------------------
 -- StatusCheckMainPower (StatusCheck) [UnitBar assigned function]
 --
 -- Disable/Enable the mainpower unitbar frame.
@@ -1604,6 +1735,16 @@ local function UnitBarsAssignFunctions()
                              GUB.HapBar.UpdatePowerBar(self, Event, 'focus', true, PowerType)
                            end
                          end
+  Func.PetHealth[n] = function(self, Event, Unit)
+                           if Unit == nil or Unit == 'pet' then
+                             GUB.HapBar.UpdateHealthBar(self, Event, 'pet')
+                           end
+                         end
+  Func.PetPower[n]  = function(self, Event, Unit, PowerType)
+                           if Unit == nil or Unit == 'pet' then
+                             GUB.HapBar.UpdatePowerBar(self, Event, 'pet', true, PowerType)
+                           end
+                         end
   Func.MainPower[n]    = function(self, Event, Unit)
                            if  Unit == nil or Unit == 'player' then
                              GUB.HapBar.UpdatePowerBar(self, Event, 'player', false, 'MANA')
@@ -1635,13 +1776,15 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'RuneBar', 'HolyBar')
   SetFunction(Func, n, StatusCheckTarget, 'TargetHealth', 'TargetPower', 'ComboBar')
   SetFunction(Func, n, StatusCheckFocus, 'FocusHealth', 'FocusPower')
+  SetFunction(Func, n, StatusCheckPet, 'PetHealth', 'PetPower')
   Func.MainPower[n] = StatusCheckMainPower
 
   -- Enable mouse click functions.
   n = 'EnableMouseClicks' -- UnitBarF[]:EnableMouseClicks(Enable)
   f = GUB.HapBar.EnableMouseClicksHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
+                          'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.EnableMouseClicksRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.EnableMouseClicksCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableMouseClicksHoly, 'HolyBar')
@@ -1650,7 +1793,8 @@ local function UnitBarsAssignFunctions()
   n = 'EnableScreenClamp' -- UnitBarF[]:EnableScreenClamp(Enable)
   f = GUB.HapBar.EnableScreenClampHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
+                          'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.EnableScreenClampRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.EnableScreenClampCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableScreenClampHoly, 'HolyBar')
@@ -1659,7 +1803,8 @@ local function UnitBarsAssignFunctions()
   n = 'FrameSetScript'  -- UnitBarF[]:FrameSetScript(Enable)
   f = GUB.HapBar.FrameSetScriptHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
+                          'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.FrameSetScriptRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.FrameSetScriptCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.FrameSetScriptHoly, 'HolyBar')
@@ -1668,7 +1813,8 @@ local function UnitBarsAssignFunctions()
   n = 'SetAttr' -- UnitBarF[]:SetAttr(Object, Attr)
   f = GUB.HapBar.SetAttrHap
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower', 'FocusHealth', 'FocusPower', 'MainPower')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
+                          'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower')
   SetFunction(Func, n, GUB.RuneBar.SetAttrRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.SetAttrCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.SetAttrHoly, 'HolyBar')
