@@ -181,8 +181,18 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
 
-  -- Display the value.
-  SetStatusBarValue(self.StatusBar, CurrValue, MaxValue)
+  local Bar = self.UnitBar.Bar
+
+  -- Get the class color if classcolor flag is true.
+  local Color = Bar.Color
+  if Bar.ClassColor then
+    Color = Color[select(2, UnitClass(Unit))]
+  end
+
+  -- Set the color and display the value.
+  local StatusBar = self.StatusBar
+  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
+  SetStatusBarValue(StatusBar, CurrValue, MaxValue)
 
   -- Set the IsActive flag.
   self.IsActive = CurrValue < MaxValue
@@ -339,6 +349,9 @@ end
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
+--
+--       Since health bars and power bars can have multiple colors.  This function
+--       no longer sets them.
 -------------------------------------------------------------------------------
 function GUB.HapBar:SetAttrHap(Object, Attr)
 
@@ -384,10 +397,12 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
       StatusBar:SetRotatesTexture(Bar.RotateTexture)
     end
 
-    -- Make sure theres a hash table for color.  Power bars don't use hash color tables.
-    if BarColor.r and (Attr == nil or Attr == 'color') then
+    -- Should only set color on bars that are not a target or focus health bar.
+    -- Otherwise Update() should be used instead.
+    if Attr == nil or Attr == 'color' then
       StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
     end
+
     if Attr == nil or Attr == 'padding' then
       StatusBar:ClearAllPoints()
       StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)

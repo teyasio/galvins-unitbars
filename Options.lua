@@ -876,6 +876,179 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateClassColorsOptions
+--
+-- Creates class color options for a UnitBar.
+--
+-- Subfunction of CreateBarOptions()
+--
+-- Usage: ClassColorsOptions = CreateClassColorsOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- PowerColorsOptions    Options table for class colors.
+-------------------------------------------------------------------------------
+local function CreateClassColorsOptions(BarType, Order, Name)
+  local ClassColorsOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            -- Info.arg[1] = color index.
+            local c = UnitBars[BarType].Bar.Color
+
+            if Info.arg[1] ~= 0 then
+              c = c[Info.arg[1]]
+            end
+            return c.r, c.g, c.b, c.a
+          end,
+    set = function(Info, r, g, b, a)
+            local c = UnitBars[BarType].Bar.Color
+
+            if Info.arg[1] ~= 0 then
+              c = c[Info.arg[1]]
+            end
+            c.r, c.g, c.b, c.a = r, g, b, a
+
+            -- Set the color to the bar
+            UnitBarsF[BarType]:Update()
+          end,
+    args = {
+      ClassColorToggle = {
+        type = 'toggle',
+        name = 'Class Colors',
+        order = 1,
+        desc = 'If checked class colors will be used',
+        get = function()
+                return UnitBars[BarType].Bar.ClassColor
+              end,
+        set = function(Info, Value)
+                UnitBars[BarType].Bar.ClassColor = Value
+
+                -- Refresh color when changing between class colors and normal.
+                UnitBarsF[BarType]:Update()
+              end,
+      },
+      NormalColor = {
+        type = 'color',
+        name = 'Color',
+        order = 2,
+        hasAlpha = true,
+        desc = 'Set normal color',
+        hidden = function()
+                   return UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {0},
+      },
+      DeathKnightColor = {
+        type = 'color',
+        name = 'Death Knight',
+        order = 3,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'DEATHKNIGHT'},
+      },
+      DruidColor = {
+        type = 'color',
+        name = 'Druid',
+        order = 4,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'DRUID'},
+      },
+      HunterColor = {
+        type = 'color',
+        name = 'Hunter',
+        order = 5,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'HUNTER'},
+      },
+      MageColor = {
+        type = 'color',
+        name = 'Mage',
+        order = 6,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'MAGE'},
+      },
+      PaladinColor = {
+        type = 'color',
+        name = 'Paladin',
+        order = 7,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'PALADIN'},
+      },
+      PriestColor = {
+        type = 'color',
+        name = 'Priest',
+        order = 8,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'PRIEST'},
+      },
+      RogueColor = {
+        type = 'color',
+        name = 'Rogue',
+        order = 9,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'ROGUE'},
+      },
+      ShamanColor = {
+        type = 'color',
+        name = 'Shaman',
+        order = 10,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'SHAMAN'},
+      },
+      WarlockColor = {
+        type = 'color',
+        name = 'Warlock',
+        order = 11,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'WARLOCK'},
+      },
+      WarriorColor = {
+        type = 'color',
+        name = 'Warrior',
+        order = 12,
+        hasAlpha = true,
+        hidden = function()
+                   return not UnitBars[BarType].Bar.ClassColor
+                 end,
+        arg = {'WARRIOR'},
+      },
+    },
+  }
+  return ClassColorsOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateBarOptions
 --
 -- Creates bar options for a unitbar.
@@ -1046,6 +1219,16 @@ local function CreateBarOptions(BarType, Order, Name)
     },
   }
 
+  -- Add class colors for Target and Focus health bars only.
+  if BarType == 'TargetHealth' or BarType == 'FocusHealth' then
+
+    -- Remove the BarColor options
+    BarOptions.args.General.args.BarColor = nil
+
+    -- Add the Power color options.
+    BarOptions.args.ClassColors = CreateClassColorsOptions(BarType, 2, 'Color')
+  end
+
   -- Add power colors for power bars only.
   if BarType == 'PlayerPower' or BarType == 'TargetPower' or BarType == 'FocusPower' or BarType == 'PetPower' or
      BarType == 'MainPower' then
@@ -1054,7 +1237,7 @@ local function CreateBarOptions(BarType, Order, Name)
     BarOptions.args.General.args.BarColor = nil
 
     -- Add the Power color options.
-    BarOptions.args.PowerColors = CreatePowerColorsOptions(BarType, 2, 'Power Colors')
+    BarOptions.args.PowerColors = CreatePowerColorsOptions(BarType, 2, 'Power Color')
   end
 
   -- Add combo bar color options if its a combobar. And remove HapWidth and HapHeight options.
