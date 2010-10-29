@@ -96,7 +96,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --
 --                      This works for health and power bars only.  If true then the updates happen thru
 --                      UnitBarsOnUpdate. If false then the UnitBarEventHandler does the updates.
--- PowerColorType       Table used by InitializePowerTypeColor()
+-- PowerColorType       Table used by InitializeColors()
 -- PowerTypeToNumber    Converts a string powertype into a number.
 -- CheckEvent           Check to see if an event is correct.  Converts an event into one of the following:
 --                       * Power type value from 0 to 6.
@@ -195,6 +195,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --     BackdropSettings   Contains the settings for the background, forground, and padding.
 --     Color              Current color of the background texture of the border frame.
 --   Bar
+--     ClassColor        (Target and Focus Health bars only) If true then the health bar uses the
+--                        class color otherwise uses the normal color.
 --     HapWidth, HapHeight
 --                        The current width and height.
 --     FillDirection      Direction to the fill the bar in 'HORIZONTAL' or 'VERTICAL'.
@@ -466,6 +468,7 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
@@ -573,6 +576,7 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
@@ -1066,13 +1070,14 @@ local function RegisterOtherEvents()
 end
 
 -------------------------------------------------------------------------------
--- InitializePowerTypeColor
+-- InitializeColors
 --
--- Copy blizzard's power colors into the Defaults profile.
+-- Copy blizzard's power colors and class colors into the Defaults profile.
 -------------------------------------------------------------------------------
-local function InitializePowerTypeColor()
+local function InitializeColors()
   local UnitBars = Defaults.profile
 
+  -- Copy the power colors.
   for PCT, PowerType in pairs(PowerColorType) do
     local Color = PowerBarColor[PCT]
     local r, g, b = Color.r, Color.g, Color.b
@@ -1084,6 +1089,21 @@ local function InitializePowerTypeColor()
           Bar.Color = {}
         end
         Bar.Color[PowerType] = {r = r, g = g, b = b, a = 1}
+      end
+    end
+  end
+
+  -- Copy the class colors.
+  for Class, Color in pairs(RAID_CLASS_COLORS) do
+    local r, g, b = Color.r, Color.g, Color.b
+    for BarType, UB in pairs(UnitBars) do
+      if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
+        local Bar = UB.Bar
+        if Bar.Color == nil then
+          Bar.Color = {}
+        end
+        print(Class, r, g, b)
+        Bar.Color[Class] = {r = r, g = g, b = b, a = 1}
       end
     end
   end
@@ -2309,8 +2329,8 @@ end
 -------------------------------------------------------------------------------
 function GUB:OnInitialize()
 
-  -- Add blizzards powerbar colors to defaults.
-  InitializePowerTypeColor()
+  -- Add blizzards powerbar colors and class colors to defaults.
+  InitializeColors()
 
   -- Load the unitbars database
   GUB.UnitBarsDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', Defaults, true)
