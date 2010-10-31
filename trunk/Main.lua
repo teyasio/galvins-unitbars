@@ -1102,7 +1102,6 @@ local function InitializeColors()
         if Bar.Color == nil then
           Bar.Color = {}
         end
-        print(Class, r, g, b)
         Bar.Color[Class] = {r = r, g = g, b = b, a = 1}
       end
     end
