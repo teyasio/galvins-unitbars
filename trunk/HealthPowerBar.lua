@@ -186,7 +186,10 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   -- Get the class color if classcolor flag is true.
   local Color = Bar.Color
   if Bar.ClassColor then
-    Color = Color[select(2, UnitClass(Unit))]
+    local Class = select(2, UnitClass(Unit))
+    if Class ~= nil then
+      Color = Color[Class]
+    end
   end
 
   -- Set the color and display the value.
