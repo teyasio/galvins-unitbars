@@ -183,14 +183,6 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --   Scale              Sets the scale of the unitbar frame.
 --
 -- UnitBars health and power fields
---   General
---     TextType         What type of numeric text to display.
---                        'none'          No value gets displayed.
---                        'whole'         Value gets displayed as a Whole number.
---                        'percent'       Value gets displayed as a percentage.
---                        'max'           Value/Max value gets displayed.
---                        'maxpercent'    Value/Max and percentage.
---                        'wholepercent'  Whole and percentage.
 --   Background
 --     BackdropSettings   Contains the settings for the background, forground, and padding.
 --     Color              Current color of the background texture of the border frame.
@@ -209,9 +201,22 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --                        This array is for powerbars only.  By default they're loaded from blizzards default
 --                        colors.
 --   Text
+--     TextType
+--       Custom           If true then a user layout is specified otherwise the default layout is used.
+--       Swapped          if true The Current Value and Max Value swap places.
+--       CurrValue        Type for the current value.
+--       MaxValue         Type for the maximum value.
+--                          Text type values:
+--                            'whole'     - Whole number
+--                            'percent'   - Percentage
+--                            'thousands' - In thousands 999.9k
+--                            'millions'  - In millions  999.9m
+--                            'short'     - In thousands or millios depending on the value
+--                            'none'      - no value gets displayed
+--       Layout           Layout to display the text, this can vary depending on the text type.
 --     FontSettings       Contains the settings for the text.
 --     Color              Current color of the text for the bar.
-
+--   Text2                Same as Text, provides a second text frame.
 --
 -- Runebar fields
 --   General
@@ -337,9 +342,6 @@ local Defaults = {
         HideNotActive = false,
         HideNoCombat  = false
       },
-      General = {
-        TextType = 'percent',
-      },
       Other = {
         Scale = 1,
       },
@@ -361,9 +363,17 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
@@ -376,7 +386,28 @@ local Defaults = {
           ShadowOffset = 0,
         },
         Color = {r = 1, g = 1, b = 1, a = 1},
-      }
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
     },
 -- Player Power
     PlayerPower = {
@@ -391,9 +422,6 @@ local Defaults = {
         HideNotActive = false,
         HideNoCombat  = false
       },
-      General = {
-        TextType = 'percent',
-      },
       Other = {
         Scale = 1,
       },
@@ -417,12 +445,40 @@ local Defaults = {
         StatusBarTexture = StatusBarTexture,
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
           Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
           Width = 200,
           OffsetX = 0,
           OffsetY = 0,
@@ -444,9 +500,6 @@ local Defaults = {
         HideNotActive = false,
         HideNoCombat  = false
       },
-      General = {
-        TextType = 'percent',
-      },
       Other = {
         Scale = 1,
       },
@@ -472,6 +525,13 @@ local Defaults = {
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
@@ -484,7 +544,28 @@ local Defaults = {
           ShadowOffset = 0,
         },
         Color = {r = 1, g = 1, b = 1, a = 1},
-      }
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
     },
 -- Target Power
     TargetPower = {
@@ -498,9 +579,6 @@ local Defaults = {
         ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
       },
       Other = {
         Scale = 1,
@@ -525,12 +603,40 @@ local Defaults = {
         StatusBarTexture = StatusBarTexture,
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
           Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
           Width = 200,
           OffsetX = 0,
           OffsetY = 0,
@@ -552,9 +658,6 @@ local Defaults = {
         HideNotActive = false,
         HideNoCombat  = false
       },
-      General = {
-        TextType = 'percent',
-      },
       Other = {
         Scale = 1,
       },
@@ -580,6 +683,13 @@ local Defaults = {
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
@@ -592,7 +702,28 @@ local Defaults = {
           ShadowOffset = 0,
         },
         Color = {r = 1, g = 1, b = 1, a = 1},
-      }
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
     },
 -- Focus Power
     FocusPower = {
@@ -606,9 +737,6 @@ local Defaults = {
         ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
       },
       Other = {
         Scale = 1,
@@ -633,12 +761,40 @@ local Defaults = {
         StatusBarTexture = StatusBarTexture,
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
           Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
           Width = 200,
           OffsetX = 0,
           OffsetY = 0,
@@ -659,9 +815,6 @@ local Defaults = {
         ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
       },
       Other = {
         Scale = 1,
@@ -687,6 +840,13 @@ local Defaults = {
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
@@ -699,7 +859,28 @@ local Defaults = {
           ShadowOffset = 0,
         },
         Color = {r = 1, g = 1, b = 1, a = 1},
-      }
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
     },
 -- Pet Power
     PetPower = {
@@ -713,9 +894,6 @@ local Defaults = {
         ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
-      },
-      General = {
-        TextType = 'percent',
       },
       Other = {
         Scale = 1,
@@ -740,12 +918,40 @@ local Defaults = {
         StatusBarTexture = StatusBarTexture,
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
           Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
           Width = 200,
           OffsetX = 0,
           OffsetY = 0,
@@ -767,9 +973,6 @@ local Defaults = {
         HideNotActive = false,
         HideNoCombat  = false
       },
-      General = {
-        TextType = 'percent',
-      },
       Other = {
         Scale = 1,
       },
@@ -793,12 +996,40 @@ local Defaults = {
         StatusBarTexture = StatusBarTexture,
       },
       Text = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'percent',
+          MaxValue = 'none',
+          Layout = '%d%%',
+        },
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
           Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Swapped = false,
+          CurrValue = 'none',
+          MaxValue = 'none',
+          Layout = '',
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
           Width = 200,
           OffsetX = 0,
           OffsetY = 0,

@@ -138,11 +138,20 @@ local FontPositionDropdown = {
 
 local TextTypeDropdown = {
   none = 'No value',
-  percent = 'Percentage',
-  max = 'Value / Max Value',
   whole = 'Whole',
-  maxpercent = 'Max and Percentage',
-  wholepercent = 'Whole and Percentage'
+  percent = 'Percentage',
+  thousands = 'Thousands',
+  millions = 'Millions',
+  short = 'Short',
+}
+
+local TextTypeLayout = {
+  none = '',
+  whole = '%d',
+  percent = '%d%%',
+  thousands = '%.fK',
+  millions = '%.1fM',
+  short = '%s',
 }
 
 local UnitBarsSelectDropdown = {
@@ -180,8 +189,6 @@ local BarFillDirectionDropdown = {
   HORIZONTAL = 'Horizontal',
   VERTICAL = 'Vertical'
 }
-
---local BarTileDropdown = {
 
 --*****************************************************************************
 --
@@ -642,31 +649,129 @@ end
 --
 -- Subfunction of CreateUnitBarOptions()
 --
--- Usage: TextOptions CreateTextOptions(BarType, Order, Name)
+-- Usage: TextOptions CreateTextOptions(BarType, Object, Order, Name)
 --
 -- BarType               Type options being created.
 -- Order                 Order number.
+-- Object                Can be 'text' or 'text2'
 -- Name                  Name text
 --
 -- TextOptions     Options table for background options.
 -------------------------------------------------------------------------------
-local function CreateTextOptions(BarType, Order, Name)
+local function CreateTextOptions(BarType, Object, Order, Name)
+
+  -- Set the object.
+  local UnitBarTable = nil
+  local Enabled = nil
+
+  if Object == 'text' then
+    UnitBarTable = 'Text'
+  elseif Object == 'text2' then
+    UnitBarTable = 'Text2'
+  end
+
   local TextOptions = {
     type = 'group',
     name = Name,
     order = Order,
     args = {
+      TextType = {
+        type = 'group',
+        name = 'Text Type',
+        dialogInline = true,
+        order = 1,
+        get = function(Info)
+                return UnitBars[BarType][UnitBarTable].TextType[Info[#Info]]
+              end,
+        set = function(Info, Value)
+                UnitBars[BarType][UnitBarTable].TextType[Info[#Info]] = Value
+              end,
+        args = {
+          CurrValue = {
+            type = 'select',
+            name = 'Current Value',
+            order = 1,
+            values = TextTypeDropdown,
+            style = 'dropdown',
+            desc = 'Changes the current value text in the bar',
+          },
+          MaxValue = {
+            type = 'select',
+            name = 'Maximum Value',
+            order = 2,
+            values = TextTypeDropdown,
+            style = 'dropdown',
+            desc = 'Changes the maximum value text in the bar',
+          },
+          Swapped = {
+            type = 'toggle',
+            name = 'Swap',
+            order = 3,
+            desc = 'If checked the Maximum Value is first and Current Value is second',
+          },
+          Custom = {
+            type = 'toggle',
+            name = 'Custom Layout',
+            order = 4,
+            desc = 'If checked the layout can be changed',
+          },
+          CustomLayout = {
+            type = 'input',
+            name = 'Custom Layout',
+            order = 5,
+            multiline = false,
+            hidden = function()
+                       return not UnitBars[BarType][UnitBarTable].TextType.Custom
+                     end,
+            get = function()
+                    return UnitBars[BarType][UnitBarTable].TextType.Layout
+                  end,
+            set = function(Info, Value)
+                    UnitBars[BarType][UnitBarTable].TextType.Layout = Value
+                  end,
+          },
+          Layout = {
+            type = 'description',
+            order = 6,
+            name = function()
+                     local TextType = UnitBars[BarType][UnitBarTable].TextType
+                     local CurrValue = TextType.CurrValue
+                     local MaxValue = TextType.MaxValue
+                     local Layout = TextType.Layout
+
+                     -- Create the layout string if custom is false.
+                     if not TextType.Custom then
+                       if CurrValue == 'whole' and MaxValue == 'whole' then
+                         Layout = '%d / %d'
+                       elseif not TextType.Swapped then
+                         Layout = strconcat(TextTypeLayout[CurrValue], '  ', TextTypeLayout[MaxValue])
+                       else
+                         Layout = strconcat(TextTypeLayout[MaxValue], '  ', TextTypeLayout[CurrValue])
+                       end
+
+                       -- Set the layout value.
+                       TextType.Layout = Layout
+                     end
+
+                     -- Update the bar.
+                     UnitBarsF[BarType]:Update()
+                     return strconcat('|cFFFFFF00 Layout:|r ', Layout)
+                   end,
+            fontSize = 'large',
+          },
+        },
+      },
       Font = {
         type = 'group',
         name = 'Font',
         dialogInline = true,
-        order = 1,
+        order = 2,
         get = function(Info)
-                return UnitBars[BarType].Text.FontSettings[Info[#Info]]
+                return UnitBars[BarType][UnitBarTable].FontSettings[Info[#Info]]
               end,
         set = function(Info, Value)
-                UnitBars[BarType].Text.FontSettings[Info[#Info]] = Value
-                UnitBarsF[BarType]:SetAttr('text', 'font')
+                UnitBars[BarType][UnitBarTable].FontSettings[Info[#Info]] = Value
+                UnitBarsF[BarType]:SetAttr(Object, 'font')
               end,
         args = {
           FontType = {
@@ -719,13 +824,13 @@ local function CreateTextOptions(BarType, Order, Name)
             order = 7,
             hasAlpha = true,
             get = function()
-                    local c = UnitBars[BarType].Text.Color
+                    local c = UnitBars[BarType][UnitBarTable].Color
                     return c.r, c.g, c.b, c.a
                   end,
             set = function(Info, r, g, b, a)
-                    local c = UnitBars[BarType].Text.Color
+                    local c = UnitBars[BarType][UnitBarTable].Color
                     c.r, c.g, c.b, c.a = r, g, b, a
-                    UnitBarsF[BarType]:SetAttr('text', 'color')
+                    UnitBarsF[BarType]:SetAttr(Object, 'color')
                   end,
           },
         },
@@ -736,11 +841,11 @@ local function CreateTextOptions(BarType, Order, Name)
         dialogInline = true,
         order = 3,
         get = function(Info)
-                return UnitBars[BarType].Text.FontSettings[Info[#Info]]
+                return UnitBars[BarType][UnitBarTable].FontSettings[Info[#Info]]
               end,
         set = function(Info, Value)
-                UnitBars[BarType].Text.FontSettings[Info[#Info]] = Value
-                UnitBarsF[BarType]:SetAttr('text', 'font')
+                UnitBars[BarType][UnitBarTable].FontSettings[Info[#Info]] = Value
+                UnitBarsF[BarType]:SetAttr(Object, 'font')
               end,
         args = {
           OffsetX = {
@@ -772,8 +877,9 @@ local function CreateTextOptions(BarType, Order, Name)
     },
   }
 
-  -- Remove the text color options and add a text Color options for runebar only.
+  -- Remove the text type and text color options and add a text Color options for runebar only.
   if BarType == 'RuneBar' then
+    TextOptions.args.TextType = nil
     TextOptions.args.Font.args.TextColor = nil
     TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 6, 2, 'Colors')
   end
@@ -1220,7 +1326,7 @@ local function CreateBarOptions(BarType, Order, Name)
   }
 
   -- Add class colors for Target and Focus health bars only.
-  if BarType == 'TargetHealth' or BarType == 'FocusHealth' then
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
 
     -- Remove the BarColor options
     BarOptions.args.General.args.BarColor = nil
@@ -1581,32 +1687,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
           },
         },
       },
-      General = {
-        type = 'group',
-        name = 'General',
-        dialogInline = true,
-        order = 2,
-        args = {
-          TextType = {
-            type = 'select',
-            name = 'Text Type',
-            order = 1,
-            values = TextTypeDropdown,
-            style = 'dropdown',
-            desc = 'Changes the look of the value text in the bar',
-            get = function()
-                    return UnitBars[BarType].General.TextType
-                  end,
-            set = function(Info, Value)
-                    UnitBars[BarType].General.TextType = Value
-
-                    -- Redraw the bar to show the texttype change.
-                    UnitBarsF[BarType]:Update()
-                  end,
-          },
---          Alpha = CreateAlphaOption(BarType, 3),
-        },
-      },
       Other = {
         type = 'group',
         name = 'Other',
@@ -1673,21 +1753,18 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
     UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
   end
 
-  -- Add text options
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' then
-    UBO.Text = CreateTextOptions(BarType, 1002, 'Text')
-    if BarType == 'RuneBar' then
-      UBO.General = nil
-    end
-  else
-
-    -- Remove the general options
-    UBO.General = nil
-  end
 
   -- Add runebar options
   if BarType == 'RuneBar' then
     UBO.RuneBar = CreateRuneBarOptions(BarType, 3, 'General')
+  end
+
+  -- Add text options
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' then
+    UBO.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
+    if BarType ~= 'RuneBar' then
+      UBO.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
+    end
   end
 
   -- Add combobar options
@@ -1729,6 +1806,7 @@ local function CreateCopySettingsOptions(Order, Name)
     Background = false,
     Bar = false,
     Text = false,
+    Text2 = false,
   }
 
   local CopySettingsOptions = {
@@ -1807,11 +1885,9 @@ local function CreateCopySettingsOptions(Order, Name)
             name = 'General',
             order = 3,
             hidden = function(Info)
-                        local Value = CopySettings.All or
-                                CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or
-                                CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar'
-                        CopySettingsHidden[Info[#Info]] = Value
-                        return Value
+
+                       -- General no longers needs to be copied.
+                       return true
                      end,
             desc = 'Copy the general settings',
           },
@@ -1864,6 +1940,19 @@ local function CreateCopySettingsOptions(Order, Name)
                      end,
             desc = 'Copy the text settings',
           },
+          Text2 = {
+            type = 'toggle',
+            name = 'Text2',
+            order = 7,
+            hidden = function(Info)
+                       local Value = CopySettings.All or
+                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'RuneBar' or
+                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'RuneBar'
+                       CopySettingsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = 'Copy the text2 settings',
+          },
         },
       },
       Copy = {
@@ -1907,6 +1996,9 @@ local function CreateCopySettingsOptions(Order, Name)
                    end
                    if CopySettings.Text and not CopySettingsHidden.Text then
                      GUB.UnitBars:CopyTableValues(Source.Text, Dest.Text)
+                   end
+                   if CopySettings.Text2 and not CopySettingsHidden.Text2 then
+                     GUB.UnitBars:CopyTableValues(Source.Text2, Dest.Text2)
                    end
                  end
 

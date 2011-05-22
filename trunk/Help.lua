@@ -32,6 +32,19 @@ All bars have status flags.  This tells a bar what to do based on a certain cond
    Hide not Active      Hide the bar when it's not active.
    Hide no Combat       Don't hide the bar when not in combat.
 
+|cff00ff00Text Type|r
+All health and Power bars text have a text type.  This lets you control how the health or power values are to be displayed.  If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.  In this box you can enter any layout you want.
+
+If the layout causes an error you will see a Layout Error appear on the health or powerbar.  It will let you know if the error came from text or text2.
+
+The easist way to create a custom layout is to turn off custom, pick a default layout from the pull down menus.  Then click custom.  This will let you edit the default layout generated.
+
+You can add extra things to a custom layout.
+
+Examples
+(%d%%) : (%d) -> (20%) : (999)
+Health %d / Percentage %d%% -> Health 999 / Percentage 20%
+%.2fk -> 999.99k
 
 |cff00ff00Copy Settings|r
 This allows you to copy the settings of one bar to another.  Not everything can be copied unless both bars are of the same type.  For example a player health bar has all the same properties of a target health bar.  So everything can be copied between the two.  The copy settings will only let you pick what can be copied.  There is a copy all which will copy all the settings that are supported on the destination bar. First select the bar you want to copy from.  Then select the bar you want to copy to.  Then pick which settingsyou would like to copy.  Then click the copy button.  A warning will pop up to prevent accidental copying.

@@ -19,8 +19,8 @@ local MouseOverDesc = GUB.UnitBars.MouseOverDesc
 
 -- localize some globals.
 local _
-local abs, floor, pairs, ipairs, type, math, table, select =
-      abs, floor, pairs, ipairs, type, math, table, select
+local abs, floor, pairs, ipairs, type, math, table, select, pcall =
+      abs, floor, pairs, ipairs, type, math, table, select, pcall
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
@@ -60,33 +60,63 @@ local PowerEnergy = PowerTypeToNumber['ENERGY']
 -------------------------------------------------------------------------------
 -- GetStatusBarTextValue
 --
--- Returns one or more args to be used in SetFormattedText.
+-- Returns one arg to be used in SetFormattedText.
 --
 -- Usage: FormatString, ... = GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
 --
--- StatusBar      StatusBar frame we're returning values for.
--- CurrValue
--- MaxValue       These values are used to calculate the bar percentage, whole number.
--- FormatString   Fromatted string to be used in SetFromattedText.
--- ...            One or more values.
+-- TextType       Contains the type of text to create.
+-- Value          Value to be used.  If percentage then CurrValue and MaxValue are used.
+-- CurrValue      Current value.  Used for percentage.
+-- MaxValue       Maximum value.  Used for percentage.
+-- FormatString   Formatted string to be used in SetFormattedText. Contains one or more values.
 --
--- Note: If the TextType is not found or MaxValue is equal to zero then '' gets returned.
+-- Note: This function uses the TextType for CurrValue and MaxValue to create a formatted string.
 -------------------------------------------------------------------------------
-local function GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
-  local TextType = StatusBar.UnitBar.General.TextType
+local function GetShortTextValue(Value)
+  if Value < 1000 then
+    return tostring(Value)
+  elseif Value < 1000000 then
+    return ('%.fk'):format(Value / 1000)
+  else
+    return ('%.1fm'):format(Value / 1000000)
+  end
+end
 
-  if MaxValue == 0 then
-    return ''
-  elseif TextType == 'whole' then
-    return '%d', CurrValue
-  elseif TextType == 'percent' then
-    return '%d%%', math.ceil(CurrValue / MaxValue * 100)
-  elseif TextType == 'max' then
-    return '%d / %d', CurrValue, MaxValue
-  elseif TextType == 'maxpercent' then
-    return '%d / %d %d%%', CurrValue, MaxValue, math.ceil(CurrValue / MaxValue * 100)
-  elseif TextType == 'wholepercent' then
-    return '%d %d%%', CurrValue, math.ceil(CurrValue / MaxValue * 100)
+local function GetTextValue(TextType, Value, CurrValue, MaxValue)
+  if TextType == 'whole' then
+    return Value
+  elseif TextType == 'percent' and MaxValue > 0 then
+    return math.ceil(CurrValue / MaxValue * 100)
+  elseif TextType == 'thousands' then
+    return Value / 1000
+  elseif TextType == 'millions' then
+    return Value / 1000000
+  elseif TextType == 'short' then
+    return GetShortTextValue(Value)
+  else
+    return 0
+  end
+end
+
+local function GetStatusBarTextValue(TextType, CurrValue, MaxValue)
+  local TextTypeCurrValue = TextType.CurrValue
+  local TextTypeMaxValue = TextType.MaxValue
+  local Layout = TextType.Layout
+  local CurrValue2, MaxValue2 = CurrValue, MaxValue
+
+  -- Check for swap mode.
+  if TextType.Swapped then
+    TextTypeCurrValue, TextTypeMaxValue = TextTypeMaxValue, TextTypeCurrValue
+    CurrValue2, MaxValue2 = MaxValue, CurrValue
+  end
+
+  if TextTypeCurrValue ~= 'none' and TextTypeMaxValue ~= 'none' then
+    return Layout, GetTextValue(TextTypeCurrValue, CurrValue2, CurrValue, MaxValue),
+                   GetTextValue(TextTypeMaxValue, MaxValue2, CurrValue, MaxValue)
+  elseif TextTypeCurrValue ~= 'none' then
+    return Layout, GetTextValue(TextTypeCurrValue, CurrValue2, CurrValue, MaxValue)
+  elseif TextTypeMaxValue ~= 'none' then
+    return Layout, GetTextValue(TextTypeMaxValue, CurrValue2, CurrValue, MaxValue)
   else
     return ''
   end
@@ -97,15 +127,35 @@ end
 --
 -- Sets the minimum, maximum, and text value to the StatusBar.
 --
--- Usage: SetStatusBarValue(StatusBar, UB, CurrValue, MaxValue)
+-- Usage: SetStatusBarValue(StatusBar, CurrValue, MaxValue)
 --
--- StatusBar    StatusBar frame.
+-- StatusBar    Frame that text is being created for.
 -- CurrValue    Current value to set.
+-- MaxValue     Maximum value to set.
+--
+-- Note: If there's an error in setting the text value then an error message will
+--       be set instead.
 -------------------------------------------------------------------------------
+local function SetBarValue(StatusBar, CurrValue, MaxValue)
+  StatusBar.Txt:SetFormattedText(GetStatusBarTextValue(StatusBar.UnitBar.Text.TextType, CurrValue, MaxValue))
+end
+
+local function SetBarValue2(StatusBar, CurrValue, MaxValue)
+  StatusBar.Txt2:SetFormattedText(GetStatusBarTextValue(StatusBar.UnitBar.Text2.TextType, CurrValue, MaxValue))
+end
+
 local function SetStatusBarValue(StatusBar, CurrValue, MaxValue)
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
-  StatusBar.Txt:SetFormattedText(GetStatusBarTextValue(StatusBar, CurrValue, MaxValue))
+
+  local returnOK, msg = pcall(SetBarValue, StatusBar, CurrValue, MaxValue)
+  if not returnOK then
+    StatusBar.Txt:SetText('Layout Err Text')
+  end
+  returnOK, msg = pcall(SetBarValue2, StatusBar, CurrValue, MaxValue)
+  if not returnOK then
+    StatusBar.Txt2:SetText('Layout Err Text2')
+  end
 end
 
 --*****************************************************************************
@@ -339,6 +389,7 @@ end
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
 --               'text' for text (StatusBar.Txt).
+--               'text2' for text2 (StatusBar.Txt2).
 --               'frame' for the frame.
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
@@ -417,7 +468,7 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     end
   end
 
-  -- Text (StatusBar.Text).
+  -- Text (StatusBar.Txt).
   if Object == nil or Object == 'text' then
     local Txt = self.StatusBar.Txt
 
@@ -425,6 +476,20 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
 
     if Attr == nil or Attr == 'font' then
       GUB.UnitBars:SetFontString(Txt, UB.Text.FontSettings)
+    end
+    if Attr == nil or Attr == 'color' then
+      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+    end
+  end
+
+  -- Text2 (StatusBar.Txt2).
+  if Object == nil or Object == 'text2' then
+    local Txt = self.StatusBar.Txt2
+
+    local TextColor = UB.Text2.Color
+
+    if Attr == nil or Attr == 'font' then
+      GUB.UnitBars:SetFontString(Txt, UB.Text2.FontSettings)
     end
     if Attr == nil or Attr == 'color' then
       Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
@@ -480,6 +545,7 @@ function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
   local Border = CreateFrame('Frame', nil, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   StatusBar.Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
+  StatusBar.Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
 
   -- Make the border frame top when clicked.
   Border:SetToplevel(true)
