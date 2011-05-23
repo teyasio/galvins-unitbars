@@ -201,19 +201,21 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --                        This array is for powerbars only.  By default they're loaded from blizzards default
 --                        colors.
 --   Text
+--     Align              All position data gets shared with Text2 or vice versa with Text2.
 --     TextType
 --       Custom           If true then a user layout is specified otherwise the default layout is used.
---       Swapped          if true The Current Value and Max Value swap places.
---       CurrValue        Type for the current value.
---       MaxValue         Type for the maximum value.
---                          Text type values:
+--       Layout           Layout to display the text, this can vary depending on the ValueType.
+--                        If this is set to zero nothing will get displayed.
+--       MaxValues        Maximum number of values to be displayed on the bar.
+--       ValueName        Table containing which value to be displayed.
+--       ValueType        Type of value to be displayed based on the ValueName.
+--                          ValueTypes:
 --                            'whole'     - Whole number
 --                            'percent'   - Percentage
 --                            'thousands' - In thousands 999.9k
 --                            'millions'  - In millions  999.9m
---                            'short'     - In thousands or millios depending on the value
---                            'none'      - no value gets displayed
---       Layout           Layout to display the text, this can vary depending on the text type.
+--                            'short'     - In thousands or millions depending on the value
+--                            'none'      - No value gets displayed
 --     FontSettings       Contains the settings for the text.
 --     Color              Current color of the text for the bar.
 --   Text2                Same as Text, provides a second text frame.
@@ -369,10 +371,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -390,10 +392,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -447,10 +449,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -468,10 +470,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -527,10 +529,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -548,10 +550,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -605,10 +607,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -626,10 +628,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -685,10 +687,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -706,10 +708,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -763,10 +765,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -784,10 +786,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -842,10 +844,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -863,10 +865,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -920,10 +922,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -941,10 +943,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -998,10 +1000,10 @@ local Defaults = {
       Text = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'percent',
-          MaxValue = 'none',
           Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,
@@ -1019,10 +1021,10 @@ local Defaults = {
       Text2 = {
         TextType = {
           Custom = false,
-          Swapped = false,
-          CurrValue = 'none',
-          MaxValue = 'none',
           Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
         },
         FontSettings = {
           FontType = UBFontType,

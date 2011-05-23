@@ -29,9 +29,11 @@ local HelpText = GUB.Help.HelpText
 --
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
 -- FontHAlignDropDown            Table used for the dialog drop down for font horizontal alignment.
--- TextTypeDropdown              Table used for the dialog drop down for Healh and power text type.
+-- TextTypeDropdown              Table used for the dialog drop down for Health and power text type.
+-- ValieTypeDropdown             Table used for the dialog drop down for health and power text type.
+-- MaxValuesDropdown             Tanle used for the dialog drop down for Health and power text type.
 -- UnitBarsSelectDropdown        Table used to pick from a list of unitbars.
--- AlignmentBarsDropdown            Table used for horizontal alignment dropdown.
+-- AlignmentBarsDropdown         Table used for horizontal alignment dropdown.
 -------------------------------------------------------------------------------
 
 -- Addon Constants
@@ -143,6 +145,18 @@ local TextTypeDropdown = {
   thousands = 'Thousands',
   millions = 'Millions',
   short = 'Short',
+}
+
+local MaxValuesDropdown = {
+  [0] = 'none',
+  [1] = '1',
+  [2] = '2',
+  [3] = '3',
+}
+
+local ValueTypeDropdown = {
+  current = 'Current Value',
+  maximum = 'Maximum Value',
 }
 
 local TextTypeLayout = {
@@ -659,10 +673,9 @@ end
 -- TextOptions     Options table for background options.
 -------------------------------------------------------------------------------
 local function CreateTextOptions(BarType, Object, Order, Name)
-
+--{**}
   -- Set the object.
   local UnitBarTable = nil
-  local Enabled = nil
 
   if Object == 'text' then
     UnitBarTable = 'Text'
@@ -681,44 +694,179 @@ local function CreateTextOptions(BarType, Object, Order, Name)
         dialogInline = true,
         order = 1,
         get = function(Info)
-                return UnitBars[BarType][UnitBarTable].TextType[Info[#Info]]
+                local UBT = UnitBars[BarType][UnitBarTable].TextType
+                if Info.arg[1] == 'name' then
+                  return UBT.ValueName[Info.arg[2]]
+                elseif Info.arg[1] == 'type' then
+                  return UBT.ValueType[Info.arg[2]]
+                else
+                  return UBT[Info[#Info]]
+                end
               end,
         set = function(Info, Value)
-                UnitBars[BarType][UnitBarTable].TextType[Info[#Info]] = Value
+                local UBT = UnitBars[BarType][UnitBarTable].TextType
+                if Info.arg[1] == 'name' then
+                  UBT.ValueName[Info.arg[2]] = Value
+                elseif Info.arg[1] == 'type' then
+                  UBT.ValueType[Info.arg[2]] = Value
+                else
+                  UBT[Info[#Info]] = Value
+                end
               end,
         args = {
-          CurrValue = {
+          MaxValues = {
             type = 'select',
-            name = 'Current Value',
             order = 1,
-            values = TextTypeDropdown,
+            name = 'Max Values',
+            values = MaxValuesDropdown,
             style = 'dropdown',
-            desc = 'Changes the current value text in the bar',
+            desc = 'Sets how many values to be shown',
+            arg = {0},
           },
-          MaxValue = {
-            type = 'select',
-            name = 'Maximum Value',
+          Value1 = {
+            type = 'group',
+            name = 'Value 1',
+            hidden = function()
+                       return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 1
+                     end,
             order = 2,
-            values = TextTypeDropdown,
-            style = 'dropdown',
-            desc = 'Changes the maximum value text in the bar',
+            dialogInline = true,
+            args = {
+              ValueName1 = {
+                type = 'select',
+                order = 1,
+                name = 'Name',
+                values = ValueTypeDropdown,
+                style = 'dropdown',
+                desc = 'Show Current Value or Maximum Value',
+                arg = {'name', 1},
+              },
+              ValueType1 = {
+                type = 'select',
+                name = '',
+                order = 2,
+                name = 'Type',
+                values = TextTypeDropdown,
+                style = 'dropdown',
+                desc = 'Changes the type of value to be shown',
+                arg = {'type', 1},
+              },
+            },
           },
-          Swapped = {
-            type = 'toggle',
-            name = 'Swap',
+          Value2 = {
+            type = 'group',
+            name = 'Value 2',
+            hidden = function()
+                       return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 2
+                     end,
             order = 3,
-            desc = 'If checked the Maximum Value is first and Current Value is second',
+            dialogInline = true,
+            args = {
+              ValueName2 = {
+                type = 'select',
+                name = 'Name',
+                order = 1,
+                values = ValueTypeDropdown,
+                style = 'dropdown',
+                desc = 'Show Current Value or Maximum Value',
+                arg = {'name', 2}
+              },
+              ValueType2 = {
+                type = 'select',
+                name = 'Type',
+                order = 2,
+                values = TextTypeDropdown,
+                style = 'dropdown',
+                desc = 'Changes the type of value to be shown',
+                arg = {'type', 2}
+              },
+            },
+          },
+          Value3 = {
+            type = 'group',
+            name = 'Value 3',
+            hidden = function()
+                       return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 3
+                     end,
+            order = 4,
+            dialogInline = true,
+            args = {
+              ValueName2 = {
+                type = 'select',
+                name = 'Name',
+                order = 1,
+                values = ValueTypeDropdown,
+                style = 'dropdown',
+                desc = 'Show Current Value or Maximum Value',
+                arg = {'name', 3}
+              },
+              ValueType2 = {
+                type = 'select',
+                name = 'Type',
+                order = 2,
+                values = TextTypeDropdown,
+                style = 'dropdown',
+                desc = 'Changes the type of value to be shown',
+                arg = {'type', 3}
+              },
+            },
           },
           Custom = {
             type = 'toggle',
             name = 'Custom Layout',
-            order = 4,
+            order = 5,
             desc = 'If checked the layout can be changed',
+            arg = {0},
+          },
+          Layout = {
+            type = 'description',
+            order = 6,
+            name = function()
+                     local UBT = UnitBars[BarType][UnitBarTable].TextType
+                     local MaxValues = UBT.MaxValues
+                     local ValueType = UBT.ValueType
+                     local ValueName = UBT.ValueName
+                     local SepFlag = false
+
+                     -- Create the layout.
+                     if not UBT.Custom then
+                       UBT.Layout = ''
+                       local LastName = nil
+                       local CurName = nil
+                       local Sep = '  '
+                       for i, v in ipairs(ValueType) do
+                         if i <= MaxValues then
+                           if i > 1 then
+                             Sep = '  '
+                           else
+                             Sep = ''
+                           end
+                           if v ~= 'none' then
+                             CurName = ValueName[i]
+                             if LastName and not SepFlag then
+                               SepFlag = true
+                               if LastName == 'current' and CurName == 'maximum' or
+                                  LastName == 'maximum' and CurName == 'current' then
+                                 Sep = ' / '
+                               end
+                             end
+                             LastName = CurName
+                             UBT.Layout = strconcat(UBT.Layout, Sep, TextTypeLayout[v])
+                           end
+                         end
+                       end
+                     end
+
+                     -- Update the bar.
+                     UnitBarsF[BarType]:Update()
+                     return strconcat('|cFFFFFF00 Layout:|r ', UBT.Layout)
+                   end,
+            fontSize = 'large',
           },
           CustomLayout = {
             type = 'input',
             name = 'Custom Layout',
-            order = 5,
+            order = 7,
             multiline = false,
             hidden = function()
                        return not UnitBars[BarType][UnitBarTable].TextType.Custom
@@ -729,35 +877,6 @@ local function CreateTextOptions(BarType, Object, Order, Name)
             set = function(Info, Value)
                     UnitBars[BarType][UnitBarTable].TextType.Layout = Value
                   end,
-          },
-          Layout = {
-            type = 'description',
-            order = 6,
-            name = function()
-                     local TextType = UnitBars[BarType][UnitBarTable].TextType
-                     local CurrValue = TextType.CurrValue
-                     local MaxValue = TextType.MaxValue
-                     local Layout = TextType.Layout
-
-                     -- Create the layout string if custom is false.
-                     if not TextType.Custom then
-                       if CurrValue == 'whole' and MaxValue == 'whole' then
-                         Layout = '%d / %d'
-                       elseif not TextType.Swapped then
-                         Layout = strconcat(TextTypeLayout[CurrValue], '  ', TextTypeLayout[MaxValue])
-                       else
-                         Layout = strconcat(TextTypeLayout[MaxValue], '  ', TextTypeLayout[CurrValue])
-                       end
-
-                       -- Set the layout value.
-                       TextType.Layout = Layout
-                     end
-
-                     -- Update the bar.
-                     UnitBarsF[BarType]:Update()
-                     return strconcat('|cFFFFFF00 Layout:|r ', Layout)
-                   end,
-            fontSize = 'large',
           },
         },
       },
@@ -851,7 +970,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
           OffsetX = {
             type = 'range',
             name = 'Horizonal',
-            order = 1,
+            order = 2,
             min = FontOffsetXMin,
             max = FontOffsetXMax,
             step = 1,
@@ -859,7 +978,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
           OffsetY = {
             type = 'range',
             name = 'Vertical',
-            order = 2,
+            order = 3,
             min = FontOffsetYMin,
             max = FontOffsetYMax,
             step = 1,
@@ -867,7 +986,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
           ShadowOffset = {
             type = 'range',
             name = 'Shadow',
-            order = 3,
+            order = 4,
             min = FontShadowOffsetMin,
             max = FontShadowOffsetMax,
             step = 1,
@@ -878,7 +997,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
   }
 
   -- Remove the text type and text color options and add a text Color options for runebar only.
-  if BarType == 'RuneBar' then
+ if BarType == 'RuneBar' then
     TextOptions.args.TextType = nil
     TextOptions.args.Font.args.TextColor = nil
     TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 6, 2, 'Colors')
