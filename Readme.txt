@@ -33,11 +33,15 @@ All health and Power bars text have a text type.  This lets you control how the 
 If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.
 In this box you can enter any layout you want. 
 
-If the layout causes an error you will see a Layout Error appear on the health or powerbar.  It will let you know if the
-error came from text or text2.
-
 The easist way to create a custom layout is to turn off custom, pick a default layout from the pull down menus.  Then
 click custom.  This will let you edit the default layout generated.
+
+You can select how many values you want to show.  Each value has two pull down menus.  The first menu tells what value
+you want to show.  Can be Current Value or Max Value.  The second pull down menu tells what type of value will be
+displayed.  If no value is selected that value will be skipped.  It's best to play around to get a feel for it.
+
+If the layout causes an error you will see a Layout Error appear on the health or powerbar.  It will let you know if the
+error came from text or text2.
 
 You can add extra things to a custom layout. 
 

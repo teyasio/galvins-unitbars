@@ -58,19 +58,15 @@ local PowerEnergy = PowerTypeToNumber['ENERGY']
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- GetStatusBarTextValue
+-- GetShortTextValue
 --
--- Returns one arg to be used in SetFormattedText.
+-- Takes a number and returns it in a shorter format for formatted text.
 --
--- Usage: FormatString, ... = GetStatusBarTextValue(StatusBar, CurrValue, MaxValue)
+-- Usage: Value2 = GetShortTextValue(Value)
 --
--- TextType       Contains the type of text to create.
--- Value          Value to be used.  If percentage then CurrValue and MaxValue are used.
--- CurrValue      Current value.  Used for percentage.
--- MaxValue       Maximum value.  Used for percentage.
--- FormatString   Formatted string to be used in SetFormattedText. Contains one or more values.
+-- Value       Number to convert for formatted text.
 --
--- Note: This function uses the TextType for CurrValue and MaxValue to create a formatted string.
+-- Value2      Formatted text made from Value.
 -------------------------------------------------------------------------------
 local function GetShortTextValue(Value)
   if Value < 1000 then
@@ -82,44 +78,86 @@ local function GetShortTextValue(Value)
   end
 end
 
-local function GetTextValue(TextType, Value, CurrValue, MaxValue)
-  if TextType == 'whole' then
+-------------------------------------------------------------------------------
+-- GetTextValue
+--
+-- Returns the either CurrValue or MaxValue bsed on the ValueName and ValueType
+--
+-- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
+--
+-- ValueName      Must be 'current' or 'maximum'
+-- ValueType      The type of value, see texttype in main.lua for a list.
+-- CurrValue      Values to be used.
+-- MaxValue       Values to be used.
+--
+-- Value          The value returned based on the ValueName and ValueType.
+--                Can be a string or number.
+-------------------------------------------------------------------------------
+local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
+  local Value = nil
+
+  -- Get the value based on ValueName
+  if ValueName == 'current' then
+    Value = CurrValue
+  elseif ValueName == 'maximum' then
+    Value = MaxValue
+  end
+
+  if ValueType == 'whole' then
     return Value
-  elseif TextType == 'percent' and MaxValue > 0 then
-    return math.ceil(CurrValue / MaxValue * 100)
-  elseif TextType == 'thousands' then
+  elseif ValueType == 'percent' and Value > 0 then
+    return math.ceil(Value / MaxValue * 100)
+  elseif ValueType == 'thousands' then
     return Value / 1000
-  elseif TextType == 'millions' then
+  elseif ValueType == 'millions' then
     return Value / 1000000
-  elseif TextType == 'short' then
+  elseif ValueType == 'short' then
     return GetShortTextValue(Value)
   else
     return 0
   end
 end
 
-local function GetStatusBarTextValue(TextType, CurrValue, MaxValue)
-  local TextTypeCurrValue = TextType.CurrValue
-  local TextTypeMaxValue = TextType.MaxValue
+-------------------------------------------------------------------------------
+-- SetStatusBarTextValues
+--
+-- Sets one or more values on a bar based on the text type settings
+--
+-- Usage: SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue)
+--
+-- StatusBar      The bar to set the values to.
+-- TextFrame      Must be 'Txt' or 'Txt2' this is the text frame.
+-- CurrValue      Current value.  Used for percentage.
+-- MaxValue       Maximum value.  Used for percentage.
+-------------------------------------------------------------------------------
+local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue)
+  local TextTable = 'Text'
+
+  if TextFrame == 'Txt2' then
+    TextTable = 'Text2'
+  end
+
+  local TextType = StatusBar.UnitBar[TextTable].TextType
+  local MaxValues = TextType.MaxValues
+  local ValueName = TextType.ValueName
+  local ValueType = TextType.ValueType
   local Layout = TextType.Layout
-  local CurrValue2, MaxValue2 = CurrValue, MaxValue
 
-  -- Check for swap mode.
-  if TextType.Swapped then
-    TextTypeCurrValue, TextTypeMaxValue = TextTypeMaxValue, TextTypeCurrValue
-    CurrValue2, MaxValue2 = MaxValue, CurrValue
+  -- Use recursion to build a parameter list to pass back to setformat.
+  local function GetTextValues(Position, ...)
+    if Position > 0 then
+      local Type = ValueType[Position]
+      if Type ~= 'none' then
+        return GetTextValues(Position - 1, GetTextValue(ValueName[Position], Type, CurrValue, MaxValue), ...)
+      else
+        return GetTextValues(Position - 1, ...)
+      end
+    else
+      return ...
+    end
   end
 
-  if TextTypeCurrValue ~= 'none' and TextTypeMaxValue ~= 'none' then
-    return Layout, GetTextValue(TextTypeCurrValue, CurrValue2, CurrValue, MaxValue),
-                   GetTextValue(TextTypeMaxValue, MaxValue2, CurrValue, MaxValue)
-  elseif TextTypeCurrValue ~= 'none' then
-    return Layout, GetTextValue(TextTypeCurrValue, CurrValue2, CurrValue, MaxValue)
-  elseif TextTypeMaxValue ~= 'none' then
-    return Layout, GetTextValue(TextTypeMaxValue, CurrValue2, CurrValue, MaxValue)
-  else
-    return ''
-  end
+  StatusBar[TextFrame]:SetFormattedText(Layout, GetTextValues(MaxValues))
 end
 
 -------------------------------------------------------------------------------
@@ -136,24 +174,21 @@ end
 -- Note: If there's an error in setting the text value then an error message will
 --       be set instead.
 -------------------------------------------------------------------------------
-local function SetBarValue(StatusBar, CurrValue, MaxValue)
-  StatusBar.Txt:SetFormattedText(GetStatusBarTextValue(StatusBar.UnitBar.Text.TextType, CurrValue, MaxValue))
-end
-
-local function SetBarValue2(StatusBar, CurrValue, MaxValue)
-  StatusBar.Txt2:SetFormattedText(GetStatusBarTextValue(StatusBar.UnitBar.Text2.TextType, CurrValue, MaxValue))
-end
-
 local function SetStatusBarValue(StatusBar, CurrValue, MaxValue)
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
-  local returnOK, msg = pcall(SetBarValue, StatusBar, CurrValue, MaxValue)
+
+  local returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt', CurrValue, MaxValue)
   if not returnOK then
+    print(msg)
     StatusBar.Txt:SetText('Layout Err Text')
   end
-  returnOK, msg = pcall(SetBarValue2, StatusBar, CurrValue, MaxValue)
+
+
+  returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt2', CurrValue, MaxValue)
   if not returnOK then
+    print(msg)
     StatusBar.Txt2:SetText('Layout Err Text2')
   end
 end
