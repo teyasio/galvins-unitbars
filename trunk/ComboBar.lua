@@ -17,8 +17,8 @@ local MouseOverDesc = GUB.UnitBars.MouseOverDesc
 
 -- localize some globals.
 local _
-local abs, floor, pairs, ipairs, type, math, table, select, pcall =
-      abs, floor, pairs, ipairs, type, math, table, select, pcall
+local pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select =
+      pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =

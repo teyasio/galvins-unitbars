@@ -37,8 +37,8 @@ local HelpText = GUB.Help.HelpText
 -------------------------------------------------------------------------------
 
 -- Addon Constants
-local AddonName = GetAddOnMetadata(MyAddon, "Title")
-local AddonVersion = GetAddOnMetadata(MyAddon, "Version")
+local AddonName = GetAddOnMetadata(MyAddon, 'Title')
+local AddonVersion = GetAddOnMetadata(MyAddon, 'Version')
 local AddonOptionsName = MyAddon .. 'options'
 local AddonProfileName = MyAddon .. 'profile'
 local AddonSlashName = MyAddon .. 'slash'
@@ -112,12 +112,12 @@ local AlignmentPaddingMin = -10
 local AlignmentPaddingMax = 50
 
 local FontStyleDropdown = {
-  NONE = "None",
-  OUTLINE = "Outline",
-  THICKOUTLINE = "Thick Outline",
-  ["NONE, MONOCHROME"] = "No Outline, Mono",
-  ["OUTLINE, MONOCHROME"] = "Outline, Mono",
-  ["THICKOUTLINE, MONOCHROME"] = "Thick Outline, Mono",
+  NONE = 'None',
+  OUTLINE = 'Outline',
+  THICKOUTLINE = 'Thick Outline',
+  ['NONE, MONOCHROME'] = 'No Outline, Mono',
+  ['OUTLINE, MONOCHROME'] = 'Outline, Mono',
+  ['THICKOUTLINE, MONOCHROME'] = 'Thick Outline, Mono',
 }
 
 local FontHAlignDropdown = {
@@ -141,6 +141,7 @@ local FontPositionDropdown = {
 local TextTypeDropdown = {
   none = 'No value',
   whole = 'Whole',
+  whole_dgroups = 'Whole (Digit Groups)',
   percent = 'Percentage',
   thousands = 'Thousands',
   millions = 'Millions',
@@ -162,9 +163,10 @@ local ValueTypeDropdown = {
 local TextTypeLayout = {
   none = '',
   whole = '%d',
+  whole_dgroups = '%s',
   percent = '%d%%',
-  thousands = '%.fK',
-  millions = '%.1fM',
+  thousands = '%.fk',
+  millions = '%.1fm',
   short = '%s',
 }
 
@@ -673,7 +675,7 @@ end
 -- TextOptions     Options table for background options.
 -------------------------------------------------------------------------------
 local function CreateTextOptions(BarType, Object, Order, Name)
---{**}
+
   -- Set the object.
   local UnitBarTable = nil
 
@@ -712,6 +714,46 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 else
                   UBT[Info[#Info]] = Value
                 end
+
+                -- Create the layout.
+                if not UBT.Custom then
+                  local MaxValues = UBT.MaxValues
+                  local ValueType = UBT.ValueType
+                  local ValueName = UBT.ValueName
+
+                  local n = 0
+                  local SepFlag = false
+                  local LastName = nil
+                  local CurName = nil
+                  local Sep = '  '
+
+                  UBT.Layout = ''
+                  for i, v in ipairs(ValueType) do
+                    if i <= MaxValues then
+                      if n > 0 then
+                        Sep = '  '
+                      else
+                        Sep = ''
+                      end
+                      if v ~= 'none' then
+                        CurName = ValueName[i]
+                        if LastName and not SepFlag then
+                          if LastName == 'current' and CurName == 'maximum' or
+                             LastName == 'maximum' and CurName == 'current' then
+                            Sep = ' / '
+                            SepFlag = true
+                          end
+                        end
+                        LastName = CurName
+                        UBT.Layout = strconcat(UBT.Layout, Sep, TextTypeLayout[v])
+                        n = n + 1
+                      end
+                    end
+                  end
+                end
+
+                -- Update the bar.
+                UnitBarsF[BarType]:Update()
               end,
         args = {
           MaxValues = {
@@ -822,44 +864,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
             type = 'description',
             order = 6,
             name = function()
-                     local UBT = UnitBars[BarType][UnitBarTable].TextType
-                     local MaxValues = UBT.MaxValues
-                     local ValueType = UBT.ValueType
-                     local ValueName = UBT.ValueName
-                     local SepFlag = false
-
-                     -- Create the layout.
-                     if not UBT.Custom then
-                       UBT.Layout = ''
-                       local LastName = nil
-                       local CurName = nil
-                       local Sep = '  '
-                       for i, v in ipairs(ValueType) do
-                         if i <= MaxValues then
-                           if i > 1 then
-                             Sep = '  '
-                           else
-                             Sep = ''
-                           end
-                           if v ~= 'none' then
-                             CurName = ValueName[i]
-                             if LastName and not SepFlag then
-                               SepFlag = true
-                               if LastName == 'current' and CurName == 'maximum' or
-                                  LastName == 'maximum' and CurName == 'current' then
-                                 Sep = ' / '
-                               end
-                             end
-                             LastName = CurName
-                             UBT.Layout = strconcat(UBT.Layout, Sep, TextTypeLayout[v])
-                           end
-                         end
-                       end
-                     end
-
-                     -- Update the bar.
-                     UnitBarsF[BarType]:Update()
-                     return strconcat('|cFFFFFF00 Layout:|r ', UBT.Layout)
+                     return strconcat('|cFFFFFF00 Layout:|r ', UnitBars[BarType][UnitBarTable].TextType.Layout)
                    end,
             fontSize = 'large',
           },
@@ -1773,7 +1778,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
           },
           HideWhenDead = {
             type = 'toggle',
-            name = "Hide when Dead",
+            name = 'Hide when Dead',
             order = 2,
             desc = "Hides the bar when you're dead",
           },
@@ -2084,8 +2089,7 @@ local function CreateCopySettingsOptions(Order, Name)
                             not ListChecked(CopySettings, CopySettingsHidden)
                    end,
         confirm = function()
-                    return string.format('Copy settings from %s to %s ?',
-                           UnitBars[CopySettingsFrom].Name, UnitBars[CopySettingsTo].Name)
+                    return ('Copy settings from %s to %s ?'):format(UnitBars[CopySettingsFrom].Name, UnitBars[CopySettingsTo].Name)
                   end,
         func = function()
                  local Source = UnitBars[CopySettingsFrom]
@@ -2234,7 +2238,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Player Health with %s', AlignmentBarName)
+                     return ('Align Player Health with %s'):format(AlignmentBarName)
                    end
           },
           PlayerPower = {
@@ -2247,7 +2251,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Player Power with %s', AlignmentBarName)
+                     return ('Align Player Power with %s'):format(AlignmentBarName)
                    end
           },
           TargetHealth = {
@@ -2260,7 +2264,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Target Health with %s', AlignmentBarName)
+                     return ('Align Target Health with %s'):format(AlignmentBarName)
                    end
           },
           TargetPower = {
@@ -2273,7 +2277,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Target Power with %s', AlignmentBarName)
+                     return ('Align Target Power with %s'):format(AlignmentBarName)
                    end
           },
           FocusHealth = {
@@ -2286,7 +2290,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Focus Health with %s', AlignmentBarName)
+                     return ('Align Focus Health with %s'):format(AlignmentBarName)
                    end
           },
           FocusPower = {
@@ -2299,7 +2303,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Focus Power with %s', AlignmentBarName)
+                     return ('Align Focus Power with %s'):format(AlignmentBarName)
                    end
           },
           PetHealth = {
@@ -2312,7 +2316,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Pet Health with %s', AlignmentBarName)
+                     return ('Align Pet Health with %s'):format(AlignmentBarName)
                    end
           },
           PetPower = {
@@ -2325,7 +2329,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Pet Power with %s', AlignmentBarName)
+                     return ('Align Pet Power with %s'):format(AlignmentBarName)
                    end
           },
           MainPower = {
@@ -2338,7 +2342,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Main Power with %s', AlignmentBarName)
+                     return ('Align Main Power with %s'):format(AlignmentBarName)
                    end
           },
           RuneBar = {
@@ -2351,7 +2355,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Rune Bar with %s', AlignmentBarName)
+                     return ('Align Rune Bar with %s'):format(AlignmentBarName)
                    end
           },
           ComboBar = {
@@ -2364,7 +2368,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Combo Bar with %s', AlignmentBarName)
+                     return ('Align Combo Bar with %s'):format(AlignmentBarName)
                    end
           },
           HolyBar = {
@@ -2377,7 +2381,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                        return Value
                      end,
             desc = function()
-                     return string.format('Align Combo Bar with %s', AlignmentBarName)
+                     return ('Align Combo Bar with %s'):format(AlignmentBarName)
                    end
           },
         },
@@ -2466,7 +2470,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
         order = 100,
         desc = function()
                  if AlignmentBarName then
-                   return string.format('Align with %s. Once clicked Alignment Settings can be changed without having to click this button', AlignmentBarName)
+                   return ('Align with %s. Once clicked Alignment Settings can be changed without having to click this button'):format(AlignmentBarName)
                  else
                    return 'Align'
                  end
@@ -2667,7 +2671,7 @@ local function CreateMainOptions()
           Verstion = {
             type = 'description',
             name = function()
-                     return string.format('|cffffd200%s   version %s|r', AddonName, AddonVersion)
+                     return ('|cffffd200%s   version %s|r'):format(AddonName, AddonVersion)
                    end,
             order = 1,
           },
