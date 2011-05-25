@@ -23,8 +23,8 @@ GUB.UnitBars = {}
 
 -- localize some globals.
 local _
-local abs, floor, pairs, ipairs, type, math, table, select =
-      abs, floor, pairs, ipairs, type, math, table, select
+local pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select =
+      pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
@@ -210,12 +210,13 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --       ValueName        Table containing which value to be displayed.
 --       ValueType        Type of value to be displayed based on the ValueName.
 --                          ValueTypes:
---                            'whole'     - Whole number
---                            'percent'   - Percentage
---                            'thousands' - In thousands 999.9k
---                            'millions'  - In millions  999.9m
---                            'short'     - In thousands or millions depending on the value
---                            'none'      - No value gets displayed
+--                            'whole'         - Whole number
+--                            'whole_dgroups' - Whole number in digit groups 999,999,999
+--                            'percent'       - Percentage
+--                            'thousands'     - In thousands 999.9k
+--                            'millions'      - In millions  999.9m
+--                            'short'         - In thousands or millions depending on the value
+--                            'none'          - No value gets displayed
 --     FontSettings       Contains the settings for the text.
 --     Color              Current color of the text for the bar.
 --   Text2                Same as Text, provides a second text frame.

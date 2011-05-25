@@ -29,7 +29,7 @@ bars, The only flag it can't override is never show.
    Hide no Combat     Don't hide the bar when not in combat.
 
 * Text Type
-All health and Power bars text have a text type.  This lets you control how the health or power values are to be displayed.
+All health and Power bars have a text type.  This lets you control how the health or power values are to be displayed.
 If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.
 In this box you can enter any layout you want. 
 

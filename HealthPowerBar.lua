@@ -19,8 +19,8 @@ local MouseOverDesc = GUB.UnitBars.MouseOverDesc
 
 -- localize some globals.
 local _
-local abs, floor, pairs, ipairs, type, math, table, select, pcall =
-      abs, floor, pairs, ipairs, type, math, table, select, pcall
+local pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select =
+      pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
@@ -51,11 +51,47 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 local PowerMana = PowerTypeToNumber['MANA']
 local PowerEnergy = PowerTypeToNumber['ENERGY']
 
+-- Constants used in NumberToDigitGroups
+local Thousands = ('%.1f'):format(1/5):match('([^0-9])') == '.' and ',' or '.'
+local BillionFormat = '%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
+local MillionFormat = '%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
+local ThousandFormat = '%d' .. Thousands..'%03d'
+
+
 --*****************************************************************************
 --
 -- Health and Power bar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- NumberToDigitGroups
+--
+-- Takes a number and returns it in groups of three. 999,999,999
+--
+-- Usage: String = NumberToDigitGroups(Value)
+--
+-- Value       Number to convert to a digit group.
+--
+-- String      String containing Value in digit groups.
+-------------------------------------------------------------------------------
+local function NumberToDigitGroups(Value)
+  local Sign = ''
+  if Value < 0 then
+    Sign = '-'
+    Value = abs(Value)
+  end
+
+  if Value >= 1000000000 then
+    return (Sign .. BillionFormat):format(Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
+  elseif Value >= 1000000 then
+    return (Sign .. MillionFormat):format(Value / 1000000, (Value / 1000) % 1000, Value % 1000)
+  elseif Value >= 1000 then
+    return (Sign .. ThousandFormat):format(Value / 1000, Value % 1000)
+  else
+    return tostring(Value)
+  end
+end
 
 -------------------------------------------------------------------------------
 -- GetShortTextValue
@@ -81,7 +117,7 @@ end
 -------------------------------------------------------------------------------
 -- GetTextValue
 --
--- Returns the either CurrValue or MaxValue bsed on the ValueName and ValueType
+-- Returns either CurrValue or MaxValue based on the ValueName and ValueType
 --
 -- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
 --
@@ -105,6 +141,8 @@ local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
 
   if ValueType == 'whole' then
     return Value
+  elseif ValueType == 'whole_dgroups' then
+    return NumberToDigitGroups(Value)
   elseif ValueType == 'percent' and Value > 0 then
     return math.ceil(Value / MaxValue * 100)
   elseif ValueType == 'thousands' then
@@ -181,14 +219,12 @@ local function SetStatusBarValue(StatusBar, CurrValue, MaxValue)
 
   local returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt', CurrValue, MaxValue)
   if not returnOK then
-    print(msg)
     StatusBar.Txt:SetText('Layout Err Text')
   end
 
 
   returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt2', CurrValue, MaxValue)
   if not returnOK then
-    print(msg)
     StatusBar.Txt2:SetText('Layout Err Text2')
   end
 end
