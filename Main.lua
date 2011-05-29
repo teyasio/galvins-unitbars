@@ -1201,7 +1201,7 @@ local Defaults = {
         ShardSize = 31,
         ShardPadding = 10,
         ShardScale = 0.80,
-        ShardFadeOutTime = 60,
+        ShardFadeOutTime = 1,
         ShardAngle = 90
       },
       Other = {
@@ -1214,7 +1214,7 @@ local Defaults = {
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
-        Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+        Color = {r = 0.76, g = 0.54, b = 1, a = 1},
       },
     },
   },
