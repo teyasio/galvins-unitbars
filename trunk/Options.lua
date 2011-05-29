@@ -108,6 +108,17 @@ local HolyBarFadeOutMax = 5
 local HolyBarAngleMin = 45
 local HolyBarAngleMax = 360
 
+local ShardBarSizeMin = 10
+local ShardBarSizeMax = 100
+local ShardBarScaleMin = 0.05
+local ShardBarScaleMax = 1.20
+local ShardBarPaddingMin = -50
+local ShardBarPaddingMax = 50
+local ShardBarFadeOutMin = 0
+local ShardBarFadeOutMax = 5
+local ShardBarAngleMin = 45
+local ShardBarAngleMax = 360
+
 local AlignmentPaddingMin = -10
 local AlignmentPaddingMax = 50
 
@@ -149,7 +160,7 @@ local TextTypeDropdown = {
 }
 
 local MaxValuesDropdown = {
-  [0] = 'none',
+  [0] = 'None',
   [1] = '1',
   [2] = '2',
   [3] = '3',
@@ -1661,7 +1672,7 @@ end
 -- Order                 Order number.
 -- Name                  Name text
 --
--- HolyBarOptions       Options table for the combo points bar.
+-- HolyBarOptions       Options table for the holy bar.
 -------------------------------------------------------------------------------
 local function CreateHolyBarOptions(BarType, Order, Name)
   local HolyBarOptions = {
@@ -1728,6 +1739,88 @@ local function CreateHolyBarOptions(BarType, Order, Name)
     },
   }
   return HolyBarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateShardBarOptions
+--
+-- Creates options for a soul shard bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: ShardBarOptions = CreateShardBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- ShardBarOptions       Options table for the shard bar.
+-------------------------------------------------------------------------------
+local function CreateShardBarOptions(BarType, Order, Name)
+  local ShardBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UnitBars[BarType].General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UnitBars[BarType].General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            GUB.ShardBar:SetShardBarLayout(UnitBarsF[BarType])
+          end,
+    args = {
+      ShardAngle = {
+        type = 'range',
+        name = 'Shard Rotation',
+        order = 1,
+        desc = 'Rotates the shard bar',
+        min = ShardBarAngleMin,
+        max = ShardBarAngleMax,
+        step = 45,
+      },
+      ShardSize = {
+        type = 'range',
+        name = 'Shard Size',
+        order = 2,
+        desc = 'Sets the size of all the soul shards',
+        min = ShardBarSizeMin,
+        max = ShardBarSizeMax,
+        step = 1,
+      },
+      ShardScale = {
+        type = 'range',
+        name = 'Shard Scale',
+        order = 3,
+        desc = 'Sets the scale of all the soul shards',
+        min = ShardBarScaleMin,
+        max = ShardBarScaleMax,
+        step = 0.01,
+        isPercent = true,
+      },
+      ShardPadding = {
+        type = 'range',
+        name = 'Shard Padding',
+        order = 4,
+        desc = 'Set the Amount of space between each soul shard',
+        min = ShardBarPaddingMin,
+        max = ShardBarPaddingMax,
+        step = 1,
+      },
+      ShardFadeOutTime = {
+        type = 'range',
+        name = 'Shard Fadeout Time',
+        order = 5,
+        desc = 'The amount of time in seconds to fade out a soul shard',
+        min = ShardBarFadeOutMin,
+        max = ShardBarFadeOutMax,
+        step = 1,
+      },
+    },
+  }
+  return ShardBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -1873,7 +1966,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add bar options
-  if BarType ~= 'RuneBar' and BarType ~= 'HolyBar' then
+  if BarType ~= 'RuneBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
     UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
   end
 
@@ -1884,7 +1977,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add text options
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' then
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
     UBO.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
     if BarType ~= 'RuneBar' then
       UBO.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
@@ -1899,6 +1992,11 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   -- Add holybar options
   if BarType == 'HolyBar' then
     UBO.HolyBar = CreateHolyBarOptions(BarType, 5, 'General')
+  end
+
+  -- Add holybar options
+  if BarType == 'ShardBar' then
+    UBO.ShardBar = CreateShardBarOptions(BarType, 6, 'General')
   end
 
   return UnitBarOptions
@@ -2635,6 +2733,9 @@ local function CreateMainOptions()
 
           -- Holybar group.
           HolyBar = CreateUnitBarOptions('HolyBar', 12, 'Holy Bar'),
+
+          -- Holybar group.
+          ShardBar = CreateUnitBarOptions('ShardBar', 13, 'Shard Bar'),
         },
       },
 --=============================================================================

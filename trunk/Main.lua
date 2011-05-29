@@ -1184,13 +1184,46 @@ local Defaults = {
         Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
       },
     },
+-- ShardBar
+    ShardBar = {
+      Name = 'Shard Bar',
+      x = 0,
+      y = -215,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = false,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        ShardSize = 31,
+        ShardPadding = 10,
+        ShardScale = 0.80,
+        ShardFadeOutTime = 60,
+        ShardAngle = 90
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+      },
+    },
   },
 }
 
 local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
-local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6, HOLY_POWER = 9}
+local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6, SOUL_SHARDS = 7, HOLY_POWER = 9}
 local CheckPowerType = {
-  MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power',
+  MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power', SOUL_SHARDS = 'shards',
   HOLY_POWER = 'holy'
 }
 
@@ -1232,7 +1265,6 @@ GUB.UnitBars.PowerTypeToNumber = PowerTypeToNumber
 GUB.UnitBars.CheckPowerType = CheckPowerType
 GUB.UnitBars.CheckEvent = CheckEvent
 GUB.UnitBars.MouseOverDesc = 'Modifier + left mouse button to drag'
-
 
 -------------------------------------------------------------------------------
 -- Register and unregister event functions.
@@ -1363,6 +1395,7 @@ end
 function GUB.UnitBars:CopyTableValues(Source, Dest)
   for k, v in pairs(Source) do
     if type(v) == 'table' then
+
       -- Make sure value is not nil.
       if Dest[k] then
         GUB.UnitBars:CopyTableValues(v, Dest[k])
@@ -2018,6 +2051,11 @@ local function UnitBarsAssignFunctions()
                              GUB.HolyBar.UpdateHolyBar(self, Event, PowerType)
                            end
                          end
+  Func.ShardBar[n]     = function(self, Event, Unit, PowerType)
+                           if Unit == nil or Unit == 'player' then
+                             GUB.ShardBar.UpdateShardBar(self, Event, PowerType)
+                           end
+                         end
 
   -- StatusCheck functions.
   n = 'StatusCheck'  -- UnitBarF[]:StatusCheck()
@@ -2026,7 +2064,7 @@ local function UnitBarsAssignFunctions()
         StatusCheckShowHide(self)
       end
 
-  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'RuneBar', 'HolyBar')
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'RuneBar', 'HolyBar', 'ShardBar')
   SetFunction(Func, n, StatusCheckTarget, 'TargetHealth', 'TargetPower', 'ComboBar')
   SetFunction(Func, n, StatusCheckFocus, 'FocusHealth', 'FocusPower')
   SetFunction(Func, n, StatusCheckPet, 'PetHealth', 'PetPower')
@@ -2041,6 +2079,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.RuneBar.EnableMouseClicksRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.EnableMouseClicksCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableMouseClicksHoly, 'HolyBar')
+  SetFunction(Func, n, GUB.ShardBar.EnableMouseClicksShard, 'ShardBar')
 
   -- Enable clamp to screen functions.
   n = 'EnableScreenClamp' -- UnitBarF[]:EnableScreenClamp(Enable)
@@ -2051,6 +2090,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.RuneBar.EnableScreenClampRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.EnableScreenClampCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableScreenClampHoly, 'HolyBar')
+  SetFunction(Func, n, GUB.ShardBar.EnableScreenClampShard, 'ShardBar')
 
   -- Set script functions.
   n = 'FrameSetScript'  -- UnitBarF[]:FrameSetScript(Enable)
@@ -2061,6 +2101,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.RuneBar.FrameSetScriptRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.FrameSetScriptCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.FrameSetScriptHoly, 'HolyBar')
+  SetFunction(Func, n, GUB.ShardBar.FrameSetScriptShard, 'ShardBar')
 
   -- Set attribute functions.
   n = 'SetAttr' -- UnitBarF[]:SetAttr(Object, Attr)
@@ -2071,6 +2112,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.RuneBar.SetAttrRune, 'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.SetAttrCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.SetAttrHoly, 'HolyBar')
+  SetFunction(Func, n, GUB.ShardBar.SetAttrShard, 'ShardBar')
 
   -- Add the functions to the unitbars frame table.
 
@@ -2185,6 +2227,8 @@ local function SetUnitBarsLayout()
       GUB.ComboBar:SetComboBarLayout(UnitBarF)
     elseif BarType == 'HolyBar' then
       GUB.HolyBar:SetHolyBarLayout(UnitBarF)
+    elseif BarType == 'ShardBar' then
+      GUB.ShardBar:SetShardBarLayout(UnitBarF)
     else
       GUB.HapBar:SetHapBarLayout(UnitBarF)
     end
@@ -2236,6 +2280,8 @@ local function CreateUnitBars(UnitBarDB)
         GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
       elseif BarType == 'HolyBar' then
         GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
+      elseif BarType == 'ShardBar' then
+        GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
       else
         GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
       end
