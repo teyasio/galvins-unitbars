@@ -193,7 +193,8 @@ local UnitBarsSelectDropdown = {
   MainPower = Defaults.profile.MainPower.Name,
   RuneBar = Defaults.profile.RuneBar.Name,
   ComboBar = Defaults.profile.ComboBar.Name,
-  HolyBar = Defaults.profile.HolyBar.Name
+  HolyBar = Defaults.profile.HolyBar.Name,
+  ShardBar = Defaults.profile.ShardBar.Name
 }
 
 local AlignBarsDropdown = {
@@ -2142,8 +2143,8 @@ local function CreateCopySettingsOptions(Order, Name)
             order = 6,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'HolyBar' or
-                               CopySettingsTo == 'RuneBar' or CopySettingsTo == 'HolyBar'
+                               CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'ShardBar' or
+                               CopySettingsTo == 'RuneBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'ShardBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2155,8 +2156,8 @@ local function CreateCopySettingsOptions(Order, Name)
             order = 7,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or
-                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar'
+                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'ShardBar' or
+                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'ShardBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2168,8 +2169,8 @@ local function CreateCopySettingsOptions(Order, Name)
             order = 7,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'RuneBar' or
-                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'RuneBar'
+                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ShardBar' or
+                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ShardBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2480,6 +2481,19 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      end,
             desc = function()
                      return ('Align Combo Bar with %s'):format(AlignmentBarName)
+                   end
+          },
+          ShardBar = {
+            type = 'toggle',
+            name = 'Shard Bar',
+            order = 13,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'ShardBar'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return ('Align Shard Bar with %s'):format(AlignmentBarName)
                    end
           },
         },
