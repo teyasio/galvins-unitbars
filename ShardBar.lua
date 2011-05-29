@@ -1,14 +1,14 @@
 --
--- HolyBar.lua
+-- ShardBar.lua
 --
--- Displays Paldin holy power.
+-- Displays the Warlock shard bar.
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.HolyBar = {}
+GUB.ShardBar = {}
 
 -- shared from Main.lua
 local CheckPowerType = GUB.UnitBars.CheckPowerType
@@ -36,67 +36,48 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --
 -- Border.TooltipName                Tooltip text to display for mouse over when bars are unlocked.
 -- Border.TooltipDesc                Description under the name for mouse over.
--- UnitBarF.UnitBar                  Reference to the unitbar data for the holybar.
--- UnitBarF.Border                   Border frame for the holy bar. This is a parent of
---                                   OffSetF.
--- UnitBarF.OffsetFrame              Offset frame this is a parent of HolyRuneF[]
---                                   This is used for rotation offset in SetHolyBarLayout()
--- UnitBarF.HolyRuneF[]              Frame array containing all 3 holy runes. This also
---                                   contains the frame of the holy rune.
--- HolyRuneF[Rune].HolyRuneIcon      The texture containing the holy rune.
--- HolyRuneF[Rune].FadeOut           Animation group for fadeout for the holy rune before hiding
---                                   This group is a child of the Holy Rune Frame.
--- HolyRuneF[Rune].FadeOutA          Animation that contains the fade out.  This is a child
---                                   of FadeOut
--- HolyRuneF[Rune].Dark              True then the holy rune is not lit.  True holy rune is lit.
---
--- HolyPowerTexture                  Texture file containing all the holy power textures.
--- HolyRunes[]                       Contains the texture layout data for the holyrunes.
--- HolyRunes[Rune].Width             Width of the rune texture.
--- HolyRunes[Rune].Height            Height of the rune texture.
--- Holyrunes[Rune]
---   Left, Right, Top, Bottom        Texture coordinates inside of the HolyPowerTexture
---                                   containing the holy rune.
--- HolyRunes.Padding
---   Left, Right, Top, Bottom        Amount of padding within each HolyRuneFrame.
---                                   This makes it so each holy rune texture doesn't
---                                   touch the border.  Makes it look nicer.
+-- UnitBarF.UnitBar                  Reference to the unitbar data for the shard bar.
+-- UnitBarF.Border                   Border frame for the shard bar. This is a parent of
+--                                   OffsetFrame.
+-- UnitBarF.OffsetFrame              Offset frame this is a parent of SoulShardF[]
+--                                   This is used for rotation offset in SetShardBarLayout()
+-- UnitBarF.SoulShardF[]             Frame array containing all 3 soul shards. This also
+--                                   contains the frame of the soul shard.
+-- SoulShardF[].SoulShard            Normal soul shard.
+-- SoulShardF[].SoulShardDark        Darkened soul shard.
+-- SoulShardF[].Dark                 True then the soul shard is dark, otherwise it's lit.
+-- SoulShardTexture                  Contains all the data for the soul shards texture.
+--   Texture                         Path name to the texture file.
+--   Width                           Width of the texture.
+--   Height                          Height of the texture.
+--   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
+-- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
 -------------------------------------------------------------------------------
+local MaxSoulShards = 3
 
 -- Powertype constants
-local PowerHoly = PowerTypeToNumber['HOLY_POWER']
+local PowerShard = PowerTypeToNumber['SOUL_SHARDS']
 
-local HolyPowerTexture = 'Interface\\PlayerFrame\\PaladinPowerTextures'
-local HolyRunes = {
-  DarkColor = {r = 0.15, g = 0.15, b = 0.15, a = 1},
-  [1] = {
-    Width = 36, Height = 22,
-    Left = 0.00390625, Right = 0.14453125, Top = 0.64843750, Bottom = 0.82031250
-  },
-  [2] = {
-    Width = 31, Height = 17,
-    Left = 0.00390625, Right = 0.12500000, Top = 0.83593750, Bottom = 0.96875000
-  },
-  [3] = {
-    Width = 27, Height = 21,
-    Left = 0.15234375, Right = 0.25781250, Top = 0.64843750, Bottom = 0.81250000
-  }
-}
-
+local SoulShardTexture = {
+        Texture = 'Interface\\PlayerFrame\\UI-WarlockShard',
+        Width = 17, Height = 16,
+        Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
+      }
+local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
 
 --*****************************************************************************
 --
--- Holybar script functions (script/event)
+-- Shardbar script functions (script/event)
 --
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- HolyBarStartMoving
+-- ShardBarStartMoving
 --
 -- If UnitBars.IsGrouped is true then the unitbar parent frame will be moved.
--- Otherwise just the holybar will be moved.
+-- Otherwise just the shardbar will be moved.
 -------------------------------------------------------------------------------
-local function HolyBarStartMoving(self, Button)
+local function ShardBarStartMoving(self, Button)
 
   -- Call the base moving function for group or anchor movement.
   if GUB.UnitBars.UnitBarStartMoving(self.Anchor, Button) then
@@ -105,11 +86,11 @@ local function HolyBarStartMoving(self, Button)
 end
 
 -------------------------------------------------------------------------------
--- HolyBarStopMoving
+-- ShardBarStopMoving
 --
 -- Same as above except it stops moving and saves the new coordinates.
 -------------------------------------------------------------------------------
-local function HolyBarStopMoving(self, Button)
+local function ShardBarStopMoving(self, Button)
 
   -- Call the stop moving base function if there was a group move or anchor move.
   if self.UnitBarMoving then
@@ -120,127 +101,128 @@ end
 
 --*****************************************************************************
 --
--- Holybar display
+-- Shardbar display
 --
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UpdateHolyRunes
+-- UpdateSoulShards
 --
--- Lights or darkens holy runes
+-- Lights or darkens the soul shards
 --
--- Usage: UpdateHolyRunes(HolyRuneF, HolyPower, FinishFadeOut)
+-- Usage: UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
 --
--- HolyBarF         HolyBar containing runes to update.
--- HolyPower        Updates the holy runes based on the holypower.
+-- ShardBarF        SoulShard bar containing shards to update.
+-- SoulShards       Updates the soul shards based on the number to light up.
 -- FinishFadeOut    If true then any fadeout animation currently playing
 --                  will be stopped.
 --                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
-  local FadeOutTime = HolyBarF.UnitBar.General.HolyFadeOutTime
+local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
+  local FadeOutTime = ShardBarF.UnitBar.General.ShardFadeOutTime
 
-  for HolyIndex, HRF in ipairs(HolyBarF.HolyRuneF) do
-    local FadeOut = HRF.FadeOut
-    local HolyRuneIcon = HRF.HolyRuneIcon
+  for ShardIndex, SSF in ipairs(ShardBarF.SoulShardF) do
+    local FadeOut = SSF.FadeOut
+    local SoulShard = SSF.SoulShard
 
-    -- If FinishFadeOut is true then stop any fadout animation and darken the rune.
+    -- If FinishFadeOut is true then stop any fadout animation and darken the soul shard.
     if FinishFadeOut then
-      if HRF.Dark then
+      if SSF.Dark then
         GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
-        HolyRuneIcon:SetAlpha(0)
+        SoulShard:SetAlpha(0)
       end
 
-    -- Light a rune based on HolyPower.
-    elseif HRF.Dark and HolyIndex <= HolyPower then
+    -- Light a soul shard based on SoulShards.
+    elseif SSF.Dark and ShardIndex <= SoulShards then
       if FadeOutTime > 0 then
 
         -- Finish animation if it's playing.
         GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
       end
-      HolyRuneIcon:SetAlpha(1)
-      HRF.Dark = false
+      SoulShard:SetAlpha(1)
+      SSF.Dark = false
 
-    -- Darken a rune based on HolyPower.
-    elseif not HRF.Dark and HolyIndex > HolyPower then
+    -- Darken a shard based on SoulShards.
+    elseif not SSF.Dark and ShardIndex > SoulShards then
       if FadeOutTime > 0 then
 
-        -- Fade out the holy rune then hide it.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() HolyRuneIcon:SetAlpha(0) end)
+        -- Fade out the soul shard then hide it.
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() SoulShard:SetAlpha(0) end)
       else
-        HolyRuneIcon:SetAlpha(0)
+        SoulShard:SetAlpha(0)
       end
-      HRF.Dark = true
+      SSF.Dark = true
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- UpdateHolyBar (Update) [UnitBar assigned function]
+-- UpdateShardBar (Update) [UnitBar assigned function]
 --
--- Update the holy power level of the player
+-- Update the number of shards of the player
 --
--- usage: UpdateHolyBar(Event, PowerType)
+-- usage: UpdateShardBar(Event, PowerType)
 --
 -- Event                If nil no event check will be done.
--- PowerType            If not equal to 'HOLY_POWER' then nothing will be updated
+-- PowerType            If not equal to 'SOUL_SHARDS' then nothing will be updated
 --                      unless it's nil
 -------------------------------------------------------------------------------
-function GUB.HolyBar:UpdateHolyBar(Event, PowerType)
+function GUB.ShardBar:UpdateShardBar(Event, PowerType)
 
-  -- If PowerType is nil then set it to holy power type.
+  -- If PowerType is nil then set it to soul shard power type.
   if PowerType == nil then
-    PowerType = 'HOLY_POWER'
+    PowerType = 'SOUL_SHARDS'
   end
 
-  -- Return if the unitbar is disabled, or event is not a power event, or its not holy power.
+  -- Return if the unitbar is disabled, or event is not a power event, or its not soul shard.
   if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'power' or
-     CheckPowerType[PowerType] ~= 'holy' then
+     CheckPowerType[PowerType] ~= 'shards' then
     return
   end
 
-  local HolyPower = UnitPower('player', PowerHoly)
+  local SoulShards = UnitPower('player', PowerShard)
 
-  UpdateHolyRunes(self, HolyPower)
+  UpdateSoulShards(self, SoulShards)
 
     -- Set this IsActive flag
-  self.IsActive = HolyPower > 0
+  self.IsActive = SoulShards > 0
 
   -- Do a status check for active status.
   self:StatusCheck()
+
 end
 
 --*****************************************************************************
 --
--- Holybar creation/setting
+-- Shardbar creation/setting
 --
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksHoly (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicksShard (EnableMouseClicks) [UnitBar assigned function]
 --
--- This will enable or disbable mouse clicks for the holy bar.
+-- This will enable or disbable mouse clicks for the shard bar.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:EnableMouseClicksHoly(Enable)
+function GUB.ShardBar:EnableMouseClicksShard(Enable)
   self.Border:EnableMouse(Enable)
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScriptHoly (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScriptShard (FrameSetScript) [UnitBar assigned function]
 --
--- Set up script handlers for the Holybar.
+-- Set up script handlers for the Shardbar.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:FrameSetScriptHoly(Enable)
+function GUB.ShardBar:FrameSetScriptShard(Enable)
   local Border = self.Border
-  local HolyBarF = self
+  local ShardBarF = self
   if Enable then
-    Border:SetScript('OnMouseDown', HolyBarStartMoving)
-    Border:SetScript('OnMouseUp', HolyBarStopMoving)
+    Border:SetScript('OnMouseDown', ShardBarStartMoving)
+    Border:SetScript('OnMouseUp', ShardBarStopMoving)
     Border:SetScript('OnHide', function(self)
-                                 HolyBarStopMoving(self)
+                                 ShardBarStopMoving(self)
 
                                  -- Cancel any fadeout animations currently playing.
-                                 UpdateHolyRunes(HolyBarF, 0, true)
+                                 UpdateSoulShards(ShardBarF, 0, true)
                                end)
     Border:SetScript('OnEnter', function(self)
                                   GUB.UnitBars.UnitBarTooltip(self, false)
@@ -258,20 +240,20 @@ function GUB.HolyBar:FrameSetScriptHoly(Enable)
 end
 
 -------------------------------------------------------------------------------
--- EnableScreenClampHoly (EnableScreenClamp) [UnitBar assigned function]
+-- EnableScreenClampShard (EnableScreenClamp) [UnitBar assigned function]
 --
 -- Enables or disble screen clamp for the shard bar.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:EnableScreenClampHoly(Enable)
+function GUB.ShardBar:EnableScreenClampShard(Enable)
   self.Border:SetClampedToScreen(Enable)
 end
 
 -------------------------------------------------------------------------------
--- SetAttrHoly  (SetAttr) [UnitBar assigned function]
+-- SetAttrShard  (SetAttr) [UnitBar assigned function]
 --
--- Sets different parts of the holybar.
+-- Sets different parts of the shardbar.
 --
--- Usage: SetAttrHoly(Object, Attr)
+-- Usage: SetAttrShard(Object, Attr)
 --
 -- Object       Object being changed:
 --               'bg' for background (Border).
@@ -286,7 +268,7 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:SetAttrHoly(Object, Attr)
+function GUB.ShardBar:SetAttrShard(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -315,26 +297,26 @@ function GUB.HolyBar:SetAttrHoly(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetHolyBarLayout
+-- SetShardBarLayout
 --
--- Set a holybar to a new layout
+-- Set a shardbar to a new layout
 --
--- Usage: SetHolyBarLayout(UnitBarF)
+-- Usage: SetShardBarLayout(UnitBarF)
 --
--- UnitBarF     Unitbar that contains the holy bar that is being setup.
+-- UnitBarF     Unitbar that contains the shard bar that is being setup.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
+function GUB.ShardBar:SetShardBarLayout(UnitBarF)
 
   -- Get the unitbar data.
   local Gen = UnitBarF.UnitBar.General
 
   local Anchor = UnitBarF.Anchor
 
-  local HolySize = Gen.HolySize
-  local HolyScale = Gen.HolyScale
-  local Padding = Gen.HolyPadding
-  local FadeOutTime = Gen.HolyFadeOutTime
-  local Angle = Gen.HolyAngle
+  local ShardSize = Gen.ShardSize
+  local ShardScale = Gen.ShardScale
+  local Padding = Gen.ShardPadding
+  local FadeOutTime = Gen.ShardFadeOutTime
+  local Angle = Gen.ShardAngle
   local x = 0
   local y = 0
   local XOffset = 0
@@ -344,70 +326,68 @@ function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
   local OffsetFX = 0
   local OffsetFY = 0
 
-  for RuneIndex, HRF in ipairs(UnitBarF.HolyRuneF) do
+  for ShardIndex, SSF in ipairs(UnitBarF.SoulShardF) do
 
     -- Set the duration of the fade out.
-    HRF.FadeOutA:SetDuration(FadeOutTime)
+    SSF.FadeOutA:SetDuration(FadeOutTime)
 
-    local HR = HolyRunes[RuneIndex]
-
-    -- Calculate the size of the holy rune.
-    local Width = HR.Width
-    local Height = HR.Height
+    -- Calculate the size of the soul shard.
+    local Width = SoulShardTexture.Width
+    local Height = SoulShardTexture.Height
     local Scale = 0
 
     -- Scale by width if the bar is vertical.
     if Angle == 180 or Angle == 360 then
-      Scale = HolySize / Width
+      Scale = ShardSize / Width
     else
 
       -- Scale by height
-      Scale = HolySize / Height
+      Scale = ShardSize / Height
     end
     Width = Width * Scale
     Height = Height * Scale
 
-    -- Set the width and height of the holy rune.
-    HRF:SetWidth(Width)
-    HRF:SetHeight(Height)
+    -- Set the width and height of the soul shard.
+    SSF:SetWidth(Width)
+    SSF:SetHeight(Height)
 
-    -- Center the holy rune.
-    local HolyRuneIcon = HRF.HolyRuneIcon
-    HolyRuneIcon:ClearAllPoints()
-    HolyRuneIcon:SetPoint('CENTER', 0, 0)
+    -- Center the soul shard.
+    local SoulShard = SSF.SoulShard
+    SoulShard:ClearAllPoints()
+    SoulShard:SetPoint('CENTER', 0, 0)
 
-    -- Set the scale of the holy texture.
-    local ScaleX = Width * HolyScale
-    local ScaleY = Height * HolyScale
-    HolyRuneIcon:SetWidth(ScaleX)
-    HolyRuneIcon:SetHeight(ScaleY)
+    -- Set the scale of the soul shard texture.
+    local ScaleX = Width * ShardScale
+    local ScaleY = Height * ShardScale
+    SoulShard:SetWidth(ScaleX)
+    SoulShard:SetHeight(ScaleY)
 
-    -- Center the dark holy rune.
-    local HolyRuneIconDark = HRF.HolyRuneIconDark
-    HolyRuneIconDark:ClearAllPoints()
-    HolyRuneIconDark:SetPoint('CENTER', 0, 0)
+    -- Center the dark soul shard.
+    local SoulShardDark = SSF.SoulShardDark
+    SoulShardDark:ClearAllPoints()
+    SoulShardDark:SetPoint('CENTER', 0, 0)
 
-    -- Set the scale to the dark holy texture.
-    HolyRuneIconDark:SetWidth(ScaleX)
-    HolyRuneIconDark:SetHeight(ScaleY)
+    -- Set the scale of the dark soul shard.
+    SoulShardDark:SetWidth(ScaleX)
+    SoulShardDark:SetHeight(ScaleY)
 
     -- Get the offsets based on angle.
     XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
 
     -- Calculate the x and y location before setting the location if angle is > 180.
-    if Angle > 180 and RuneIndex > 1 then
+    if Angle > 180 and ShardIndex > 1 then
       x = x + XOffset
       y = y + YOffset
     end
 
-    -- Set the location of the holy rune.
-    HRF:ClearAllPoints()
-    HRF:SetPoint('TOPLEFT', x, y)
+    -- Set the location of the soul shard.
+    SSF:ClearAllPoints()
+    SSF:SetPoint('TOPLEFT', x, y)
 
     -- Calculate the border width.
     if XOffset ~= 0 then
       BorderWidth = BorderWidth + abs(XOffset)
-      if RuneIndex == 1 then
+      if ShardIndex == 1 then
         BorderWidth = BorderWidth - Padding
       end
     elseif BorderWidth < Width then
@@ -417,7 +397,7 @@ function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
     -- Calculate the border height.
     if YOffset ~= 0 then
       BorderHeight = BorderHeight + abs(YOffset)
-      if RuneIndex == 1 then
+      if ShardIndex == 1 then
         BorderHeight = BorderHeight - Padding
       end
     elseif BorderHeight < Height then
@@ -462,17 +442,19 @@ function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
   UnitBarF.Height = BorderHeight
 end
 
+
+
 -------------------------------------------------------------------------------
--- CreateHolyBar
+-- CreateShardBar
 --
--- Usage: GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the shard bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 
@@ -482,29 +464,26 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, Border)
 
-  local DarkColor = HolyRunes.DarkColor
-  local HolyRuneF = {}
+  local SoulShardF = {}
 
-  for RuneIndex, HR in ipairs(HolyRunes) do
+  for ShardIndex = 1, MaxSoulShards do
 
-    -- Create the holy rune frame.
-    local HolyRuneFrame = CreateFrame('Frame', nil, OffsetFrame)
+    -- Create a soul shard frame.
+    local SoulShardFrame = CreateFrame('Frame', nil, OffsetFrame)
 
-    -- Create the holy rune texture.
-    local HolyRuneIcon = HolyRuneFrame:CreateTexture(nil, 'OVERLAY')
-    HolyRuneIcon:SetTexture(HolyPowerTexture)
-    HolyRuneIcon:SetTexCoord(HR.Left, HR.Right, HR.Top, HR.Bottom)
-    HolyRuneIcon:SetAlpha(0)
+    -- Create a soul shard texture.
+    local SoulShard = SoulShardFrame:CreateTexture(nil, 'OVERLAY')
+    SoulShard:SetTexture(SoulShardTexture.Texture)
+    SoulShard:SetTexCoord(SoulShardTexture.Left, SoulShardTexture.Right, SoulShardTexture.Top, SoulShardTexture.Bottom)
 
-    -- Create Dark holy rune texture.
-    local HolyRuneIconDark = HolyRuneFrame:CreateTexture(nil, 'ARTWORK')
-    HolyRuneIconDark:SetTexture(HolyPowerTexture)
-    HolyRuneIconDark:SetTexCoord(HR.Left, HR.Right, HR.Top, HR.Bottom)
-    HolyRuneIconDark:SetDesaturated(true)
-    HolyRuneIconDark:SetVertexColor(DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
+    -- Create a dark soul shard textre.
+    local SoulShardDark = SoulShardFrame:CreateTexture(nil, 'ARTWORK')
+    SoulShardDark:SetTexture(SoulShardTexture.Texture)
+    SoulShardDark:SetTexCoord(SoulShardTexture.Left, SoulShardTexture.Right, SoulShardTexture.Top, SoulShardTexture.Bottom)
+    SoulShardDark:SetVertexColor(SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
 
     -- Create an animation for fade out.
-    local FadeOut = HolyRuneIcon:CreateAnimationGroup()
+    local FadeOut = SoulShard:CreateAnimationGroup()
     local FadeOutA = FadeOut:CreateAnimation('Alpha')
 
     -- Set the animation group values.
@@ -512,19 +491,19 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
     FadeOutA:SetChange(-1)
     FadeOutA:SetOrder(1)
 
-    -- Set the holy rune to dark.
-    HolyRuneFrame.Dark = true
-    HolyRuneIcon:SetAlpha(0)
+    -- Set the soul shard to dark.
+    SoulShardFrame.Dark = true
+    SoulShard:SetAlpha(0)
 
     -- Save the animation.
-    HolyRuneFrame.FadeOut = FadeOut
-    HolyRuneFrame.FadeOutA = FadeOutA
+    SoulShardFrame.FadeOut = FadeOut
+    SoulShardFrame.FadeOutA = FadeOutA
 
-    -- Save the holy runeicon and dark one.
-    HolyRuneFrame.HolyRuneIcon = HolyRuneIcon
-    HolyRuneFrame.HolyRuneIconDark = HolyRuneIconDark
+    -- Save the normal and dark shard.
+    SoulShardFrame.SoulShard = SoulShard
+    SoulShardFrame.SoulShardDark = SoulShardDark
 
-    HolyRuneF[RuneIndex] = HolyRuneFrame
+    SoulShardF[ShardIndex] = SoulShardFrame
   end
 
   -- Save the name for tooltips.
@@ -534,8 +513,9 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Save a reference to the anchor for moving.
   Border.Anchor = Anchor
 
-  -- Save the offsetframe and Border and holyrunes.
+  -- Save the offsetframe and Border and soul shards.
   UnitBarF.Border = Border
   UnitBarF.OffsetFrame = OffsetFrame
-  UnitBarF.HolyRuneF = HolyRuneF
+  UnitBarF.SoulShardF = SoulShardF
 end
+
