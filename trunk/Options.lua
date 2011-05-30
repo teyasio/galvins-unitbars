@@ -1291,6 +1291,52 @@ local function CreateClassColorsOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreatePredictedColorOptions
+--
+-- Creates color options for bars that uses predicted health
+--
+-- Subfunction of CreateBarOptions()
+--
+-- Usage: PredictedColorOptions = CreatePredictedColorOptions(BarType, Order, Name)
+--
+-- BarType                 Type of options being created.
+-- Order                   Order number.
+-- Name                    Name Text.
+--
+-- PredictedColorOptions   Options table for setting options for predicted color
+-------------------------------------------------------------------------------
+local function CreatePredictedColorOptions(BarType, Order, Name)
+  local PredictedColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            -- Info.arg[1] = color index.
+            local c = UnitBars[BarType].Bar.PredictedColor
+            return c.r, c.g, c.b, c.a
+          end,
+    set = function(Info, r, g, b, a)
+            local c = UnitBars[BarType].Bar.PredictedColor
+            c.r, c.g, c.b, c.a = r, g, b, a
+
+            -- Set the color to the bar
+            UnitBarsF[BarType]:Update()
+          end,
+    args = {
+      PredictedColor = {
+        type = 'color',
+        name = 'Color',
+        hasAlpha = true,
+        order = 1,
+      },
+    },
+  }
+
+  return PredictedColorOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateBarOptions
 --
 -- Creates bar options for a unitbar.
@@ -1301,7 +1347,7 @@ end
 --
 -- BarType               Type of options being created.
 -- Order                 Order number.
--- Name                  Name text
+-- Name                  Name text.
 --
 -- BarOptions            Options table for the unitbar.
 -------------------------------------------------------------------------------
@@ -1338,10 +1384,22 @@ local function CreateBarOptions(BarType, Order, Name)
             values = LSM:HashTable('statusbar'),
             arg = {'texture'},
           },
+          PredictedBarTexture = {
+            type = 'select',
+            name = 'Predicted Bar Texture',
+            order = 2,
+            hidden = function()
+                       return BarType ~= 'PlayerHealth' and BarType ~= 'TargetHealth' and
+                              BarType ~= 'FocusHealth' and BarType ~= 'PetHealth'
+                     end,
+            dialogControl = 'LSM30_Statusbar',
+            values = LSM:HashTable('statusbar'),
+            arg = {'texture'},
+          },
           FillDirection = {
             type = 'select',
             name = 'Fill Direction',
-            order = 2,
+            order = 3,
             values = BarFillDirectionDropdown,
             style = 'dropdown',
             arg = {'texture'},
@@ -1349,13 +1407,13 @@ local function CreateBarOptions(BarType, Order, Name)
           RotateTexture = {
             type = 'toggle',
             name = 'Rotate Texture',
-            order = 3,
+            order = 4,
             arg = {'texture'},
           },
           HapWidth = {
             type = 'range',
             name = 'Width',
-            order = 6,
+            order = 7,
             desc = 'Values up to 500 can be typed in',
             min = HapBarWidthMin,
             max = HapBarWidthMax,
@@ -1366,7 +1424,7 @@ local function CreateBarOptions(BarType, Order, Name)
           HapHeight = {
             type = 'range',
             name = 'Height',
-            order = 7,
+            order = 8,
             desc = 'Values up to 500 can be typed in',
             min = HapBarHeightMin,
             max = HapBarHeightMax,
@@ -1377,7 +1435,7 @@ local function CreateBarOptions(BarType, Order, Name)
           ComboWidth = {
             type = 'range',
             name = 'Width',
-            order = 8,
+            order = 9,
             desc = 'Changes the width of all the combo boxes',
             min = ComboBarWidthMin,
             max = ComboBarWidthMax,
@@ -1387,7 +1445,7 @@ local function CreateBarOptions(BarType, Order, Name)
           ComboHeight = {
             type = 'range',
             name = 'Height',
-            order =9,
+            order =10,
             desc = 'Changes the height of all the combo boxes',
             min = ComboBarHeightMin,
             max = ComboBarHeightMax,
@@ -1397,7 +1455,7 @@ local function CreateBarOptions(BarType, Order, Name)
           BarColor = {
             type = 'color',
             name = 'Color',
-            order = 10,
+            order = 11,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Bar.Color
@@ -1415,7 +1473,7 @@ local function CreateBarOptions(BarType, Order, Name)
         type = 'group',
         name = 'Padding',
         dialogInline = true,
-        order = 3,
+        order = 4,
         get = function(Info)
                 return UnitBars[BarType].Bar.Padding[Info[#Info]]
               end,
@@ -1460,6 +1518,11 @@ local function CreateBarOptions(BarType, Order, Name)
       },
     },
   }
+
+  -- Add predicted color for Health bars only.
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' then
+    BarOptions.args.PredictedColors = CreatePredictedColorOptions(BarType, 3, 'Predicted Color')
+  end
 
   -- Add class colors for Target and Focus health bars only.
   if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then

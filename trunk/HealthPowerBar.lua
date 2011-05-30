@@ -35,16 +35,22 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar         Reference to the unitbar data for the health and power bar.
--- UnitBarF.Border          Border frame for the health and power bar.
--- UnitBarF.StatusBar       The Statusbar for the health and power bar.
+-- UnitBarF.UnitBar           Reference to the unitbar data for the health and power bar.
+-- UnitBarF.Border            Border frame for the health and power bar.
+-- UnitBarF.StatusBar         The Statusbar for the health and power bar.
+-- UnitBarF.PredictedBorder   This is the visible border you see around the statusbar.  Since
+--                            the predicted bar has to sit behind the statusbar. The statusbar can't
+--                            have a border otherwise the predictedbar would not be visible. So
+--                            predicted border becomes the visible border.
+-- UnitBarF.PredictedBar      This is another statusbar that sits behind StatusBar.  This is used for
+--                            predicted health
 --
--- Border.Anchor            Reference to the anchor for moving.
--- Border.TooltipName       Tooltip text to display for mouse over when bars are unlocked.
--- Border.TooltipDesc       Description under the name for mouse over.
--- Border.UnitBarF          Reference to unitbarF for for onsizechange.
+-- Border.Anchor              Reference to the anchor for moving.
+-- Border.TooltipName         Tooltip text to display for mouse over when bars are unlocked.
+-- Border.TooltipDesc         Description under the name for mouse over.
+-- Border.UnitBarF            Reference to unitbarF for for onsizechange.
 --
--- StatusBar.UnitBar        Reference to unitbar data for GetStatusBarTextValue()
+-- StatusBar.UnitBar          Reference to unitbar data for GetStatusBarTextValue()
 -------------------------------------------------------------------------------
 
 -- Powertype constants
@@ -313,6 +319,21 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
     end
   end
 
+  -- Display predicted health if the bar supports it.
+  local PredictedHealing = 0
+  local PredictedColor = Bar.PredictedColor
+  local PredictedBar = self.PredictedBar
+
+  local PredictedHealing = UnitGetIncomingHeals(Unit) or 0
+
+  if PredictedHealing > 0 then
+    PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
+    PredictedBar:SetMinMaxValues(0, MaxValue)
+    PredictedBar:SetValue(CurrValue + PredictedHealing)
+  else
+    PredictedBar:SetValue(0)
+  end
+
   -- Set the color and display the value.
   local StatusBar = self.StatusBar
   StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
@@ -464,6 +485,7 @@ end
 --               'frame' for the frame.
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
+--               'pcolor'    Predicted color being set to the object.
 --               'size'      Size being set to the object.
 --               'padding'   Amount of padding set to the object.
 --               'texture'   One or more textures set to the object.
@@ -492,27 +514,30 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
 
   -- Background (Border).
   if Object == nil or Object == 'bg' then
-    local Border = self.Border
+    local PredictedBorder = self.PredictedBorder
 
     local BgColor = UB.Background.Color
 
     if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      PredictedBorder:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+      PredictedBorder:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
     end
     if Attr == nil or Attr == 'color' then
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      PredictedBorder:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
     end
   end
 
   -- Forground (Statusbar).
   if Object == nil or Object == 'bar' then
     local StatusBar = self.StatusBar
+    local PredictedBar = self.PredictedBar
     local Border = self.Border
+    local PredictedBorder = self.PredictedBorder
 
     local Bar = UB.Bar
     local Padding = Bar.Padding
     local BarColor = Bar.Color
+    local PredictedColor = Bar.PredictedColor
 
     if Attr == nil or Attr == 'texture' then
       StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
@@ -520,22 +545,42 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
       StatusBar:GetStatusBarTexture():SetVertTile(false)
       StatusBar:SetOrientation(Bar.FillDirection)
       StatusBar:SetRotatesTexture(Bar.RotateTexture)
+
+      local PredictedBarTexture = Bar.PredictedBarTexture
+      if PredictedBarTexture then
+        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', PredictedBarTexture))
+      else
+        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', ''))
+      end
+      PredictedBar:GetStatusBarTexture():SetHorizTile(false)
+      PredictedBar:GetStatusBarTexture():SetVertTile(false)
+      PredictedBar:SetOrientation(Bar.FillDirection)
+      PredictedBar:SetRotatesTexture(Bar.RotateTexture)
     end
 
-    -- Should only set color on bars that are not a target or focus health bar.
-    -- Otherwise Update() should be used instead.
     if Attr == nil or Attr == 'color' then
       StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+    end
+
+    if PredictedColor and ( Attr == nil or Attr == 'pcolor' ) then
+      PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
     end
 
     if Attr == nil or Attr == 'padding' then
       StatusBar:ClearAllPoints()
       StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
       StatusBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+
+      PredictedBar:ClearAllPoints()
+      PredictedBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
+      PredictedBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
     end
     if Attr == nil or Attr == 'size' then
       Border:SetWidth(Bar.HapWidth)
       Border:SetHeight(Bar.HapHeight)
+
+      PredictedBorder:SetWidth(Bar.HapWidth)
+      PredictedBorder:SetHeight(Bar.HapHeight)
     end
   end
 
@@ -590,6 +635,15 @@ function GUB.HapBar:SetHapBarLayout(UnitBarF)
   StatusBar:SetMinMaxValues(0, 100)
   StatusBar:SetValue(0)
 
+  -- Set the predicted bar values to the same values as the StatusBar.
+  local PredictedBorder = UnitBarF.PredictedBorder
+  PredictedBorder:ClearAllPoints()
+  PredictedBorder:SetPoint('TOPLEFT', 0, 0)
+
+  local PredictedBar = UnitBarF.PredictedBar
+  PredictedBar:SetMinMaxValues(0, 100)
+  PredictedBar:SetValue(0)
+
     -- Set all attributes.
   UnitBarF:SetAttr(nil, nil)
 
@@ -618,6 +672,13 @@ function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
   StatusBar.Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
   StatusBar.Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
 
+  local PredictedBorder = CreateFrame('Frame', nil, ScaleFrame)
+  local PredictedBar = CreateFrame('StatusBar', nil, PredictedBorder)
+
+  -- The predicted Bar needs to be above the Healthbar.
+  Border:SetFrameLevel(1)
+  PredictedBorder:SetFrameLevel(0)
+
   -- Make the border frame top when clicked.
   Border:SetToplevel(true)
 
@@ -634,4 +695,6 @@ function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Save the frames.
   UnitBarF.Border = Border
   UnitBarF.StatusBar = StatusBar
+  UnitBarF.PredictedBorder = PredictedBorder
+  UnitBarF.PredictedBar = PredictedBar
 end

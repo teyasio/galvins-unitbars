@@ -366,8 +366,10 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        PredictedBarTexture = StatusBarTexture,
         ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
+        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
         TextType = {
@@ -524,8 +526,10 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        PredictedBarTexture = StatusBarTexture,
         ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
+        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
         TextType = {
@@ -682,8 +686,10 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        PredictedBarTexture = StatusBarTexture,
         ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
+        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
         TextType = {
@@ -840,7 +846,9 @@ local Defaults = {
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
+        PredictedBarTexture = StatusBarTexture,
         Color = {r = 0, g = 1, b = 0, a = 1},
+        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
         TextType = {
@@ -1233,7 +1241,7 @@ local ClassToPowerType = {
 }
 
 local CheckEvent = {
-  UNIT_HEALTH = 'health', UNIT_MAXHEALTH = 'health',
+  UNIT_HEALTH = 'health', UNIT_MAXHEALTH = 'health', UNIT_HEAL_PREDICTION = 'health',
   UNIT_POWER = 'power', UNIT_MAXPOWER = 'power',
   RUNE_POWER_UPDATE = 'runepower', RUNE_TYPE_UPDATE = 'runetype',
   UNIT_COMBO_POINTS = 'combo'
@@ -1286,6 +1294,7 @@ local function RegisterEvents()
     GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_POWER', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXPOWER', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdate')
   end
   GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
 end
@@ -1307,6 +1316,7 @@ local function UnregisterEvents()
     GUB:UnregisterEvent('UNIT_MAXHEALTH')
     GUB:UnregisterEvent('UNIT_POWER')
     GUB:UnregisterEvent('UNIT_MAXPOWER')
+    GUB:UnregisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdate')
   end
   GUB:UnregisterEvent('UNIT_COMBO_POINTS')
 end
@@ -1659,7 +1669,6 @@ end
 --   Update the unitbars that match Event and ...
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdate(Event, ...)
-
   -- Start unit bar refresh timer.
   UnitBarRefresh = 4.0
 
