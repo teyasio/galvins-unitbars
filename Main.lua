@@ -29,8 +29,8 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
 
@@ -184,22 +184,24 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --
 -- UnitBars health and power fields
 --   Background
---     BackdropSettings   Contains the settings for the background, forground, and padding.
---     Color              Current color of the background texture of the border frame.
+--     BackdropSettings     Contains the settings for the background, forground, and padding.
+--     Color                Current color of the background texture of the border frame.
 --   Bar
---     ClassColor        (Target and Focus Health bars only) If true then the health bar uses the
---                        class color otherwise uses the normal color.
+--     ClassColor           (Target and Focus Health bars only) If true then the health bar uses the
+--                          class color otherwise uses the normal color.
 --     HapWidth, HapHeight
---                        The current width and height.
---     FillDirection      Direction to the fill the bar in 'HORIZONTAL' or 'VERTICAL'.
---     RotateTexture      If true then the bar texture will be rotated 90 degree counter-clockwise
---                        If false no rotation takes place.
---     Padding            The amount of pixels to be added or subtracted from the bar texture.
---     StatusBarTexture   Texture for the bar its self.
---     Color              hash table for current color of the bar. Health bars only.
+--                          The current width and height.
+--     FillDirection        Direction to the fill the bar in 'HORIZONTAL' or 'VERTICAL'.
+--     RotateTexture        If true then the bar texture will be rotated 90 degree counter-clockwise
+--                          If false no rotation takes place.
+--     Padding              The amount of pixels to be added or subtracted from the bar texture.
+--     StatusBarTexture     Texture for the bar its self.
+--     PredictedBarTexture  Used for Player, Target, Focus.  Texture used for the predicted health.
+--     PredictedColor       Used for Player, Target, Focus.  Color of the predicted health bar.
+--     Color                hash table for current color of the bar. Health bars only.
 --     Color[PowerType]
---                        This array is for powerbars only.  By default they're loaded from blizzards default
---                        colors.
+--                          This array is for powerbars only.  By default they're loaded from blizzards default
+--                          colors.
 --   Text
 --     Align              All position data gets shared with Text2 or vice versa with Text2.
 --     TextType
@@ -208,15 +210,20 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --                        If this is set to zero nothing will get displayed.
 --       MaxValues        Maximum number of values to be displayed on the bar.
 --       ValueName        Table containing which value to be displayed.
+--                          ValueNames:
+--                            'current'        - Current Value of the health or power bar.
+--                            'maximum'        - Maximum Value of the health or power bar.
+--                            'predicted'      - Predicted value of the health or power bar.
+--                                               Not all bars support predicted.
 --       ValueType        Type of value to be displayed based on the ValueName.
 --                          ValueTypes:
---                            'whole'         - Whole number
---                            'whole_dgroups' - Whole number in digit groups 999,999,999
---                            'percent'       - Percentage
---                            'thousands'     - In thousands 999.9k
---                            'millions'      - In millions  999.9m
---                            'short'         - In thousands or millions depending on the value
---                            'none'          - No value gets displayed
+--                            'whole'             - Whole number
+--                            'whole_dgroups'     - Whole number in digit groups 999,999,999
+--                            'percent'           - Percentage
+--                            'thousands'         - In thousands 999.9k
+--                            'millions'          - In millions  999.9m
+--                            'short'             - In thousands or millions depending on the value.
+--                            'none'              - No value gets displayed
 --     FontSettings       Contains the settings for the text.
 --     Color              Current color of the text for the bar.
 --   Text2                Same as Text, provides a second text frame.
@@ -1222,7 +1229,7 @@ local Defaults = {
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
-        Color = {r = 0.76, g = 0.54, b = 1, a = 1},
+        Color = {r = 0.588, g = 0.415, b = 772, a = 1},
       },
     },
   },
@@ -1669,6 +1676,7 @@ end
 --   Update the unitbars that match Event and ...
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdate(Event, ...)
+
   -- Start unit bar refresh timer.
   UnitBarRefresh = 4.0
 

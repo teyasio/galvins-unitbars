@@ -29,8 +29,9 @@ local HelpText = GUB.Help.HelpText
 --
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
 -- FontHAlignDropDown            Table used for the dialog drop down for font horizontal alignment.
--- TextTypeDropdown              Table used for the dialog drop down for Health and power text type.
--- ValieTypeDropdown             Table used for the dialog drop down for health and power text type.
+-- ValueTypeDropdown              Table used for the dialog drop down for Health and power text type.
+-- ValueNameDropdown             Table used for the dialog drop down for health and power text type.
+-- ValueNameDropdownPredicted    Same as above except used for bars that support predicted value.
 -- MaxValuesDropdown             Tanle used for the dialog drop down for Health and power text type.
 -- UnitBarsSelectDropdown        Table used to pick from a list of unitbars.
 -- AlignmentBarsDropdown         Table used for horizontal alignment dropdown.
@@ -149,7 +150,7 @@ local FontPositionDropdown = {
   CENTER = 'Center'
 }
 
-local TextTypeDropdown = {
+local ValueTypeDropdown = {
   none = 'No value',
   whole = 'Whole',
   whole_dgroups = 'Whole (Digit Groups)',
@@ -166,9 +167,15 @@ local MaxValuesDropdown = {
   [3] = '3',
 }
 
-local ValueTypeDropdown = {
+local ValueNameDropdown = {
   current = 'Current Value',
   maximum = 'Maximum Value',
+}
+
+local ValueNameDropdownPredicted = {
+  current = 'Current Value',
+  maximum = 'Maximum Value',
+  predicted = 'Predicted Value',
 }
 
 local TextTypeLayout = {
@@ -686,6 +693,14 @@ end
 --
 -- TextOptions     Options table for background options.
 -------------------------------------------------------------------------------
+local function GetValueNameDropdown(BarType)
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' then
+    return ValueNameDropdownPredicted
+  else
+    return ValueNameDropdown
+  end
+end
+
 local function CreateTextOptions(BarType, Object, Order, Name)
 
   -- Set the object.
@@ -790,7 +805,9 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 type = 'select',
                 order = 1,
                 name = 'Name',
-                values = ValueTypeDropdown,
+                values = function()
+                           return GetValueNameDropdown(BarType)
+                         end,
                 style = 'dropdown',
                 desc = 'Show Current Value or Maximum Value',
                 arg = {'name', 1},
@@ -800,7 +817,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 name = '',
                 order = 2,
                 name = 'Type',
-                values = TextTypeDropdown,
+                values = ValueTypeDropdown,
                 style = 'dropdown',
                 desc = 'Changes the type of value to be shown',
                 arg = {'type', 1},
@@ -820,7 +837,9 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 type = 'select',
                 name = 'Name',
                 order = 1,
-                values = ValueTypeDropdown,
+                values = function()
+                           return GetValueNameDropdown(BarType)
+                         end,
                 style = 'dropdown',
                 desc = 'Show Current Value or Maximum Value',
                 arg = {'name', 2}
@@ -829,7 +848,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 type = 'select',
                 name = 'Type',
                 order = 2,
-                values = TextTypeDropdown,
+                values = ValueTypeDropdown,
                 style = 'dropdown',
                 desc = 'Changes the type of value to be shown',
                 arg = {'type', 2}
@@ -849,7 +868,9 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 type = 'select',
                 name = 'Name',
                 order = 1,
-                values = ValueTypeDropdown,
+                values = function()
+                           return GetValueNameDropdown(BarType)
+                         end,
                 style = 'dropdown',
                 desc = 'Show Current Value or Maximum Value',
                 arg = {'name', 3}
@@ -858,7 +879,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                 type = 'select',
                 name = 'Type',
                 order = 2,
-                values = TextTypeDropdown,
+                values = ValueTypeDropdown,
                 style = 'dropdown',
                 desc = 'Changes the type of value to be shown',
                 arg = {'type', 3}
@@ -1390,7 +1411,7 @@ local function CreateBarOptions(BarType, Order, Name)
             order = 2,
             hidden = function()
                        return BarType ~= 'PlayerHealth' and BarType ~= 'TargetHealth' and
-                              BarType ~= 'FocusHealth' and BarType ~= 'PetHealth'
+                              BarType ~= 'FocusHealth'
                      end,
             dialogControl = 'LSM30_Statusbar',
             values = LSM:HashTable('statusbar'),
@@ -1520,11 +1541,11 @@ local function CreateBarOptions(BarType, Order, Name)
   }
 
   -- Add predicted color for Health bars only.
-  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' then
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
     BarOptions.args.PredictedColors = CreatePredictedColorOptions(BarType, 3, 'Predicted Color')
   end
 
-  -- Add class colors for Target and Focus health bars only.
+  -- Add class colors for Player, Target, and Focus health bars only.
   if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
 
     -- Remove the BarColor options

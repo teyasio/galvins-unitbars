@@ -1,11 +1,11 @@
 
 Galvin's UnitBars is a very customizable addon.  It's main purpose is to only display a class resource.  Currently it
-supports mana, rage, energy, runic power, focus, combo points, and runes.
+supports mana, rage, energy, runic power, focus, combo points, runes, and shards.
 
 
 After making a lot of changes if you wish to start over you can restore default settings.  Just go to the bar
 in the bars menu.  Click the bar you want to restore.  Then click the restore button you may have to scroll
-down to see it.  
+down to see it.
 
 If the configuration menu is getting in the way then close it and type: /gub config from the chat
 box.  This will open a movable configuration window.  Everything in it works the same.
@@ -31,7 +31,7 @@ bars, The only flag it can't override is never show.
 * Text Type
 All health and Power bars have a text type.  This lets you control how the health or power values are to be displayed.
 If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.
-In this box you can enter any layout you want. 
+In this box you can enter any layout you want.
 
 The easist way to create a custom layout is to turn off custom, pick a default layout from the pull down menus.  Then
 click custom.  This will let you edit the default layout generated.
@@ -43,7 +43,7 @@ displayed.  If no value is selected that value will be skipped.  It's best to pl
 If the layout causes an error you will see a Layout Error appear on the health or powerbar.  It will let you know if the
 error came from text or text2.
 
-You can add extra things to a custom layout. 
+You can add extra things to a custom layout.
 
 Examples
 (%d%%) : (%d) -> (20%) : (999)
@@ -53,7 +53,7 @@ Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 For more information you can google stringformat for lua.
 
 * Copy Settings
-This allows you to copy the settings of one bar to another.  Not everything can be copied unless both bars are of the 
+This allows you to copy the settings of one bar to another.  Not everything can be copied unless both bars are of the
 same type.  For example a player health bar has all the same properties of a target health bar.  So everything can be
 copied between the two.  The copy settings will only let you pick what can be copied.  There is a copy all which
 will copy all the settings that are supported on the destination bar.
@@ -62,10 +62,10 @@ First select the bar you want to copy from.  Then select the bar you want to cop
 you would like to copy.  Then click the copy button.  A warning will pop up to prevent accidental copying.
 
 * Alignment
-All bars can be aligned for perfection. Bars can be aligned either vertically or horizontally. 
+All bars can be aligned for perfection. Bars can be aligned either vertically or horizontally.
 
 - Align Bars with:  Here you choose the bar you want to align other bars with.
-- Bars to Align:  Pick the bars you want to align. 
+- Bars to Align:  Pick the bars you want to align.
 - Type of Alignment:  You need specify if you want to line up the bars vertically your horizontally.
 - Alignment: This specifies if you want the top, bottom, left, or right of each bar to be lined up
 with the bar you picked in 'Align Bars With'.  If you're doing vertical then you'll have left or
@@ -73,11 +73,14 @@ right as a choice.  If horizontal then you'll have top or bottom as a choice.
 - Padding: Instead of just lining up bars you may want to have equal spacing between them as well.
 This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
 
-Once Align is clicked the tool goes into a real time mode.  What this means is if Type of Alignment, 
+Once Align is clicked the tool goes into a real time mode.  What this means is if Type of Alignment,
 Alignment, or Padding gets changed.  The bars will get aligned again automatically.  But if you
 make any changes in bars to align or align bars with.  Then you'll need to click align again.
 
 * Profiles
-Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just 
+Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just
 create a new profile named backup.  Then copy your config to backup.  All characters by default start with a new
-config, but you can share one across all characters or any of your choosing.  
+config, but you can share one across all characters or any of your choosing.
+
+
+You can leave feedback at http://wow.curse.com/downloads/wow-addons/details/galvins-unitbars.aspx
