@@ -25,8 +25,8 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
 
@@ -125,17 +125,18 @@ end
 --
 -- Returns either CurrValue or MaxValue based on the ValueName and ValueType
 --
--- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
+-- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
 --
--- ValueName      Must be 'current' or 'maximum'
--- ValueType      The type of value, see texttype in main.lua for a list.
--- CurrValue      Values to be used.
--- MaxValue       Values to be used.
+-- ValueName        Must be 'current', 'maximum', or 'predicted'.
+-- ValueType        The type of value, see texttype in main.lua for a list.
+-- CurrValue        Values to be used.
+-- MaxValue         Values to be used.
+-- PredictedValue   Predicted health or power value.  If nil won't be used.
 --
--- Value          The value returned based on the ValueName and ValueType.
---                Can be a string or number.
+-- Value            The value returned based on the ValueName and ValueType.
+--                  Can be a string or number.
 -------------------------------------------------------------------------------
-local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
+local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
   local Value = nil
 
   -- Get the value based on ValueName
@@ -143,6 +144,8 @@ local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue)
     Value = CurrValue
   elseif ValueName == 'maximum' then
     Value = MaxValue
+  elseif ValueName == 'predicted' then
+    Value = PredictedValue or 0
   end
 
   if ValueType == 'whole' then
@@ -167,14 +170,15 @@ end
 --
 -- Sets one or more values on a bar based on the text type settings
 --
--- Usage: SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue)
+-- Usage: SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue, PredictedValue)
 --
--- StatusBar      The bar to set the values to.
--- TextFrame      Must be 'Txt' or 'Txt2' this is the text frame.
--- CurrValue      Current value.  Used for percentage.
--- MaxValue       Maximum value.  Used for percentage.
+-- StatusBar        The bar to set the values to.
+-- TextFrame        Must be 'Txt' or 'Txt2' this is the text frame.
+-- CurrValue        Current value.  Used for percentage.
+-- MaxValue         Maximum value.  Used for percentage.
+-- PredictedValue   Predicted health or power value.
 -------------------------------------------------------------------------------
-local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue)
+local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue, PredictedValue)
   local TextTable = 'Text'
 
   if TextFrame == 'Txt2' then
@@ -192,7 +196,7 @@ local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue)
     if Position > 0 then
       local Type = ValueType[Position]
       if Type ~= 'none' then
-        return GetTextValues(Position - 1, GetTextValue(ValueName[Position], Type, CurrValue, MaxValue), ...)
+        return GetTextValues(Position - 1, GetTextValue(ValueName[Position], Type, CurrValue, MaxValue, PredictedValue), ...)
       else
         return GetTextValues(Position - 1, ...)
       end
@@ -209,27 +213,28 @@ end
 --
 -- Sets the minimum, maximum, and text value to the StatusBar.
 --
--- Usage: SetStatusBarValue(StatusBar, CurrValue, MaxValue)
+-- Usage: SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
 --
--- StatusBar    Frame that text is being created for.
--- CurrValue    Current value to set.
--- MaxValue     Maximum value to set.
+-- StatusBar       Frame that text is being created for.
+-- CurrValue       Current value to set.
+-- MaxValue        Maximum value to set.
+-- PredictedValue  Predicted health or power.
 --
 -- Note: If there's an error in setting the text value then an error message will
 --       be set instead.
 -------------------------------------------------------------------------------
-local function SetStatusBarValue(StatusBar, CurrValue, MaxValue)
+local function SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
 
-  local returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt', CurrValue, MaxValue)
+  local returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt', CurrValue, MaxValue, PredictedValue)
   if not returnOK then
     StatusBar.Txt:SetText('Layout Err Text')
   end
 
 
-  returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt2', CurrValue, MaxValue)
+  returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt2', CurrValue, MaxValue, PredictedValue)
   if not returnOK then
     StatusBar.Txt2:SetText('Layout Err Text2')
   end
@@ -307,8 +312,8 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   end
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
-
   local Bar = self.UnitBar.Bar
+  local PredictedBar = self.PredictedBar
 
   -- Get the class color if classcolor flag is true.
   local Color = Bar.Color
@@ -319,25 +324,23 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
     end
   end
 
-  -- Display predicted health if the bar supports it.
-  local PredictedHealing = 0
+  -- Set the color and display the predicted health.
   local PredictedColor = Bar.PredictedColor
-  local PredictedBar = self.PredictedBar
-
   local PredictedHealing = UnitGetIncomingHeals(Unit) or 0
 
-  if PredictedHealing > 0 then
+  if PredictedColor and PredictedHealing > 0 then
     PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
     PredictedBar:SetMinMaxValues(0, MaxValue)
     PredictedBar:SetValue(CurrValue + PredictedHealing)
   else
+    PredictedHealing = 0
     PredictedBar:SetValue(0)
   end
 
   -- Set the color and display the value.
   local StatusBar = self.StatusBar
   StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  SetStatusBarValue(StatusBar, CurrValue, MaxValue)
+  SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedHealing)
 
   -- Set the IsActive flag.
   self.IsActive = CurrValue < MaxValue
@@ -550,7 +553,7 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
       if PredictedBarTexture then
         PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', PredictedBarTexture))
       else
-        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', ''))
+        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', 'Empty'))
       end
       PredictedBar:GetStatusBarTexture():SetHorizTile(false)
       PredictedBar:GetStatusBarTexture():SetVertTile(false)
@@ -653,7 +656,6 @@ function GUB.HapBar:SetHapBarLayout(UnitBarF)
 
   -- Save a reference of unitbar data.
   StatusBar.UnitBar = UnitBarF.UnitBar
-
 end
 
 -------------------------------------------------------------------------------
