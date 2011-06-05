@@ -35,6 +35,12 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
 
 ------------------------------------------------------------------------------
+-- Register GUB textures
+------------------------------------------------------------------------------
+LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar.tga]])
+LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar.tga]])
+
+------------------------------------------------------------------------------
 -- Locals
 --
 -- UnitBarsF[Bartype].Anchor
@@ -62,6 +68,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --                      anchor frame.  But sometimes a different frame needs to have scripts set.
 -- UnitBarsF[BarType]:SetAttr(Object, Attr)
 --                      Sets texture, font, color, etc.  To anybar except the runebar.
+-- UnitBarsF[BarType]:SetLayout()
+--                      Sets/Updates the layout.
 -- UnitBarsF[BarType].Enabled
 --                      True or false.  Enabled setting for each unitbar frame.
 -- UnitBarsF[BarType].Hidden
@@ -257,13 +265,12 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --   General
 --     ComboPadding       The amount of space in pixels between each combo point box.
 --     ComboAngle         Angle in degrees in which way the bar will be displayed.
---                        Must be a multiple of 45 degrees and not 360.
 --   Background
 --     ColorAll           If true then all the combo boxes are set to one color.
 --                        if false then each combo box can be set a different color.
 --     BackdropSettings   Contains the settings for background, forground, and padding for each combo point box.
 --     Color              Contains just one background color for all the combo point boxes.
---                        Only works when ComboColorAll is true.
+--                        Only works when ColorAll is true.
 --     Color[1 to 5]      Contains the background colors of all the combo point boxes.
 --   Bar
 --     ColorAll           If true then all the combo boxes are set to one color.
@@ -275,6 +282,37 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --     Color              Contains just one bar color for all the combo point boxes.
 --                        Only works when ComboColorAll is true.
 --     Color[1 to 5]      Contains the bar colors of all the combo point boxes.
+--
+-- Holybar fields
+--   General
+--     BoxMode            If true the bar uses boxes instead of textures.
+--     HolySize           Size of the holy rune with and height.  Not used in Box Mode.
+--     HolyPadding        Amount of space between each holy rune.  Works in both modes.
+--     HolyScale          Scale of the rune without changing the holy bar size. Not used in box mode.
+--     HolyFadeOutTime    Amount of time in seconds before a holy rune goes dark.  Works in both modes.
+--     HolyAngle          Angle in degrees in which way the bar will be displayed.
+--   Background
+--     ColorAll           If true then all the holy rune boxes are set to one color.
+--                        if false then each holy rune box can be set a different color.
+--                        Only works in box mode.
+--     BackdropSettings   Contains the settings for background, forground, and padding for each holy rune box.
+--                        When in box mode each holy box uses this setting.
+--     Color              Contains just one background color for all the holy rune boxes.
+--                        Only works when ColorAll is true.
+--     Color[1 to 3]      Contains the background colors of all the holy rune boxes.
+--   Bar
+--     ColorAll           If true then all the holy rune boxes are set to one color.
+--                        if false then each holy rune box can be set a different color.
+--                        Only works in box mode.
+--     HolyWidth          Width of each holy rune box.
+--     HolyHeight         Height of each holy rune box.
+--     Padding            Amount of padding on the forground of each holy rune box.
+--     StatusbarTexture   Texture used for the forground of each holy rune box.
+--     Color              Contains just one bar color for all the holy rune boxes.
+--                        Only works when ComboColorAll is true.
+--     Color[1 to 3]      Contains the bar colors of all the holy rune boxes.
+--
+--  Shardbar fields       Same as Holybar fields just uses shards instead.
 -------------------------------------------------------------------------------
 local InCombat = false
 local InVehicle = false
@@ -1180,6 +1218,7 @@ local Defaults = {
         HideNoCombat  = false
       },
       General = {
+        BoxMode = false,
         HolySize = 31,
         HolyPadding = -2,
         HolyScale = 1,
@@ -1190,13 +1229,34 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        ColorAll = false,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
-        Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+        Color = {
+          r = 0.5, g = 0.5, b = 0.5, a = 1,
+          [1] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+          [2] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+          [3] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+        },
+      },
+      Bar = {
+        ColorAll = false,
+        HolyWidth = 40,
+        HolyHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+        Color = {
+          r = 1, g = 0.705, b = 0, a = 1,
+          [1] = {r = 1, g = 0.705, b = 0, a = 1},
+          [2] = {r = 1, g = 0.705, b = 0, a = 1},
+          [3] = {r = 1, g = 0.705, b = 0, a = 1},
+        },
       },
     },
 -- ShardBar
@@ -1213,6 +1273,7 @@ local Defaults = {
         HideNoCombat  = false
       },
       General = {
+        BoxMode = false,
         ShardSize = 31,
         ShardPadding = 10,
         ShardScale = 0.80,
@@ -1223,13 +1284,34 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        ColorAll = false,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
-        Color = {r = 0.588, g = 0.415, b = 772, a = 1},
+        Color = {
+          r = 0.329, g = 0.172, b = 0.337, a = 1,
+          [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          [3] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+        },
+      },
+      Bar = {
+        ColorAll = false,
+        ShardWidth = 40,
+        ShardHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = StatusBarTexture,
+        Color = {
+          r = 0.980, g = 0.517, b = 1, a = 1,
+          [1] = {r = 0.980, g = 0.517, b = 1, a = 1},
+          [2] = {r = 0.980, g = 0.517, b = 1, a = 1},
+          [3] = {r = 0.980, g = 0.517, b = 1, a = 1},
+        },
       },
     },
   },
@@ -1848,6 +1930,10 @@ end
 --    Look at SetAttr assigned functions in HealthPowerBar.lua and ComboBar.lua.
 --    Runebar doesn't support attributes and calling a SetAttr on a runebar will do nothing.
 --
+-- Usage: UnitBarsF[BarType]:SetLayout()
+--
+--    Updates the layout of the bar.
+--
 -- NOTE: Any function labled as a unitbar assigned function shouldn't be called directly.
 --
 --*****************************************************************************
@@ -2131,6 +2217,17 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.HolyBar.SetAttrHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.SetAttrShard, 'ShardBar')
 
+  -- Set layout functions
+  n = 'SetLayout' -- UnitBarF[]:SetLayout()
+  f = GUB.HapBar.SetLayoutHap
+
+  SetFunction(Func, n, f, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
+                          'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower')
+  SetFunction(Func, n, GUB.RuneBar.SetLayoutRune, 'RuneBar')
+  SetFunction(Func, n, GUB.ComboBar.SetLayoutCombo, 'ComboBar')
+  SetFunction(Func, n, GUB.HolyBar.SetLayoutHoly, 'HolyBar')
+  SetFunction(Func, n, GUB.ShardBar.SetLayoutShard, 'ShardBar')
+
   -- Add the functions to the unitbars frame table.
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -2206,7 +2303,7 @@ end
 --
 -- Sets all the unitbars with new data.
 -------------------------------------------------------------------------------
-local function SetUnitBarsLayout()
+function GUB.UnitBars:SetUnitBarsLayout()
 
   -- Set the unitbar parent frame values.
   UnitBarsParent:ClearAllPoints()
@@ -2238,17 +2335,8 @@ local function SetUnitBarsLayout()
     UnitBarF.UnitBar = UB
     Anchor.UnitBar = UB
 
-    if BarType == 'RuneBar' then
-      GUB.RuneBar:SetRuneBarLayout(UnitBarF)
-    elseif BarType == 'ComboBar' then
-      GUB.ComboBar:SetComboBarLayout(UnitBarF)
-    elseif BarType == 'HolyBar' then
-      GUB.HolyBar:SetHolyBarLayout(UnitBarF)
-    elseif BarType == 'ShardBar' then
-      GUB.ShardBar:SetShardBarLayout(UnitBarF)
-    else
-      GUB.HapBar:SetHapBarLayout(UnitBarF)
-    end
+    -- Set the layout.
+    UnitBarF:SetLayout()
 
     -- Set the IsActive flag to true.
     UnitBarF.IsActive = false
@@ -2653,7 +2741,7 @@ function GUB:OnEnable()
   OnInitializeOnce()
 
   -- Update all the unitbars according to the new data.
-  SetUnitBarsLayout()
+  GUB.UnitBars:SetUnitBarsLayout()
 
   -- Set up the scripts.
   UnitBarsSetScript(true)

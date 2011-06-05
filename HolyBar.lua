@@ -11,6 +11,7 @@ local MyAddon, GUB = ...
 GUB.HolyBar = {}
 
 -- shared from Main.lua
+local LSM = GUB.UnitBars.LSM
 local CheckPowerType = GUB.UnitBars.CheckPowerType
 local CheckEvent = GUB.UnitBars.CheckEvent
 local PowerTypeToNumber = GUB.UnitBars.PowerTypeToNumber
@@ -40,15 +41,19 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- UnitBarF.Border                   Border frame for the holy bar. This is a parent of
 --                                   OffSetF.
 -- UnitBarF.OffsetFrame              Offset frame this is a parent of HolyRuneF[]
---                                   This is used for rotation offset in SetHolyBarLayout()
--- UnitBarF.HolyRuneF[]              Frame array containing all 3 holy runes. This also
+--                                   This is used for rotation offset in SetLayoutHoly()
+-- UnitBarF.HolyRuneF[]              (HolyRuneFrame) Frame array containing all 3 holy runes. This also
 --                                   contains the frame of the holy rune.
--- HolyRuneF[Rune].HolyRuneIcon      The texture containing the holy rune.
--- HolyRuneF[Rune].FadeOut           Animation group for fadeout for the holy rune before hiding
+-- HolyRuneF[].HolyRuneIcon          The texture containing the holy rune.
+-- HolyRuneF[].HolyRuneIconDarkFrame This is the frame for the holy rune dark texture.
+-- HolyRuneF[].HolyRuneIconDark      This is the texture for the holy rune dark.
+-- HolyRuneF[].HolyRuneBoxFrame      Frame border for the holy rune box. This is a chile of OffsetFrame.
+-- HolyRuneF[].HolyRuneBox           Statusbar used in BoxMode only. This is a child of HolyRuneFrame
+-- HolyRuneF[].FadeOut               Animation group for fadeout for the holy rune before hiding
 --                                   This group is a child of the Holy Rune Frame.
--- HolyRuneF[Rune].FadeOutA          Animation that contains the fade out.  This is a child
+-- HolyRuneF[].FadeOutA              Animation that contains the fade out.  This is a child
 --                                   of FadeOut
--- HolyRuneF[Rune].Dark              True then the holy rune is not lit.  True holy rune is lit.
+-- HolyRuneF[].Dark                  True then the holy rune is not lit.  True holy rune is lit.
 --
 -- HolyPowerTexture                  Texture file containing all the holy power textures.
 -- HolyRunes[]                       Contains the texture layout data for the holyrunes.
@@ -61,6 +66,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --   Left, Right, Top, Bottom        Amount of padding within each HolyRuneFrame.
 --                                   This makes it so each holy rune texture doesn't
 --                                   touch the border.  Makes it look nicer.
+-- NOTE: holy bar has two modes.  In BoxMode the holy bar is broken into 3 statusbars.
+--       This works just like the combobar.  When not normal mode.  The bar uses textures instead.
 -------------------------------------------------------------------------------
 
 -- Powertype constants
@@ -140,35 +147,34 @@ end
 local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
   local FadeOutTime = HolyBarF.UnitBar.General.HolyFadeOutTime
 
-  for HolyIndex, HRF in ipairs(HolyBarF.HolyRuneF) do
+  for RuneIndex, HRF in ipairs(HolyBarF.HolyRuneF) do
     local FadeOut = HRF.FadeOut
-    local HolyRuneIcon = HRF.HolyRuneIcon
 
     -- If FinishFadeOut is true then stop any fadout animation and darken the rune.
     if FinishFadeOut then
       if HRF.Dark then
         GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
-        HolyRuneIcon:SetAlpha(0)
+        HRF:Hide()
       end
 
     -- Light a rune based on HolyPower.
-    elseif HRF.Dark and HolyIndex <= HolyPower then
+    elseif HRF.Dark and RuneIndex <= HolyPower then
       if FadeOutTime > 0 then
 
         -- Finish animation if it's playing.
         GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
       end
-      HolyRuneIcon:SetAlpha(1)
+      HRF:Show()
       HRF.Dark = false
 
     -- Darken a rune based on HolyPower.
-    elseif not HRF.Dark and HolyIndex > HolyPower then
+    elseif not HRF.Dark and RuneIndex > HolyPower then
       if FadeOutTime > 0 then
 
         -- Fade out the holy rune then hide it.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() HolyRuneIcon:SetAlpha(0) end)
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() HRF:Hide() end)
       else
-        HolyRuneIcon:SetAlpha(0)
+        HRF:Hide()
       end
       HRF.Dark = true
     end
@@ -233,34 +239,58 @@ end
 function GUB.HolyBar:FrameSetScriptHoly(Enable)
   local Border = self.Border
   local HolyBarF = self
-  if Enable then
-    Border:SetScript('OnMouseDown', HolyBarStartMoving)
-    Border:SetScript('OnMouseUp', HolyBarStopMoving)
-    Border:SetScript('OnHide', function(self)
-                                 HolyBarStopMoving(self)
 
-                                 -- Cancel any fadeout animations currently playing.
-                                 UpdateHolyRunes(HolyBarF, 0, true)
-                               end)
-    Border:SetScript('OnEnter', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, false)
-                                end)
-    Border:SetScript('OnLeave', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, true)
-                                end)
+  local function FrameSetScript(Frame, Enable)
+    if Enable then
+      Frame:SetScript('OnMouseDown', HolyBarStartMoving)
+      Frame:SetScript('OnMouseUp', HolyBarStopMoving)
+      Frame:SetScript('OnHide', function(self)
+                                   HolyBarStopMoving(self)
+
+                                   -- Cancel any fadeout animations currently playing.
+                                   UpdateHolyRunes(HolyBarF, 0, true)
+                                 end)
+      Frame:SetScript('OnEnter', function(self)
+                                    GUB.UnitBars.UnitBarTooltip(self, false)
+                                  end)
+      Frame:SetScript('OnLeave', function(self)
+                                    GUB.UnitBars.UnitBarTooltip(self, true)
+                                  end)
+    else
+      Frame:SetScript('OnMouseDown', nil)
+      Frame:SetScript('OnMouseUp', nil)
+      Frame:SetScript('OnHide', nil)
+      Frame:SetScript('OnEnter', nil)
+      Frame:SetScript('OnLeave', nil)
+    end
+  end
+
+  -- Check for boxmode
+  if self.UnitBar.General.BoxMode then
+
+    -- Disable the normal mode scripts.
+    FrameSetScript(Border, false)
+
+    -- Set the new scripts for each holy rune box.
+    for _, HRF in ipairs(self.HolyRuneF) do
+      FrameSetScript(HRF.HolyRuneBoxFrame, Enable)
+    end
   else
-    Border:SetScript('OnMouseDown', nil)
-    Border:SetScript('OnMouseUp', nil)
-    Border:SetScript('OnHide', nil)
-    Border:SetScript('OnEnter', nil)
-    Border:SetScript('OnLeave', nil)
+
+    -- Disable the box mode scripts.
+    for _, HRF in ipairs(self.HolyRuneF) do
+      FrameSetScript(HRF.HolyRuneBoxFrame, false)
+    end
+
+    -- Set the new script for normal mode.
+    FrameSetScript(Border, Enable)
   end
 end
 
 -------------------------------------------------------------------------------
 -- EnableScreenClampHoly (EnableScreenClamp) [UnitBar assigned function]
 --
--- Enables or disble screen clamp for the shard bar.
+-- Enables or disble screen clamp for the holy bar.
 -------------------------------------------------------------------------------
 function GUB.HolyBar:EnableScreenClampHoly(Enable)
   self.Border:SetClampedToScreen(Enable)
@@ -277,10 +307,13 @@ end
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
 --               'frame' for the frame.
---
+-- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
 --               'scale'     Scale settings being set to the object.
+--               'size'      Size being set to the object.
+--               'padding'   Amount of padding set to the object.
+--               'texture'   One or more textures set to the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -290,6 +323,7 @@ function GUB.HolyBar:SetAttrHoly(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
+  local Border = self.Border
 
   -- Frame.
   if Object == nil or Object == 'frame' then
@@ -298,38 +332,109 @@ function GUB.HolyBar:SetAttrHoly(Object, Attr)
     end
   end
 
-  -- Background (Border).
-  if Object == nil or Object == 'bg' then
-    local Border = self.Border
+  -- Check if we're in boxmode.
+  if UB.General.BoxMode then
+    local Bar = UB.Bar
+    local Background = UB.Background
+    local Padding = Bar.Padding
 
-    local BgColor = UB.Background.Color
+    -- Remove the border backdrop.
+    Border:SetBackdrop(nil)
 
-    if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+    for RuneIndex, HRF in ipairs(self.HolyRuneF) do
+
+      -- Background (Border).
+      if Object == nil or Object == 'bg' then
+        local BgColor = nil
+
+        -- Get all color if ColorAll is true.
+        if Background.ColorAll then
+          BgColor = Background.Color
+        else
+          BgColor = Background.Color[RuneIndex]
+        end
+
+        local HolyRuneBoxFrame = HRF.HolyRuneBoxFrame
+
+        if Attr == nil or Attr == 'backdrop' then
+          HolyRuneBoxFrame:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+          HolyRuneBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        end
+        if Attr == nil or Attr == 'color' then
+          HolyRuneBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        end
+      end
+
+      -- Forground (Statusbar).
+      if Object == nil or Object == 'bar' then
+        local HolyRuneBox = HRF.HolyRuneBox
+
+        if Attr == nil or Attr == 'texture' then
+          HolyRuneBox:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
+          HolyRuneBox:GetStatusBarTexture():SetHorizTile(false)
+          HolyRuneBox:GetStatusBarTexture():SetVertTile(false)
+          HolyRuneBox:SetOrientation(Bar.FillDirection)
+          HolyRuneBox:SetRotatesTexture(Bar.RotateTexture)
+        end
+        if Attr == nil or Attr == 'color' then
+          local BarColor = nil
+
+          -- Get all color if ColorAll is true.
+          if Bar.ColorAll then
+            BarColor = Bar.Color
+          else
+            BarColor = Bar.Color[RuneIndex]
+          end
+          HolyRuneBox:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        end
+        if Attr == nil or Attr == 'padding' then
+          HolyRuneBox:ClearAllPoints()
+          HolyRuneBox:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
+          HolyRuneBox:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+        end
+        if Attr == nil or Attr == 'size' then
+          HRF:SetWidth(Bar.HolyWidth)
+          HRF:SetHeight(Bar.HolyHeight)
+        end
+      end
     end
-    if Attr == nil or Attr == 'color' then
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+  else
+
+    -- Else we're in normal bar mode.
+
+    -- Background (Border).
+    if Object == nil or Object == 'bg' then
+      local Border = self.Border
+
+      local BgColor = UB.Background.Color
+
+      if Attr == nil or Attr == 'backdrop' then
+        Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      end
+      if Attr == nil or Attr == 'color' then
+        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      end
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- SetHolyBarLayout
+-- SetLayoutHoly (SetLayout) [UnitBar assigned function]
 --
 -- Set a holybar to a new layout
 --
--- Usage: SetHolyBarLayout(UnitBarF)
---
--- UnitBarF     Unitbar that contains the holy bar that is being setup.
+-- Usage: SetLayoutHoly()
 -------------------------------------------------------------------------------
-function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
+function GUB.HolyBar:SetLayoutHoly()
 
   -- Get the unitbar data.
-  local Gen = UnitBarF.UnitBar.General
+  local UB = self.UnitBar
+  local Gen = self.UnitBar.General
 
-  local Anchor = UnitBarF.Anchor
+  local Anchor = self.Anchor
 
+  local BoxMode = Gen.BoxMode
   local HolySize = Gen.HolySize
   local HolyScale = Gen.HolyScale
   local Padding = Gen.HolyPadding
@@ -344,84 +449,148 @@ function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
   local OffsetFX = 0
   local OffsetFY = 0
 
-  for RuneIndex, HRF in ipairs(UnitBarF.HolyRuneF) do
+  local HolyWidth = UB.Bar.HolyWidth
+  local HolyHeight = UB.Bar.HolyHeight
+
+  if BoxMode then
+    -- Get the offsets based on angle for boxmode.
+    XOffset, YOffset = GUB.UnitBars:AngleToOffset(HolyWidth + Padding, HolyHeight + Padding, Angle)
+  end
+
+  for RuneIndex, HRF in ipairs(self.HolyRuneF) do
 
     -- Set the duration of the fade out.
     HRF.FadeOutA:SetDuration(FadeOutTime)
 
-    local HR = HolyRunes[RuneIndex]
+    -- Check to see if we're in Boxmode
+    if BoxMode then
 
-    -- Calculate the size of the holy rune.
-    local Width = HR.Width
-    local Height = HR.Height
-    local Scale = 0
+      -- Hide the textures.
+      HRF.HolyRuneIcon:Hide()
+      HRF.HolyRuneIconDark:Hide()
 
-    -- Scale by width if the bar is vertical.
-    if Angle == 180 or Angle == 360 then
-      Scale = HolySize / Width
+      -- Show the holy rune boxes.
+      HRF.HolyRuneBoxFrame:Show()
+      HRF.HolyRuneBox:Show()
+
+      -- Set the holy rune min/max values.
+      local HolyRuneBox = HRF.HolyRuneBox
+      HolyRuneBox:SetMinMaxValues(0, 1)
+      HolyRuneBox:SetValue(1)
+
+      -- Calculate the x and y location before setting the location if angle is > 180.
+      if Angle > 180 and RuneIndex > 1 then
+        x = x + XOffset
+        y = y + YOffset
+      end
+
+      -- Set the location of the holy rune box.
+      HRF:ClearAllPoints()
+      HRF:SetPoint('TOPLEFT', x, y)
+      HRF.HolyRuneBoxFrame:SetAllPoints(HRF)
+
+      -- Calculate the border width
+      if XOffset == 0 then
+        BorderWidth = HolyWidth
+      end
+      if YOffset == 0 then
+        BorderHeight = HolyHeight
+      end
     else
 
-      -- Scale by height
-      Scale = HolySize / Height
+    -----------------------------------
+    -- Normal mode
+    -----------------------------------
+      local HolyRuneIcon = HRF.HolyRuneIcon
+      local HolyRuneIconDarkFrame = HRF.HolyRuneIconDarkFrame
+      local HolyRuneIconDark = HRF.HolyRuneIconDark
+
+      -- Hide the holy rune box frame.
+      HRF.HolyRuneBoxFrame:Hide()
+      HRF.HolyRuneBox:Hide()
+
+      -- Show the textures.
+      HolyRuneIcon:Show()
+      HolyRuneIconDark:Show()
+
+      local HR = HolyRunes[RuneIndex]
+
+      -- Calculate the size of the holy rune.
+      local Width = HR.Width
+      local Height = HR.Height
+      local Scale = 0
+
+      -- Scale by width if the bar is vertical.
+      if Angle == 180 or Angle == 360 then
+        Scale = HolySize / Width
+      else
+
+        -- Scale by height
+        Scale = HolySize / Height
+      end
+      Width = Width * Scale
+      Height = Height * Scale
+
+      -- Set the width and height of the holy rune.
+      HRF:SetWidth(Width)
+      HRF:SetHeight(Height)
+      HolyRuneIconDarkFrame:SetWidth(Width)
+      HolyRuneIconDarkFrame:SetHeight(Height)
+
+      -- Center the holy rune.
+      HolyRuneIcon:ClearAllPoints()
+      HolyRuneIcon:SetPoint('CENTER', 0, 0)
+      HolyRuneIconDark:ClearAllPoints()
+      HolyRuneIconDark:SetPoint('CENTER', 0, 0)
+
+      -- Set the scale of the holy texture.
+      local ScaleX = Width * HolyScale
+      local ScaleY = Height * HolyScale
+      HolyRuneIcon:SetWidth(ScaleX)
+      HolyRuneIcon:SetHeight(ScaleY)
+      HolyRuneIconDark:SetWidth(ScaleX)
+      HolyRuneIconDark:SetHeight(ScaleY)
+
+      -- Get the offsets based on angle.
+      XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
+
+      -- Calculate the x and y location before setting the location if angle is > 180.
+      if Angle > 180 and RuneIndex > 1 then
+        x = x + XOffset
+        y = y + YOffset
+      end
+
+      -- Set the location of the holy rune.
+      HRF:ClearAllPoints()
+      HRF:SetPoint('TOPLEFT', x, y)
+      HolyRuneIconDarkFrame:ClearAllPoints()
+      HolyRuneIconDarkFrame:SetPoint('TOPLEFT', x, y)
+
+      -- Calculate the border width.
+      if XOffset == 0  and BorderWidth < Width then
+        BorderWidth = Width
+      end
+
+      -- Calculate the border height.
+      if YOffset == 0 and BorderHeight < Height then
+        BorderHeight = Height
+      end
     end
-    Width = Width * Scale
-    Height = Height * Scale
 
-    -- Set the width and height of the holy rune.
-    HRF:SetWidth(Width)
-    HRF:SetHeight(Height)
-
-    -- Center the holy rune.
-    local HolyRuneIcon = HRF.HolyRuneIcon
-    HolyRuneIcon:ClearAllPoints()
-    HolyRuneIcon:SetPoint('CENTER', 0, 0)
-
-    -- Set the scale of the holy texture.
-    local ScaleX = Width * HolyScale
-    local ScaleY = Height * HolyScale
-    HolyRuneIcon:SetWidth(ScaleX)
-    HolyRuneIcon:SetHeight(ScaleY)
-
-    -- Center the dark holy rune.
-    local HolyRuneIconDark = HRF.HolyRuneIconDark
-    HolyRuneIconDark:ClearAllPoints()
-    HolyRuneIconDark:SetPoint('CENTER', 0, 0)
-
-    -- Set the scale to the dark holy texture.
-    HolyRuneIconDark:SetWidth(ScaleX)
-    HolyRuneIconDark:SetHeight(ScaleY)
-
-    -- Get the offsets based on angle.
-    XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
-
-    -- Calculate the x and y location before setting the location if angle is > 180.
-    if Angle > 180 and RuneIndex > 1 then
-      x = x + XOffset
-      y = y + YOffset
-    end
-
-    -- Set the location of the holy rune.
-    HRF:ClearAllPoints()
-    HRF:SetPoint('TOPLEFT', x, y)
-
-    -- Calculate the border width.
+    -- Calculate the border width for both types of holy rune bars.
     if XOffset ~= 0 then
       BorderWidth = BorderWidth + abs(XOffset)
       if RuneIndex == 1 then
         BorderWidth = BorderWidth - Padding
       end
-    elseif BorderWidth < Width then
-      BorderWidth = Width
     end
 
-    -- Calculate the border height.
+    -- Calculate the border height for both types of holy rune bars.
     if YOffset ~= 0 then
       BorderHeight = BorderHeight + abs(YOffset)
       if RuneIndex == 1 then
         BorderHeight = BorderHeight - Padding
       end
-    elseif BorderHeight < Height then
-      BorderHeight = Height
     end
 
     -- Get the x y for the frame offset.
@@ -439,7 +608,7 @@ function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
     end
   end
 
-  local Border = UnitBarF.Border
+  local Border = self.Border
   Border:ClearAllPoints()
   Border:SetPoint('TOPLEFT', 0, 0)
 
@@ -448,18 +617,18 @@ function GUB.HolyBar:SetHolyBarLayout(UnitBarF)
   Border:SetHeight(BorderHeight)
 
   -- Set the x, y location off the offset frame.
-  local OffsetFrame = UnitBarF.OffsetFrame
+  local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
   OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
   OffsetFrame:SetWidth(1)
   OffsetFrame:SetHeight(1)
 
   -- Set all attributes.
-  UnitBarF:SetAttr(nil, nil)
+  self:SetAttr(nil, nil)
 
-  -- Save size data to UnitBarF.
-  UnitBarF.Width = BorderWidth
-  UnitBarF.Height = BorderHeight
+  -- Save size data to self (UnitBarF).
+  self.Width = BorderWidth
+  self.Height = BorderHeight
 end
 
 -------------------------------------------------------------------------------
@@ -467,7 +636,7 @@ end
 --
 -- Usage: GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
--- UnitBarF     The unitbar frame which will contain the shard bar.
+-- UnitBarF     The unitbar frame which will contain the holy rune bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
@@ -482,6 +651,7 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, Border)
 
+  local ColorAllNames = {}
   local DarkColor = HolyRunes.DarkColor
   local HolyRuneF = {}
 
@@ -494,17 +664,25 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
     local HolyRuneIcon = HolyRuneFrame:CreateTexture(nil, 'OVERLAY')
     HolyRuneIcon:SetTexture(HolyPowerTexture)
     HolyRuneIcon:SetTexCoord(HR.Left, HR.Right, HR.Top, HR.Bottom)
-    HolyRuneIcon:SetAlpha(0)
+
+    -- Create a dark holy rune icon frame.
+    local HolyRuneIconDarkFrame = CreateFrame('Frame', nil, OffsetFrame)
 
     -- Create Dark holy rune texture.
-    local HolyRuneIconDark = HolyRuneFrame:CreateTexture(nil, 'ARTWORK')
+    local HolyRuneIconDark = HolyRuneIconDarkFrame:CreateTexture(nil, 'ARTWORK')
     HolyRuneIconDark:SetTexture(HolyPowerTexture)
     HolyRuneIconDark:SetTexCoord(HR.Left, HR.Right, HR.Top, HR.Bottom)
     HolyRuneIconDark:SetDesaturated(true)
     HolyRuneIconDark:SetVertexColor(DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
 
+    -- Create the holy rune box frame.
+    local HolyRuneBoxFrame = CreateFrame('Frame', nil, OffsetFrame)
+
+    -- Create a holy rune statusbar texture.
+    local HolyRuneBox = CreateFrame('StatusBar', nil, HolyRuneFrame)
+
     -- Create an animation for fade out.
-    local FadeOut = HolyRuneIcon:CreateAnimationGroup()
+    local FadeOut = HolyRuneFrame:CreateAnimationGroup()
     local FadeOutA = FadeOut:CreateAnimation('Alpha')
 
     -- Set the animation group values.
@@ -514,7 +692,7 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
 
     -- Set the holy rune to dark.
     HolyRuneFrame.Dark = true
-    HolyRuneIcon:SetAlpha(0)
+    HolyRuneFrame:Hide()
 
     -- Save the animation.
     HolyRuneFrame.FadeOut = FadeOut
@@ -522,7 +700,19 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
 
     -- Save the holy runeicon and dark one.
     HolyRuneFrame.HolyRuneIcon = HolyRuneIcon
+    HolyRuneFrame.HolyRuneIconDarkFrame = HolyRuneIconDarkFrame
     HolyRuneFrame.HolyRuneIconDark = HolyRuneIconDark
+    HolyRuneFrame.HolyRuneBoxFrame = HolyRuneBoxFrame
+    HolyRuneFrame.HolyRuneBox = HolyRuneBox
+
+    -- Save a reference to the anchor for moving in box mode.
+    HolyRuneBoxFrame.Anchor = Anchor
+
+    -- Save the name for tooltips for box mode.
+    local Name = strconcat('Holy Rune ', RuneIndex)
+    HolyRuneBoxFrame.TooltipName = Name
+    HolyRuneBoxFrame.TooltipDesc = MouseOverDesc
+    ColorAllNames[RuneIndex] = Name
 
     HolyRuneF[RuneIndex] = HolyRuneFrame
   end
@@ -533,6 +723,9 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   -- Save a reference to the anchor for moving.
   Border.Anchor = Anchor
+
+  -- Save the color all names.
+  UnitBarF.ColorAllNames = ColorAllNames
 
   -- Save the offsetframe and Border and holyrunes.
   UnitBarF.Border = Border

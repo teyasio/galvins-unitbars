@@ -617,45 +617,43 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetHapBarLayout
+-- SetLayoutHap (SetLayout) [UnitBar assigned function]
 --
 -- Sets a health and power bar with a new layout.
 --
--- Usage: SetHapBarLayout(UnitBarF)
---
--- UnitBarF     Unitbar that contains the health and power bar that is being setup.
+-- Usage: SetLayoutHap()
 -------------------------------------------------------------------------------
-function GUB.HapBar:SetHapBarLayout(UnitBarF)
+function GUB.HapBar:SetLayoutHap()
 
   -- Get the unitbar data.
-  local UB = UnitBarF.UnitBar
+  local UB = self.UnitBar
 
-  local Border = UnitBarF.Border
+  local Border = self.Border
   Border:ClearAllPoints()
   Border:SetPoint('TOPLEFT', 0, 0)
 
-  local StatusBar = UnitBarF.StatusBar
+  local StatusBar = self.StatusBar
   StatusBar:SetMinMaxValues(0, 100)
   StatusBar:SetValue(0)
 
   -- Set the predicted bar values to the same values as the StatusBar.
-  local PredictedBorder = UnitBarF.PredictedBorder
+  local PredictedBorder = self.PredictedBorder
   PredictedBorder:ClearAllPoints()
   PredictedBorder:SetPoint('TOPLEFT', 0, 0)
 
-  local PredictedBar = UnitBarF.PredictedBar
+  local PredictedBar = self.PredictedBar
   PredictedBar:SetMinMaxValues(0, 100)
   PredictedBar:SetValue(0)
 
     -- Set all attributes.
-  UnitBarF:SetAttr(nil, nil)
+  self:SetAttr(nil, nil)
 
-  -- Save size data to UnitBarF.
-  UnitBarF.Width = UB.Bar.HapWidth
-  UnitBarF.Height = UB.Bar.HapHeight
+  -- Save size data to self (UnitBarF).
+  self.Width = UB.Bar.HapWidth
+  self.Height = UB.Bar.HapHeight
 
   -- Save a reference of unitbar data.
-  StatusBar.UnitBar = UnitBarF.UnitBar
+  StatusBar.UnitBar = self.UnitBar
 end
 
 -------------------------------------------------------------------------------

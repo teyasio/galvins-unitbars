@@ -35,7 +35,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --
 -- UnitBarF.UnitBar          Reference to the unitbar data for the combobar.
 -- UnitBarF.OffsetFrame      Offset frame this is a parent of ComboF[]
---                           This is used for rotation offset in SetComboBarLayout()
+--                           This is used for rotation offset in SetLayoutCombo()
 -- UnitBarF.ColorAllNames[]  List of names to be used in the color all options panel.
 -- UnitBarF.ComboF[]         Array of combo points from 1 to 5. This also
 --                           contains the frame of the combo point.
@@ -305,18 +305,16 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetComboBarLayout
+-- SetLayoutCombo (SetLayout) [UnitBar assigned function]
 --
 -- Sets a combo bar with a new layout.
 --
--- Usage: SetComboBarLayout(UnitBarF)
---
--- UnitBarF     Unitbar that contains the combo bar that is being setup.
+-- Usage: SetLayoutCombo()
 -------------------------------------------------------------------------------
-function GUB.ComboBar:SetComboBarLayout(UnitBarF)
+function GUB.ComboBar:SetLayoutCombo()
 
   -- Get the unitbar data.
-  local UB = UnitBarF.UnitBar
+  local UB = self.UnitBar
   local Gen = UB.General
 
   local ComboWidth = UB.Bar.ComboWidth
@@ -334,7 +332,7 @@ function GUB.ComboBar:SetComboBarLayout(UnitBarF)
   local XOffset, YOffset = GUB.UnitBars:AngleToOffset(ComboWidth + Padding, ComboHeight + Padding, Angle)
 
   -- Set up the combo point positions.
-  for ComboIndex, CF in ipairs(UnitBarF.ComboF) do
+  for ComboIndex, CF in ipairs(self.ComboF) do
 
     -- Set the combo box min/max values
     local StatusBar = CF.StatusBar
@@ -389,21 +387,21 @@ function GUB.ComboBar:SetComboBarLayout(UnitBarF)
   end
 
   -- Set the x, y location off the offset frame.
-  local OffsetFrame = UnitBarF.OffsetFrame
+  local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
   OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
   OffsetFrame:SetWidth(1)
   OffsetFrame:SetHeight(1)
 
   -- Set the attributes for the combobar
-  UnitBarF:SetAttr(nil, nil)
+  self:SetAttr(nil, nil)
 
   -- Update combo points
-  RefreshComboBar(UnitBarF.ComboF)
+  RefreshComboBar(self.ComboF)
 
-  -- Save size data to UnitBarF.
-  UnitBarF.Width = BorderWidth
-  UnitBarF.Height = BorderHeight
+  -- Save size data to self (UnitBarF).
+  self.Width = BorderWidth
+  self.Height = BorderHeight
 end
 
 -------------------------------------------------------------------------------
