@@ -119,6 +119,10 @@ local ShardBarFadeOutMin = 0
 local ShardBarFadeOutMax = 5
 local ShardBarAngleMin = 45
 local ShardBarAngleMax = 360
+local ShardBarWidthMin = 10
+local ShardBarWidthMax = 100
+local ShardBarHeightMin = 10
+local ShardBarHeightMax = 100
 
 local AlignmentPaddingMin = -10
 local AlignmentPaddingMax = 50
@@ -398,8 +402,13 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
     type = 'group',
     name = Name,
     order = Order,
+    hidden = function()
+               return Object == 'bg' and ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
+                      not UnitBars[BarType].General.BoxMode
+             end,
     dialogInline = true,
     get = function(Info)
+
             -- Info.arg[1] = color index.
             local c = UnitBars[BarType][UnitBarTable].Color
 
@@ -415,7 +424,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
               c = c[Info.arg[1]]
             end
             c.r, c.g, c.b, c.a = r, g, b, a
-
+ print(BarType, r,g,b)
             -- Set the color to the bar
             UnitBarsF[BarType]:SetAttr(Object, 'color')
           end,
@@ -493,7 +502,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 6,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 4 or UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {4},
@@ -506,7 +515,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 7,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 5 or UnitBars[BarType][UnitBarTable].ColorAll
                  end,
         hasAlpha = true,
         arg = {5},
@@ -605,6 +614,10 @@ local function CreateBackgroundOptions(BarType, Order, Name)
             type = 'color',
             name = 'Background Color',
             order = 6,
+            hidden = function()
+                       return BarType == 'RuneBar' or ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
+                              UnitBars[BarType].General.BoxMode
+                     end,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Background.Color
@@ -668,10 +681,13 @@ local function CreateBackgroundOptions(BarType, Order, Name)
     },
   }
 
-  -- Remove the Background color options and add a Combo Color options for combobar only.
-  if BarType == 'ComboBar' then
-    BackgroundOptions.args.Textures.args.BgColor = nil
-    BackgroundOptions.args.ComboColors = CreateColorAllOptions(BarType, 'bg', 5, 2, 'Colors')
+  -- Add color all options.
+  if BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+    local MaxColors = 5
+    if BarType == 'HolyBar' or BarType == 'ShardBar' then
+      MaxColors = 3
+    end
+    BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'bg', MaxColors, 2, 'Colors')
   end
 
   return BackgroundOptions
@@ -1377,6 +1393,9 @@ local function CreateBarOptions(BarType, Order, Name)
     type = 'group',
     name = Name,
     order = Order,
+    hidden = function()
+               return ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and not UnitBars[BarType].General.BoxMode
+             end,
     args = {
       General = {
         type = 'group',
@@ -1389,9 +1408,9 @@ local function CreateBarOptions(BarType, Order, Name)
         set = function(Info, Value)
                 UnitBars[BarType].Bar[Info[#Info]] = Value
 
-                -- Update combobar layout if its a combobar.
-                if BarType == 'ComboBar' then
-                  GUB.ComboBar:SetComboBarLayout(UnitBarsF.ComboBar)
+                -- Update combobar, holybar, or shardbar layout.
+                if BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+                  UnitBarsF[BarType]:SetLayout()
                 else
                   UnitBarsF[BarType]:SetAttr('bar', Info.arg[1])
                 end
@@ -1421,6 +1440,9 @@ local function CreateBarOptions(BarType, Order, Name)
             type = 'select',
             name = 'Fill Direction',
             order = 3,
+            hidden = function()
+                       return BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar'
+                     end,
             values = BarFillDirectionDropdown,
             style = 'dropdown',
             arg = {'texture'},
@@ -1457,6 +1479,9 @@ local function CreateBarOptions(BarType, Order, Name)
             type = 'range',
             name = 'Width',
             order = 9,
+            hidden = function()
+                       return BarType ~= 'ComboBar'
+                     end,
             desc = 'Changes the width of all the combo boxes',
             min = ComboBarWidthMin,
             max = ComboBarWidthMax,
@@ -1467,16 +1492,71 @@ local function CreateBarOptions(BarType, Order, Name)
             type = 'range',
             name = 'Height',
             order =10,
+            hidden = function()
+                       return BarType ~= 'ComboBar'
+                     end,
             desc = 'Changes the height of all the combo boxes',
             min = ComboBarHeightMin,
             max = ComboBarHeightMax,
             step = 1,
             arg = {'size'},
           },
+          ShardWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 11,
+            hidden = function()
+                       return BarType ~= 'ShardBar'
+                     end,
+            desc = 'Changes the width of all the soul shard boxes',
+            min = ShardBarWidthMin,
+            max = ShardBarWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          ShardHeight = {
+            type = 'range',
+            name = 'Height',
+            order =12,
+            hidden = function()
+                       return BarType ~= 'ShardBar'
+                     end,
+            desc = 'Changes the height of all the soul shard boxes',
+            min = ShardBarHeightMin,
+            max = ShardBarHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
+          HolyWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 13,
+            hidden = function()
+                       return BarType ~= 'HolyBar'
+                     end,
+            desc = 'Changes the width of all the holy rune boxes',
+            min = HolyBarWidthMin,
+            max = HolyBarWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          HolyHeight = {
+            type = 'range',
+            name = 'Height',
+            order =14,
+            hidden = function()
+                       return BarType ~= 'HolyBar'
+                     end,
+            desc = 'Changes the height of all the holy rune boxes',
+            min = HolyBarHeightMin,
+            max = HolyBarHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
           BarColor = {
             type = 'color',
             name = 'Color',
-            order = 11,
+            order = 15,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Bar.Color
@@ -1566,15 +1646,16 @@ local function CreateBarOptions(BarType, Order, Name)
     BarOptions.args.PowerColors = CreatePowerColorsOptions(BarType, 2, 'Power Color')
   end
 
-  -- Add combo bar color options if its a combobar. And remove HapWidth and HapHeight options.
-  if BarType == 'ComboBar' then
+  -- Add bar color options if its a combobar or shardbar. And remove HapWidth and HapHeight options.
+  if BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
     BarOptions.args.General.args.BarColor = nil
     BarOptions.args.General.args.HapWidth = nil
     BarOptions.args.General.args.HapHeight = nil
-    BarOptions.args.ComboColors = CreateColorAllOptions(BarType, 'bar', 5, 2, 'Colors')
-  else
-    BarOptions.args.General.args.ComboWidth = nil
-    BarOptions.args.General.args.ComboHeight = nil
+    local MaxColors = 5
+    if BarType == 'HolyBar' or BarType == 'ShardBar' then
+      MaxColors = 3
+    end
+    BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
   end
   return BarOptions
 end
@@ -1607,7 +1688,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
-            GUB.RuneBar:SetRuneBarLayout(UnitBarsF[BarType])
+            UnitBarsF.RuneBar:SetLayout()
           end,
     args = {
       BarMode = {
@@ -1718,7 +1799,7 @@ local function CreateComboBarOptions(BarType, Order, Name)
             UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
-            GUB.ComboBar:SetComboBarLayout(UnitBarsF[BarType])
+            UnitBarsF.ComboBar:SetLayout()
           end,
     args = {
       ComboPadding = {
@@ -1772,13 +1853,25 @@ local function CreateHolyBarOptions(BarType, Order, Name)
             UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
-            GUB.HolyBar:SetHolyBarLayout(UnitBarsF[BarType])
+            UnitBarsF.HolyBar:SetLayout()
+
+            if Info[#Info] == 'BoxMode' then
+
+              -- Set the scripts since we changed modes.
+              UnitBarsF[BarType]:FrameSetScript(true)
+            end
           end,
     args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked this bar will show boxes instead of textures',
+      },
       HolyAngle = {
         type = 'range',
         name = 'Holy Rotation',
-        order = 1,
+        order = 2,
         desc = 'Rotates the holy bar',
         min = HolyBarAngleMin,
         max = HolyBarAngleMax,
@@ -1787,7 +1880,10 @@ local function CreateHolyBarOptions(BarType, Order, Name)
       HolySize = {
         type = 'range',
         name = 'Holy Size',
-        order = 2,
+        order = 3,
+        hidden = function()
+                   return UnitBars[BarType].General.BoxMode
+                 end,
         desc = 'Sets the size of all the holy power runes',
         min = HolyBarSizeMin,
         max = HolyBarSizeMax,
@@ -1796,7 +1892,10 @@ local function CreateHolyBarOptions(BarType, Order, Name)
       HolyScale = {
         type = 'range',
         name = 'Holy Scale',
-        order = 3,
+        order = 4,
+        hidden = function()
+                   return UnitBars[BarType].General.BoxMode
+                 end,
         desc = 'Sets the scale of all the holy power runes',
         min = HolyBarScaleMin,
         max = HolyBarScaleMax,
@@ -1806,7 +1905,7 @@ local function CreateHolyBarOptions(BarType, Order, Name)
       HolyPadding = {
         type = 'range',
         name = 'Holy Padding',
-        order = 4,
+        order = 5,
         desc = 'Set the Amount of space between each holy rune',
         min = HolyBarPaddingMin,
         max = HolyBarPaddingMax,
@@ -1815,7 +1914,7 @@ local function CreateHolyBarOptions(BarType, Order, Name)
       HolyFadeOutTime = {
         type = 'range',
         name = 'Holy Fadeout Time',
-        order = 5,
+        order = 6,
         desc = 'The amount of time in seconds to fade out a holy rune',
         min = HolyBarFadeOutMin,
         max = HolyBarFadeOutMax,
@@ -1854,13 +1953,24 @@ local function CreateShardBarOptions(BarType, Order, Name)
             UnitBars[BarType].General[Info[#Info]] = Value
 
             -- Update the layout to show changes.
-            GUB.ShardBar:SetShardBarLayout(UnitBarsF[BarType])
+            UnitBarsF.ShardBar:SetLayout()
+            if Info[#Info] == 'BoxMode' then
+
+              -- Set the scripts since we changed modes.
+              UnitBarsF[BarType]:FrameSetScript(true)
+            end
           end,
     args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked this bar will show boxes instead of textures',
+      },
       ShardAngle = {
         type = 'range',
         name = 'Shard Rotation',
-        order = 1,
+        order = 2,
         desc = 'Rotates the shard bar',
         min = ShardBarAngleMin,
         max = ShardBarAngleMax,
@@ -1869,7 +1979,10 @@ local function CreateShardBarOptions(BarType, Order, Name)
       ShardSize = {
         type = 'range',
         name = 'Shard Size',
-        order = 2,
+        order = 3,
+        hidden = function()
+                   return UnitBars[BarType].General.BoxMode
+                 end,
         desc = 'Sets the size of all the soul shards',
         min = ShardBarSizeMin,
         max = ShardBarSizeMax,
@@ -1878,7 +1991,10 @@ local function CreateShardBarOptions(BarType, Order, Name)
       ShardScale = {
         type = 'range',
         name = 'Shard Scale',
-        order = 3,
+        order = 4,
+        hidden = function()
+                   return UnitBars[BarType].General.BoxMode
+                 end,
         desc = 'Sets the scale of all the soul shards',
         min = ShardBarScaleMin,
         max = ShardBarScaleMax,
@@ -1888,7 +2004,7 @@ local function CreateShardBarOptions(BarType, Order, Name)
       ShardPadding = {
         type = 'range',
         name = 'Shard Padding',
-        order = 4,
+        order = 5,
         desc = 'Set the Amount of space between each soul shard',
         min = ShardBarPaddingMin,
         max = ShardBarPaddingMax,
@@ -1897,7 +2013,7 @@ local function CreateShardBarOptions(BarType, Order, Name)
       ShardFadeOutTime = {
         type = 'range',
         name = 'Shard Fadeout Time',
-        order = 5,
+        order = 6,
         desc = 'The amount of time in seconds to fade out a soul shard',
         min = ShardBarFadeOutMin,
         max = ShardBarFadeOutMax,
@@ -2029,8 +2145,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
                      UB.x, UB.y = x, y
 
-                     -- Redo everything to show any possible changes.
-                     GUB:OnEnable()
+                     -- Update the layout.
+                     UnitBarsF[BarType]:SetLayout()
                    end,
           },
         },
@@ -2051,7 +2167,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add bar options
-  if BarType ~= 'RuneBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
+  if BarType ~= 'RuneBar' then
     UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
   end
 
@@ -2079,7 +2195,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
     UBO.HolyBar = CreateHolyBarOptions(BarType, 5, 'General')
   end
 
-  -- Add holybar options
+  -- Add shardbar options
   if BarType == 'ShardBar' then
     UBO.ShardBar = CreateShardBarOptions(BarType, 6, 'General')
   end
@@ -2227,8 +2343,7 @@ local function CreateCopySettingsOptions(Order, Name)
             order = 6,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'ShardBar' or
-                               CopySettingsTo == 'RuneBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'ShardBar'
+                               CopySettingsFrom == 'RuneBar' or CopySettingsTo == 'RuneBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,

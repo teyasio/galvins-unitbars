@@ -11,6 +11,7 @@ local MyAddon, GUB = ...
 GUB.ShardBar = {}
 
 -- shared from Main.lua
+local LSM = GUB.UnitBars.LSM
 local CheckPowerType = GUB.UnitBars.CheckPowerType
 local CheckEvent = GUB.UnitBars.CheckEvent
 local PowerTypeToNumber = GUB.UnitBars.PowerTypeToNumber
@@ -40,18 +41,30 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- UnitBarF.Border                   Border frame for the shard bar. This is a parent of
 --                                   OffsetFrame.
 -- UnitBarF.OffsetFrame              Offset frame this is a parent of SoulShardF[]
---                                   This is used for rotation offset in SetShardBarLayout()
--- UnitBarF.SoulShardF[]             Frame array containing all 3 soul shards. This also
+--                                   This is used for rotation offset in SetLayoutShard()
+-- UnitBarF.SoulShardF[]             (SoulShardFrame) Frame array containing all 3 soul shards. This also
 --                                   contains the frame of the soul shard.
 -- SoulShardF[].SoulShard            Normal soul shard.
+-- SoulShardF[].SoulShardDarkFrame   This is the frame for the dark shard.
 -- SoulShardF[].SoulShardDark        Darkened soul shard.
+-- SoulShardF[].SoulShardBoxFrame    Frame border for the SoulShardBox. This is a child of OffsetFrame
+-- SoulShardF[].SoulShardBox         Statusbar used in BoxMode only. This is a child of SoulShardFrame
 -- SoulShardF[].Dark                 True then the soul shard is dark, otherwise it's lit.
+-- SoulShardF[].FadeOut              Animation group for fadeout for the soul shard before hiding
+--                                   This group is a child of the SoulShardFrame.
+-- SoulShardF[].FadeOutA             Animation that contains the fade out.  This is a child
+--                                   of FadeOut
+-- SoulShardF[].Dark                 True then the soul shard is not lit.  True soul shard is lit.
+--
 -- SoulShardTexture                  Contains all the data for the soul shards texture.
 --   Texture                         Path name to the texture file.
 --   Width                           Width of the texture.
 --   Height                          Height of the texture.
 --   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
 -- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
+
+-- NOTE: SoulShard bar has two modes.  In BoxMode the soulshard bar is broken into 3 statusbars.
+--       This works just like the combobar.  When not normal mode.  The bar uses textures instead.
 -------------------------------------------------------------------------------
 local MaxSoulShards = 3
 
@@ -123,13 +136,12 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
 
   for ShardIndex, SSF in ipairs(ShardBarF.SoulShardF) do
     local FadeOut = SSF.FadeOut
-    local SoulShard = SSF.SoulShard
 
     -- If FinishFadeOut is true then stop any fadout animation and darken the soul shard.
     if FinishFadeOut then
       if SSF.Dark then
         GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
-        SoulShard:SetAlpha(0)
+        SSF:Hide()
       end
 
     -- Light a soul shard based on SoulShards.
@@ -139,7 +151,7 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
         -- Finish animation if it's playing.
         GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
       end
-      SoulShard:SetAlpha(1)
+      SSF:Show()
       SSF.Dark = false
 
     -- Darken a shard based on SoulShards.
@@ -147,9 +159,9 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
       if FadeOutTime > 0 then
 
         -- Fade out the soul shard then hide it.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() SoulShard:SetAlpha(0) end)
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() SSF:Hide() end)
       else
-        SoulShard:SetAlpha(0)
+        SSF:Hide()
       end
       SSF.Dark = true
     end
@@ -215,27 +227,51 @@ end
 function GUB.ShardBar:FrameSetScriptShard(Enable)
   local Border = self.Border
   local ShardBarF = self
-  if Enable then
-    Border:SetScript('OnMouseDown', ShardBarStartMoving)
-    Border:SetScript('OnMouseUp', ShardBarStopMoving)
-    Border:SetScript('OnHide', function(self)
-                                 ShardBarStopMoving(self)
 
-                                 -- Cancel any fadeout animations currently playing.
-                                 UpdateSoulShards(ShardBarF, 0, true)
-                               end)
-    Border:SetScript('OnEnter', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, false)
-                                end)
-    Border:SetScript('OnLeave', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, true)
-                                end)
+  local function FrameSetScript(Frame, Enable)
+    if Enable then
+      Frame:SetScript('OnMouseDown', ShardBarStartMoving)
+      Frame:SetScript('OnMouseUp', ShardBarStopMoving)
+      Frame:SetScript('OnHide', function(self)
+                                   ShardBarStopMoving(self)
+
+                                   -- Cancel any fadeout animations currently playing.
+                                   UpdateSoulShards(ShardBarF, 0, true)
+                                 end)
+      Frame:SetScript('OnEnter', function(self)
+                                    GUB.UnitBars.UnitBarTooltip(self, false)
+                                  end)
+      Frame:SetScript('OnLeave', function(self)
+                                    GUB.UnitBars.UnitBarTooltip(self, true)
+                                  end)
+    else
+      Frame:SetScript('OnMouseDown', nil)
+      Frame:SetScript('OnMouseUp', nil)
+      Frame:SetScript('OnHide', nil)
+      Frame:SetScript('OnEnter', nil)
+      Frame:SetScript('OnLeave', nil)
+    end
+  end
+
+  -- Check for boxmode
+  if self.UnitBar.General.BoxMode then
+
+    -- Disable the normal mode scripts.
+    FrameSetScript(Border, false)
+
+    -- Set the new scripts for each shard box.
+    for _, SSF in ipairs(self.SoulShardF) do
+      FrameSetScript(SSF.SoulShardBoxFrame, Enable)
+    end
   else
-    Border:SetScript('OnMouseDown', nil)
-    Border:SetScript('OnMouseUp', nil)
-    Border:SetScript('OnHide', nil)
-    Border:SetScript('OnEnter', nil)
-    Border:SetScript('OnLeave', nil)
+
+    -- Disable the box mode scripts.
+    for _, SSF in ipairs(self.SoulShardF) do
+      FrameSetScript(SSF.SoulShardBoxFrame, false)
+    end
+
+    -- Set the new script for normal mode.
+    FrameSetScript(Border, Enable)
   end
 end
 
@@ -259,10 +295,13 @@ end
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
 --               'frame' for the frame.
---
+-- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
 --               'scale'     Scale settings being set to the object.
+--               'size'    Size being set to the object.
+--               'padding' Amount of padding set to the object.
+--               'texture' One or more textures set to the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -272,6 +311,7 @@ function GUB.ShardBar:SetAttrShard(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
+  local Border = self.Border
 
   -- Frame.
   if Object == nil or Object == 'frame' then
@@ -280,38 +320,107 @@ function GUB.ShardBar:SetAttrShard(Object, Attr)
     end
   end
 
-  -- Background (Border).
-  if Object == nil or Object == 'bg' then
-    local Border = self.Border
+  -- Check if we're in boxmode.
+  if UB.General.BoxMode then
+    local Bar = UB.Bar
+    local Background = UB.Background
+    local Padding = Bar.Padding
 
-    local BgColor = UB.Background.Color
+    -- Remove the border backdrop.
+    Border:SetBackdrop(nil)
 
-    if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+    for ShardIndex, SSF in ipairs(self.SoulShardF) do
+
+      -- Background (Border).
+      if Object == nil or Object == 'bg' then
+        local BgColor = nil
+
+        -- Get all color if ColorAll is true.
+        if Background.ColorAll then
+          BgColor = Background.Color
+        else
+          BgColor = Background.Color[ShardIndex]
+        end
+
+        local SoulShardBoxFrame = SSF.SoulShardBoxFrame
+
+        if Attr == nil or Attr == 'backdrop' then
+          SoulShardBoxFrame:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+          SoulShardBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        end
+        if Attr == nil or Attr == 'color' then
+          SoulShardBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        end
+      end
+
+      -- Forground (Statusbar).
+      if Object == nil or Object == 'bar' then
+        local SoulShardBox = SSF.SoulShardBox
+
+        if Attr == nil or Attr == 'texture' then
+          SoulShardBox:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
+          SoulShardBox:GetStatusBarTexture():SetHorizTile(false)
+          SoulShardBox:GetStatusBarTexture():SetVertTile(false)
+          SoulShardBox:SetOrientation(Bar.FillDirection)
+          SoulShardBox:SetRotatesTexture(Bar.RotateTexture)
+        end
+        if Attr == nil or Attr == 'color' then
+          local BarColor = nil
+
+          -- Get all color if ColorAll is true.
+          if Bar.ColorAll then
+            BarColor = Bar.Color
+          else
+            BarColor = Bar.Color[ShardIndex]
+          end
+          SoulShardBox:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        end
+        if Attr == nil or Attr == 'padding' then
+          SoulShardBox:ClearAllPoints()
+          SoulShardBox:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
+          SoulShardBox:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+        end
+        if Attr == nil or Attr == 'size' then
+          SSF:SetWidth(Bar.ShardWidth)
+          SSF:SetHeight(Bar.ShardHeight)
+        end
+      end
     end
-    if Attr == nil or Attr == 'color' then
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+  else
+
+    -- Else we're in normal bar mode.
+
+    -- Background (Border).
+    if Object == nil or Object == 'bg' then
+      local BgColor = UB.Background.Color
+
+      if Attr == nil or Attr == 'backdrop' then
+        Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      end
+      if Attr == nil or Attr == 'color' then
+        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      end
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- SetShardBarLayout
+-- SetLayoutShard (SetLayout) [UnitBar assigned function]
 --
 -- Set a shardbar to a new layout
 --
--- Usage: SetShardBarLayout(UnitBarF)
---
--- UnitBarF     Unitbar that contains the shard bar that is being setup.
+-- Usage: SetLayoutShard()
 -------------------------------------------------------------------------------
-function GUB.ShardBar:SetShardBarLayout(UnitBarF)
+function GUB.ShardBar:SetLayoutShard()
 
   -- Get the unitbar data.
-  local Gen = UnitBarF.UnitBar.General
+  local UB = self.UnitBar
+  local Gen = self.UnitBar.General
 
-  local Anchor = UnitBarF.Anchor
+  local Anchor = self.Anchor
 
+  local BoxMode = Gen.BoxMode
   local ShardSize = Gen.ShardSize
   local ShardScale = Gen.ShardScale
   local Padding = Gen.ShardPadding
@@ -326,82 +435,147 @@ function GUB.ShardBar:SetShardBarLayout(UnitBarF)
   local OffsetFX = 0
   local OffsetFY = 0
 
-  for ShardIndex, SSF in ipairs(UnitBarF.SoulShardF) do
+  local ShardWidth = UB.Bar.ShardWidth
+  local ShardHeight = UB.Bar.ShardHeight
+
+  if BoxMode then
+    -- Get the offsets based on angle for boxmode.
+    XOffset, YOffset = GUB.UnitBars:AngleToOffset(ShardWidth + Padding, ShardHeight + Padding, Angle)
+  end
+
+  for ShardIndex, SSF in ipairs(self.SoulShardF) do
 
     -- Set the duration of the fade out.
     SSF.FadeOutA:SetDuration(FadeOutTime)
 
-    -- Calculate the size of the soul shard.
-    local Width = SoulShardTexture.Width
-    local Height = SoulShardTexture.Height
-    local Scale = 0
+    -- Check to see if we're in Boxmode
+    if BoxMode then
 
-    -- Scale by width if the bar is vertical.
-    if Angle == 180 or Angle == 360 then
-      Scale = ShardSize / Width
+
+      -- Hide the textures.
+      SSF.SoulShard:Hide()
+      SSF.SoulShardDark:Hide()
+
+      -- Show the soul shard boxes.
+      SSF.SoulShardBoxFrame:Show()
+      SSF.SoulShardBox:Show()
+
+      -- Set the Shard min/max values.
+      local SoulShardBox = SSF.SoulShardBox
+      SoulShardBox:SetMinMaxValues(0, 1)
+      SoulShardBox:SetValue(1)
+
+      -- Calculate the x and y location before setting the location if angle is > 180.
+      if Angle > 180 and ShardIndex > 1 then
+        x = x + XOffset
+        y = y + YOffset
+      end
+
+      -- Set the location of the shard box.
+      SSF:ClearAllPoints()
+      SSF:SetPoint('TOPLEFT', x, y)
+      SSF.SoulShardBoxFrame:SetAllPoints(SSF)
+
+      -- Calculate the border width
+      if XOffset == 0 then
+        BorderWidth = ShardWidth
+      end
+      if YOffset == 0 then
+        BorderHeight = ShardHeight
+      end
     else
 
-      -- Scale by height
-      Scale = ShardSize / Height
+    -----------------------------------
+    -- Normal mode
+    -----------------------------------
+      local SoulShard = SSF.SoulShard
+      local SoulShardDarkFrame = SSF.SoulShardDarkFrame
+      local SoulShardDark = SSF.SoulShardDark
+
+      -- Hide the soul shard box frame.
+      SSF.SoulShardBoxFrame:Hide()
+      SSF.SoulShardBox:Hide()
+
+      -- Show the textures.
+      SoulShard:Show()
+      SoulShardDark:Show()
+
+      -- Calculate the size of the soul shard.
+      local Width = SoulShardTexture.Width
+      local Height = SoulShardTexture.Height
+      local Scale = 0
+
+      -- Scale by width if the bar is vertical.
+      if Angle == 180 or Angle == 360 then
+        Scale = ShardSize / Width
+      else
+
+        -- Scale by height
+        Scale = ShardSize / Height
+      end
+      Width = Width * Scale
+      Height = Height * Scale
+
+      -- Set the width and height of the soul shard.
+      SSF:SetWidth(Width)
+      SSF:SetHeight(Height)
+      SoulShardDarkFrame:SetWidth(Width)
+      SoulShardDarkFrame:SetHeight(Height)
+
+      -- Center the soul shard.
+      SoulShard:ClearAllPoints()
+      SoulShard:SetPoint('CENTER', 0, 0)
+      SoulShardDark:ClearAllPoints()
+      SoulShardDark:SetPoint('CENTER', 0, 0)
+
+      -- Set the scale of the soul shard texture.
+      local ScaleX = Width * ShardScale
+      local ScaleY = Height * ShardScale
+      SoulShard:SetWidth(ScaleX)
+      SoulShard:SetHeight(ScaleY)
+      SoulShardDark:SetWidth(ScaleX)
+      SoulShardDark:SetHeight(ScaleY)
+
+      -- Get the offsets based on angle.
+      XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
+
+      -- Calculate the x and y location before setting the location if angle is > 180.
+      if Angle > 180 and ShardIndex > 1 then
+        x = x + XOffset
+        y = y + YOffset
+      end
+
+      -- Set the location of the soul shard.
+      SSF:ClearAllPoints()
+      SSF:SetPoint('TOPLEFT', x, y)
+      SoulShardDarkFrame:ClearAllPoints()
+      SoulShardDarkFrame:SetPoint('TOPLEFT', x, y)
+
+      -- Calculate the border width.
+      if XOffset == 0  and BorderWidth < Width then
+        BorderWidth = Width
+      end
+
+      -- Calculate the border height.
+      if YOffset == 0 and BorderHeight < Height then
+        BorderHeight = Height
+      end
     end
-    Width = Width * Scale
-    Height = Height * Scale
 
-    -- Set the width and height of the soul shard.
-    SSF:SetWidth(Width)
-    SSF:SetHeight(Height)
-
-    -- Center the soul shard.
-    local SoulShard = SSF.SoulShard
-    SoulShard:ClearAllPoints()
-    SoulShard:SetPoint('CENTER', 0, 0)
-
-    -- Set the scale of the soul shard texture.
-    local ScaleX = Width * ShardScale
-    local ScaleY = Height * ShardScale
-    SoulShard:SetWidth(ScaleX)
-    SoulShard:SetHeight(ScaleY)
-
-    -- Center the dark soul shard.
-    local SoulShardDark = SSF.SoulShardDark
-    SoulShardDark:ClearAllPoints()
-    SoulShardDark:SetPoint('CENTER', 0, 0)
-
-    -- Set the scale of the dark soul shard.
-    SoulShardDark:SetWidth(ScaleX)
-    SoulShardDark:SetHeight(ScaleY)
-
-    -- Get the offsets based on angle.
-    XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
-
-    -- Calculate the x and y location before setting the location if angle is > 180.
-    if Angle > 180 and ShardIndex > 1 then
-      x = x + XOffset
-      y = y + YOffset
-    end
-
-    -- Set the location of the soul shard.
-    SSF:ClearAllPoints()
-    SSF:SetPoint('TOPLEFT', x, y)
-
-    -- Calculate the border width.
+    -- Calculate the border width for both types of shard bars.
     if XOffset ~= 0 then
       BorderWidth = BorderWidth + abs(XOffset)
       if ShardIndex == 1 then
         BorderWidth = BorderWidth - Padding
       end
-    elseif BorderWidth < Width then
-      BorderWidth = Width
     end
 
-    -- Calculate the border height.
+    -- Calculate the border height for both types of shard bars.
     if YOffset ~= 0 then
       BorderHeight = BorderHeight + abs(YOffset)
       if ShardIndex == 1 then
         BorderHeight = BorderHeight - Padding
       end
-    elseif BorderHeight < Height then
-      BorderHeight = Height
     end
 
     -- Get the x y for the frame offset.
@@ -419,7 +593,7 @@ function GUB.ShardBar:SetShardBarLayout(UnitBarF)
     end
   end
 
-  local Border = UnitBarF.Border
+  local Border = self.Border
   Border:ClearAllPoints()
   Border:SetPoint('TOPLEFT', 0, 0)
 
@@ -428,21 +602,19 @@ function GUB.ShardBar:SetShardBarLayout(UnitBarF)
   Border:SetHeight(BorderHeight)
 
   -- Set the x, y location off the offset frame.
-  local OffsetFrame = UnitBarF.OffsetFrame
+  local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
   OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
   OffsetFrame:SetWidth(1)
   OffsetFrame:SetHeight(1)
 
   -- Set all attributes.
-  UnitBarF:SetAttr(nil, nil)
+  self:SetAttr(nil, nil)
 
-  -- Save size data to UnitBarF.
-  UnitBarF.Width = BorderWidth
-  UnitBarF.Height = BorderHeight
+  -- Save size data to self (UnitBarF).
+  self.Width = BorderWidth
+  self.Height = BorderHeight
 end
-
-
 
 -------------------------------------------------------------------------------
 -- CreateShardBar
@@ -464,6 +636,7 @@ function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, Border)
 
+  local ColorAllNames = {}
   local SoulShardF = {}
 
   for ShardIndex = 1, MaxSoulShards do
@@ -476,14 +649,23 @@ function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
     SoulShard:SetTexture(SoulShardTexture.Texture)
     SoulShard:SetTexCoord(SoulShardTexture.Left, SoulShardTexture.Right, SoulShardTexture.Top, SoulShardTexture.Bottom)
 
+    -- Create a dark soul shard frame.
+    local SoulShardDarkFrame = CreateFrame('Frame', nil, OffsetFrame)
+
     -- Create a dark soul shard textre.
-    local SoulShardDark = SoulShardFrame:CreateTexture(nil, 'ARTWORK')
+    local SoulShardDark = SoulShardDarkFrame:CreateTexture(nil, 'ARTWORK')
     SoulShardDark:SetTexture(SoulShardTexture.Texture)
     SoulShardDark:SetTexCoord(SoulShardTexture.Left, SoulShardTexture.Right, SoulShardTexture.Top, SoulShardTexture.Bottom)
     SoulShardDark:SetVertexColor(SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
 
+    -- Create the SoulShardBoxFrame
+    local SoulShardBoxFrame = CreateFrame('Frame', nil, OffsetFrame)
+
+    -- Create a soul shard statusbar texture.
+    local SoulShardBox = CreateFrame('StatusBar', nil, SoulShardFrame)
+
     -- Create an animation for fade out.
-    local FadeOut = SoulShard:CreateAnimationGroup()
+    local FadeOut = SoulShardFrame:CreateAnimationGroup()
     local FadeOutA = FadeOut:CreateAnimation('Alpha')
 
     -- Set the animation group values.
@@ -493,7 +675,7 @@ function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
 
     -- Set the soul shard to dark.
     SoulShardFrame.Dark = true
-    SoulShard:SetAlpha(0)
+    SoulShardFrame:Hide()
 
     -- Save the animation.
     SoulShardFrame.FadeOut = FadeOut
@@ -501,7 +683,19 @@ function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
 
     -- Save the normal and dark shard.
     SoulShardFrame.SoulShard = SoulShard
+    SoulShardFrame.SoulShardDarkFrame = SoulShardDarkFrame
     SoulShardFrame.SoulShardDark = SoulShardDark
+    SoulShardFrame.SoulShardBoxFrame = SoulShardBoxFrame
+    SoulShardFrame.SoulShardBox = SoulShardBox
+
+    -- Save a reference to the anchor for moving in box mode.
+    SoulShardBoxFrame.Anchor = Anchor
+
+    -- Save the name for tooltips for box mode.
+    local Name = strconcat('Shard ', ShardIndex)
+    SoulShardBoxFrame.TooltipName = Name
+    SoulShardBoxFrame.TooltipDesc = MouseOverDesc
+    ColorAllNames[ShardIndex] = Name
 
     SoulShardF[ShardIndex] = SoulShardFrame
   end
@@ -512,6 +706,9 @@ function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   -- Save a reference to the anchor for moving.
   Border.Anchor = Anchor
+
+  -- Save the color all names.
+  UnitBarF.ColorAllNames = ColorAllNames
 
   -- Save the offsetframe and Border and soul shards.
   UnitBarF.Border = Border

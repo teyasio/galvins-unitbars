@@ -35,7 +35,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --
 -- UnitBarF.UnitBar         Reference to the unitbar data for the runebar.
 -- UnitBarF.OffsetFrame     Offset frame for rotation. This is a parent of RuneF[].
---                          This is used by SetRuneBarLayout()
+--                          This is used by SetLayoutRune()
 -- UnitBarF.ColorAllNames[] List of names to be used in the color all options panel.
 -- UnitBarF.RuneF[]         Frame array 1 to 6 that keeps all the death knight runes.
 --                          This also contains the frame for the rune.
@@ -319,8 +319,8 @@ local function RuneBarStopMoving(self, Button)
       self.RuneLocation.x, self.RuneLocation.y = GUB.UnitBars:RestoreRelativePoints(self)
     end
 
-    -- Update the layout
-    GUB.RuneBar:SetRuneBarLayout(UnitBarF)
+    -- Update the layout.
+    UnitBarF:SetLayout()
   end
 end
 
@@ -576,21 +576,19 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetRuneBarLayout
+-- SetLayoutRune (SetLayout) [UnitBar assigned function]
 --
 -- Sets a runebar with a new layout.
 --
--- Usage: SetRuneBarLayout(UnitBarF)
---
--- UnitBarF     Unitbar that contains the rune bar that is being setup.
+-- Usage: SetLayoutRune(UnitBarF)
 -------------------------------------------------------------------------------
-function GUB.RuneBar:SetRuneBarLayout(UnitBarF)
+function GUB.RuneBar:SetLayoutRune()
 
   -- Get the unitbar data.
-  local UB = UnitBarF.UnitBar
+  local UB = self.UnitBar
   local Gen = UB.General
 
-  local RuneF = UnitBarF.RuneF
+  local RuneF = self.RuneF
 
   local BarMode = Gen.BarMode
   local Padding = Gen.RunePadding
@@ -703,18 +701,18 @@ function GUB.RuneBar:SetRuneBarLayout(UnitBarF)
   end
 
   -- Set the x, y location off the offset frame.
-  local OffsetFrame = UnitBarF.OffsetFrame
+  local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
   OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
   OffsetFrame:SetWidth(1)
   OffsetFrame:SetHeight(1)
 
     -- Set all attributes.
-  UnitBarF:SetAttr(nil, nil)
+  self:SetAttr(nil, nil)
 
-  -- Save size data to UnitBarF.
-  UnitBarF.Width = BorderWidth
-  UnitBarF.Height = BorderHeight
+  -- Save size data to self (UnitBarF).
+  self.Width = BorderWidth
+  self.Height = BorderHeight
 end
 
 -------------------------------------------------------------------------------
