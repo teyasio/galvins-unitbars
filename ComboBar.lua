@@ -55,14 +55,6 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- ComboPointBoxFrame.Anchor           Anchor reference for moving.
 -- ComboPointBoxFrame.TooltipName      Name of this combopoint for mouse over tooltips.
 -- ComboPointBoxFrame.TooltipDesc      Description to show with the name for mouse over tooltips.
---
--- UnitBarF.ComboPoints                The number of combo points last displayed.
---
--- ComboF[Combo].Anchor          Reference to unitbar anchor for moving.
--- ComboF[Combo].Border          Border frame for each combo point.
--- ComboF[Combo].StatusBar       Statusbar for each combo point.
--- Border.TooltipName            Tooltip text to display for mouse over when bars are unlocked.
--- Border.TooltipDesc            Description under the name for mouse over.
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
 
@@ -181,13 +173,9 @@ function GUB.ComboBar:UpdateComboBar(Event)
   local ComboPoints = GetComboPoints('player', 'target')
 
   -- Return if combo points hasn't changed or event check fails.
-  if not self.Enabled or self.ComboPoints == ComboPoints or
-     Event ~= nil and CheckEvent[Event] ~= 'combo' then
+  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'combo' then
     return
   end
-
-  -- Save the current number of combo points.
-  self.ComboPoints = ComboPoints
 
   -- Display the combo points
   UpdateComboPoints(self, ComboPoints)
