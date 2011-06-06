@@ -33,23 +33,44 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar          Reference to the unitbar data for the combobar.
--- UnitBarF.OffsetFrame      Offset frame this is a parent of ComboF[]
---                           This is used for rotation offset in SetLayoutCombo()
--- UnitBarF.ColorAllNames[]  List of names to be used in the color all options panel.
--- UnitBarF.ComboF[]         Array of combo points from 1 to 5. This also
---                           contains the frame of the combo point.
+-- UnitBarF.UnitBar                    Reference to the unitbar data for the combobar.
+-- UnitBarF.OffsetFrame                Offset frame this is a parent of ComboF[]
+--                                     This is used for rotation offset in SetLayoutCombo()
+-- UnitBarF.Border                     Ivisible border thats surrounds the unitbar. This is used
+--                                     by SetScreenClamp.
+-- UnitBarF.ColorAllNames[]            List of names to be used in the color all options panel.
+-- UnitBarF.ComboPointF[]              Array of combo points from 1 to 5. This also contains the
+--                                     frame of the combo point.
 --
--- UnitBarF.ComboPoints      The number of combo points last displayed.
+-- ComboPointF[].ComboPointFrame       Frame containing the ComboPointBox.  This is used for show/hide.
+-- ComboPointF[].ComboPointBox         Statusbar child of ComboPointFrame
+-- ComboPointF[].ComboPointBoxFrame    Visible border for ComboPointBox. Since we fadeout ComboPointFrame
+--                                     This frame must be a child of OffsetFrame.
+-- ComboPointF[].FadeOut               Animation group for fadeout for the combo point before hiding
+--                                     This group is a child of the ComboPointFrame.
+-- ComboPointF[].FadeOutA              Animation that contains the fade out.  This is a child
+--                                     of FadeOut
+-- ComboPointF[].Dark                  True then the combo point is not lit.  True combo point is lit.
 --
--- ComboF[Combo].Anchor
---                           Reference to unitbar anchor for moving.
--- ComboF[Combo].Border      Border frame for each combo point.
--- ComboF[Combo].StatusBar   Statusbar for each combo point.
--- Border.TooltipName        Tooltip text to display for mouse over when bars are unlocked.
--- Border.TooltipDesc        Description under the name for mouse over.
+-- ComboPointBoxFrame.Anchor           Anchor reference for moving.
+-- ComboPointBoxFrame.TooltipName      Name of this combopoint for mouse over tooltips.
+-- ComboPointBoxFrame.TooltipDesc      Description to show with the name for mouse over tooltips.
+--
+-- UnitBarF.ComboPoints                The number of combo points last displayed.
+--
+-- ComboF[Combo].Anchor          Reference to unitbar anchor for moving.
+-- ComboF[Combo].Border          Border frame for each combo point.
+-- ComboF[Combo].StatusBar       Statusbar for each combo point.
+-- Border.TooltipName            Tooltip text to display for mouse over when bars are unlocked.
+-- Border.TooltipDesc            Description under the name for mouse over.
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
+
+local SoulShardTexture = {
+        Texture = 'Interface\\PlayerFrame\\UI-WarlockShard',
+        Width = 17, Height = 16,
+        Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
+      }
 
 --*****************************************************************************
 --
@@ -93,28 +114,57 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- RefreshComboBar
+-- UpdateComboPoints
 --
--- Refreshes the combobar based on the server.
+-- Lights or darkens combo point boxes.
 --
--- Usage: RefreshComboBar(ComboF)
+-- Usage: UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
 --
--- ComboF     The bar containing the combo points.
+-- ComboPointF      ComboBar containing combo points to update.
+-- ComboPoints      Updates the combo points based on the combopoints.
+-- FinishFadeOut    If true then any fadeout animation currently playing
+--                  will be stopped.
+--                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function RefreshComboBar(ComboF)
-  local ComboPoints = GetComboPoints('player', 'target')
-  local ComboOn = 0
+local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
+  local FadeOutTime = nil
 
-  for ComboIndex, CF in ipairs(ComboF) do
-    if ComboIndex <= ComboPoints then
-      ComboOn = 1
-    else
-      ComboOn = 0
+  if not FinishFadeOut then
+    FadeOutTime = ComboBarF.UnitBar.General.ComboFadeOutTime
+  end
+
+  for ComboIndex, CPF in ipairs(ComboBarF.ComboPointF) do
+    local FadeOut = CPF.FadeOut
+
+    -- If FinishFadeOut is true then stop any fadout animation and darken the combo point.
+    if FinishFadeOut then
+      if CPF.Dark then
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish', function() CPF:Hide() end)
+      end
+
+    -- Light a combo point based on ComboPoints.
+    elseif CPF.Dark and ComboIndex <= ComboPoints then
+      if FadeOutTime > 0 then
+
+        -- Finish animation if it's playing.
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
+      end
+      CPF:Show()
+      CPF.Dark = false
+
+    -- Darken a combo point based on ComboPoints.
+    elseif not CPF.Dark and ComboIndex > ComboPoints then
+      if FadeOutTime > 0 then
+
+        -- Fade out the combo point then hide it.
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() CPF:Hide() end)
+      else
+        CPF:Hide()
+      end
+      CPF.Dark = true
     end
-    CF.StatusBar:SetValue(ComboOn)
   end
 end
-
 
 -------------------------------------------------------------------------------
 -- UpdateComboBar (Update) [UnitBar assigned function]
@@ -140,13 +190,24 @@ function GUB.ComboBar:UpdateComboBar(Event)
   self.ComboPoints = ComboPoints
 
   -- Display the combo points
-  RefreshComboBar(self.ComboF)
+  UpdateComboPoints(self, ComboPoints)
 
   -- Set this IsActive flag
   self.IsActive = ComboPoints > 0
 
   -- Do a status check for active status.
   self:StatusCheck()
+end
+
+-------------------------------------------------------------------------------
+-- CancelAnimationCombo (CancelAnimation) [UnitBar assigned function]
+--
+-- Usage: CancelAnimationCombo()
+--
+-- Cancels all animation playing in the combo bar.
+-------------------------------------------------------------------------------
+function GUB.ComboBar:CancelAnimationCombo()
+  UpdateComboPoints(self, 0, true)
 end
 
 --*****************************************************************************
@@ -161,8 +222,8 @@ end
 -- This will enable or disbale mouse clicks for the combo bar.
 -------------------------------------------------------------------------------
 function GUB.ComboBar:EnableMouseClicksCombo(Enable)
-  for _, CF in ipairs(self.ComboF) do
-    CF.Border:EnableMouse(Enable)
+  for _, CPF in ipairs(self.ComboPointF) do
+    CPF.ComboPointBoxFrame:EnableMouse(Enable)
   end
 end
 
@@ -172,25 +233,28 @@ end
 -- Set up script handlers for the Combobar.
 -------------------------------------------------------------------------------
 function GUB.ComboBar:FrameSetScriptCombo(Enable)
-  for _, CF in ipairs(self.ComboF) do
-    local Border = CF.Border
-    if Enable then
-      Border:SetScript('OnMouseDown', ComboBarStartMoving)
-      Border:SetScript('OnMouseUp', ComboBarStopMoving)
-      Border:SetScript('OnHide', ComboBarStopMoving)
-      Border:SetScript('OnEnter', function(self)
-                                    GUB.UnitBars.UnitBarTooltip(self, false)
-                                  end)
-      Border:SetScript('OnLeave', function(self)
-                                    GUB.UnitBars.UnitBarTooltip(self, true)
-                                  end)
+  local ComboPointF = self
 
+  for _, CPF in ipairs(self.ComboPointF) do
+    local ComboPointBoxFrame = CPF.ComboPointBoxFrame
+    if Enable then
+      ComboPointBoxFrame:SetScript('OnMouseDown', ComboBarStartMoving)
+      ComboPointBoxFrame:SetScript('OnMouseUp', ComboBarStopMoving)
+      ComboPointBoxFrame:SetScript('OnHide', function(self)
+                                               ComboBarStopMoving(self)
+                                             end)
+      ComboPointBoxFrame:SetScript('OnEnter', function(self)
+                                                GUB.UnitBars.UnitBarTooltip(self, false)
+                                              end)
+      ComboPointBoxFrame:SetScript('OnLeave', function(self)
+                                                GUB.UnitBars.UnitBarTooltip(self, true)
+                                              end)
     else
-      Border:SetScript('OnMouseDown', nil)
-      Border:SetScript('OnMouseUp', nil)
-      Border:SetScript('OnHide', nil)
-      Border:SetScript('OnEnter', nil)
-      Border:SetScript('OnLeave', nil)
+      ComboPointBoxFrame:SetScript('OnMouseDown', nil)
+      ComboPointBoxFrame:SetScript('OnMouseUp', nil)
+      ComboPointBoxFrame:SetScript('OnHide', nil)
+      ComboPointBoxFrame:SetScript('OnEnter', nil)
+      ComboPointBoxFrame:SetScript('OnLeave', nil)
     end
   end
 end
@@ -201,11 +265,7 @@ end
 -- Enables or disble screen clamp for the combo bar.
 -------------------------------------------------------------------------------
 function GUB.ComboBar:EnableScreenClampCombo(Enable)
-  for _, CF in ipairs(self.ComboF) do
-
-    -- Prevent combo bar from being moved off screen.
-    CF.Border:SetClampedToScreen(Enable)
-  end
+  self.Border:SetClampedToScreen(Enable)
 end
 
 -------------------------------------------------------------------------------
@@ -245,11 +305,11 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
     end
   end
 
-  for ComboIndex, CF in ipairs(self.ComboF) do
+  for ComboIndex, CPF in ipairs(self.ComboPointF) do
 
       -- Background (Border).
     if Object == nil or Object == 'bg' then
-      local Border = CF.Border
+      local ComboPointBoxFrame = CPF.ComboPointBoxFrame
       local BgColor = nil
 
       -- Get all color if ColorAll is true.
@@ -260,25 +320,24 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
       end
 
       if Attr == nil or Attr == 'backdrop' then
-        Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(Background.BackdropSettings))
-        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        ComboPointBoxFrame:SetBackdrop(GUB.UnitBars:ConvertBackdrop(Background.BackdropSettings))
+        ComboPointBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
       if Attr == nil or Attr == 'color' then
-        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        ComboPointBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
     end
 
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
-      local Border = CF.Border
-      local StatusBar = CF.StatusBar
+      local ComboPointBox = CPF.ComboPointBox
 
       if Attr == nil or Attr == 'texture' then
-        StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
-        StatusBar:GetStatusBarTexture():SetHorizTile(false)
-        StatusBar:GetStatusBarTexture():SetVertTile(false)
-        StatusBar:SetOrientation(Bar.FillDirection)
-        StatusBar:SetRotatesTexture(Bar.RotateTexture)
+        ComboPointBox:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
+        ComboPointBox:GetStatusBarTexture():SetHorizTile(false)
+        ComboPointBox:GetStatusBarTexture():SetVertTile(false)
+        ComboPointBox:SetOrientation(Bar.FillDirection)
+        ComboPointBox:SetRotatesTexture(Bar.RotateTexture)
       end
       if Attr == nil or Attr == 'color' then
         local BarColor = nil
@@ -289,16 +348,16 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
         else
           BarColor = Bar.Color[ComboIndex]
         end
-        StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        ComboPointBox:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
       end
       if Attr == nil or Attr == 'padding' then
-        StatusBar:ClearAllPoints()
-        StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
-        StatusBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+        ComboPointBox:ClearAllPoints()
+        ComboPointBox:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
+        ComboPointBox:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
       end
       if Attr == nil or Attr == 'size' then
-        Border:SetWidth(Bar.ComboWidth)
-        Border:SetHeight(Bar.ComboHeight)
+        CPF:SetWidth(Bar.BoxWidth)
+        CPF:SetHeight(Bar.BoxHeight)
       end
     end
   end
@@ -317,9 +376,10 @@ function GUB.ComboBar:SetLayoutCombo()
   local UB = self.UnitBar
   local Gen = UB.General
 
-  local ComboWidth = UB.Bar.ComboWidth
-  local ComboHeight = UB.Bar.ComboHeight
+  local BoxWidth = UB.Bar.BoxWidth
+  local BoxHeight = UB.Bar.BoxHeight
   local Padding = Gen.ComboPadding
+  local FadeOutTime = Gen.ComboFadeOutTime
   local Angle = Gen.ComboAngle
   local x = 0
   local y = 0
@@ -329,16 +389,18 @@ function GUB.ComboBar:SetLayoutCombo()
   local OffsetFY = 0
 
   -- Get the offsets based on angle.
-  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(ComboWidth + Padding, ComboHeight + Padding, Angle)
+  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(BoxWidth + Padding, BoxHeight + Padding, Angle)
 
   -- Set up the combo point positions.
-  for ComboIndex, CF in ipairs(self.ComboF) do
+  for ComboIndex, CPF in ipairs(self.ComboPointF) do
 
-    -- Set the combo box min/max values
-    local StatusBar = CF.StatusBar
-    StatusBar:ClearAllPoints()
-    StatusBar:SetMinMaxValues(0, 1)
-    StatusBar:SetValue(0)
+    -- Set the duration of the fade out.
+    CPF.FadeOutA:SetDuration(FadeOutTime)
+
+    -- Set the combo point min/max values.
+    local ComboPointBox = CPF.ComboPointBox
+    ComboPointBox:SetMinMaxValues(0, 1)
+    ComboPointBox:SetValue(1)
 
     -- Calculate the x and y location before setting the location if angle is > 180.
     if Angle > 180 and ComboIndex > 1 then
@@ -346,10 +408,10 @@ function GUB.ComboBar:SetLayoutCombo()
       y = y + YOffset
     end
 
-    -- Set the location of the combo box.
-    local Border = CF.Border
-    Border:ClearAllPoints()
-    Border:SetPoint('TOPLEFT', x, y)
+    -- Set the location of the combo point box.
+    CPF:ClearAllPoints()
+    CPF:SetPoint('TOPLEFT', x, y)
+    CPF.ComboPointBoxFrame:SetAllPoints(CPF)
 
     -- Calculate the border width
     if XOffset ~= 0 then
@@ -358,7 +420,7 @@ function GUB.ComboBar:SetLayoutCombo()
         BorderWidth = BorderWidth - Padding
       end
     else
-      BorderWidth = ComboWidth
+      BorderWidth = BoxWidth
     end
 
     -- Calculate the border height.
@@ -368,7 +430,7 @@ function GUB.ComboBar:SetLayoutCombo()
         BorderHeight = BorderHeight - Padding
       end
     else
-      BorderHeight = ComboHeight
+      BorderHeight = BoxHeight
     end
 
     -- Get the x y for the frame offset.
@@ -386,6 +448,14 @@ function GUB.ComboBar:SetLayoutCombo()
     end
   end
 
+  local Border = self.Border
+  Border:ClearAllPoints()
+  Border:SetPoint('TOPLEFT', 0, 0)
+
+  -- Set the size of the border.
+  Border:SetWidth(BorderWidth)
+  Border:SetHeight(BorderHeight)
+
   -- Set the x, y location off the offset frame.
   local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
@@ -395,9 +465,6 @@ function GUB.ComboBar:SetLayoutCombo()
 
   -- Set the attributes for the combobar
   self:SetAttr(nil, nil)
-
-  -- Update combo points
-  RefreshComboBar(self.ComboF)
 
   -- Save size data to self (UnitBarF).
   self.Width = BorderWidth
@@ -416,45 +483,66 @@ end
 -------------------------------------------------------------------------------
 function GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
 
+  local Border = CreateFrame('Frame', nil, ScaleFrame)
+
+  -- Make the border frame top when clicked.
+  Border:SetToplevel(true)
+
   -- Create the offset frame.
-  local OffsetFrame = CreateFrame('Frame', nil, ScaleFrame)
+  local OffsetFrame = CreateFrame('Frame', nil, Border)
 
   local ColorAllNames = {}
-  local ComboF = {}
+  local ComboPointF = {}
 
-  for ComboPoint = 1, MaxComboPoints do
-    local CF = {}
+  for ComboIndex = 1, MaxComboPoints do
 
-    local Border = CreateFrame('Frame', nil, OffsetFrame)
+    -- Create the combo point frame.
+    local ComboPointFrame = CreateFrame('Frame', nil, OffsetFrame)
 
-    local StatusBar = CreateFrame('StatusBar', nil, Border)
+    -- Create the combo point box frame.
+    local ComboPointBoxFrame = CreateFrame('Frame', nil, OffsetFrame)
 
-    -- Make the border frame top when clicked.
-    Border:SetToplevel(true)
+    -- Create a combo point statusbar texture.
+    local ComboPointBox = CreateFrame('StatusBar', nil, ComboPointFrame)
+
+    -- Create an animation for fade out.
+    local FadeOut = ComboPointFrame:CreateAnimationGroup()
+    local FadeOutA = FadeOut:CreateAnimation('Alpha')
+
+    -- Set the animation group values.
+    FadeOut:SetLooping('NONE')
+    FadeOutA:SetChange(-1)
+    FadeOutA:SetOrder(1)
+
+    -- Set the combo point to dark.
+    ComboPointFrame.Dark = true
+    ComboPointFrame:Hide()
+
+    -- Save the animation.
+    ComboPointFrame.FadeOut = FadeOut
+    ComboPointFrame.FadeOutA = FadeOutA
+
+    -- Save the combo point frames.
+    ComboPointFrame.ComboPointBoxFrame = ComboPointBoxFrame
+    ComboPointFrame.ComboPointBox = ComboPointBox
 
     -- Save a reference to the anchor for moving.
-    Border.Anchor = Anchor
-
-    -- Save the frames.
-    CF.Border = Border
-    CF.StatusBar = StatusBar
+    ComboPointBoxFrame.Anchor = Anchor
 
     -- Save the text for tooltips/options.
-    local Name = strconcat('Combo ', ComboPoint)
-    CF.Border.TooltipName = Name
-    CF.Border.TooltipDesc = MouseOverDesc
-    ColorAllNames[ComboPoint] = Name
+    local Name = strconcat('Combo Point ', ComboIndex)
+    ComboPointBoxFrame.TooltipName = Name
+    ComboPointBoxFrame.TooltipDesc = MouseOverDesc
+    ColorAllNames[ComboIndex] = Name
 
-    -- Save a reference to the unitbar anchor for moving.
-    CF.Anchor = Anchor
-
-    ComboF[ComboPoint] = CF
+    ComboPointF[ComboIndex] = ComboPointFrame
   end
 
   -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames
 
-  -- Save the offset frame and Combo frame.
+  -- Save the offset frame and Combo Point frame and border.
+  UnitBarF.Border = Border
   UnitBarF.OffsetFrame = OffsetFrame
-  UnitBarF.ComboF = ComboF
+  UnitBarF.ComboPointF = ComboPointF
 end

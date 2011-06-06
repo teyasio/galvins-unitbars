@@ -44,17 +44,24 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 --                                   This is used for rotation offset in SetLayoutShard()
 -- UnitBarF.SoulShardF[]             (SoulShardFrame) Frame array containing all 3 soul shards. This also
 --                                   contains the frame of the soul shard.
--- SoulShardF[].SoulShard            Normal soul shard.
--- SoulShardF[].SoulShardDarkFrame   This is the frame for the dark shard.
--- SoulShardF[].SoulShardDark        Darkened soul shard.
--- SoulShardF[].SoulShardBoxFrame    Frame border for the SoulShardBox. This is a child of OffsetFrame
+-- SoulShardF[].SoulShardFrame       Frame. Parent of SoulShard, SoulShardBox, and SoulShardBoxFrame.
+-- SoulShardF[].SoulShard            The texture containing the soul shard.
 -- SoulShardF[].SoulShardBox         Statusbar used in BoxMode only. This is a child of SoulShardFrame
+-- SoulShardF[].SoulShardDarkFrame   Parent of SoulShardDark
+-- SoulShardF[].SoulShardDark        This is the texture for the soul shard dark.
+-- SoulShardF[].SoulShardBoxFrame    Visible frame border for the SoulShardBox. This is a child of OffsetFrame.
+--
 -- SoulShardF[].Dark                 True then the soul shard is dark, otherwise it's lit.
 -- SoulShardF[].FadeOut              Animation group for fadeout for the soul shard before hiding
 --                                   This group is a child of the SoulShardFrame.
 -- SoulShardF[].FadeOutA             Animation that contains the fade out.  This is a child
 --                                   of FadeOut
 -- SoulShardF[].Dark                 True then the soul shard is not lit.  True soul shard is lit.
+--
+-- SoulShardBoxFrame.Anchor          Anchor reference for moving.  Used in box mode.
+-- SoulShardBoxFrame.TooltipName     Name of this soul shard for mouse over tooltips. Used in box mode.
+-- SoulShardBoxFrame.TooltipDesc     Description to show with the name for mouse over tooltips.
+--                                   Used in box mode.
 --
 -- SoulShardTexture                  Contains all the data for the soul shards texture.
 --   Texture                         Path name to the texture file.
@@ -132,7 +139,11 @@ end
 --                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
 local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
-  local FadeOutTime = ShardBarF.UnitBar.General.ShardFadeOutTime
+  local FadeOutTime = nil
+
+  if not FinishFadeOut then
+    FadeOutTime = ShardBarF.UnitBar.General.ShardFadeOutTime
+  end
 
   for ShardIndex, SSF in ipairs(ShardBarF.SoulShardF) do
     local FadeOut = SSF.FadeOut
@@ -140,8 +151,7 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
     -- If FinishFadeOut is true then stop any fadout animation and darken the soul shard.
     if FinishFadeOut then
       if SSF.Dark then
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
-        SSF:Hide()
+        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish', function() SSF:Hide() end)
       end
 
     -- Light a soul shard based on SoulShards.
@@ -201,7 +211,17 @@ function GUB.ShardBar:UpdateShardBar(Event, PowerType)
 
   -- Do a status check for active status.
   self:StatusCheck()
+end
 
+-------------------------------------------------------------------------------
+-- CancelAnimationShard (CancelAnimation) [UnitBar assigned function]
+--
+-- Usage: CancelAnimationShard()
+--
+-- Cancels all animation playing in the shard bar.
+-------------------------------------------------------------------------------
+function GUB.ShardBar:CancelAnimationShard()
+  UpdateSoulShards(self, 0, true)
 end
 
 --*****************************************************************************
@@ -216,7 +236,22 @@ end
 -- This will enable or disbable mouse clicks for the shard bar.
 -------------------------------------------------------------------------------
 function GUB.ShardBar:EnableMouseClicksShard(Enable)
-  self.Border:EnableMouse(Enable)
+  local Border = self.Border
+
+  -- Disable mouse clicks for border and SoulShardBoxFrame
+  Border:EnableMouse(false)
+  for _, SSF in ipairs(self.SoulShardF) do
+    SSF.SoulShardBoxFrame:EnableMouse(false)
+  end
+
+  -- Check for boxmode
+  if self.UnitBar.General.BoxMode then
+    for _, SSF in ipairs(self.SoulShardF) do
+      SSF.SoulShardBoxFrame:EnableMouse(Enable)
+    end
+  else
+    self.Border:EnableMouse(Enable)
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -234,16 +269,13 @@ function GUB.ShardBar:FrameSetScriptShard(Enable)
       Frame:SetScript('OnMouseUp', ShardBarStopMoving)
       Frame:SetScript('OnHide', function(self)
                                    ShardBarStopMoving(self)
-
-                                   -- Cancel any fadeout animations currently playing.
-                                   UpdateSoulShards(ShardBarF, 0, true)
-                                 end)
+                                end)
       Frame:SetScript('OnEnter', function(self)
                                     GUB.UnitBars.UnitBarTooltip(self, false)
-                                  end)
+                                 end)
       Frame:SetScript('OnLeave', function(self)
                                     GUB.UnitBars.UnitBarTooltip(self, true)
-                                  end)
+                                 end)
     else
       Frame:SetScript('OnMouseDown', nil)
       Frame:SetScript('OnMouseUp', nil)
@@ -381,8 +413,8 @@ function GUB.ShardBar:SetAttrShard(Object, Attr)
           SoulShardBox:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
         end
         if Attr == nil or Attr == 'size' then
-          SSF:SetWidth(Bar.ShardWidth)
-          SSF:SetHeight(Bar.ShardHeight)
+          SSF:SetWidth(Bar.BoxWidth)
+          SSF:SetHeight(Bar.BoxHeight)
         end
       end
     end
@@ -435,12 +467,12 @@ function GUB.ShardBar:SetLayoutShard()
   local OffsetFX = 0
   local OffsetFY = 0
 
-  local ShardWidth = UB.Bar.ShardWidth
-  local ShardHeight = UB.Bar.ShardHeight
+  local BoxWidth = UB.Bar.BoxWidth
+  local BoxHeight = UB.Bar.BoxHeight
 
   if BoxMode then
     -- Get the offsets based on angle for boxmode.
-    XOffset, YOffset = GUB.UnitBars:AngleToOffset(ShardWidth + Padding, ShardHeight + Padding, Angle)
+    XOffset, YOffset = GUB.UnitBars:AngleToOffset(BoxWidth + Padding, BoxHeight + Padding, Angle)
   end
 
   for ShardIndex, SSF in ipairs(self.SoulShardF) do
@@ -478,10 +510,10 @@ function GUB.ShardBar:SetLayoutShard()
 
       -- Calculate the border width
       if XOffset == 0 then
-        BorderWidth = ShardWidth
+        BorderWidth = BoxWidth
       end
       if YOffset == 0 then
-        BorderHeight = ShardHeight
+        BorderHeight = BoxHeight
       end
     else
 
@@ -548,8 +580,7 @@ function GUB.ShardBar:SetLayoutShard()
       -- Set the location of the soul shard.
       SSF:ClearAllPoints()
       SSF:SetPoint('TOPLEFT', x, y)
-      SoulShardDarkFrame:ClearAllPoints()
-      SoulShardDarkFrame:SetPoint('TOPLEFT', x, y)
+      SoulShardDarkFrame:SetAllPoints(SSF)
 
       -- Calculate the border width.
       if XOffset == 0  and BorderWidth < Width then

@@ -471,6 +471,7 @@ function GUB.HapBar:EnableScreenClampHap(Enable)
 
   -- Prevent the border from being moved off the screen.
   self.Border:SetClampedToScreen(Enable)
+  self.PredictedBorder:SetClampedToScreen(Enable)
 end
 
 -------------------------------------------------------------------------------

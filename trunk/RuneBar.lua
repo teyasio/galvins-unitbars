@@ -785,11 +785,10 @@ function GUB.RuneBar:CreateRuneBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local RuneF = {}
   local ColorAllNames = {}
-  local RF = nil
 
   -- Create the rune frames for the runebar.
   for Rune = 1, MaxRunes do
-    RF = CreateFrame('Frame', nil, OffsetFrame)
+    local RF = CreateFrame('Frame', nil, OffsetFrame)
 
     -- Save the rune number as a runeId
     RF.RuneId = Rune
