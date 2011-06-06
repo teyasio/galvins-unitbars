@@ -91,12 +91,10 @@ local RuneBarPaddingMax = 50
 
 local ComboBarPaddingMin = -10
 local ComboBarPaddingMax = 50
+local ComboBarFadeOutMin = 0
+local ComboBarFadeOutMax = 5
 local ComboBarAngleMin = 45
 local ComboBarAngleMax = 360
-local ComboBarWidthMin = 10
-local ComboBarWidthMax = 100
-local ComboBarHeightMin = 10
-local ComboBarHeightMax = 100
 
 local HolyBarSizeMin = 10
 local HolyBarSizeMax = 100
@@ -119,10 +117,12 @@ local ShardBarFadeOutMin = 0
 local ShardBarFadeOutMax = 5
 local ShardBarAngleMin = 45
 local ShardBarAngleMax = 360
-local ShardBarWidthMin = 10
-local ShardBarWidthMax = 100
-local ShardBarHeightMin = 10
-local ShardBarHeightMax = 100
+
+-- Size variables for combu, holy, and shard bars.
+local BoxBarWidthMin = 10
+local BoxBarWidthMax = 100
+local BoxBarHeightMin = 10
+local BoxBarHeightMax = 100
 
 local AlignmentPaddingMin = -10
 local AlignmentPaddingMax = 50
@@ -424,7 +424,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
               c = c[Info.arg[1]]
             end
             c.r, c.g, c.b, c.a = r, g, b, a
- print(BarType, r,g,b)
+
             -- Set the color to the bar
             UnitBarsF[BarType]:SetAttr(Object, 'color')
           end,
@@ -615,7 +615,7 @@ local function CreateBackgroundOptions(BarType, Order, Name)
             name = 'Background Color',
             order = 6,
             hidden = function()
-                       return BarType == 'RuneBar' or ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
+                       return BarType == 'ComboBar' or ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
                               UnitBars[BarType].General.BoxMode
                      end,
             hasAlpha = true,
@@ -1475,88 +1475,36 @@ local function CreateBarOptions(BarType, Order, Name)
             step = 1,
             arg = {'size'},
           },
-          ComboWidth = {
+          BoxWidth = {
             type = 'range',
             name = 'Width',
-            order = 9,
+            order = 2,
             hidden = function()
-                       return BarType ~= 'ComboBar'
+                       return BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar'
                      end,
-            desc = 'Changes the width of all the combo boxes',
-            min = ComboBarWidthMin,
-            max = ComboBarWidthMax,
+            desc = 'Changes the width of all the boxes',
+            min = BoxBarWidthMin,
+            max = BoxBarWidthMax,
             step = 1,
             arg = {'size'},
           },
-          ComboHeight = {
+          BoxHeight = {
             type = 'range',
             name = 'Height',
-            order =10,
+            order = 3,
             hidden = function()
-                       return BarType ~= 'ComboBar'
+                       return BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar'
                      end,
-            desc = 'Changes the height of all the combo boxes',
-            min = ComboBarHeightMin,
-            max = ComboBarHeightMax,
-            step = 1,
-            arg = {'size'},
-          },
-          ShardWidth = {
-            type = 'range',
-            name = 'Width',
-            order = 11,
-            hidden = function()
-                       return BarType ~= 'ShardBar'
-                     end,
-            desc = 'Changes the width of all the soul shard boxes',
-            min = ShardBarWidthMin,
-            max = ShardBarWidthMax,
-            step = 1,
-            arg = {'size'},
-          },
-          ShardHeight = {
-            type = 'range',
-            name = 'Height',
-            order =12,
-            hidden = function()
-                       return BarType ~= 'ShardBar'
-                     end,
-            desc = 'Changes the height of all the soul shard boxes',
-            min = ShardBarHeightMin,
-            max = ShardBarHeightMax,
-            step = 1,
-            arg = {'size'},
-          },
-          HolyWidth = {
-            type = 'range',
-            name = 'Width',
-            order = 13,
-            hidden = function()
-                       return BarType ~= 'HolyBar'
-                     end,
-            desc = 'Changes the width of all the holy rune boxes',
-            min = HolyBarWidthMin,
-            max = HolyBarWidthMax,
-            step = 1,
-            arg = {'size'},
-          },
-          HolyHeight = {
-            type = 'range',
-            name = 'Height',
-            order =14,
-            hidden = function()
-                       return BarType ~= 'HolyBar'
-                     end,
-            desc = 'Changes the height of all the holy rune boxes',
-            min = HolyBarHeightMin,
-            max = HolyBarHeightMax,
+            desc = 'Changes the height of all the boxes',
+            min = BoxBarHeightMin,
+            max = BoxBarHeightMax,
             step = 1,
             arg = {'size'},
           },
           BarColor = {
             type = 'color',
             name = 'Color',
-            order = 15,
+            order = 4,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Bar.Color
@@ -1735,7 +1683,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       },
       BarModeAngle = {
         type = 'range',
-        name = 'Rotation',
+        name = 'Rune Rotation',
         order = 7,
         desc = 'Rotates the rune bar',
         disabled = function()
@@ -1805,7 +1753,7 @@ local function CreateComboBarOptions(BarType, Order, Name)
       ComboPadding = {
         type = 'range',
         name = 'Combo Padding',
-        order = 6,
+        order = 1,
         desc = 'Set the Amount of space between each combo point box',
         min = ComboBarPaddingMin,
         max = ComboBarPaddingMax,
@@ -1813,12 +1761,21 @@ local function CreateComboBarOptions(BarType, Order, Name)
       },
       ComboAngle = {
         type = 'range',
-        name = 'Rotation',
-        order = 5,
+        name = 'Combo Rotation',
+        order = 2,
         desc = 'Rotates the combo bar',
         min = ComboBarAngleMin,
         max = ComboBarAngleMax,
         step = 45,
+      },
+      ComboFadeOutTime = {
+        type = 'range',
+        name = 'Combo Fadeout Time',
+        order = 3,
+        desc = 'The amount of time in seconds to fade out a combo point',
+        min = ComboBarFadeOutMin,
+        max = ComboBarFadeOutMax,
+        step = 1,
       },
     },
   }
@@ -1868,10 +1825,19 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         order = 1,
         desc = 'If checked this bar will show boxes instead of textures',
       },
+      HolyPadding = {
+        type = 'range',
+        name = 'Holy Padding',
+        order = 2,
+        desc = 'Set the Amount of space between each holy rune',
+        min = HolyBarPaddingMin,
+        max = HolyBarPaddingMax,
+        step = 1,
+      },
       HolyAngle = {
         type = 'range',
         name = 'Holy Rotation',
-        order = 2,
+        order = 3,
         desc = 'Rotates the holy bar',
         min = HolyBarAngleMin,
         max = HolyBarAngleMax,
@@ -1880,7 +1846,7 @@ local function CreateHolyBarOptions(BarType, Order, Name)
       HolySize = {
         type = 'range',
         name = 'Holy Size',
-        order = 3,
+        order = 4,
         hidden = function()
                    return UnitBars[BarType].General.BoxMode
                  end,
@@ -1892,7 +1858,7 @@ local function CreateHolyBarOptions(BarType, Order, Name)
       HolyScale = {
         type = 'range',
         name = 'Holy Scale',
-        order = 4,
+        order = 5,
         hidden = function()
                    return UnitBars[BarType].General.BoxMode
                  end,
@@ -1901,15 +1867,6 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         max = HolyBarScaleMax,
         step = 0.01,
         isPercent = true,
-      },
-      HolyPadding = {
-        type = 'range',
-        name = 'Holy Padding',
-        order = 5,
-        desc = 'Set the Amount of space between each holy rune',
-        min = HolyBarPaddingMin,
-        max = HolyBarPaddingMax,
-        step = 1,
       },
       HolyFadeOutTime = {
         type = 'range',
@@ -1967,10 +1924,19 @@ local function CreateShardBarOptions(BarType, Order, Name)
         order = 1,
         desc = 'If checked this bar will show boxes instead of textures',
       },
+      ShardPadding = {
+        type = 'range',
+        name = 'Shard Padding',
+        order = 2,
+        desc = 'Set the Amount of space between each soul shard',
+        min = ShardBarPaddingMin,
+        max = ShardBarPaddingMax,
+        step = 1,
+      },
       ShardAngle = {
         type = 'range',
         name = 'Shard Rotation',
-        order = 2,
+        order = 3,
         desc = 'Rotates the shard bar',
         min = ShardBarAngleMin,
         max = ShardBarAngleMax,
@@ -1979,7 +1945,7 @@ local function CreateShardBarOptions(BarType, Order, Name)
       ShardSize = {
         type = 'range',
         name = 'Shard Size',
-        order = 3,
+        order = 4,
         hidden = function()
                    return UnitBars[BarType].General.BoxMode
                  end,
@@ -1991,7 +1957,7 @@ local function CreateShardBarOptions(BarType, Order, Name)
       ShardScale = {
         type = 'range',
         name = 'Shard Scale',
-        order = 4,
+        order = 5,
         hidden = function()
                    return UnitBars[BarType].General.BoxMode
                  end,
@@ -2000,15 +1966,6 @@ local function CreateShardBarOptions(BarType, Order, Name)
         max = ShardBarScaleMax,
         step = 0.01,
         isPercent = true,
-      },
-      ShardPadding = {
-        type = 'range',
-        name = 'Shard Padding',
-        order = 5,
-        desc = 'Set the Amount of space between each soul shard',
-        min = ShardBarPaddingMin,
-        max = ShardBarPaddingMax,
-        step = 1,
       },
       ShardFadeOutTime = {
         type = 'range',

@@ -51,6 +51,14 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- UnitBarsF[BarType].ScaleFrame
 --                      This is the parent of the unitbar and the child of the anchor.
 --                      It's only function is to scale unitbars.
+-- UnitBarsF[BarType]:CancelAnimation()
+--                      This will cancel any animation that is playing in the bar.
+--                      This was added as a work around to prevent alpha animations playing while the whole
+--                      bar is getting faded out.  If this work around wasn't in then alpha animations can
+--                      get stuck and become permanently transparent.
+--
+--                      This is used by HideUnitBar().  The creator passes back this function if the bar
+--                      does alpha animations.
 -- UnitBarsF[BarType]:Update()
 --                      Based on the bartype this will be assigned a function for displaying the data for
 --                      the unitbar.
@@ -334,6 +342,7 @@ local UnitBarsF = {}
 local BgTexture = 'Blizzard Tooltip'
 local BdTexture = 'Blizzard Tooltip'
 local StatusBarTexture = 'Blizzard'
+local GUBStatusBarTexture = 'GUB Bright Bar'
 local UBFontType = 'Friz Quadrata TT'
 
 local UnitBarsFList = {}
@@ -1163,6 +1172,7 @@ local Defaults = {
       General = {
         ComboAngle = 90,
         ComboPadding = 5,
+        ComboFadeOutTime = 1,
       },
       Other = {
         Scale = 1,
@@ -1188,19 +1198,19 @@ local Defaults = {
       },
       Bar = {
         ColorAll = false,
-        ComboWidth = 40,
-        ComboHeight = 25,
+        BoxWidth = 40,
+        BoxHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = GUBStatusBarTexture,
         Color = {
-          r = 0.75, g = 0, b = 0, a = 1,
-          [1] = {r = 0.75, g = 0, b = 0, a = 1},
-          [2] = {r = 0.75, g = 0, b = 0, a = 1},
-          [3] = {r = 0.75, g = 0, b = 0, a = 1},
-          [4] = {r = 0.75, g = 0, b = 0, a = 1},
-          [5] = {r = 0.75, g = 0, b = 0, a = 1},
+          r = 1, g = 0, b = 0, a = 1,
+          [1] = {r = 1, g = 0, b = 0, a = 1},
+          [2] = {r = 1, g = 0, b = 0, a = 1},
+          [3] = {r = 1, g = 0, b = 0, a = 1},
+          [4] = {r = 1, g = 0, b = 0, a = 1},
+          [5] = {r = 1, g = 0, b = 0, a = 1},
         }
       }
     },
@@ -1245,12 +1255,12 @@ local Defaults = {
       },
       Bar = {
         ColorAll = false,
-        HolyWidth = 40,
-        HolyHeight = 25,
+        BoxWidth = 40,
+        BoxHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = GUBStatusBarTexture,
         Color = {
           r = 1, g = 0.705, b = 0, a = 1,
           [1] = {r = 1, g = 0.705, b = 0, a = 1},
@@ -1300,12 +1310,12 @@ local Defaults = {
       },
       Bar = {
         ColorAll = false,
-        ShardWidth = 40,
-        ShardHeight = 25,
+        BoxWidth = 40,
+        BoxHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = GUBStatusBarTexture,
         Color = {
           r = 0.980, g = 0.517, b = 1, a = 1,
           [1] = {r = 0.980, g = 0.517, b = 1, a = 1},
@@ -1649,7 +1659,7 @@ end
 -- AG        Must be an alpha animation group.
 -- Action    'start'   Starts the animation for fading out.
 --           'finish'  Finish the animation for fadeout early.
---                     This will call Fn()
+--                     This will call Fn() only if AG was playing.
 -- Fn        Function to call after the animation fades out.
 --           If set to nil then does nothing.
 -------------------------------------------------------------------------------
@@ -1661,6 +1671,11 @@ function GUB.UnitBars:AnimationFadeOut(AG, Action, Fn)
     -- Disable the animation script.
     AG:SetScript('OnFinished', nil)
     AG:Stop()
+
+    -- Call the function.
+    if Fn then
+      Fn()
+    end
   end
   if Action == 'start' then
     AG:SetScript('OnFinished', function(self)
@@ -1689,6 +1704,10 @@ local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
   local Anchor = UnitBarF.Anchor
 
   if HideBar and not UnitBarF.Hidden then
+
+    -- Cancel any animations playing inside this bar.
+    UnitBarF:CancelAnimation()
+
     if UnitBars.FadeOutTime > 0 then
 
       -- Start the animation fadeout.
@@ -1934,6 +1953,10 @@ end
 --
 --    Updates the layout of the bar.
 --
+-- Usage: UnitBarsF[BarType]:CancelAnimation()
+--
+--    Cancels any animation for this bar, otherwise it does nothing.
+--
 -- NOTE: Any function labled as a unitbar assigned function shouldn't be called directly.
 --
 --*****************************************************************************
@@ -2093,6 +2116,7 @@ local function UnitBarsAssignFunctions()
 
   local n = 'Update'  -- UnitBarF[]:Update(Event, Unit, [...])
   local f = nil
+  local DoNothing = function() return end
 
   Func.PlayerHealth[n] = function(self, Event, Unit)
                            if Unit == nil or Unit == 'player' then
@@ -2217,7 +2241,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.HolyBar.SetAttrHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.SetAttrShard, 'ShardBar')
 
-  -- Set layout functions
+  -- Set layout functions.
   n = 'SetLayout' -- UnitBarF[]:SetLayout()
   f = GUB.HapBar.SetLayoutHap
 
@@ -2228,8 +2252,16 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.HolyBar.SetLayoutHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.SetLayoutShard, 'ShardBar')
 
-  -- Add the functions to the unitbars frame table.
+  -- Set the cancel animation functions.
+  n = 'CancelAnimation' -- UnitBarF[]:CancelAnimation()
 
+  SetFunction(Func, n, DoNothing, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
+                                  'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower', 'RuneBar')
+  SetFunction(Func, n, GUB.ComboBar.CancelAnimationCombo, 'ComboBar')
+  SetFunction(Func, n, GUB.HolyBar.CancelAnimationHoly, 'HolyBar')
+  SetFunction(Func, n, GUB.ShardBar.CancelAnimationShard, 'ShardBar')
+
+  -- Add the functions to the unitbars frame table.
   for BarType, UBF in pairs(UnitBarsF) do
     for FuncName, FuncCall in pairs(Func[BarType]) do
       UBF[FuncName] = Func[BarType][FuncName]
@@ -2303,7 +2335,7 @@ end
 --
 -- Sets all the unitbars with new data.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:SetUnitBarsLayout()
+local function SetUnitBarsLayout()
 
   -- Set the unitbar parent frame values.
   UnitBarsParent:ClearAllPoints()
@@ -2317,6 +2349,7 @@ function GUB.UnitBars:SetUnitBarsLayout()
     local ScaleFrame = UnitBarF.ScaleFrame
 
     -- Stop any old fadeout animation for this unitbar.
+    UnitBarF:CancelAnimation()
     GUB.UnitBars:AnimationFadeOut(UnitBarF.FadeOut, 'finish')
 
     -- Set the anchor position and size.
@@ -2741,7 +2774,7 @@ function GUB:OnEnable()
   OnInitializeOnce()
 
   -- Update all the unitbars according to the new data.
-  GUB.UnitBars:SetUnitBarsLayout()
+  SetUnitBarsLayout()
 
   -- Set up the scripts.
   UnitBarsSetScript(true)
