@@ -1154,7 +1154,14 @@ local Defaults = {
         },
       },
       RuneBarOrder = {[1] = 1, [2] = 2, [3] = 5, [4] = 6, [5] = 3, [6] = 4},
-      RuneLocation = {[1] = {}, [2] = {}, [3] = {}, [4] = {}, [5] = {}, [6] = {}},
+      RuneLocation = {
+        [1] = {x = '', y = ''},
+        [2] = {x = '', y = ''},
+        [3] = {x = '', y = ''},
+        [4] = {x = '', y = ''},
+        [5] = {x = '', y = ''},
+        [6] = {x = '', y = ''},
+      },
     },
 -- ComboBar
     ComboBar = {
@@ -1506,12 +1513,12 @@ function GUB.UnitBars:CopyTableValues(Source, Dest)
     if type(v) == 'table' then
 
       -- Make sure value is not nil.
-      if Dest[k] then
+      if Dest[k] ~= nil then
         GUB.UnitBars:CopyTableValues(v, Dest[k])
       end
 
     -- Check to see if key exists in destination before setting value
-    elseif Dest[k] then
+    elseif Dest[k] ~= nil then
       Dest[k] = v
     end
   end

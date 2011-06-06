@@ -622,7 +622,7 @@ function GUB.RuneBar:SetLayoutRune()
     -- If barmode is false then get the rune location from saved data or
     -- from x, y.
     if not BarMode then
-      if RL.x == nil then
+      if RL.x == '' then
 
         -- set the floating location if one wasn't found. This should only
         -- happen once when the user switches out of barmode for the first time.
