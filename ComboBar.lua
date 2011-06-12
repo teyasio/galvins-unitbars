@@ -59,7 +59,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 local MaxComboPoints = 5
 
 local SoulShardTexture = {
-        Texture = 'Interface\\PlayerFrame\\UI-WarlockShard',
+        Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
         Width = 17, Height = 16,
         Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
       }

@@ -35,7 +35,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
 
 ------------------------------------------------------------------------------
--- Register GUB textures
+-- Register GUB textures with LibSharedMedia
 ------------------------------------------------------------------------------
 LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar.tga]])
 LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar.tga]])
@@ -109,7 +109,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                      goes off this is set to nil.  To start a timer UnitBarRefresh = <time to wait>
 --                      Setting this to nil will cancel the timer.
 -- UnitBarInterval      Time to wait before doing the next update in the onupdate handler.
---
+-- CooldownBarTimeInterval
+--                      Amount of time to wait before updating the timerbar in the onupdate handler.
+
 --                      This works for health and power bars only.  If true then the updates happen thru
 --                      UnitBarsOnUpdate. If false then the UnitBarEventHandler does the updates.
 -- PowerColorType       Table used by InitializeColors()
@@ -146,6 +148,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- StatusBarTexure      Default bar texture for the health and power bars.
 --
 -- UnitBarsFList        Reusable table used by the alignment tool.
+--
+-- PointCalc            Table used by CalcSetPoint() to return a location inside a parent frame.
 --
 -- FontSettings         Standard container for setting a font. Used by SetFontString()
 --   FontType           Type of font to use.
@@ -249,6 +253,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     BarModeAngle       Angle in degrees in which way the bar will be displayed.  Only works in barmode.
 --                        Must be a multiple of 45 degrees and not 360.
 --     BarMode            If true the runes are displayed from left to right forming a bar of runes.
+--     RuneMode             'rune'             Only rune textures are shown.
+--                          'cooldownbar'      Cooldown bars only are shown.
+--                          'runecooldownbar'  Rune and a Cooldown bar are shown.
 --     RuneSwap           If true runes can be dragged and drop to swap positions. Otherwise
 --                        nothing happens when a rune is dropped on another rune.
 --     CooldownDrawEdge   If true a line is drawn on the clock face cooldown animation.
@@ -258,6 +265,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     HideCooldownFlash  If true a flash cooldown animation is not shown when a rune comes off cooldown.
 --     RuneSize           Width and Hight of all the runes.
 --     RunePadding        For barmode only, the amount of space between the runes.
+--     RunePosition       Position of the rune attached to Cooldownbar.  In runecooldownbar mode.
+--     RuneOffsetX        Offset X from RunePosition.
+--     RuneOffsetY        Offset Y from RunePosition.
 --
 --   Text
 --     ColorAll           If true then all the combo boxes are set to one color.
@@ -332,9 +342,10 @@ local PlayerPowerType = nil
 local PlayerClass = nil
 local Initialized = false
 
-local UnitBarInterval = 0.10
+local UnitBarInterval = 0.10 -- 10 times per second.
 local UnitBarTimeLeft = -1
 local UnitBarRefresh = nil
+local CooldownBarTimeInterval = 0.04 -- 25 times per second.
 
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -344,8 +355,6 @@ local BdTexture = 'Blizzard Tooltip'
 local StatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
 local UBFontType = 'Friz Quadrata TT'
-
-local UnitBarsFList = {}
 
 local Backdrop = {
   bgFile   = LSM:Fetch('background', BgTexture), -- background texture
@@ -1119,16 +1128,63 @@ local Defaults = {
       General = {
         BarModeAngle = 90,
         BarMode = true,  -- Must be true for default or no default rune positions gets created.
+        RuneMode = 'rune',
         CooldownDrawEdge = false,
+        CooldownBarDrawEdge = false,
         HideCooldownFlash = true,
         CooldownAnimation = true,
         CooldownText = false,
         RuneSize = 22,
         RuneSwap = true,
         RunePadding = 0,
+        RunePosition = 'LEFT',
+        RuneOffsetX = 0,
+        RuneOffsetY = 0,
       },
       Other = {
         Scale = 1,
+      },
+      Background = {
+        ColorAll = false,
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {
+          r = 0, g = 0, b = 0, a = 1,                               -- All runes
+          [1] = {r = 1 - 0.6, g = 0,           b = 0,       a = 1},       -- Blood
+          [2] = {r = 1 - 0.6, g = 0,           b = 0,       a = 1},       -- Blood
+          [3] = {r = 0,       g = 1     - 0.6, b = 0,       a = 1},       -- Unholy
+          [4] = {r = 0,       g = 1     - 0.6, b = 0,       a = 1},       -- Unholy
+          [5] = {r = 0,       g = 0.427 - 0.6, b = 1 - 0.6, a = 1},       -- Frost
+          [6] = {r = 0,       g = 0.427 - 0.6, b = 1 - 0.6, a = 1},       -- Frost
+          [7] = {r = 1 - 0.6, g = 0,           b = 1 - 0.6, a = 1},       -- Death
+          [8] = {r = 1 - 0.6, g = 0,           b = 1 - 0.6, a = 1},       -- Death
+        },
+      },
+      Bar = {
+        ColorAll = false,
+        RuneWidth = 40,
+        RuneHeight = 25,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {
+          r = 1, g = 0, b = 0, a = 1,               -- All runes
+          [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
+          [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
+          [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
+          [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
+          [5] = {r = 0, g = 0.427, b = 1, a = 1},   -- Frost
+          [6] = {r = 0, g = 0.427, b = 1, a = 1},   -- Frost
+          [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+          [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+        },
       },
       Text = {
         ColorAll = false,
@@ -1144,13 +1200,15 @@ local Defaults = {
           ShadowOffset = 0,
         },
         Color = {
-          r = 1, g = 1, b = 1, a = 1,
-          [1] = {r = 1, g = 1, b = 1, a = 1},
-          [2] = {r = 1, g = 1, b = 1, a = 1},
-          [3] = {r = 1, g = 1, b = 1, a = 1},
-          [4] = {r = 1, g = 1, b = 1, a = 1},
-          [5] = {r = 1, g = 1, b = 1, a = 1},
-          [6] = {r = 1, g = 1, b = 1, a = 1},
+          r = 1, g = 1, b = 1, a = 1,               -- All runes
+          [1] = {r = 1, g = 1, b = 1, a = 1},       -- Blood
+          [2] = {r = 1, g = 1, b = 1, a = 1},       -- Blood
+          [3] = {r = 1, g = 1, b = 1, a = 1},       -- Unholy
+          [4] = {r = 1, g = 1, b = 1, a = 1},       -- Unholy
+          [5] = {r = 1, g = 1, b = 1, a = 1},       -- Frost
+          [6] = {r = 1, g = 1, b = 1, a = 1},       -- Frost
+          [7] = {r = 1, g = 1, b = 1, a = 1},       -- Death
+          [8] = {r = 1, g = 1, b = 1, a = 1},       -- Death
         },
       },
       RuneBarOrder = {[1] = 1, [2] = 2, [3] = 5, [4] = 6, [5] = 3, [6] = 4},
@@ -1334,6 +1392,20 @@ local Defaults = {
   },
 }
 
+local UnitBarsFList = {}
+
+local PointCalc = {
+        TOPLEFT     = {x = 0,   y = 0},
+        TOP         = {x = 0.5, y = 0},
+        TOPRIGHT    = {x = 1,   y = 0},
+        LEFT        = {x = 0,   y = 0.5},
+        CENTER      = {x = 0.5, y = 0.5},
+        RIGHT       = {x = 1,   y = 0.5},
+        BOTTOMLEFT  = {x = 0,   y = 1},
+        BOTTOM      = {x = 0.5, y = 1},
+        BOTTOMRIGHT = {x = 1,   y = 1}
+      }
+
 local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
 local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6, SOUL_SHARDS = 7, HOLY_POWER = 9}
 local CheckPowerType = {
@@ -1495,6 +1567,215 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- CalcSetPoint
+--
+-- Returns where a child sub frame point would be set on another frame.
+--
+-- Usage x, y = CalcSetPoint(Point, Width, Height, OffsetX, OffsetY)
+--
+-- Point      One of the 9 different points. 'TOP', 'LEFT', etc.
+-- Width      Width of the frame.
+-- Height     Height of the frame.
+-- OffsetX    Screen position X offset from Point.
+-- OffsetY    Screen position Y offset from point.
+--
+-- x, y       New screen location within the frame.
+-------------------------------------------------------------------------------
+function GUB.UnitBars:CalcSetPoint(Point, Width, Height, OffsetX, OffSetY)
+  return Width * PointCalc[Point].x + OffsetX, -(Height * PointCalc[Point].y + -OffSetY)
+end
+
+-------------------------------------------------------------------------------
+-- GetBorder
+--
+-- Returns the four values to create a frame that can surround sub frames.
+--
+-- Usage: x, y, Width, Height = GetBorder(x1, y1, Width1, Height1, ...)
+--
+-- x1, y1      Top left location of a frame.
+-- Width1      Width of the frame
+-- Height      Height of the frame
+-- ...         One or more (x1, y1, Width1, Height1) groups
+--
+-- x, y        Location based on the left (x1) and top most (y1) values passed.
+-- Width       Based on the distance from x1 to x1 + Width1.  Returns the largest.
+-- Height      Based on the distance from y1 to y1 + Height1.  Returns the largest.
+-------------------------------------------------------------------------------
+function GUB.UnitBars:GetBorder(...)
+  local Left = 0
+  local Top = 0
+  local Right = 0
+  local Bottom = 0
+
+  for i = 1, select('#', ...), 4 do
+    local Left2 = select(i, ...)
+    local Top2 = select(i + 1, ...)
+    local Right2 = select(i + 2, ...)
+    local Bottom2 = select(i + 3, ...)
+
+    -- Convert Right and Bottom into screen coordinates.
+    Right2 = Left2 + Right2
+    Bottom2 = Top2 - Bottom2
+
+    -- If this is the first set, set the values.
+    if i == 1 then
+      Left, Top, Right, Bottom = Left2, Top2, Right2, Bottom2
+    else
+
+      -- Get the left and top most values.
+      Left = Left2 < Left and Left2 or Left
+      Top = Top2 > Top and Top2 or Top
+
+      -- Get the right and bottom most values.
+      Right = Right2 > Right and Right2 or Right
+      Bottom = Bottom2 < Bottom and Bottom2 or Bottom
+    end
+  end
+  return Left, Top, Right - Left, Top - Bottom
+end
+
+-------------------------------------------------------------------------------
+-- CooldownBarOnUpdate
+--
+-- OnUpdate script for CooldownBarSetTimer
+--
+-- Usage: CooldownBarOnUpdate(self, Elapsed)
+--
+-- self      Statusbar
+-- Elapsed   Amount of time since last OnUpdate call.
+-------------------------------------------------------------------------------
+local function CooldownBarOnUpdate(self, Elapsed)
+  local CurrentTime = GetTime()
+
+  -- Check to see if the starttime has been reached
+  if CurrentTime >= self.StartTime then
+    local CooldownBarTime = self.CooldownBarTime
+    CooldownBarTime = CooldownBarTime - Elapsed
+
+    -- Check to see if Interval has passed.
+    if CooldownBarTime < 0 then
+      CooldownBarTime = CooldownBarTimeInterval
+      local TimeElapsed = CurrentTime - self.StartTime
+
+      -- Check to see if we're less than duration
+      if TimeElapsed <= self.Duration then
+        self:SetValue(TimeElapsed)
+
+        -- Position and show the edgeframe if one is present.
+        if self.EdgeFrame then
+          if self.FillDirection == 'HORIZONTAL' then
+            self.EdgeFrame:SetPoint('CENTER', self, 'LEFT', ( TimeElapsed / self.Duration ) * self:GetWidth(), 0)
+          else
+            self.EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, ( TimeElapsed / self.Duration ) * self:GetHeight())
+          end
+
+          if not self.ShowEdgeFrame then
+            self.EdgeFrame:Show()
+            self.EdgeShow = true
+          end
+        end
+
+      else
+        if self.EdgeFrame then
+
+          -- Hide the edgeframe.
+          self.EdgeFrame:Hide()
+          self.ShowEdgeFrame = false
+        end
+
+        -- stop the timer.
+        self.Start = false
+        self:SetValue(0)
+        self:SetScript('OnUpdate', nil)
+      end
+    end
+
+    self.CooldownBarTime = CooldownBarTime
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownBarEdgeFrame
+--
+-- Creates a frame that gets placed on the edge of the bar.
+--
+-- Usage: SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, Width, Height)
+--
+-- StatusBar     StatusBar you want the EdgeFrame to be displayed on.
+-- EdgeFrame     Frame containing objects to be displayed.
+-- FillDirection 'HORIZONTAL' left to right, 'VERTICAL' bottom to top.
+-- Width         Width set to EdgeFrame
+-- Height        Height set to EdgeFrame
+--
+-- If EdgeFrame is nil then no EdgeFrame will be shown or the existing EdgeFrame
+-- will be removed.
+-------------------------------------------------------------------------------
+function GUB.UnitBars:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, Width, Height)
+  if EdgeFrame then
+
+    -- Hide the edgeframe
+    EdgeFrame:Hide()
+
+    -- Set the width and height.
+    EdgeFrame:SetWidth(Width)
+    EdgeFrame:SetHeight(Height)
+
+    StatusBar.EdgeFrame = EdgeFrame
+    StatusBar.FillDirection = FillDirection
+  else
+
+    -- Hide the old edgeframe
+    if StatusBar.EdgeFrame then
+      StatusBar.EdgeFrame:Hide()
+    end
+    StatusBar.EdgeFrame = nil
+  end
+
+  StatusBar.ShowEdgeFrame = false
+end
+
+-------------------------------------------------------------------------------
+-- CooldownBarSetTimer
+--
+-- Creates a bar timer using an existing statusbar.
+--
+-- Usage: CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
+--
+-- StatusBar     StatusBar you want to use for the cooldown bar.
+-- StartTime     Starting time in seconds that you want the timer to start at.
+-- Duration      Time in seconds you want the bar to keep track of once StartTime has Been reached.
+--               If Duration is 0 then no timer is started.
+-- Enable        if set to 1 the timer will be set to start at StartTime.
+--               if set to 0 the existing timer will be stopped
+-------------------------------------------------------------------------------
+function GUB.UnitBars:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
+  if Enable then
+    StatusBar.StartTime = StartTime
+    StatusBar.Duration = Duration
+    StatusBar.CooldownBarTime = CooldownBarTimeInterval
+
+    StatusBar:SetMinMaxValues(0, Duration)
+
+    -- Check to see if the timer is not already running and only start a timer if duration > 0.
+    if Duration > 0 and ( StatusBar.Start == nil or not StatusBar.Start ) then
+      StatusBar.Start = true
+      StatusBar:SetScript('OnUpdate', CooldownBarOnUpdate)
+    end
+  else
+    if StatusBar.EdgeFrame then
+
+      -- Hide the edgeframe.
+      StatusBar.EdgeFrame:Hide()
+      StatusBar.ShowEdgeFrame = false
+    end
+
+    -- stop the timer.
+    StatusBar:SetValue(0)
+    StatusBar:SetScript('OnUpdate', nil)
+  end
+end
 
 -------------------------------------------------------------------------------
 -- CopyTableValues

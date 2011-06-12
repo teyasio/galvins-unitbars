@@ -28,13 +28,17 @@ local HelpText = GUB.Help.HelpText
 -- ProfileOptions                Options for the profiles.
 --
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
+-- PositionDropdown              Table used for the diaglog drop down for fonts and runes.
 -- FontHAlignDropDown            Table used for the dialog drop down for font horizontal alignment.
--- ValueTypeDropdown              Table used for the dialog drop down for Health and power text type.
+-- ValueTypeDropdown             Table used for the dialog drop down for Health and power text type.
 -- ValueNameDropdown             Table used for the dialog drop down for health and power text type.
 -- ValueNameDropdownPredicted    Same as above except used for bars that support predicted value.
 -- MaxValuesDropdown             Tanle used for the dialog drop down for Health and power text type.
 -- UnitBarsSelectDropdown        Table used to pick from a list of unitbars.
--- AlignmentBarsDropdown         Table used for horizontal alignment dropdown.
+-- AlignBarsDropdown             Table used for horizontal alignment dropdown.
+-- AlignmentTypeDropdown         Table used to pick vertical or horizontal alignment.
+-- BarFillDirectionDropdown      Table used to pick if the bar should fill vertical or horizontal.
+-- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -------------------------------------------------------------------------------
 
 -- Addon Constants
@@ -88,6 +92,15 @@ local RuneBarSizeMin = 10
 local RuneBarSizeMax = 100
 local RuneBarPaddingMin = -10
 local RuneBarPaddingMax = 50
+local RuneBarWidthMin = 10
+local RuneBarWidthMax = 200
+local RuneBarHeightMin = 10
+local RuneBarHeightMax = 200
+local RuneOffsetXMin = -50
+local RuneOffsetXMax = 50
+local RuneOffsetYMin = -50
+local RuneOffsetYMax = 50
+
 
 local ComboBarPaddingMin = -10
 local ComboBarPaddingMax = 50
@@ -142,7 +155,7 @@ local FontHAlignDropdown = {
   RIGHT = 'Right'
 }
 
-local FontPositionDropdown = {
+local PositionDropdown = {
   LEFT = 'Left',
   RIGHT = 'Right',
   TOP = 'Top',
@@ -229,6 +242,11 @@ local BarFillDirectionDropdown = {
   VERTICAL = 'Vertical'
 }
 
+local RuneModeDropdown = {
+  rune = 'Runes',
+  cooldownbar = 'Cooldown Bars',
+  runecooldownbar = 'Cooldown Bars and Runes'
+}
 --*****************************************************************************
 --
 -- Options creation/setting
@@ -381,7 +399,7 @@ end --]]
 --
 -- BarType       Type of options being created.
 -- Object        Can be 'bg', 'bar', or 'text'
--- MaxColors     Maximum number of colors can be 5 or 6.
+-- MaxColors     Maximum number of colors can be 3, 5, 6 or 8.
 -- Order         Order number.
 -- Name          Name text
 --
@@ -533,6 +551,32 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         hasAlpha = true,
         arg = {6},
       },
+      Color7 = {
+        type = 'color',
+        name = function()
+                 return ColorAllNames[7]
+               end,
+        order = 9,
+        hasAlpha = true,
+        hidden = function()
+                   return MaxColors < 7 or UnitBars[BarType][UnitBarTable].ColorAll
+                 end,
+        hasAlpha = true,
+        arg = {7},
+      },
+      Color8 = {
+        type = 'color',
+        name = function()
+                 return ColorAllNames[8]
+               end,
+        order = 10,
+        hasAlpha = true,
+        hidden = function()
+                   return MaxColors < 8 or UnitBars[BarType][UnitBarTable].ColorAll
+                 end,
+        hasAlpha = true,
+        arg = {8},
+      },
     },
   }
   return ColorAllOptions
@@ -558,6 +602,9 @@ local function CreateBackgroundOptions(BarType, Order, Name)
     type = 'group',
     name = Name,
     order = Order,
+    hidden = function()
+               return BarType == 'RuneBar' and UnitBars[BarType].General.RuneMode == 'rune'
+             end,
     args = {
       Textures = {
         type = 'group',
@@ -682,10 +729,13 @@ local function CreateBackgroundOptions(BarType, Order, Name)
   }
 
   -- Add color all options.
-  if BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
     local MaxColors = 5
     if BarType == 'HolyBar' or BarType == 'ShardBar' then
       MaxColors = 3
+    elseif BarType == 'RuneBar' then
+      BackgroundOptions.args.Textures.args.BgColor = nil
+      MaxColors = 8
     end
     BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'bg', MaxColors, 2, 'Colors')
   end
@@ -989,7 +1039,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
             name = 'Position',
             order = 6,
             style = 'dropdown',
-            values = FontPositionDropdown,
+            values = PositionDropdown,
           },
           TextColor = {
             type = 'color',
@@ -1054,7 +1104,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
  if BarType == 'RuneBar' then
     TextOptions.args.TextType = nil
     TextOptions.args.Font.args.TextColor = nil
-    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 6, 2, 'Colors')
+    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 8, 2, 'Colors')
   end
 
   return TextOptions
@@ -1394,7 +1444,8 @@ local function CreateBarOptions(BarType, Order, Name)
     name = Name,
     order = Order,
     hidden = function()
-               return ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and not UnitBars[BarType].General.BoxMode
+               return BarType == 'RuneBar' and UnitBars[BarType].General.RuneMode == 'rune' or
+                      ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and not UnitBars[BarType].General.BoxMode
              end,
     args = {
       General = {
@@ -1409,7 +1460,7 @@ local function CreateBarOptions(BarType, Order, Name)
                 UnitBars[BarType].Bar[Info[#Info]] = Value
 
                 -- Update combobar, holybar, or shardbar layout.
-                if BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+                if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
                   UnitBarsF[BarType]:SetLayout()
                 else
                   UnitBarsF[BarType]:SetAttr('bar', Info.arg[1])
@@ -1501,10 +1552,36 @@ local function CreateBarOptions(BarType, Order, Name)
             step = 1,
             arg = {'size'},
           },
+          RuneWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 4,
+            hidden = function()
+                       return BarType ~= 'RuneBar'
+                     end,
+            desc = 'Changes the width of all the boxes',
+            min = RuneBarWidthMin,
+            max = RuneBarWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          RuneHeight = {
+            type = 'range',
+            name = 'Height',
+            order = 5,
+            hidden = function()
+                       return BarType ~= 'RuneBar'
+                     end,
+            desc = 'Changes the height of all the boxes',
+            min = RuneBarHeightMin,
+            max = RuneBarHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
           BarColor = {
             type = 'color',
             name = 'Color',
-            order = 4,
+            order = 6,
             hasAlpha = true,
             get = function()
                     local c = UnitBars[BarType].Bar.Color
@@ -1595,13 +1672,15 @@ local function CreateBarOptions(BarType, Order, Name)
   end
 
   -- Add bar color options if its a combobar or shardbar. And remove HapWidth and HapHeight options.
-  if BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
     BarOptions.args.General.args.BarColor = nil
     BarOptions.args.General.args.HapWidth = nil
     BarOptions.args.General.args.HapHeight = nil
     local MaxColors = 5
     if BarType == 'HolyBar' or BarType == 'ShardBar' then
       MaxColors = 3
+    elseif BarType == 'RuneBar' then
+      MaxColors = 8
     end
     BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
   end
@@ -1639,34 +1718,48 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             UnitBarsF.RuneBar:SetLayout()
           end,
     args = {
+      RuneMode  = {
+        type = 'select',
+        name = 'Rune Mode',
+        order = 1,
+        desc = 'Select the way runes are shown',
+        values = RuneModeDropdown,
+        style = 'dropdown',
+      },
       BarMode = {
         type = 'toggle',
         name = 'Bar Mode',
-        order = 1,
+        order = 2,
         desc = "If checked the runes can't be moved anywhere on the screen",
       },
       RuneSwap = {
         type = 'toggle',
         name = 'Swap Runes',
-        order = 2,
+        order = 3,
         desc = 'Runes can be swapped by dragging a rune on another rune',
       },
       CooldownText = {
         type = 'toggle',
         name = 'Cooldown Text',
-        order = 3,
+        order = 4,
         desc = 'Show cooldown text',
       },
       CooldownAnimation = {
         type = 'toggle',
         name = 'Cooldown Animation',
-        order = 4,
+        order = 5,
+        hidden = function()
+                   return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
+                 end,
         desc = 'Shows the cooldown animation',
       },
       HideCooldownFlash = {
         type = 'toggle',
         name = 'Hide Flash',
-        order = 5,
+        order = 6,
+        hidden = function()
+                   return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
+                 end,
         disabled = function()
                      return not UnitBars[BarType].General.CooldownAnimation
                    end,
@@ -1675,16 +1768,28 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       CooldownDrawEdge = {
         type = 'toggle',
         name = 'Draw Edge',
-        order = 6,
+        order = 7,
+        hidden = function()
+                   return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
+                 end,
         disabled = function()
                      return not UnitBars[BarType].General.CooldownAnimation
                    end,
         desc = 'Shows a line on the cooldown animation',
       },
+      CooldownBarDrawEdge = {
+        type = 'toggle',
+        name = 'Bar Draw Edge',
+        order = 8,
+        hidden = function()
+                   return BarType == 'RuneBar' and UnitBars[BarType].General.RuneMode == 'rune'
+                 end,
+        desc = 'Shows a line on the cooldown bar animation',
+      },
       BarModeAngle = {
         type = 'range',
         name = 'Rune Rotation',
-        order = 7,
+        order = 9,
         desc = 'Rotates the rune bar',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -1696,7 +1801,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       RunePadding = {
         type = 'range',
         name = 'Rune Padding',
-        order = 6,
+        order = 10,
         desc = 'Set the Amount of space between each rune',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -1708,11 +1813,48 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       RuneSize = {
         type = 'range',
         name = 'Rune Size',
-        order = 7,
+        order = 11,
+        hidden = function()
+                   return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
+                 end,
         desc = 'Change the size of all the runes',
         min = RuneBarSizeMin,
         max = RuneBarSizeMax,
         step = 1,
+      },
+      RuneLocation = {
+        type = 'group',
+        name = 'Rune Location',
+        dialogInline = true,
+        order = 100,
+        hidden = function()
+                   return UnitBars[BarType].General.RuneMode ~= 'runecooldownbar'
+                 end,
+        args = {
+          RuneOffsetX = {
+            type = 'range',
+            name = 'Horizontal Offset',
+            order = 1,
+            min = RuneOffsetXMin,
+            max = RuneOffsetYMax,
+            step = 1,
+          },
+          RuneOffsetY = {
+            type = 'range',
+            name = 'Vertical Offset',
+            order = 2,
+            min = RuneOffsetYMin,
+            max = RuneOffsetYMax,
+            step = 1,
+          },
+          RunePosition = {
+            type = 'select',
+            name = 'Rune Position',
+            order = 3,
+            values = PositionDropdown,
+            style = 'dropdown',
+          },
+        },
       },
     },
   }
@@ -2119,15 +2261,10 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   local UBO = UnitBarOptions.args
 
   -- Add background options
-  if BarType ~= 'RuneBar' then
-    UBO.Background = CreateBackgroundOptions(BarType, 1000, 'Background')
-  end
+  UBO.Background = CreateBackgroundOptions(BarType, 1000, 'Background')
 
   -- Add bar options
-  if BarType ~= 'RuneBar' then
-    UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
-  end
-
+  UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
 
   -- Add runebar options
   if BarType == 'RuneBar' then
@@ -2287,8 +2424,7 @@ local function CreateCopySettingsOptions(Order, Name)
             name = 'Background',
             order = 5,
             hidden = function(Info)
-                       local Value = CopySettings.All or
-                               CopySettingsFrom == 'RuneBar' or CopySettingsTo == 'RuneBar'
+                       local Value = CopySettings.All
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2299,8 +2435,7 @@ local function CreateCopySettingsOptions(Order, Name)
             name = 'Bar',
             order = 6,
             hidden = function(Info)
-                       local Value = CopySettings.All or
-                               CopySettingsFrom == 'RuneBar' or CopySettingsTo == 'RuneBar'
+                       local Value = CopySettings.All
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
