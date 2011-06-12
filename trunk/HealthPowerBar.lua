@@ -521,6 +521,7 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     local PredictedBorder = self.PredictedBorder
 
     local BgColor = UB.Background.Color
+    local BdColor = UB.Background.BorderColor
 
     if Attr == nil or Attr == 'backdrop' then
       PredictedBorder:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))

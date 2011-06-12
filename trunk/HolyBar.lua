@@ -80,7 +80,7 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- Powertype constants
 local PowerHoly = PowerTypeToNumber['HOLY_POWER']
 
-local HolyPowerTexture = 'Interface\\PlayerFrame\\PaladinPowerTextures'
+local HolyPowerTexture = [[Interface\PlayerFrame\PaladinPowerTextures]]
 local HolyRunes = {
   DarkColor = {r = 0.15, g = 0.15, b = 0.15, a = 1},
   [1] = {
@@ -599,7 +599,7 @@ function GUB.HolyBar:SetLayoutHoly()
       HolyRuneDarkFrame:SetAllPoints(HRF)
 
       -- Calculate the border width.
-      if XOffset == 0  and BorderWidth < Width then
+      if XOffset == 0 and BorderWidth < Width then
         BorderWidth = Width
       end
 
