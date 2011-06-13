@@ -2228,25 +2228,55 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             step = 0.01,
             isPercent  = true,
           },
-          Reset = {
-            type = 'execute',
-            name = 'Reset to Defaults',
+          Resets = {
+            type = 'group',
+            name = 'Reset',
+            dialogInline = true,
             order = 2,
-            desc = 'Resets back to the defaults for this bar without changing its location',
-            confirm = true,
-            func = function()
+            args = {
+              Reset = {
+                type = 'execute',
+                name = 'Defaults',
+                order = 2,
+                desc = 'Resets back to the defaults for this bar without changing its location',
+                confirm = true,
+                func = function()
 
-                     -- Preserve bar location
-                     local UB = UnitBars[BarType]
-                     local x, y =  UB.x, UB.y
+                         -- Preserve bar location
+                         local UB = UnitBars[BarType]
+                         local x, y =  UB.x, UB.y
 
-                     GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
+                         GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
 
-                     UB.x, UB.y = x, y
+                         UB.x, UB.y = x, y
 
-                     -- Update the layout.
-                     UnitBarsF[BarType]:SetLayout()
-                   end,
+                         -- Update the layout.
+                         UnitBarsF[BarType]:SetLayout()
+                       end,
+              },
+              ResetPosition = {
+                type = 'execute',
+                name = 'Location',
+                order = 3,
+                desc = "Sets the bar to its default location",
+                confirm = true,
+                func = function()
+
+                         -- Get the anchor and default bar location.
+                         local Anchor = UnitBarsF[BarType].Anchor
+                         local UBd = Defaults.profile[BarType]
+                         local UB = UnitBars[BarType]
+                         local x, y = UBd.x, UBd.y
+
+                         -- Save the defalt location.
+                         UB.x, UB.y = x, y
+
+                         -- Set the bar location on screen.
+                         Anchor:ClearAllPoints()
+                         Anchor:SetPoint('TOPLEFT' , x, y)
+                       end,
+              },
+            },
           },
         },
       },

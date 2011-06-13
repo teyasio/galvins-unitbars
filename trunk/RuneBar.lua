@@ -87,9 +87,6 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- CooldownBarHighlightBackdrop
 --                          Backdrop for highlight when using cooldown bars.
 -- CooldownBarSparkTexture  Contains the spark texture to be used in cooldown bars.
-
--- SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0)  bottom to top
--- SetTexCoord(0, 1, 0, 1)              left to right
 -------------------------------------------------------------------------------
 local MouseOverDesc2 = 'Modifier + right mouse button to drag this rune'
 
@@ -559,11 +556,6 @@ end
 -------------------------------------------------------------------------------
 function GUB.RuneBar:EnableScreenClampRune(Enable)
   self.Border:SetClampedToScreen(Enable)
-  for _, RF in ipairs(self.RuneF) do
-
-    -- Prevent runes from being moved off screen.
-    RF:SetClampedToScreen(Enable)
-  end
 end
 
 -------------------------------------------------------------------------------
@@ -943,16 +935,27 @@ function GUB.RuneBar:SetLayoutRune()
   Border:ClearAllPoints()
   Border:SetPoint('TOPLEFT', 0, 0)
 
+  -- Calculate the offsets for the offset frame for when not in bar mode.
+  -- Also get the width/height for the border.
+  -- The border gets offsetted, but then we need to shift the offset frame in the opposite direction.
+  -- So the runes appear in the correct location on the screen.
   if not BarMode then
-    BorderWidth = 1
-    BorderHeight = 1
+    x, y, BorderWidth, BorderHeight = GUB.UnitBars:GetBorder(RuneLocation[1].x, RuneLocation[1].y, Width, Height,
+                                                             RuneLocation[2].x, RuneLocation[2].y, Width, Height,
+                                                             RuneLocation[3].x, RuneLocation[3].y, Width, Height,
+                                                             RuneLocation[4].x, RuneLocation[4].y, Width, Height,
+                                                             RuneLocation[5].x, RuneLocation[5].y, Width, Height,
+                                                             RuneLocation[6].x, RuneLocation[6].y, Width, Height)
+    OffsetFX = -x
+    OffsetFY = -y
+    Border:SetPoint('TOPLEFT', x, y)
   end
 
   -- Set the size of the border.
   Border:SetWidth(BorderWidth)
   Border:SetHeight(BorderHeight)
 
-  -- Set the x, y location off the offset frame.
+  -- Set the offsets to the offset frame.
   local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
   OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
