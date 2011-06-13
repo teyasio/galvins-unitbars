@@ -259,6 +259,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     RuneSwap           If true runes can be dragged and drop to swap positions. Otherwise
 --                        nothing happens when a rune is dropped on another rune.
 --     CooldownDrawEdge   If true a line is drawn on the clock face cooldown animation.
+--     CooldownBarDrawEdge
+--                        If true a line is draw on the cooldown bar edge animation.
 --     CooldownAnimation  If true cooldown animation is shown otherwise false.
 --     CooldownText       If true then cooldown text gets displayed otherwise false.
 
@@ -1155,15 +1157,15 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
-          r = 0, g = 0, b = 0, a = 1,                               -- All runes
-          [1] = {r = 1 - 0.6, g = 0,           b = 0,       a = 1},       -- Blood
-          [2] = {r = 1 - 0.6, g = 0,           b = 0,       a = 1},       -- Blood
-          [3] = {r = 0,       g = 1     - 0.6, b = 0,       a = 1},       -- Unholy
-          [4] = {r = 0,       g = 1     - 0.6, b = 0,       a = 1},       -- Unholy
-          [5] = {r = 0,       g = 0.427 - 0.6, b = 1 - 0.6, a = 1},       -- Frost
-          [6] = {r = 0,       g = 0.427 - 0.6, b = 1 - 0.6, a = 1},       -- Frost
-          [7] = {r = 1 - 0.6, g = 0,           b = 1 - 0.6, a = 1},       -- Death
-          [8] = {r = 1 - 0.6, g = 0,           b = 1 - 0.6, a = 1},       -- Death
+          r = 0, g = 0, b = 0, a = 1,                                     -- All runes
+          [1] = {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- Blood
+          [2] = {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- Blood
+          [3] = {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- Unholy
+          [4] = {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- Unholy
+          [5] = {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- Frost
+          [6] = {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- Frost
+          [7] = {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- Death
+          [8] = {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- Death
         },
       },
       Bar = {
@@ -1180,8 +1182,8 @@ local Defaults = {
           [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
           [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
           [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-          [5] = {r = 0, g = 0.427, b = 1, a = 1},   -- Frost
-          [6] = {r = 0, g = 0.427, b = 1, a = 1},   -- Frost
+          [5] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
+          [6] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
           [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
           [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
         },
@@ -1494,7 +1496,7 @@ local function UnregisterEvents()
     GUB:UnregisterEvent('UNIT_MAXHEALTH')
     GUB:UnregisterEvent('UNIT_POWER')
     GUB:UnregisterEvent('UNIT_MAXPOWER')
-    GUB:UnregisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdate')
+    GUB:UnregisterEvent('UNIT_HEAL_PREDICTION')
   end
   GUB:UnregisterEvent('UNIT_COMBO_POINTS')
 end
@@ -1703,7 +1705,7 @@ end
 --
 -- Usage: SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, Width, Height)
 --
--- StatusBar     StatusBar you want the EdgeFrame to be displayed on.
+-- StatusBar     Statusbar containing the cooldownbar timer.
 -- EdgeFrame     Frame containing objects to be displayed.
 -- FillDirection 'HORIZONTAL' left to right, 'VERTICAL' bottom to top.
 -- Width         Width set to EdgeFrame
