@@ -414,6 +414,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -429,6 +430,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
         PredictedBarTexture = StatusBarTexture,
@@ -496,6 +498,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -511,6 +514,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
       },
@@ -574,6 +578,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -589,6 +594,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
         PredictedBarTexture = StatusBarTexture,
@@ -656,6 +662,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -671,6 +678,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
       },
@@ -734,6 +742,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -749,6 +758,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
         PredictedBarTexture = StatusBarTexture,
@@ -816,6 +826,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -831,6 +842,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
       },
@@ -894,6 +906,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -909,6 +922,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
         PredictedBarTexture = StatusBarTexture,
@@ -975,6 +989,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -990,6 +1005,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
       },
@@ -1053,6 +1069,7 @@ local Defaults = {
         Scale = 1,
       },
       Background = {
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -1068,6 +1085,7 @@ local Defaults = {
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = StatusBarTexture,
       },
@@ -1148,6 +1166,7 @@ local Defaults = {
       },
       Background = {
         ColorAll = false,
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -1174,6 +1193,7 @@ local Defaults = {
         RuneHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
@@ -1246,6 +1266,7 @@ local Defaults = {
       },
       Background = {
         ColorAll = false,
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -1269,6 +1290,7 @@ local Defaults = {
         BoxHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
@@ -1307,6 +1329,7 @@ local Defaults = {
       },
       Background = {
         ColorAll = false,
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -1326,6 +1349,7 @@ local Defaults = {
         BoxHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
@@ -1362,6 +1386,7 @@ local Defaults = {
       },
       Background = {
         ColorAll = false,
+        PaddingAll = true,
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
@@ -1381,6 +1406,7 @@ local Defaults = {
         BoxHeight = 25,
         FillDirection = 'HORIZONTAL',
         RotateTexture = false,
+        PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {

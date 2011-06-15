@@ -684,44 +684,100 @@ local function CreateBackgroundOptions(BarType, Order, Name)
         dialogInline = true,
         order = 3,
         get = function(Info)
-                return UnitBars[BarType].Background.BackdropSettings.Padding[Info[#Info]]
+                local Padding = UnitBars[BarType].Background.BackdropSettings.Padding
+                if Info[#Info] == 'All' then
+                  return Padding.Left
+                else
+                  return Padding[Info[#Info]]
+                end
               end,
         set = function(Info, Value)
-                UnitBars[BarType].Background.BackdropSettings.Padding[Info[#Info]] = Value
+                local Padding = UnitBars[BarType].Background.BackdropSettings.Padding
+                if Info[#Info] == 'All' then
+                  Padding.Left = Value
+                  Padding.Right = Value
+                  Padding.Top = Value
+                  Padding.Bottom = Value
+                else
+                  Padding[Info[#Info]] = Value
+                end
                 UnitBarsF[BarType]:SetAttr('bg', 'backdrop')
               end,
         args = {
-          Left = {
-          type = 'range',
-            name = 'Left',
+          PaddingAll = {
+            type = 'toggle',
+            name = 'All',
             order = 1,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
+            get = function()
+                    return UnitBars[BarType].Background.PaddingAll
+                  end,
+            set = function(Info, Value)
+                    UnitBars[BarType].Background.PaddingAll = Value
+                  end,
+            desc = 'Change padding with one value'
           },
-          Right = {
-            type = 'range',
-            name = 'Right',
+          Values = {
+            type = 'group',
+            name = 'Setting',
+            dialogInline = true,
             order = 2,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
-          },
-          Top = {
-            type = 'range',
-            name = 'Top',
-            order = 3,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
-          },
-          Bottom = {
-            type = 'range',
-            name = 'Bottom',
-            order = 4,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
+            args = {
+              All = {
+                type = 'range',
+                name = 'Offset',
+                order = 1,
+                hidden = function()
+                           return not UnitBars[BarType].Background.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Left = {
+                type = 'range',
+                name = 'Left',
+                order = 2,
+                hidden = function()
+                           return UnitBars[BarType].Background.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Right = {
+                type = 'range',
+                name = 'Right',
+                order = 3,
+                hidden = function()
+                           return UnitBars[BarType].Background.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Top = {
+                type = 'range',
+                name = 'Top',
+                order = 4,
+                hidden = function()
+                           return UnitBars[BarType].Background.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Bottom = {
+                type = 'range',
+                name = 'Bottom',
+                order = 5,
+                hidden = function()
+                           return UnitBars[BarType].Background.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+            },
           },
         },
       },
@@ -1601,44 +1657,100 @@ local function CreateBarOptions(BarType, Order, Name)
         dialogInline = true,
         order = 4,
         get = function(Info)
-                return UnitBars[BarType].Bar.Padding[Info[#Info]]
+                local Padding = UnitBars[BarType].Bar.Padding
+                if Info[#Info] == 'All' then
+                  return Padding.Left
+                else
+                  return Padding[Info[#Info]]
+                end
               end,
         set = function(Info, Value)
-                UnitBars[BarType].Bar.Padding[Info[#Info]] = Value
+                local Padding = UnitBars[BarType].Bar.Padding
+                if Info[#Info] == 'All' then
+                  Padding.Left = Value
+                  Padding.Right = -Value
+                  Padding.Top = -Value
+                  Padding.Bottom = Value
+                else
+                  Padding[Info[#Info]] = Value
+                end
                 UnitBarsF[BarType]:SetAttr('bar', 'padding')
               end,
         args = {
-          Left = {
-            type = 'range',
-            name = 'Left',
+          PaddingAll = {
+            type = 'toggle',
+            name = 'All',
             order = 1,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
+            get = function()
+                    return UnitBars[BarType].Bar.PaddingAll
+                  end,
+            set = function(Info, Value)
+                    UnitBars[BarType].Bar.PaddingAll = Value
+                  end,
+           desc = 'Change padding with one value'
           },
-          Right = {
-            type = 'range',
-            name = 'Right',
+          Values = {
+            type = 'group',
+            name = 'Setting',
+            dialogInline = true,
             order = 2,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
-          },
-          Top = {
-            type = 'range',
-            name = 'Top',
-            order = 3,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
-          },
-          Bottom = {
-            type = 'range',
-            name = 'Bottom',
-            order = 4,
-            min = UnitBarPaddingMin,
-            max = UnitBarPaddingMax,
-            step = 1,
+            args = {
+              All = {
+                type = 'range',
+                name = 'Offset',
+                order = 1,
+                hidden = function()
+                           return not UnitBars[BarType].Bar.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Left = {
+                type = 'range',
+                name = 'Left',
+                order = 2,
+                hidden = function()
+                           return UnitBars[BarType].Bar.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Right = {
+                type = 'range',
+                name = 'Right',
+                order = 3,
+                hidden = function()
+                           return UnitBars[BarType].Bar.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Top = {
+                type = 'range',
+                name = 'Top',
+                order = 4,
+                hidden = function()
+                           return UnitBars[BarType].Bar.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+              Bottom = {
+                type = 'range',
+                name = 'Bottom',
+                order = 5,
+                hidden = function()
+                           return UnitBars[BarType].Bar.PaddingAll
+                         end,
+                min = UnitBarPaddingMin,
+                max = UnitBarPaddingMax,
+                step = 1,
+              },
+            },
           },
         },
       },
@@ -1853,6 +1965,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             order = 3,
             values = PositionDropdown,
             style = 'dropdown',
+            desc = 'Position of the rune around the cooldown bar'
           },
         },
       },
@@ -2238,7 +2351,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                 type = 'execute',
                 name = 'Defaults',
                 order = 2,
-                desc = 'Resets back to the defaults for this bar without changing its location',
+                desc = "Sets the bar to its default values. Location doesn't get changed",
                 confirm = true,
                 func = function()
 
