@@ -1,8 +1,8 @@
 ## Interface: 40100
 ## Title: Galvin's UnitBars
-## Notes: Displays health, power, rune, combo, and holy bars that can be moved around.
+## Notes: Displays health, power, rune, combo, holy, and shard bars that can be moved around.
 ## Author: Galvin
-## Version: 73
+## Version: 75
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB
 
