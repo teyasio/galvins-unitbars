@@ -18,16 +18,16 @@ local MouseOverDesc = GUB.UnitBars.MouseOverDesc
 
 -- localize some globals.
 local _
-local pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select
+local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
+      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -168,7 +168,6 @@ local function GetRuneName(RuneF)
   return ('%s %s'):format(RuneName, RuneNumber)
 end
 
--------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 -- SwapRunes
 --
@@ -465,7 +464,7 @@ end
 --
 -- Event                    Rune type event.  If this is not a rune event
 --                          function does nothing.
--- ...        RuneId        RuneId from 1 to 8. 7 and 8 are not used.
+-- ...        RuneId        RuneId from 1 to 8.
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function GUB.RuneBar:UpdateRuneBar(Event, ...)
@@ -483,7 +482,7 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
   if RuneF then
     if EventType == 'runetype' then
 
-      -- Flip between blood and death rune textures.
+      -- Flip between default and death rune textures.
       RefreshRune(RuneF)
 
       -- Update the bar color for blood/death runes for cooldownbar mode.
