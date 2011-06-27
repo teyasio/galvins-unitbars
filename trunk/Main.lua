@@ -23,23 +23,22 @@ GUB.UnitBars = {}
 
 -- localize some globals.
 local _
-local pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select
+local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
+      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
 ------------------------------------------------------------------------------
 LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar.tga]])
 LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar.tga]])
-
 ------------------------------------------------------------------------------
 -- Locals
 --
@@ -204,7 +203,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- UnitBars health and power fields
 --   Background
---     BackdropSettings     Contains the settings for the background, forground, and padding.
+--     PaddingAll           If true then padding can be set with one value other four.
+--     BackdropSettings     Contains the settings for the background, background, and padding.
 --     Color                Current color of the background texture of the border frame.
 --   Bar
 --     ClassColor           (Target and Focus Health bars only) If true then the health bar uses the
@@ -214,6 +214,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     FillDirection        Direction to the fill the bar in 'HORIZONTAL' or 'VERTICAL'.
 --     RotateTexture        If true then the bar texture will be rotated 90 degree counter-clockwise
 --                          If false no rotation takes place.
+--     PaddingAll           If true then padding can be set with one value otherwise four.
 --     Padding              The amount of pixels to be added or subtracted from the bar texture.
 --     StatusBarTexture     Texture for the bar its self.
 --     PredictedBarTexture  Used for Player, Target, Focus.  Texture used for the predicted health.
@@ -270,7 +271,24 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     RunePosition       Position of the rune attached to Cooldownbar.  In runecooldownbar mode.
 --     RuneOffsetX        Offset X from RunePosition.
 --     RuneOffsetY        Offset Y from RunePosition.
---
+--   Background           Only used for cooldown bars.
+--     ColorAll           If true then all cooldown bars use the same color.
+--     PaddingAll         If true then padding can be set with one value otherwise four.
+--     BackdropSettings   Contains the settings for background, border, and padding for each cooldown bar.
+--                        This is used for cooldown bars only.
+--     Color              Color used for all the cooldown bars when ColorAll is true
+--     Color[1 to 8]      Colors used for each cooldown bar when ColorAll if false.
+--   Bar                  Only used for cooldown bars.
+--     ColorAll           If true then all cooldown bars use the same color.
+--     RuneWidth          Width of the cooldown bar.
+--     RuneHeightt        Height of the cooldown bar.
+--     FillDirection      Changes the fill direction. 'VERTICAL' or 'HORIZONTAL'.
+--     RotateTexture      If true then the bar texture will be rotated 90 degree counter-clockwise
+--                        If false no rotation takes place.
+--     PaddingAll         If true then padding can be set with one value otherwise four.
+--     Padding            The amount of pixels to be added or subtracted from the bar texture.
+--     StatusBarTexture   Texture for the cooldown bar.
+--     Color              Current color of the cooldown bar.
 --   Text
 --     ColorAll           If true then all the combo boxes are set to one color.
 --                        if false then each combo box can be set a different color.
@@ -285,18 +303,24 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   General
 --     ComboPadding       The amount of space in pixels between each combo point box.
 --     ComboAngle         Angle in degrees in which way the bar will be displayed.
+--     ComboFadeOutTime   Time in seconds for a combo point to go invisible.
 --   Background
 --     ColorAll           If true then all the combo boxes are set to one color.
 --                        if false then each combo box can be set a different color.
---     BackdropSettings   Contains the settings for background, forground, and padding for each combo point box.
+--     PaddingAll         If true then padding can be set with one value otherwise four.
+--     BackdropSettings   Contains the settings for background, border, and padding for each combo point box.
 --     Color              Contains just one background color for all the combo point boxes.
 --                        Only works when ColorAll is true.
 --     Color[1 to 5]      Contains the background colors of all the combo point boxes.
 --   Bar
 --     ColorAll           If true then all the combo boxes are set to one color.
 --                        if false then each combo box can be set a different color.
---     ComboWidth         The width of each combo point box.
---     ComboHeight        The height of each combo point box.
+--     BoxWidth           The width of each combo point box.
+--     BoxHeight          The height of each combo point box.
+--     FillDirection      Currently not used.
+--     RotateTexture      If true then the bar texture will be rotated 90 degree counter-clockwise
+--                        If false no rotation takes place.
+--     PaddingAll         If true then padding can be set with one value otherwise four.
 --     Padding            Amount of padding on the forground of each combo point box.
 --     StatusbarTexture   Texture used for the forground of each combo point box.
 --     Color              Contains just one bar color for all the combo point boxes.
@@ -315,7 +339,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     ColorAll           If true then all the holy rune boxes are set to one color.
 --                        if false then each holy rune box can be set a different color.
 --                        Only works in box mode.
---     BackdropSettings   Contains the settings for background, forground, and padding for each holy rune box.
+--     PaddingAll         If true then padding can be set with one value otherwise four.
+--     BackdropSettings   Contains the settings for background, border, and padding for each holy rune box.
 --                        When in box mode each holy box uses this setting.
 --     Color              Contains just one background color for all the holy rune boxes.
 --                        Only works when ColorAll is true.
@@ -324,15 +349,59 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     ColorAll           If true then all the holy rune boxes are set to one color.
 --                        if false then each holy rune box can be set a different color.
 --                        Only works in box mode.
---     HolyWidth          Width of each holy rune box.
---     HolyHeight         Height of each holy rune box.
+--     BoxWidth           Width of each holy rune box.
+--     BoxHeight          Height of each holy rune box.
+--     PaddingAll         If true then padding can be set with one value otherwise four.
 --     Padding            Amount of padding on the forground of each holy rune box.
 --     StatusbarTexture   Texture used for the forground of each holy rune box.
 --     Color              Contains just one bar color for all the holy rune boxes.
 --                        Only works when ComboColorAll is true.
 --     Color[1 to 3]      Contains the bar colors of all the holy rune boxes.
 --
---  Shardbar fields       Same as Holybar fields just uses shards instead.
+-- Shardbar fields        Same as Holybar fields just uses shards instead.
+--
+-- Eclipsebar fields
+--   General
+--     SliderInside       If true the slider is kept inside the bar is slides on.
+--                        Otherwise the slider box will appear a little out side when it reaches edges of the bar.
+--     BarHalfLit         Only half of the bar is lit based on the direction the slider is going in.
+--     Text               If true then eclipse power text will be shown.
+--     EclipseAngle       Angle in degrees in which the bar will be displayed.
+--     SliderDirection    if 'HORIZONTAL' slider will move left to right and right to left.
+--                        if 'VERTICAL' slider will move top to bottom and bottom to top.
+--   Background
+--     Moon,Sun, Bar, and Slider
+--       PaddingAll       If true then padding can be set with one value otherwise four.
+--       BackdropSettings Contains the settings for background, border, and padding.
+--       Color            Contains the color.
+--   Bar
+--     All fields have the following:
+--       FillDirection    Currently not used.
+--       RotateTexture    If true then the bar texture will be rotated 90 degree counter-clockwise
+--                        If false no rotation takes place.
+--       PaddingAll       If true then padding can be set with one value otherwise four.
+--       Padding          Amount of padding for the forground of the sun and moon.
+--       StatusBarTexture Texture used for the forground.  Not used for the Bar field.
+--       Color            Contains the color of the StatusBarTexture. Not used for the Bar field.
+--     Sun and Moon
+--       Sun/MoonWidth    Width of the sun/moon.
+--       Sun/MoonHeight   Width of the sun/moon.
+--     Slider
+--       SunMoon          If true the slider uses the Sun and Moon color based on which direction it's going in.
+--       SliderWidth      Width of the slider.
+--       SliderHeight     Height of the slider.
+--     Bar
+--       BarWidth         Width of the bar.
+--       BarHeight        Height of the bar.
+--       StatusBarTextureLunar
+--                        Texture that fills up the solar half of the bar.
+--       StatusBarTextureSolar
+--                        Texture that fills up the lunar half of the bar.
+--       ColorLunar       Color of the StatusBarTextureLunar.
+--       ColorSolar       Color of the StatusBarTextureSolar.
+--   Text
+--     FontSettings       Contains the settings for the text.
+--     Color              Current color of the text for the bar.
 -------------------------------------------------------------------------------
 local InCombat = false
 local InVehicle = false
@@ -342,6 +411,7 @@ local HasFocus = false
 local HasPet = false
 local PlayerPowerType = nil
 local PlayerClass = nil
+local MoonkinForm = 31
 local Initialized = false
 
 local UnitBarInterval = 0.10 -- 10 times per second.
@@ -352,6 +422,7 @@ local CooldownBarTimeInterval = 0.04 -- 25 times per second.
 local UnitBarsParent = nil
 local UnitBars = nil
 local UnitBarsF = {}
+
 local BgTexture = 'Blizzard Tooltip'
 local BdTexture = 'Blizzard Tooltip'
 local StatusBarTexture = 'Blizzard'
@@ -1417,6 +1488,143 @@ local Defaults = {
         },
       },
     },
+-- EclipseBar
+    EclipseBar = {
+      Name = 'Eclipse Bar',
+      x = 0,
+      y = -250,
+      Status = {
+        ShowNever     = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = false,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        SliderInside = true,
+        BarHalfLit = false,
+        Text = false,
+        EclipseAngle = 90,
+        SliderDirection = 'HORIZONTAL',
+        SunOffsetX = 0,
+        SunOffsetY = 0,
+        MoonOffsetX = 0,
+        MoonOffsetY = 0,
+      },
+      Other = {
+        Scale = 1,
+      },
+      Background = {
+        Moon = {
+          PaddingAll = true,
+          BackdropSettings = {
+            BgTexture = BgTexture,
+            BdTexture = BdTexture,
+            BgTile = false,
+            BgTileSize = 16,
+            BdSize = 12,
+            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+          },
+          Color = {r = 0, g = 0, b = 0, a = 1},
+        },
+        Sun = {
+          PaddingAll = true,
+          BackdropSettings = {
+            BgTexture = BgTexture,
+            BdTexture = BdTexture,
+            BgTile = false,
+            BgTileSize = 16,
+            BdSize = 12,
+            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+          },
+          Color = {r = 0, g = 0, b = 0, a = 1},
+        },
+        Bar = {
+          PaddingAll = true,
+          BackdropSettings = {
+            BgTexture = BgTexture,
+            BdTexture = BdTexture,
+            BgTile = false,
+            BgTileSize = 16,
+            BdSize = 12,
+            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+          },
+          Color = {r = 0, g = 0, b = 0, a = 1},
+        },
+        Slider = {
+          PaddingAll = true,
+          BackdropSettings = {
+            BgTexture = BgTexture,
+            BdTexture = BdTexture,
+            BgTile = false,
+            BgTileSize = 16,
+            BdSize = 12,
+            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+          },
+          Color = {r = 0, g = 0, b = 0, a = 1},
+        },
+      },
+      Bar = {
+        Moon = {
+          MoonWidth = 25,
+          MoonHeight = 25,
+          FillDirection = 'HORIZONTAL',
+          RotateTexture = false,
+          PaddingAll = true,
+          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+          StatusBarTexture = GUBStatusBarTexture,
+          Color = {r = 0.847, g = 0.988, b = 0.972, a = 1},
+        },
+        Sun = {
+          SunWidth = 25,
+          SunHeight = 25,
+          FillDirection = 'HORIZONTAL',
+          RotateTexture = false,
+          PaddingAll = true,
+          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+          StatusBarTexture = GUBStatusBarTexture,
+          Color = {r = 0.96, g = 0.925, b = 0.113, a = 1},
+        },
+        Bar = {
+          BarWidth = 120,
+          BarHeight = 25,
+          FillDirection = 'HORIZONTAL',
+          RotateTexture = false,
+          PaddingAll = true,
+          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+          StatusBarTextureLunar = GUBStatusBarTexture,
+          StatusBarTextureSolar = GUBStatusBarTexture,
+          ColorLunar = {r = 0.364, g = 0.470, b = 0.627, a = 1}, -- moon
+          ColorSolar = {r = 0.631, g = 0.466, b = 0.184, a = 1}, -- sun
+        },
+        Slider = {
+          SunMoon = true,
+          SliderWidth = 20,
+          SliderHeight = 20,
+          FillDirection = 'HORIZONTAL',
+          RotateTexture = false,
+          PaddingAll = true,
+          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+          StatusBarTexture = GUBStatusBarTexture,
+          Color = {r = 0, g = 1, b = 0, a = 1},
+        },
+      },
+      Text = {
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'OUTLINE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1}
+      },
+    },
   },
 }
 
@@ -1435,10 +1643,11 @@ local PointCalc = {
       }
 
 local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
-local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6, SOUL_SHARDS = 7, HOLY_POWER = 9}
+local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3,
+                           RUNIC_POWER = 6, SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9}
 local CheckPowerType = {
   MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power', SOUL_SHARDS = 'shards',
-  HOLY_POWER = 'holy'
+  HOLY_POWER = 'holy', ECLIPSE = 'eclipse'
 }
 
 local ClassToPowerType = {
@@ -1450,7 +1659,7 @@ local CheckEvent = {
   UNIT_HEALTH = 'health', UNIT_MAXHEALTH = 'health', UNIT_HEAL_PREDICTION = 'health',
   UNIT_POWER = 'power', UNIT_MAXPOWER = 'power',
   RUNE_POWER_UPDATE = 'runepower', RUNE_TYPE_UPDATE = 'runetype',
-  UNIT_COMBO_POINTS = 'combo'
+  UNIT_COMBO_POINTS = 'combo', ECLIPSE_DIRECTION_CHANGE = 'eclipsedirection', UNIT_AURA = 'aura'
 }
 
 -- For older versions of WoW
@@ -1501,6 +1710,8 @@ local function RegisterEvents()
     GUB:RegisterEvent('UNIT_POWER', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_MAXPOWER', 'UnitBarsUpdate')
     GUB:RegisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdate')
+    GUB:RegisterEvent('ECLIPSE_DIRECTION_CHANGE', 'UnitBarsUpdate')
+    GUB:RegisterEvent('UNIT_AURA', 'UnitBarsUpdate')
   end
   GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
 end
@@ -1523,6 +1734,8 @@ local function UnregisterEvents()
     GUB:UnregisterEvent('UNIT_POWER')
     GUB:UnregisterEvent('UNIT_MAXPOWER')
     GUB:UnregisterEvent('UNIT_HEAL_PREDICTION')
+    GUB:UnregisterEvent('ECLIPSE_DIRECTION_CHANGE')
+    GUB:UnregisterEvent('UNIT_AURA')
   end
   GUB:UnregisterEvent('UNIT_COMBO_POINTS')
 end
@@ -1535,20 +1748,24 @@ local function RegisterOtherEvents()
   -- Register status events
   GUB:RegisterEvent('UNIT_ENTERED_VEHICLE', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('UNIT_EXITED_VEHICLE', 'UnitBarsUpdateStatus')
+  GUB:RegisterEvent('UNIT_DISPLAYPOWER', 'UnitBarsUpdateStatus')
+  GUB:RegisterEvent('UNIT_PET', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_REGEN_ENABLED', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_REGEN_DISABLED', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_TARGET_CHANGED', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_FOCUS_CHANGED', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('UNIT_DISPLAYPOWER', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_DEAD', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_UNGHOST', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_ALIVE', 'UnitBarsUpdateStatus')
   GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('UNIT_PET', 'UnitBarsUpdateStatus')
+  GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
+  GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
 
   -- Register rune power events
   GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdate')
   GUB:RegisterEvent('RUNE_TYPE_UPDATE', 'UnitBarsUpdate')
+
+  -- Register events for the eclipse bar
 end
 
 -------------------------------------------------------------------------------
@@ -1701,7 +1918,7 @@ local function CooldownBarOnUpdate(self, Elapsed)
 
           if not self.ShowEdgeFrame then
             self.EdgeFrame:Show()
-            self.EdgeShow = true
+            self.ShowEdgeFrame = true
           end
         end
 
@@ -1782,7 +1999,7 @@ function GUB.UnitBars:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable
   if Enable then
     StatusBar.StartTime = StartTime
     StatusBar.Duration = Duration
-    StatusBar.CooldownBarTime = CooldownBarTimeInterval
+    StatusBar.CooldownBarTime = -1
 
     StatusBar:SetMinMaxValues(0, Duration)
 
@@ -1887,8 +2104,8 @@ end
 function GUB.UnitBars:ConvertBackdrop(Bd)
   Backdrop.bgFile   = LSM:Fetch('background', Bd.BgTexture)
   Backdrop.edgeFile = LSM:Fetch('border', Bd.BdTexture)
-  Backdrop.tile = Bd.BdTile
-  Backdrop.tileSize = Bd.BdTileSize
+  Backdrop.tile = Bd.BgTile
+  Backdrop.tileSize = Bd.BgTileSize
   Backdrop.edgeSize = Bd.BdSize
   local Insets = Backdrop.insets
   local Padding = Bd.Padding
@@ -2105,7 +2322,6 @@ function GUB:UnitBarsUpdate(Event, ...)
       return
     end
   end
-
   UpdateUnitBars(Event, ...)
 end
 
@@ -2392,6 +2608,21 @@ local function StatusCheckMainPower(UnitBarF)
 end
 
 -------------------------------------------------------------------------------
+-- StatusCheckEclipse (StatusCheck) [UnitBar assigned function]
+--
+-- Disable/Enable the Eclipsebar.
+-------------------------------------------------------------------------------
+local function StatusCheckEclipse(UnitBarF)
+  if StatusCheckShowNever(UnitBarF) then
+    local Form = GetShapeshiftFormID()
+
+    -- Enable the Eclipse bar if the player is a druid, is in normal or moonkin form and is speced balance.
+    UnitBarF.Enabled = PlayerClass == 'DRUID' and (Form == MoonkinForm or not Form) and GetPrimaryTalentTree() == 1
+  end
+  StatusCheckShowHide(UnitBarF)
+end
+
+-------------------------------------------------------------------------------
 -- SetFunction
 --
 -- Sets a function to a list of bartypes in the function table.
@@ -2434,70 +2665,81 @@ local function UnitBarsAssignFunctions()
   local f = nil
   local DoNothing = function() return end
 
+  local UpdateHealthBar  = GUB.HapBar.UpdateHealthBar
+  local UpdatePowerBar   = GUB.HapBar.UpdatePowerBar
+  local UpdateRuneBar    = GUB.RuneBar.UpdateRuneBar
+  local UpdateComboBar   = GUB.ComboBar.UpdateComboBar
+  local UpdateHolyBar    = GUB.HolyBar.UpdateHolyBar
+  local UpdateShardBar   = GUB.ShardBar.UpdateShardBar
+  local UpdateEclipseBar = GUB.EclipseBar.UpdateEclipseBar
+
   Func.PlayerHealth[n] = function(self, Event, Unit)
                            if Unit == nil or Unit == 'player' then
-                             GUB.HapBar.UpdateHealthBar(self, Event, 'player')
+                             UpdateHealthBar(self, Event, 'player')
                            end
                          end
   Func.PlayerPower[n]  = function(self, Event, Unit, PowerType)
                            if Unit == nil or Unit == 'player' then
-                             GUB.HapBar.UpdatePowerBar(self, Event, 'player', true, PowerType)
+                             UpdatePowerBar(self, Event, 'player', true, PowerType)
                            end
                          end
   Func.TargetHealth[n] = function(self, Event, Unit)
                            if Unit == nil or Unit == 'target' then
-                             GUB.HapBar.UpdateHealthBar(self, Event, 'target')
+                             UpdateHealthBar(self, Event, 'target')
                            end
                          end
   Func.TargetPower[n]  = function(self, Event, Unit, PowerType)
                            if Unit == nil or Unit == 'target' then
-                             GUB.HapBar.UpdatePowerBar(self, Event, 'target', true, PowerType)
+                             UpdatePowerBar(self, Event, 'target', true, PowerType)
                            end
                          end
   Func.FocusHealth[n] = function(self, Event, Unit)
                            if Unit == nil or Unit == 'focus' then
-                             GUB.HapBar.UpdateHealthBar(self, Event, 'focus')
+                             UpdateHealthBar(self, Event, 'focus')
                            end
                          end
   Func.FocusPower[n]  = function(self, Event, Unit, PowerType)
                            if Unit == nil or Unit == 'focus' then
-                             GUB.HapBar.UpdatePowerBar(self, Event, 'focus', true, PowerType)
+                             UpdatePowerBar(self, Event, 'focus', true, PowerType)
                            end
                          end
   Func.PetHealth[n] = function(self, Event, Unit)
                            if Unit == nil or Unit == 'pet' then
-                             GUB.HapBar.UpdateHealthBar(self, Event, 'pet')
+                             UpdateHealthBar(self, Event, 'pet')
                            end
                          end
   Func.PetPower[n]  = function(self, Event, Unit, PowerType)
                            if Unit == nil or Unit == 'pet' then
-                             GUB.HapBar.UpdatePowerBar(self, Event, 'pet', true, PowerType)
+                             UpdatePowerBar(self, Event, 'pet', true, PowerType)
                            end
                          end
   Func.MainPower[n]    = function(self, Event, Unit)
                            if  Unit == nil or Unit == 'player' then
-                             GUB.HapBar.UpdatePowerBar(self, Event, 'player', false, 'MANA')
+                             UpdatePowerBar(self, Event, 'player', false, 'MANA')
                            end
                          end
   Func.RuneBar[n]      = function(self, Event, ...)
                            if Event ~= nil then
-                             GUB.RuneBar.UpdateRuneBar(self, Event, ...)
+                             UpdateRuneBar(self, Event, ...)
                            end
                          end
   Func.ComboBar[n]     = function(self, Event, Unit)
                            if Unit == nil or Unit == 'player' then
-                             GUB.ComboBar.UpdateComboBar(self, Event)
+                             UpdateComboBar(self, Event)
                            end
                          end
   Func.HolyBar[n]      = function(self, Event, Unit, PowerType)
                            if Unit == nil or Unit == 'player' then
-                             GUB.HolyBar.UpdateHolyBar(self, Event, PowerType)
+                             UpdateHolyBar(self, Event, PowerType)
                            end
                          end
   Func.ShardBar[n]     = function(self, Event, Unit, PowerType)
                            if Unit == nil or Unit == 'player' then
-                             GUB.ShardBar.UpdateShardBar(self, Event, PowerType)
+                             UpdateShardBar(self, Event, PowerType)
                            end
+                         end
+  Func.EclipseBar[n]   = function(self, Event, ...)
+                           UpdateEclipseBar(self, Event, ...)
                          end
 
   -- StatusCheck functions.
@@ -2511,6 +2753,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, StatusCheckTarget, 'TargetHealth', 'TargetPower', 'ComboBar')
   SetFunction(Func, n, StatusCheckFocus, 'FocusHealth', 'FocusPower')
   SetFunction(Func, n, StatusCheckPet, 'PetHealth', 'PetPower')
+  SetFunction(Func, n, StatusCheckEclipse, 'EclipseBar')
   Func.MainPower[n] = StatusCheckMainPower
 
   -- Enable mouse click functions.
@@ -2523,6 +2766,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.ComboBar.EnableMouseClicksCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableMouseClicksHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.EnableMouseClicksShard, 'ShardBar')
+  SetFunction(Func, n, GUB.EclipseBar.EnableMouseClicksEclipse, 'EclipseBar')
 
   -- Enable clamp to screen functions.
   n = 'EnableScreenClamp' -- UnitBarF[]:EnableScreenClamp(Enable)
@@ -2534,6 +2778,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.ComboBar.EnableScreenClampCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.EnableScreenClampHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.EnableScreenClampShard, 'ShardBar')
+  SetFunction(Func, n, GUB.EclipseBar.EnableScreenClampEclipse, 'EclipseBar')
 
   -- Set script functions.
   n = 'FrameSetScript'  -- UnitBarF[]:FrameSetScript(Enable)
@@ -2545,6 +2790,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.ComboBar.FrameSetScriptCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.FrameSetScriptHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.FrameSetScriptShard, 'ShardBar')
+  SetFunction(Func, n, GUB.EclipseBar.FrameSetScriptEclipse, 'EclipseBar')
 
   -- Set attribute functions.
   n = 'SetAttr' -- UnitBarF[]:SetAttr(Object, Attr)
@@ -2556,6 +2802,7 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.ComboBar.SetAttrCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.SetAttrHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.SetAttrShard, 'ShardBar')
+  SetFunction(Func, n, GUB.EclipseBar.SetAttrEclipse, 'EclipseBar')
 
   -- Set layout functions.
   n = 'SetLayout' -- UnitBarF[]:SetLayout()
@@ -2567,12 +2814,14 @@ local function UnitBarsAssignFunctions()
   SetFunction(Func, n, GUB.ComboBar.SetLayoutCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.SetLayoutHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.SetLayoutShard, 'ShardBar')
+  SetFunction(Func, n, GUB.EclipseBar.SetLayoutEclipse, 'EclipseBar')
 
   -- Set the cancel animation functions.
   n = 'CancelAnimation' -- UnitBarF[]:CancelAnimation()
 
   SetFunction(Func, n, DoNothing, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
-                                  'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower', 'RuneBar')
+                                  'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower',
+                                  'RuneBar', 'EclipseBar')
   SetFunction(Func, n, GUB.ComboBar.CancelAnimationCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.CancelAnimationHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.CancelAnimationShard, 'ShardBar')
@@ -2684,7 +2933,7 @@ local function SetUnitBarsLayout()
     UnitBarF.UnitBar = UB
     Anchor.UnitBar = UB
 
-    -- Set the layout.
+    -- Set the layout for the bar.
     UnitBarF:SetLayout()
 
     -- Set the IsActive flag to true.
@@ -2736,6 +2985,8 @@ local function CreateUnitBars(UnitBarDB)
         GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
       elseif BarType == 'ShardBar' then
         GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
+      elseif BarType == 'EclipseBar' then
+        GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
       else
         GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
       end

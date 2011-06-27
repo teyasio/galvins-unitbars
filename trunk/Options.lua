@@ -37,7 +37,7 @@ local HelpText = GUB.Help.HelpText
 -- UnitBarsSelectDropdown        Table used to pick from a list of unitbars.
 -- AlignBarsDropdown             Table used for horizontal alignment dropdown.
 -- AlignmentTypeDropdown         Table used to pick vertical or horizontal alignment.
--- BarFillDirectionDropdown      Table used to pick if the bar should fill vertical or horizontal.
+-- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -------------------------------------------------------------------------------
 
@@ -131,6 +131,34 @@ local ShardBarFadeOutMax = 5
 local ShardBarAngleMin = 45
 local ShardBarAngleMax = 360
 
+local EclipseMoonWidthMin = 10
+local EclipseMoonWidthMax = 50
+local EclipseMoonHeightMin = 10
+local EclipseMoonHeightMax = 50
+local EclipseSunWidthMin = 10
+local EclipseSunWidthMax = 50
+local EclipseSunHeightMin = 10
+local EclipseSunHeightMax = 50
+local EclipseBarWidthMin = 10
+local EclipseBarWidthMax = 200
+local EclipseBarHeightMin = 10
+local EclipseBarHeightMax = 200
+local EclipseSliderWidthMin = 10
+local EclipseSliderWidthMax = 50
+local EclipseSliderHeightMin = 10
+local EclipseSliderHeightMax = 50
+local EclipseAngleMin = 90
+local EclipseAngleMax = 360
+local EclipseSunOffsetXMin = -50
+local EclipseSunOffsetXMax = 50
+local EclipseSunOffsetYMin = -50
+local EclipseSunOffsetYMax = 50
+local EclipseMoonOffsetXMin = -50
+local EclipseMoonOffsetXMax = 50
+local EclipseMoonOffsetYMin = -50
+local EclipseMoonOffsetYMax = 50
+
+
 -- Size variables for combu, holy, and shard bars.
 local BoxBarWidthMin = 10
 local BoxBarWidthMax = 100
@@ -218,7 +246,8 @@ local UnitBarsSelectDropdown = {
   RuneBar = Defaults.profile.RuneBar.Name,
   ComboBar = Defaults.profile.ComboBar.Name,
   HolyBar = Defaults.profile.HolyBar.Name,
-  ShardBar = Defaults.profile.ShardBar.Name
+  ShardBar = Defaults.profile.ShardBar.Name,
+  EclipseBar = Defaults.profile.EclipseBar.Name
 }
 
 local AlignBarsDropdown = {
@@ -237,7 +266,7 @@ local AlignmentTypeDropdown = {
   horizontal = 'Horizontal Alignment'
 }
 
-local BarFillDirectionDropdown = {
+local DirectionDropdown = {
   HORIZONTAL = 'Horizontal',
   VERTICAL = 'Vertical'
 }
@@ -299,6 +328,28 @@ local function ListChecked(List, HiddenList)
     end
   end
   return Checked
+end
+
+-------------------------------------------------------------------------------
+-- GetTable
+--
+-- Returns a table depending on values passed.
+--
+-- Usage Table = GetTable(BarType, TableName, SubTableName)
+--
+-- BarType        Name of the bar.
+-- TableName      Table inside of UnitBars[BarType]
+-- SubTableName   Sub table inside of Unitbars[BarType][TableName]
+--                if SubTableName is nil then just UnitBars[BarType][TableName] is returned
+--
+-- Table          Table returned.
+-------------------------------------------------------------------------------
+local function GetTable(BarType, TableName, SubTableName)
+  if SubTableName then
+    return UnitBars[BarType][TableName][SubTableName]
+  else
+    return UnitBars[BarType][TableName]
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -408,6 +459,7 @@ end --]]
 local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
   local ColorAllNames = UnitBarsF[BarType].ColorAllNames
   local UnitBarTable = nil
+
   if Object == 'bg' then
     UnitBarTable = 'Background'
   elseif Object == 'bar' then
@@ -473,12 +525,18 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
                  end,
         arg = {0},
       },
+      Spacer = {
+        type = 'description',
+        name = '',
+        order = 3,
+        width = 'full',
+      },
       Color1 = {
         type = 'color',
         name = function()
                  return ColorAllNames[1]
                end,
-        order = 3,
+        order = 4,
         hasAlpha = true,
         hidden = function()
                    return UnitBars[BarType][UnitBarTable].ColorAll
@@ -491,7 +549,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[2]
                end,
-        order = 4,
+        order = 5,
         hasAlpha = true,
         hidden = function()
                    return UnitBars[BarType][UnitBarTable].ColorAll
@@ -504,7 +562,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[3]
                end,
-        order = 5,
+        order = 6,
         hasAlpha = true,
         hidden = function()
                    return UnitBars[BarType][UnitBarTable].ColorAll
@@ -517,7 +575,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[4]
                end,
-        order = 6,
+        order = 7,
         hasAlpha = true,
         hidden = function()
                    return MaxColors < 4 or UnitBars[BarType][UnitBarTable].ColorAll
@@ -530,7 +588,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[5]
                end,
-        order = 7,
+        order = 8,
         hasAlpha = true,
         hidden = function()
                    return MaxColors < 5 or UnitBars[BarType][UnitBarTable].ColorAll
@@ -543,7 +601,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[6]
                end,
-        order = 8,
+        order = 9,
         hasAlpha = true,
         hidden = function()
                    return MaxColors < 6 or UnitBars[BarType][UnitBarTable].ColorAll
@@ -556,7 +614,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[7]
                end,
-        order = 9,
+        order = 10,
         hasAlpha = true,
         hidden = function()
                    return MaxColors < 7 or UnitBars[BarType][UnitBarTable].ColorAll
@@ -569,7 +627,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         name = function()
                  return ColorAllNames[8]
                end,
-        order = 10,
+        order = 11,
         hasAlpha = true,
         hidden = function()
                    return MaxColors < 8 or UnitBars[BarType][UnitBarTable].ColorAll
@@ -583,21 +641,105 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateEclipseColorOptions
+--
+-- Creates all color options for the eclipse slider.
+--
+-- Subfunction of CreateBackgroundOptions()
+-- Subfunction of CreateBarOptions()
+--
+-- Usage: SliderColorOptions = CreateEclipseSliderColorOptions(BarType, Object, TableName, Order, Name)
+--
+-- BarType       Type options being created.
+-- Object        Can be 'bg', 'bar'
+-- TableName     Name of the table inside of Object.
+-- Order         Order number.
+-- Name          Name text
+--
+-- SliderColorOptions  Options table for the eclipse slider
+-------------------------------------------------------------------------------
+local function CreateEclipseColorOptions(BarType, Object, TableName, Order, Name)
+  local UnitBarTable = nil
+  TableName = ('%s%s'):format(strupper(strsub(TableName, 1, 1)), strsub(TableName, 2))
+
+  if Object == 'bg' then
+    UnitBarTable = 'Background'
+  elseif Object == 'bar' then
+    UnitBarTable = 'Bar'
+  end
+
+  local EclipseColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    args = {
+      SunMoon = {
+        type = 'toggle',
+        name = 'Sun and Moon',
+        order = 1,
+        desc = 'If checked the sun and moon color will be used',
+        get = function()
+                return UnitBars[BarType][UnitBarTable][TableName].SunMoon
+              end,
+        set = function(Info, Value)
+                UnitBars[BarType][UnitBarTable][TableName].SunMoon = Value
+
+                -- Update the bar to update shared colors.
+                UnitBarsF[BarType]:Update()
+              end,
+      },
+      SliderColor = {
+        type = 'color',
+        name = 'Color',
+        hasAlpha = true,
+        order = 2,
+        hidden = function()
+                   return UnitBars[BarType][UnitBarTable][TableName].SunMoon
+                 end,
+        get = function(Info)
+                -- Info.arg[1] = color index.
+                local c = UnitBars[BarType][UnitBarTable][TableName].Color
+                return c.r, c.g, c.b, c.a
+              end,
+        set = function(Info, r, g, b, a)
+                local c = UnitBars[BarType][UnitBarTable][TableName].Color
+                c.r, c.g, c.b, c.a = r, g, b, a
+
+                UnitBarsF[BarType]:SetAttr(Object, 'color', strlower(TableName))
+
+                -- Set the color to the bar
+                UnitBarsF[BarType]:Update()
+              end,
+      },
+    },
+  }
+
+  return EclipseColorOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateBackgroundOptions
 --
 -- Creates background options for a unitbar.
 --
 -- Subfunction of CreateUnitBarOptions()
 --
--- Usage: BackgroundOptions = CreateBackgroundOptions(BarType, Order, Name)
+-- Usage: BackgroundOptions = CreateBackgroundOptions(BarType, Object, Order, Name)
 --
 -- BarType               Type options being created.
+-- Object                If not nil then UnitBars[BarType].Background[Object] is used.
 -- Order                 Order number.
 -- Name                  Name text
 --
 -- BackgroundOptions     Options table for background options.
 -------------------------------------------------------------------------------
-local function CreateBackgroundOptions(BarType, Order, Name)
+local function CreateBackgroundOptions(BarType, Object, Order, Name)
+  local TableName = nil
+  if Object then
+    TableName = ('%s%s'):format(strupper(strsub(Object, 1, 1)), strsub(Object, 2))
+  end
+
   local BackgroundOptions = {
     type = 'group',
     name = Name,
@@ -606,17 +748,24 @@ local function CreateBackgroundOptions(BarType, Order, Name)
                return BarType == 'RuneBar' and UnitBars[BarType].General.RuneMode == 'rune'
              end,
     args = {
-      Textures = {
+      General = {
         type = 'group',
-        name = 'Textures',
+        name = 'General',
         dialogInline = true,
         order = 1,
         get = function(Info)
-                return UnitBars[BarType].Background.BackdropSettings[Info[#Info]]
+                return GetTable(BarType, 'Background', TableName).BackdropSettings[Info[#Info]]
               end,
         set = function(Info, Value)
-                UnitBars[BarType].Background.BackdropSettings[Info[#Info]] = Value
-                UnitBarsF[BarType]:SetAttr('bg', 'backdrop')
+                GetTable(BarType, 'Background', TableName).BackdropSettings[Info[#Info]] = Value
+                if Object then
+                  UnitBarsF[BarType]:SetAttr('bg', 'backdrop', Object)
+
+                  -- Update the bar
+                  UnitBarsF[BarType]:Update()
+                else
+                  UnitBarsF[BarType]:SetAttr('bg', 'backdrop')
+                end
               end,
         args = {
           BdTexture = {
@@ -633,26 +782,38 @@ local function CreateBackgroundOptions(BarType, Order, Name)
             dialogControl = 'LSM30_Background',
             values = LSM:HashTable('background'),
           },
-          BdTile = {
+          Spacer10 = {
+            type = 'description',
+            name = '',
+            order = 10,
+            width = 'full',
+          },
+          BgTile = {
             type = 'toggle',
             name = 'Tile Background',
-            order = 3,
+            order = 11,
           },
-          BdTileSize = {
+          BgTileSize = {
             type = 'range',
             name = 'Background Tile Size',
-            order = 4,
+            order = 12,
             disabled = function()
-                         return not UnitBars[BarType].Background.BackdropSettings.BdTile
+                         return not GetTable(BarType, 'Background', TableName).BackdropSettings.BgTile
                        end,
             min = UnitBarBgTileSizeMin,
             max = UnitBarBgTileSizeMax,
             step = 1,
           },
+          Spacer20 = {
+            type = 'description',
+            name = '',
+            order = 20,
+            width = 'full',
+          },
           BdSize = {
             type = 'range',
             name = 'Border Thickness',
-            order = 5,
+            order = 21,
             min = UnitBarBorderSizeMin,
             max = UnitBarBorderSizeMax,
             step = 2,
@@ -660,20 +821,24 @@ local function CreateBackgroundOptions(BarType, Order, Name)
           BgColor = {
             type = 'color',
             name = 'Background Color',
-            order = 6,
+            order = 22,
             hidden = function()
                        return BarType == 'ComboBar' or ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
                               UnitBars[BarType].General.BoxMode
                      end,
             hasAlpha = true,
             get = function()
-                    local c = UnitBars[BarType].Background.Color
+                    local c = GetTable(BarType, 'Background', TableName).Color
                     return c.r, c.g, c.b, c.a
                   end,
             set = function(Info, r, g, b, a)
-                    local c = UnitBars[BarType].Background.Color
+                    local c = GetTable(BarType, 'Background', TableName).Color
                     c.r, c.g, c.b, c.a = r, g, b, a
-                    UnitBarsF[BarType]:SetAttr('bg', 'color')
+                    if Object then
+                      UnitBarsF[BarType]:SetAttr('bg', 'color', Object)
+                    else
+                      UnitBarsF[BarType]:SetAttr('bg', 'color')
+                    end
                   end,
           },
         },
@@ -684,7 +849,7 @@ local function CreateBackgroundOptions(BarType, Order, Name)
         dialogInline = true,
         order = 3,
         get = function(Info)
-                local Padding = UnitBars[BarType].Background.BackdropSettings.Padding
+                local Padding = GetTable(BarType, 'Background', TableName).BackdropSettings.Padding
                 if Info[#Info] == 'All' then
                   return Padding.Left
                 else
@@ -692,7 +857,7 @@ local function CreateBackgroundOptions(BarType, Order, Name)
                 end
               end,
         set = function(Info, Value)
-                local Padding = UnitBars[BarType].Background.BackdropSettings.Padding
+                local Padding = GetTable(BarType, 'Background', TableName).BackdropSettings.Padding
                 if Info[#Info] == 'All' then
                   Padding.Left = Value
                   Padding.Right = Value
@@ -701,7 +866,11 @@ local function CreateBackgroundOptions(BarType, Order, Name)
                 else
                   Padding[Info[#Info]] = Value
                 end
-                UnitBarsF[BarType]:SetAttr('bg', 'backdrop')
+                if Object then
+                  UnitBarsF[BarType]:SetAttr('bg', 'backdrop', Object)
+                else
+                  UnitBarsF[BarType]:SetAttr('bg', 'backdrop')
+                end
               end,
         args = {
           PaddingAll = {
@@ -709,75 +878,73 @@ local function CreateBackgroundOptions(BarType, Order, Name)
             name = 'All',
             order = 1,
             get = function()
-                    return UnitBars[BarType].Background.PaddingAll
+                    return GetTable(BarType, 'Background', TableName).PaddingAll
                   end,
             set = function(Info, Value)
-                    UnitBars[BarType].Background.PaddingAll = Value
+                    GetTable(BarType, 'Background', TableName).PaddingAll = Value
                   end,
             desc = 'Change padding with one value'
           },
-          Values = {
-            type = 'group',
-            name = 'Setting',
-            dialogInline = true,
+          Spacer = {
+            type = 'description',
+            name = '',
             order = 2,
-            args = {
-              All = {
-                type = 'range',
-                name = 'Offset',
-                order = 1,
-                hidden = function()
-                           return not UnitBars[BarType].Background.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Left = {
-                type = 'range',
-                name = 'Left',
-                order = 2,
-                hidden = function()
-                           return UnitBars[BarType].Background.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Right = {
-                type = 'range',
-                name = 'Right',
-                order = 3,
-                hidden = function()
-                           return UnitBars[BarType].Background.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Top = {
-                type = 'range',
-                name = 'Top',
-                order = 4,
-                hidden = function()
-                           return UnitBars[BarType].Background.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Bottom = {
-                type = 'range',
-                name = 'Bottom',
-                order = 5,
-                hidden = function()
-                           return UnitBars[BarType].Background.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-            },
+            width = 'full',
+          },
+          All = {
+            type = 'range',
+            name = 'Offset',
+            order = 3,
+            hidden = function()
+                       return not GetTable(BarType, 'Background', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Left = {
+            type = 'range',
+            name = 'Left',
+            order = 4,
+            hidden = function()
+                       return GetTable(BarType, 'Background', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Right = {
+            type = 'range',
+            name = 'Right',
+            order = 5,
+            hidden = function()
+                       return GetTable(BarType, 'Background', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Top = {
+            type = 'range',
+            name = 'Top',
+            order = 6,
+            hidden = function()
+                       return GetTable(BarType, 'Background', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Bottom = {
+            type = 'range',
+            name = 'Bottom',
+            order = 7,
+            hidden = function()
+                       return GetTable(BarType, 'Background', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
           },
         },
       },
@@ -790,7 +957,7 @@ local function CreateBackgroundOptions(BarType, Order, Name)
     if BarType == 'HolyBar' or BarType == 'ShardBar' then
       MaxColors = 3
     elseif BarType == 'RuneBar' then
-      BackgroundOptions.args.Textures.args.BgColor = nil
+      BackgroundOptions.args.General.args.BgColor = nil
       MaxColors = 8
     end
     BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'bg', MaxColors, 2, 'Colors')
@@ -875,6 +1042,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                   local LastName = nil
                   local CurName = nil
                   local Sep = '  '
+                  local TTL = nil
 
                   UBT.Layout = ''
                   for i, v in ipairs(ValueType) do
@@ -894,8 +1062,11 @@ local function CreateTextOptions(BarType, Object, Order, Name)
                           end
                         end
                         LastName = CurName
-                        UBT.Layout = strconcat(UBT.Layout, Sep, TextTypeLayout[v])
-                        n = n + 1
+                        local TTL = TextTypeLayout[v]
+                        if TTL then
+                          UBT.Layout = strconcat(UBT.Layout, Sep, TTL)
+                          n = n + 1
+                        end
                       end
                     end
                   end
@@ -914,110 +1085,121 @@ local function CreateTextOptions(BarType, Object, Order, Name)
             desc = 'Sets how many values to be shown',
             arg = {0},
           },
-          Value1 = {
-            type = 'group',
-            name = 'Value 1',
+          Spacer = {
+            type = 'description',
+            name = '',
+            order = 2,
+            width = 'full',
+          },
+          ValueName1 = {
+            type = 'select',
+            order = 3,
+            name = 'Value Name 1',
             hidden = function()
                        return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 1
                      end,
-            order = 2,
-            dialogInline = true,
-            args = {
-              ValueName1 = {
-                type = 'select',
-                order = 1,
-                name = 'Name',
-                values = function()
-                           return GetValueNameDropdown(BarType)
-                         end,
-                style = 'dropdown',
-                desc = 'Show Current Value or Maximum Value',
-                arg = {'name', 1},
-              },
-              ValueType1 = {
-                type = 'select',
-                name = '',
-                order = 2,
-                name = 'Type',
-                values = ValueTypeDropdown,
-                style = 'dropdown',
-                desc = 'Changes the type of value to be shown',
-                arg = {'type', 1},
-              },
-            },
+            values = function()
+                       return GetValueNameDropdown(BarType)
+                     end,
+            style = 'dropdown',
+            desc = 'Pick the name of the value to show',
+            arg = {'name', 1},
           },
-          Value2 = {
-            type = 'group',
-            name = 'Value 2',
+          ValueType1 = {
+            type = 'select',
+            name = '',
+            order = 4,
+            name = 'Value Type 1',
+            values = ValueTypeDropdown,
+            hidden = function()
+                       return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 1
+                     end,
+            style = 'dropdown',
+            desc = 'Changes how the value is shown',
+            arg = {'type', 1},
+          },
+          Spacer2 = {
+            type = 'description',
+            name = '',
+            order = 5,
+            width = 'full',
+          },
+          ValueName2 = {
+            type = 'select',
+            order = 6,
+            name = 'Value Name 2',
             hidden = function()
                        return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 2
                      end,
-            order = 3,
-            dialogInline = true,
-            args = {
-              ValueName2 = {
-                type = 'select',
-                name = 'Name',
-                order = 1,
-                values = function()
-                           return GetValueNameDropdown(BarType)
-                         end,
-                style = 'dropdown',
-                desc = 'Show Current Value or Maximum Value',
-                arg = {'name', 2}
-              },
-              ValueType2 = {
-                type = 'select',
-                name = 'Type',
-                order = 2,
-                values = ValueTypeDropdown,
-                style = 'dropdown',
-                desc = 'Changes the type of value to be shown',
-                arg = {'type', 2}
-              },
-            },
+            values = function()
+                       return GetValueNameDropdown(BarType)
+                     end,
+            style = 'dropdown',
+            desc = 'Pick the name of the value to show',
+            arg = {'name', 2},
           },
-          Value3 = {
-            type = 'group',
-            name = 'Value 3',
+          ValueType2 = {
+            type = 'select',
+            name = '',
+            order = 7,
+            name = 'Value Type 2',
+            values = ValueTypeDropdown,
+            hidden = function()
+                       return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 2
+                     end,
+            style = 'dropdown',
+            desc = 'Changes how the value is shown',
+            arg = {'type', 2},
+          },
+          Spacer3 = {
+            type = 'description',
+            name = '',
+            order = 8,
+            width = 'full',
+          },
+          ValueName3 = {
+            type = 'select',
+            order = 9,
+            name = 'Value Name 3',
             hidden = function()
                        return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 3
                      end,
-            order = 4,
-            dialogInline = true,
-            args = {
-              ValueName2 = {
-                type = 'select',
-                name = 'Name',
-                order = 1,
-                values = function()
-                           return GetValueNameDropdown(BarType)
-                         end,
-                style = 'dropdown',
-                desc = 'Show Current Value or Maximum Value',
-                arg = {'name', 3}
-              },
-              ValueType2 = {
-                type = 'select',
-                name = 'Type',
-                order = 2,
-                values = ValueTypeDropdown,
-                style = 'dropdown',
-                desc = 'Changes the type of value to be shown',
-                arg = {'type', 3}
-              },
-            },
+            values = function()
+                       return GetValueNameDropdown(BarType)
+                     end,
+            style = 'dropdown',
+            desc = 'Pick the name of the value to show',
+            arg = {'name', 3},
+          },
+          ValueType3 = {
+            type = 'select',
+            name = '',
+            order = 10,
+            name = 'Value Type 3',
+            values = ValueTypeDropdown,
+            hidden = function()
+                       return UnitBars[BarType][UnitBarTable].TextType.MaxValues < 3
+                     end,
+            style = 'dropdown',
+            desc = 'Changes how the value is shown',
+            arg = {'type', 3},
+          },
+          Spacer4 = {
+            type = 'description',
+            name = '',
+            order = 100,
+            width = 'full',
           },
           Custom = {
             type = 'toggle',
             name = 'Custom Layout',
-            order = 5,
+            order = 101,
             desc = 'If checked the layout can be changed',
             arg = {0},
           },
           Layout = {
             type = 'description',
-            order = 6,
+            order = 102,
             name = function()
                      return strconcat('|cFFFFFF00 Layout:|r ', UnitBars[BarType][UnitBarTable].TextType.Layout)
                    end,
@@ -1026,7 +1208,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
           CustomLayout = {
             type = 'input',
             name = 'Custom Layout',
-            order = 7,
+            order = 103,
             multiline = false,
             hidden = function()
                        return not UnitBars[BarType][UnitBarTable].TextType.Custom
@@ -1157,10 +1339,12 @@ local function CreateTextOptions(BarType, Object, Order, Name)
   }
 
   -- Remove the text type and text color options and add a text Color options for runebar only.
- if BarType == 'RuneBar' then
+  if BarType == 'RuneBar' or BarType == 'EclipseBar' then
     TextOptions.args.TextType = nil
-    TextOptions.args.Font.args.TextColor = nil
-    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 8, 2, 'Colors')
+    if BarType == 'RuneBar' then
+      TextOptions.args.Font.args.TextColor = nil
+      TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 8, 2, 'Colors')
+    end
   end
 
   return TextOptions
@@ -1204,6 +1388,7 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
         type = 'color',
         name = 'Mana',
         order = 1,
+        width = 'half',
         hasAlpha = true,
         arg = {0},
       },
@@ -1211,6 +1396,7 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
         type = 'color',
         name = 'Rage',
         order = 2,
+        width = 'half',
         hasAlpha = true,
         arg = {1},
       },
@@ -1218,6 +1404,7 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
         type = 'color',
         name = 'Focus',
         order = 3,
+        width = 'half',
         hasAlpha = true,
         arg = {2},
       },
@@ -1225,6 +1412,7 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
         type = 'color',
         name = 'Energy',
         order = 4,
+        width = 'half',
         hasAlpha = true,
         arg = {3},
       },
@@ -1317,10 +1505,16 @@ local function CreateClassColorsOptions(BarType, Order, Name)
                 UnitBarsF[BarType]:Update()
               end,
       },
+      Spacer = {
+        type = 'description',
+        name = '',
+        order = 2,
+        width = 'full',
+      },
       NormalColor = {
         type = 'color',
         name = 'Color',
-        order = 2,
+        order = 3,
         hasAlpha = true,
         desc = 'Set normal color',
         hidden = function()
@@ -1331,7 +1525,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       DeathKnightColor = {
         type = 'color',
         name = 'Death Knight',
-        order = 3,
+        order = 4,
+        width = 'normal',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1341,7 +1536,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       DruidColor = {
         type = 'color',
         name = 'Druid',
-        order = 4,
+        order = 5,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1351,7 +1547,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       HunterColor = {
         type = 'color',
         name = 'Hunter',
-        order = 5,
+        order = 6,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1361,7 +1558,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       MageColor = {
         type = 'color',
         name = 'Mage',
-        order = 6,
+        order = 7,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1371,7 +1569,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       PaladinColor = {
         type = 'color',
         name = 'Paladin',
-        order = 7,
+        order = 8,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1381,7 +1580,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       PriestColor = {
         type = 'color',
         name = 'Priest',
-        order = 8,
+        order = 9,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1391,7 +1591,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       RogueColor = {
         type = 'color',
         name = 'Rogue',
-        order = 9,
+        order = 10,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1401,7 +1602,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       ShamanColor = {
         type = 'color',
         name = 'Shaman',
-        order = 10,
+        order = 11,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1411,7 +1613,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       WarlockColor = {
         type = 'color',
         name = 'Warlock',
-        order = 11,
+        order = 12,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1421,7 +1624,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
       WarriorColor = {
         type = 'color',
         name = 'Warrior',
-        order = 12,
+        order = 13,
+        width = 'half',
         hasAlpha = true,
         hidden = function()
                    return not UnitBars[BarType].Bar.ClassColor
@@ -1486,15 +1690,22 @@ end
 --
 -- Subfunction of CreateUnitBarOptions()
 --
--- Usage: BarOptions = CreateBarOptions(BarType, Order, Name)
+-- Usage: BarOptions = CreateBarOptions(BarType, Object, Order, Name)
 --
 -- BarType               Type of options being created.
+-- Object                If not nil then it access options data in UnitBars[BarType].Bar[Object]
+--                       Object must be lowercase
 -- Order                 Order number.
 -- Name                  Name text.
 --
 -- BarOptions            Options table for the unitbar.
 -------------------------------------------------------------------------------
-local function CreateBarOptions(BarType, Order, Name)
+local function CreateBarOptions(BarType, Object, Order, Name)
+  local TableName = nil
+  if Object then
+    TableName = ('%s%s'):format(strupper(strsub(Object, 1, 1)), strsub(Object, 2))
+  end
+
   local BarOptions = {
     type = 'group',
     name = Name,
@@ -1510,16 +1721,23 @@ local function CreateBarOptions(BarType, Order, Name)
         dialogInline = true,
         order = 1,
         get = function(Info)
-                return UnitBars[BarType].Bar[Info[#Info]]
+                return GetTable(BarType, 'Bar', TableName)[Info[#Info]]
               end,
         set = function(Info, Value)
-                UnitBars[BarType].Bar[Info[#Info]] = Value
+                GetTable(BarType, 'Bar', TableName)[Info[#Info]] = Value
 
                 -- Update combobar, holybar, or shardbar layout.
                 if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
                   UnitBarsF[BarType]:SetLayout()
                 else
-                  UnitBarsF[BarType]:SetAttr('bar', Info.arg[1])
+                  if Object then
+                    UnitBarsF[BarType]:SetLayout()
+
+                    -- Update the bar to recalculate the slider pos.
+                    UnitBarsF[BarType]:Update()
+                  else
+                    UnitBarsF[BarType]:SetAttr('bar', Info.arg[1])
+                  end
                 end
               end,
         args = {
@@ -1527,6 +1745,31 @@ local function CreateBarOptions(BarType, Order, Name)
             type = 'select',
             name = 'Bar Texture',
             order = 1,
+            hidden = function()
+                       return BarType == 'EclipseBar' and Object == 'bar'
+                     end,
+            dialogControl = 'LSM30_Statusbar',
+            values = LSM:HashTable('statusbar'),
+            arg = {'texture'},
+          },
+          StatusBarTextureLunar = {
+            type = 'select',
+            name = 'Bar Texture (lunar)',
+            order = 2,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'bar'
+                     end,
+            dialogControl = 'LSM30_Statusbar',
+            values = LSM:HashTable('statusbar'),
+            arg = {'texture'},
+          },
+          StatusBarTextureSolar = {
+            type = 'select',
+            name = 'Bar Texture (solar)',
+            order = 3,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'bar'
+                     end,
             dialogControl = 'LSM30_Statusbar',
             values = LSM:HashTable('statusbar'),
             arg = {'texture'},
@@ -1534,7 +1777,7 @@ local function CreateBarOptions(BarType, Order, Name)
           PredictedBarTexture = {
             type = 'select',
             name = 'Predicted Bar Texture',
-            order = 2,
+            order = 4,
             hidden = function()
                        return BarType ~= 'PlayerHealth' and BarType ~= 'TargetHealth' and
                               BarType ~= 'FocusHealth'
@@ -1543,27 +1786,40 @@ local function CreateBarOptions(BarType, Order, Name)
             values = LSM:HashTable('statusbar'),
             arg = {'texture'},
           },
+          Spacer10 = {
+            type = 'description',
+            name = '',
+            order = 10,
+            width = 'full',
+          },
           FillDirection = {
             type = 'select',
             name = 'Fill Direction',
-            order = 3,
+            order = 11,
             hidden = function()
-                       return BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar'
+                       return BarType == 'ComboBar' or BarType == 'HolyBar' or
+                              BarType == 'ShardBar' or BarType == 'EclipseBar'
                      end,
-            values = BarFillDirectionDropdown,
+            values = DirectionDropdown,
             style = 'dropdown',
             arg = {'texture'},
           },
           RotateTexture = {
             type = 'toggle',
             name = 'Rotate Texture',
-            order = 4,
+            order = 12,
             arg = {'texture'},
+          },
+          Spacer20 = {
+            type = 'description',
+            name = '',
+            order = 20,
+            width = 'full',
           },
           HapWidth = {
             type = 'range',
             name = 'Width',
-            order = 7,
+            order = 21,
             desc = 'Values up to 500 can be typed in',
             min = HapBarWidthMin,
             max = HapBarWidthMax,
@@ -1574,7 +1830,7 @@ local function CreateBarOptions(BarType, Order, Name)
           HapHeight = {
             type = 'range',
             name = 'Height',
-            order = 8,
+            order = 22,
             desc = 'Values up to 500 can be typed in',
             min = HapBarHeightMin,
             max = HapBarHeightMax,
@@ -1585,7 +1841,7 @@ local function CreateBarOptions(BarType, Order, Name)
           BoxWidth = {
             type = 'range',
             name = 'Width',
-            order = 2,
+            order = 23,
             hidden = function()
                        return BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar'
                      end,
@@ -1598,7 +1854,7 @@ local function CreateBarOptions(BarType, Order, Name)
           BoxHeight = {
             type = 'range',
             name = 'Height',
-            order = 3,
+            order = 24,
             hidden = function()
                        return BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar'
                      end,
@@ -1611,7 +1867,7 @@ local function CreateBarOptions(BarType, Order, Name)
           RuneWidth = {
             type = 'range',
             name = 'Width',
-            order = 4,
+            order = 25,
             hidden = function()
                        return BarType ~= 'RuneBar'
                      end,
@@ -1624,7 +1880,7 @@ local function CreateBarOptions(BarType, Order, Name)
           RuneHeight = {
             type = 'range',
             name = 'Height',
-            order = 5,
+            order = 26,
             hidden = function()
                        return BarType ~= 'RuneBar'
                      end,
@@ -1634,19 +1890,168 @@ local function CreateBarOptions(BarType, Order, Name)
             step = 1,
             arg = {'size'},
           },
+          MoonWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 27,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'moon'
+                     end,
+            min = EclipseMoonWidthMin,
+            max = EclipseMoonWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          MoonHeight = {
+            type = 'range',
+            name = 'Height',
+            order = 28,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'moon'
+                     end,
+            desc = 'Changes the height of moon',
+            min = EclipseMoonHeightMin,
+            max = EclipseMoonHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
+          SunWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 29,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'sun'
+                     end,
+            min = EclipseSunWidthMin,
+            max = EclipseSunWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          SunHeight = {
+            type = 'range',
+            name = 'Height',
+            order = 30,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'sun'
+                     end,
+            min = EclipseSunHeightMin,
+            max = EclipseSunHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
+          BarWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 31,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'bar'
+                     end,
+            min = EclipseBarWidthMin,
+            max = EclipseBarWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          BarHeight = {
+            type = 'range',
+            name = 'Height',
+            order = 32,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'bar'
+                     end,
+            min = EclipseBarHeightMin,
+            max = EclipseBarHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
+          SliderWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 33,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'slider'
+                     end,
+            min = EclipseSliderWidthMin,
+            max = EclipseSliderWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          SliderHeight = {
+            type = 'range',
+            name = 'Height',
+            order = 34,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'slider'
+                     end,
+            min = EclipseSliderHeightMin,
+            max = EclipseSliderHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
           BarColor = {
             type = 'color',
             name = 'Color',
-            order = 6,
+            order = 100,
+            hidden = function()
+                       return BarType == 'EclipseBar' and Object == 'bar'
+                     end,
             hasAlpha = true,
             get = function()
-                    local c = UnitBars[BarType].Bar.Color
+                    local c = GetTable(BarType, 'Bar', TableName).Color
                     return c.r, c.g, c.b, c.a
                   end,
             set = function(Info, r, g, b, a)
-                    local c = UnitBars[BarType].Bar.Color
+                    local c = GetTable(BarType, 'Bar', TableName).Color
                     c.r, c.g, c.b, c.a = r, g, b, a
-                    UnitBarsF[BarType]:SetAttr('bar', 'color')
+                    if Object then
+                      UnitBarsF[BarType]:SetAttr('bar', 'color', Object)
+                    else
+                      UnitBarsF[BarType]:SetAttr('bar', 'color')
+                    end
+
+                    -- Update the bar for shared colors.
+                    UnitBarsF[BarType]:Update()
+                  end,
+          },
+          Spacer101 = {
+            type = 'description',
+            name = '',
+            order = 101,
+            width = 'full',
+          },
+          BarColorLunar = {
+            type = 'color',
+            name = 'Color (lunar)',
+            order = 102,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'bar'
+                     end,
+            hasAlpha = true,
+            get = function()
+                    local c = GetTable(BarType, 'Bar', TableName).ColorLunar
+                    return c.r, c.g, c.b, c.a
+                  end,
+            set = function(Info, r, g, b, a)
+                    local c = GetTable(BarType, 'Bar', TableName).ColorLunar
+                    c.r, c.g, c.b, c.a = r, g, b, a
+                    UnitBarsF[BarType]:SetAttr('bar', 'color', 'bar')
+                  end,
+          },
+          BarColorSolar = {
+            type = 'color',
+            name = 'Color (solar)',
+            order = 103,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'bar'
+                     end,
+            hasAlpha = true,
+            get = function()
+                    local c = GetTable(BarType, 'Bar', TableName).ColorSolar
+                    return c.r, c.g, c.b, c.a
+                  end,
+            set = function(Info, r, g, b, a)
+                    local c = GetTable(BarType, 'Bar', TableName).ColorSolar
+                    c.r, c.g, c.b, c.a = r, g, b, a
+                    UnitBarsF[BarType]:SetAttr('bar', 'color', 'bar')
                   end,
           },
         },
@@ -1657,7 +2062,7 @@ local function CreateBarOptions(BarType, Order, Name)
         dialogInline = true,
         order = 4,
         get = function(Info)
-                local Padding = UnitBars[BarType].Bar.Padding
+                local Padding = GetTable(BarType, 'Bar', TableName).Padding
                 if Info[#Info] == 'All' then
                   return Padding.Left
                 else
@@ -1665,7 +2070,7 @@ local function CreateBarOptions(BarType, Order, Name)
                 end
               end,
         set = function(Info, Value)
-                local Padding = UnitBars[BarType].Bar.Padding
+                local Padding = GetTable(BarType, 'Bar', TableName).Padding
                 if Info[#Info] == 'All' then
                   Padding.Left = Value
                   Padding.Right = -Value
@@ -1674,7 +2079,12 @@ local function CreateBarOptions(BarType, Order, Name)
                 else
                   Padding[Info[#Info]] = Value
                 end
-                UnitBarsF[BarType]:SetAttr('bar', 'padding')
+
+                if Object then
+                  UnitBarsF[BarType]:SetAttr('bar', 'padding', Object)
+                else
+                  UnitBarsF[BarType]:SetAttr('bar', 'padding')
+                end
               end,
         args = {
           PaddingAll = {
@@ -1682,75 +2092,73 @@ local function CreateBarOptions(BarType, Order, Name)
             name = 'All',
             order = 1,
             get = function()
-                    return UnitBars[BarType].Bar.PaddingAll
+                    return GetTable(BarType, 'Bar', TableName).PaddingAll
                   end,
             set = function(Info, Value)
-                    UnitBars[BarType].Bar.PaddingAll = Value
+                    GetTable(BarType, 'Bar', TableName).PaddingAll = Value
                   end,
            desc = 'Change padding with one value'
           },
-          Values = {
-            type = 'group',
-            name = 'Setting',
-            dialogInline = true,
+          Spacer = {
+            type = 'description',
+            name = '',
             order = 2,
-            args = {
-              All = {
-                type = 'range',
-                name = 'Offset',
-                order = 1,
-                hidden = function()
-                           return not UnitBars[BarType].Bar.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Left = {
-                type = 'range',
-                name = 'Left',
-                order = 2,
-                hidden = function()
-                           return UnitBars[BarType].Bar.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Right = {
-                type = 'range',
-                name = 'Right',
-                order = 3,
-                hidden = function()
-                           return UnitBars[BarType].Bar.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Top = {
-                type = 'range',
-                name = 'Top',
-                order = 4,
-                hidden = function()
-                           return UnitBars[BarType].Bar.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-              Bottom = {
-                type = 'range',
-                name = 'Bottom',
-                order = 5,
-                hidden = function()
-                           return UnitBars[BarType].Bar.PaddingAll
-                         end,
-                min = UnitBarPaddingMin,
-                max = UnitBarPaddingMax,
-                step = 1,
-              },
-            },
+            width = 'full',
+          },
+          All = {
+            type = 'range',
+            name = 'Offset',
+            order = 3,
+            hidden = function()
+                       return not GetTable(BarType, 'Bar', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Left = {
+            type = 'range',
+            name = 'Left',
+            order = 4,
+            hidden = function()
+                       return GetTable(BarType, 'Bar', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Right = {
+            type = 'range',
+            name = 'Right',
+            order = 5,
+            hidden = function()
+                       return GetTable(BarType, 'Bar', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Top = {
+            type = 'range',
+            name = 'Top',
+            order = 6,
+            hidden = function()
+                       return GetTable(BarType, 'Bar', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
+          },
+          Bottom = {
+            type = 'range',
+            name = 'Bottom',
+            order = 7,
+            hidden = function()
+                       return GetTable(BarType, 'Bar', TableName).PaddingAll
+                     end,
+            min = UnitBarPaddingMin,
+            max = UnitBarPaddingMax,
+            step = 1,
           },
         },
       },
@@ -1796,6 +2204,19 @@ local function CreateBarOptions(BarType, Order, Name)
     end
     BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
   end
+
+  -- Remove health and power options for eclipse bar
+  if BarType == 'EclipseBar' then
+    BarOptions.args.General.args.HapWidth = nil
+    BarOptions.args.General.args.HapHeight = nil
+
+    -- Add color options for the slider bar
+    if Object == 'slider' then
+      BarOptions.args.General.args.BarColor = nil
+      BarOptions.args.SliderColor = CreateEclipseColorOptions(BarType, 'bar', 'slider', 2, 'Color')
+    end
+  end
+
   return BarOptions
 end
 
@@ -1898,10 +2319,16 @@ local function CreateRuneBarOptions(BarType, Order, Name)
                  end,
         desc = 'Shows a line on the cooldown bar animation',
       },
+      Spacer10 = {
+        type = 'description',
+        name = '',
+        order = 10,
+        width = 'full',
+      },
       BarModeAngle = {
         type = 'range',
         name = 'Rune Rotation',
-        order = 9,
+        order = 11,
         desc = 'Rotates the rune bar',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -1913,7 +2340,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       RunePadding = {
         type = 'range',
         name = 'Rune Padding',
-        order = 10,
+        order = 12,
         desc = 'Set the Amount of space between each rune',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -1925,7 +2352,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       RuneSize = {
         type = 'range',
         name = 'Rune Size',
-        order = 11,
+        order = 13,
         hidden = function()
                    return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
                  end,
@@ -2237,6 +2664,134 @@ local function CreateShardBarOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateEclipseBarOptions
+--
+-- Creates options for a eclipse bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: EclipseBarOptions = CreateEclipseBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- EclipseBarOptions     Options table for the eclipse bar.
+-------------------------------------------------------------------------------
+local function CreateEclipseBarOptions(BarType, Order, Name)
+  local EclipseBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UnitBars[BarType].General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UnitBars[BarType].General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            UnitBarsF.EclipseBar:SetLayout()
+
+            -- Update the bar
+            UnitBarsF.EclipseBar:Update()
+          end,
+    args = {
+      SliderInside = {
+        type = 'toggle',
+        name = 'Slider Inside',
+        order = 1,
+        desc = 'If checked the slider will stay inside the bar',
+      },
+      BarHalfLit = {
+        type = 'toggle',
+        name = 'Bar Half Lit',
+        order = 2,
+        desc = 'If checked half the bar becomes lit to show the slider direction',
+      },
+      Text = {
+        type = 'toggle',
+        name = 'Text',
+        order = 3,
+        desc = 'If checked then eclipse power text will be shown',
+      },
+      Spacer10 = {
+        type = 'description',
+        name = '',
+        order = 10,
+        width = 'full',
+      },
+      SliderDirection = {
+        type = 'select',
+        name = 'Slider Direction',
+        order = 11,
+        values = DirectionDropdown,
+        style = 'dropdown',
+        desc = 'Specifies the direction the slider will move in'
+      },
+      EclipseAngle = {
+        type = 'range',
+        name = 'Eclipse Rotation',
+        order = 12,
+        desc = 'Rotates the eclipse bar',
+        min = EclipseAngleMin,
+        max = EclipseAngleMax,
+        step = 90,
+      },
+      Spacer20 = {
+        type = 'description',
+        name = '',
+        order = 20,
+        width = 'full',
+      },
+      SunOffsetX = {
+        type = 'range',
+        name = 'Sun Horizontal Offset',
+        order = 21,
+        desc = 'Offsets the horizontal position of the sun',
+        min = EclipseSunOffsetXMin,
+        max = EclipseSunOffsetXMax,
+        step = 1,
+      },
+      SunOffsetY = {
+        type = 'range',
+        name = 'Sun Vertical Offset',
+        order = 22,
+        desc = 'Offsets the horizontal position of the sun',
+        min = EclipseSunOffsetYMin,
+        max = EclipseSunOffsetYMax,
+        step = 1,
+      },
+      Spacer30 = {
+        type = 'description',
+        name = '',
+        order = 30,
+        width = 'full',
+      },
+      MoonOffsetX = {
+        type = 'range',
+        name = 'Moon Horizontal Offset',
+        order = 31,
+        desc = 'Offsets the horizontal position of the moon',
+        min = EclipseMoonOffsetXMin,
+        max = EclipseMoonOffsetXMax,
+        step = 1,
+      },
+      MoonOffsetY = {
+        type = 'range',
+        name = 'Moon Vertical Offset',
+        order = 32,
+        desc = 'Offsets the horizontal position of the moon',
+        min = EclipseMoonOffsetYMin,
+        max = EclipseMoonOffsetYMax,
+        step = 1,
+      },
+    },
+  }
+  return EclipseBarOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateUnitBarOptions
 --
 -- Creates an options table for a UnitBar.
@@ -2341,55 +2896,54 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             step = 0.01,
             isPercent  = true,
           },
-          Resets = {
-            type = 'group',
-            name = 'Reset',
-            dialogInline = true,
+          Spacer = {
+            type = 'description',
+            name = '',
             order = 2,
-            args = {
-              Reset = {
-                type = 'execute',
-                name = 'Defaults',
-                order = 2,
-                desc = "Sets the bar to its default values. Location doesn't get changed",
-                confirm = true,
-                func = function()
+            width = 'full',
+          },
+          Reset = {
+            type = 'execute',
+            name = 'Reset Defaults',
+            order = 3,
+            desc = "Sets the bar to its default values. Location doesn't get changed",
+            confirm = true,
+            func = function()
 
-                         -- Preserve bar location
-                         local UB = UnitBars[BarType]
-                         local x, y =  UB.x, UB.y
+                     -- Preserve bar location
+                     local UB = UnitBars[BarType]
+                     local x, y =  UB.x, UB.y
 
-                         GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
+                     GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
 
-                         UB.x, UB.y = x, y
+                     UB.x, UB.y = x, y
 
-                         -- Update the layout.
-                         UnitBarsF[BarType]:SetLayout()
-                       end,
-              },
-              ResetPosition = {
-                type = 'execute',
-                name = 'Location',
-                order = 3,
-                desc = "Sets the bar to its default location",
-                confirm = true,
-                func = function()
+                     -- Update the layout.
+                     UnitBarsF[BarType]:SetLayout()
+                     UnitBarsF[BarType]:Update()
+                   end,
+          },
+          ResetPosition = {
+            type = 'execute',
+            name = 'Reset Location',
+            order = 4,
+            desc = "Sets the bar to its default location",
+            confirm = true,
+            func = function()
 
-                         -- Get the anchor and default bar location.
-                         local Anchor = UnitBarsF[BarType].Anchor
-                         local UBd = Defaults.profile[BarType]
-                         local UB = UnitBars[BarType]
-                         local x, y = UBd.x, UBd.y
+                     -- Get the anchor and default bar location.
+                     local Anchor = UnitBarsF[BarType].Anchor
+                     local UBd = Defaults.profile[BarType]
+                     local UB = UnitBars[BarType]
+                     local x, y = UBd.x, UBd.y
 
-                         -- Save the defalt location.
-                         UB.x, UB.y = x, y
+                     -- Save the defalt location.
+                     UB.x, UB.y = x, y
 
-                         -- Set the bar location on screen.
-                         Anchor:ClearAllPoints()
-                         Anchor:SetPoint('TOPLEFT' , x, y)
-                       end,
-              },
-            },
+                     -- Set the bar location on screen.
+                     Anchor:ClearAllPoints()
+                     Anchor:SetPoint('TOPLEFT' , x, y)
+                   end,
           },
         },
       },
@@ -2403,23 +2957,52 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   local UBO = UnitBarOptions.args
 
-  -- Add background options
-  UBO.Background = CreateBackgroundOptions(BarType, 1000, 'Background')
+  -- Add bar options for eclipse bar
+  if BarType == 'EclipseBar' then
+    UBO.Background = {
+      type = 'group',
+      name = 'Background',
+      order = 1000,
+      childGroups = 'tab',
+      args = {
+        Moon = CreateBackgroundOptions(BarType, 'moon', 1, 'Moon'),
+        Sun = CreateBackgroundOptions(BarType, 'sun', 2, 'Sun'),
+        Bar = CreateBackgroundOptions(BarType, 'bar', 3, 'Bar'),
+        Slider = CreateBackgroundOptions(BarType, 'slider', 4, 'Slider'),
+      }
+    }
+    UBO.Bar = {
+      type = 'group',
+      name = 'Bar',
+      order = 1001,
+      childGroups = 'tab',
+      args = {
+        Moon = CreateBarOptions(BarType, 'moon', 1, 'Moon'),
+        Sun = CreateBarOptions(BarType, 'sun', 2, 'Sun'),
+        Bar = CreateBarOptions(BarType, 'bar', 3, 'Bar'),
+        Slider = CreateBarOptions(BarType, 'slider', 4, 'Slider'),
+      }
+    }
+  else
 
-  -- Add bar options
-  UBO.Bar = CreateBarOptions(BarType, 1001, 'Bar')
+    -- Add background options
+    UBO.Background = CreateBackgroundOptions(BarType, nil, 1000, 'Background')
 
-  -- Add runebar options
-  if BarType == 'RuneBar' then
-    UBO.RuneBar = CreateRuneBarOptions(BarType, 3, 'General')
+    -- add bar options for this bar.
+    UBO.Bar = CreateBarOptions(BarType, nil, 1001, 'Bar')
   end
 
   -- Add text options
   if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
     UBO.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
-    if BarType ~= 'RuneBar' then
+    if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
       UBO.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
     end
+  end
+
+  -- Add runebar options
+  if BarType == 'RuneBar' then
+    UBO.RuneBar = CreateRuneBarOptions(BarType, 3, 'General')
   end
 
   -- Add combobar options
@@ -2437,6 +3020,10 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
     UBO.ShardBar = CreateShardBarOptions(BarType, 6, 'General')
   end
 
+  -- Add eclipsebar options
+  if BarType == 'EclipseBar' then
+    UBO.EclipseBar = CreateEclipseBarOptions(BarType, 7, 'General')
+  end
   return UnitBarOptions
 end
 
@@ -2567,7 +3154,8 @@ local function CreateCopySettingsOptions(Order, Name)
             name = 'Background',
             order = 5,
             hidden = function(Info)
-                       local Value = CopySettings.All
+                       local Value = CopySettings.All or
+                         CopySettingsFrom == 'EclipseBar' or CopySettingsTo == 'EclipseBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2578,7 +3166,8 @@ local function CreateCopySettingsOptions(Order, Name)
             name = 'Bar',
             order = 6,
             hidden = function(Info)
-                       local Value = CopySettings.All
+                       local Value = CopySettings.All or
+                               CopySettingsFrom == 'EclipseBar' or CopySettingsTo == 'EclipseBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2603,8 +3192,8 @@ local function CreateCopySettingsOptions(Order, Name)
             order = 7,
             hidden = function(Info)
                        local Value = CopySettings.All or
-                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ShardBar' or
-                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ShardBar'
+                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ShardBar' or CopySettingsFrom == 'EclipseBar' or
+                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ShardBar' or CopySettingsTo == 'EclipseBar'
                        CopySettingsHidden[Info[#Info]] = Value
                        return Value
                      end,
@@ -2930,6 +3519,19 @@ local function CreateAlignUnitBarsOptions(Order, Name)
                      return ('Align Shard Bar with %s'):format(AlignmentBarName)
                    end
           },
+          EclipseBar = {
+            type = 'toggle',
+            name = 'Eclipse Bar',
+            order = 14,
+            hidden = function(Info)
+                       local Value = AlignmentBar == 'EclipseBar'
+                       BarsHidden[Info[#Info]] = Value
+                       return Value
+                     end,
+            desc = function()
+                     return ('Align Eclipse Bar with %s'):format(AlignmentBarName)
+                   end
+          },
         },
       },
       AlignmentSettings = {
@@ -3184,6 +3786,9 @@ local function CreateMainOptions()
 
           -- Holybar group.
           ShardBar = CreateUnitBarOptions('ShardBar', 13, 'Shard Bar'),
+
+          -- Eclipsebar group.
+          EclipseBar = CreateUnitBarOptions('EclipseBar', 14, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
         },
       },
 --=============================================================================

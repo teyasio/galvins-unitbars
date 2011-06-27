@@ -19,16 +19,16 @@ local MouseOverDesc = GUB.UnitBars.MouseOverDesc
 
 -- localize some globals.
 local _
-local pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, floor, strconcat, tostring, pairs, ipairs, type, math, table, select
+local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
+      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -38,12 +38,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints =
 -- UnitBarF.UnitBar           Reference to the unitbar data for the health and power bar.
 -- UnitBarF.Border            Border frame for the health and power bar.
 -- UnitBarF.StatusBar         The Statusbar for the health and power bar.
--- UnitBarF.PredictedBorder   This is the visible border you see around the statusbar.  Since
---                            the predicted bar has to sit behind the statusbar. The statusbar can't
---                            have a border otherwise the predictedbar would not be visible. So
---                            predicted border becomes the visible border.
 -- UnitBarF.PredictedBar      This is another statusbar that sits behind StatusBar.  This is used for
---                            predicted health
+--                            predicted health.
 --
 -- Border.Anchor              Reference to the anchor for moving.
 -- Border.TooltipName         Tooltip text to display for mouse over when bars are unlocked.
@@ -59,9 +55,9 @@ local PowerEnergy = PowerTypeToNumber['ENERGY']
 
 -- Constants used in NumberToDigitGroups
 local Thousands = ('%.1f'):format(1/5):match('([^0-9])') == '.' and ',' or '.'
-local BillionFormat = '%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local MillionFormat = '%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local ThousandFormat = '%d' .. Thousands..'%03d'
+local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
+local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
+local ThousandFormat = '%s%d' .. Thousands..'%03d'
 
 
 --*****************************************************************************
@@ -89,11 +85,11 @@ local function NumberToDigitGroups(Value)
   end
 
   if Value >= 1000000000 then
-    return (Sign .. BillionFormat):format(Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
+    return (BillionFormat):format(Sign, Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
   elseif Value >= 1000000 then
-    return (Sign .. MillionFormat):format(Value / 1000000, (Value / 1000) % 1000, Value % 1000)
+    return (MillionFormat):format(Sign, Value / 1000000, (Value / 1000) % 1000, Value % 1000)
   elseif Value >= 1000 then
-    return (Sign .. ThousandFormat):format(Value / 1000, Value % 1000)
+    return (ThousandFormat):format(Sign, Value / 1000, Value % 1000)
   else
     return tostring(Value)
   end
@@ -205,7 +201,11 @@ local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue,
     end
   end
 
-  StatusBar[TextFrame]:SetFormattedText(Layout, GetTextValues(MaxValues))
+  if MaxValues > 0 then
+    StatusBar[TextFrame]:SetFormattedText(Layout, GetTextValues(MaxValues))
+  else
+    StatusBar[TextFrame]:SetText('')
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -327,7 +327,6 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   -- Set the color and display the predicted health.
   local PredictedColor = Bar.PredictedColor
   local PredictedHealing = UnitGetIncomingHeals(Unit) or 0
-
   if PredictedColor and PredictedHealing > 0 then
     PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
     PredictedBar:SetMinMaxValues(0, MaxValue)
@@ -471,7 +470,6 @@ function GUB.HapBar:EnableScreenClampHap(Enable)
 
   -- Prevent the border from being moved off the screen.
   self.Border:SetClampedToScreen(Enable)
-  self.PredictedBorder:SetClampedToScreen(Enable)
 end
 
 -------------------------------------------------------------------------------
@@ -518,17 +516,15 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
 
   -- Background (Border).
   if Object == nil or Object == 'bg' then
-    local PredictedBorder = self.PredictedBorder
-
+    local Border = self.Border
     local BgColor = UB.Background.Color
-    local BdColor = UB.Background.BorderColor
 
     if Attr == nil or Attr == 'backdrop' then
-      PredictedBorder:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
-      PredictedBorder:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
     end
     if Attr == nil or Attr == 'color' then
-      PredictedBorder:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
     end
   end
 
@@ -537,7 +533,6 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     local StatusBar = self.StatusBar
     local PredictedBar = self.PredictedBar
     local Border = self.Border
-    local PredictedBorder = self.PredictedBorder
 
     local Bar = UB.Bar
     local Padding = Bar.Padding
@@ -583,9 +578,6 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     if Attr == nil or Attr == 'size' then
       Border:SetWidth(Bar.HapWidth)
       Border:SetHeight(Bar.HapHeight)
-
-      PredictedBorder:SetWidth(Bar.HapWidth)
-      PredictedBorder:SetHeight(Bar.HapHeight)
     end
   end
 
@@ -639,9 +631,9 @@ function GUB.HapBar:SetLayoutHap()
   StatusBar:SetValue(0)
 
   -- Set the predicted bar values to the same values as the StatusBar.
-  local PredictedBorder = self.PredictedBorder
-  PredictedBorder:ClearAllPoints()
-  PredictedBorder:SetPoint('TOPLEFT', 0, 0)
+  local Border = self.Border
+  Border:ClearAllPoints()
+  Border:SetPoint('TOPLEFT', 0, 0)
 
   local PredictedBar = self.PredictedBar
   PredictedBar:SetMinMaxValues(0, 100)
@@ -671,15 +663,13 @@ end
 function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
   local Border = CreateFrame('Frame', nil, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
+  local PredictedBar = CreateFrame('StatusBar', nil, Border)
+
   StatusBar.Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
   StatusBar.Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
 
-  local PredictedBorder = CreateFrame('Frame', nil, ScaleFrame)
-  local PredictedBar = CreateFrame('StatusBar', nil, PredictedBorder)
-
-  -- The predicted Bar needs to be above the Healthbar.
-  Border:SetFrameLevel(1)
-  PredictedBorder:SetFrameLevel(0)
+  -- The predictedbar needs to be below the health/power bar.
+  StatusBar:SetFrameLevel(StatusBar:GetFrameLevel() + 1)
 
   -- Make the border frame top when clicked.
   Border:SetToplevel(true)
@@ -697,6 +687,5 @@ function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Save the frames.
   UnitBarF.Border = Border
   UnitBarF.StatusBar = StatusBar
-  UnitBarF.PredictedBorder = PredictedBorder
   UnitBarF.PredictedBar = PredictedBar
 end
