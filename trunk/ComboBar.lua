@@ -9,11 +9,12 @@
 local MyAddon, GUB = ...
 
 GUB.ComboBar = {}
+local Main = GUB.Main
 
 -- shared from Main.lua
-local LSM = GUB.UnitBars.LSM
-local CheckEvent = GUB.UnitBars.CheckEvent
-local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+local LSM = Main.LSM
+local CheckEvent = Main.CheckEvent
+local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
@@ -79,7 +80,7 @@ local SoulShardTexture = {
 local function ComboBarStartMoving(self, Button)
 
   -- Call the base moving function for group or anchor movement.
-  if GUB.UnitBars.UnitBarStartMoving(self.Anchor, Button) then
+  if Main.UnitBarStartMoving(self.Anchor, Button) then
     self.UnitBarMoving = true
   end
 end
@@ -94,7 +95,7 @@ local function ComboBarStopMoving(self, Button)
   -- Call the stop moving base function if there was a group move or anchor move.
   if self.UnitBarMoving then
     self.UnitBarMoving = false
-    GUB.UnitBars.UnitBarStopMoving(self.Anchor, Button)
+    Main.UnitBarStopMoving(self.Anchor, Button)
   end
 end
 
@@ -131,7 +132,7 @@ local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
     -- If FinishFadeOut is true then stop any fadout animation and darken the combo point.
     if FinishFadeOut then
       if CPF.Dark then
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish', function() CPF:Hide() end)
+        Main:AnimationFadeOut(FadeOut, 'finish', function() CPF:Hide() end)
       end
 
     -- Light a combo point based on ComboPoints.
@@ -139,7 +140,7 @@ local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
       if FadeOutTime > 0 then
 
         -- Finish animation if it's playing.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
+        Main:AnimationFadeOut(FadeOut, 'finish')
       end
       CPF:Show()
       CPF.Dark = false
@@ -149,7 +150,7 @@ local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
       if FadeOutTime > 0 then
 
         -- Fade out the combo point then hide it.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() CPF:Hide() end)
+        Main:AnimationFadeOut(FadeOut, 'start', function() CPF:Hide() end)
       else
         CPF:Hide()
       end
@@ -232,10 +233,10 @@ function GUB.ComboBar:FrameSetScriptCombo(Enable)
                                                ComboBarStopMoving(self)
                                              end)
       ComboPointBoxFrame:SetScript('OnEnter', function(self)
-                                                GUB.UnitBars.UnitBarTooltip(self, false)
+                                                Main.UnitBarTooltip(self, false)
                                               end)
       ComboPointBoxFrame:SetScript('OnLeave', function(self)
-                                                GUB.UnitBars.UnitBarTooltip(self, true)
+                                                Main.UnitBarTooltip(self, true)
                                               end)
     else
       ComboPointBoxFrame:SetScript('OnMouseDown', nil)
@@ -308,7 +309,7 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
       end
 
       if Attr == nil or Attr == 'backdrop' then
-        ComboPointBoxFrame:SetBackdrop(GUB.UnitBars:ConvertBackdrop(Background.BackdropSettings))
+        ComboPointBoxFrame:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
         ComboPointBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
       if Attr == nil or Attr == 'color' then
@@ -377,7 +378,7 @@ function GUB.ComboBar:SetLayoutCombo()
   local OffsetFY = 0
 
   -- Get the offsets based on angle.
-  local XOffset, YOffset = GUB.UnitBars:AngleToOffset(BoxWidth + Padding, BoxHeight + Padding, Angle)
+  local XOffset, YOffset = Main:AngleToOffset(BoxWidth + Padding, BoxHeight + Padding, Angle)
 
   -- Set up the combo point positions.
   for ComboIndex, CPF in ipairs(self.ComboPointF) do

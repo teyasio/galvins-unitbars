@@ -9,10 +9,11 @@
 local MyAddon, GUB = ...
 
 GUB.Options = {}
+local Main = GUB.Main
 
-local LSM = GUB.UnitBars.LSM
-local UnitBarsF = GUB.UnitBars.UnitBarsF
-local Defaults = GUB.UnitBars.Defaults
+local LSM = Main.LSM
+local UnitBarsF = Main.UnitBarsF
+local Defaults = Main.Defaults
 local HelpText = GUB.Help.HelpText
 
 -------------------------------------------------------------------------------
@@ -39,6 +40,7 @@ local HelpText = GUB.Help.HelpText
 -- AlignmentTypeDropdown         Table used to pick vertical or horizontal alignment.
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
+-- PredicterDropdown             Table used to for the predicter for predicted power.
 -------------------------------------------------------------------------------
 
 -- Addon Constants
@@ -147,6 +149,8 @@ local EclipseSliderWidthMin = 10
 local EclipseSliderWidthMax = 50
 local EclipseSliderHeightMin = 10
 local EclipseSliderHeightMax = 50
+local EclipseBarFadeOutMin = 0
+local EclipseBarFadeOutMax = 5
 local EclipseAngleMin = 90
 local EclipseAngleMax = 360
 local EclipseSunOffsetXMin = -50
@@ -275,6 +279,12 @@ local RuneModeDropdown = {
   rune = 'Runes',
   cooldownbar = 'Cooldown Bars',
   runecooldownbar = 'Cooldown Bars and Runes'
+}
+
+local PredicterDropdown = {
+  showalways = 'Show Always',
+  hidealways = 'Hide always',
+  none       = 'None',
 }
 --*****************************************************************************
 --
@@ -1987,6 +1997,30 @@ local function CreateBarOptions(BarType, Object, Order, Name)
             step = 1,
             arg = {'size'},
           },
+          PredicterWidth = {
+            type = 'range',
+            name = 'Width',
+            order = 35,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'predicter'
+                     end,
+            min = EclipseSliderWidthMin,
+            max = EclipseSliderWidthMax,
+            step = 1,
+            arg = {'size'},
+          },
+          PredicterHeight = {
+            type = 'range',
+            name = 'Height',
+            order = 36,
+            hidden = function()
+                       return BarType ~= 'EclipseBar' or Object ~= 'predicter'
+                     end,
+            min = EclipseSliderHeightMin,
+            max = EclipseSliderHeightMax,
+            step = 1,
+            arg = {'size'},
+          },
           BarColor = {
             type = 'color',
             name = 'Color',
@@ -2215,6 +2249,10 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       BarOptions.args.General.args.BarColor = nil
       BarOptions.args.SliderColor = CreateEclipseColorOptions(BarType, 'bar', 'slider', 2, 'Color')
     end
+    if Object == 'predicter' then
+      BarOptions.args.General.args.BarColor = nil
+      BarOptions.args.PredicterColor = CreateEclipseColorOptions(BarType, 'bar', 'predicter', 2, 'Color')
+    end
   end
 
   return BarOptions
@@ -2325,47 +2363,11 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         order = 10,
         width = 'full',
       },
-      BarModeAngle = {
-        type = 'range',
-        name = 'Rune Rotation',
-        order = 11,
-        desc = 'Rotates the rune bar',
-        disabled = function()
-                     return not UnitBars.RuneBar.General.BarMode
-                   end,
-        min = RuneBarAngleMin,
-        max = RuneBarAngleMax,
-        step = 45,
-      },
-      RunePadding = {
-        type = 'range',
-        name = 'Rune Padding',
-        order = 12,
-        desc = 'Set the Amount of space between each rune',
-        disabled = function()
-                     return not UnitBars.RuneBar.General.BarMode
-                   end,
-        min = RuneBarPaddingMin,
-        max = RuneBarPaddingMax,
-        step = 1,
-      },
-      RuneSize = {
-        type = 'range',
-        name = 'Rune Size',
-        order = 13,
-        hidden = function()
-                   return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
-                 end,
-        desc = 'Change the size of all the runes',
-        min = RuneBarSizeMin,
-        max = RuneBarSizeMax,
-        step = 1,
-      },
       RuneLocation = {
         type = 'group',
         name = 'Rune Location',
         dialogInline = true,
-        order = 100,
+        order = 11,
         hidden = function()
                    return UnitBars[BarType].General.RuneMode ~= 'runecooldownbar'
                  end,
@@ -2395,6 +2397,42 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             desc = 'Position of the rune around the cooldown bar'
           },
         },
+      },
+      BarModeAngle = {
+        type = 'range',
+        name = 'Rune Rotation',
+        order = 12,
+        desc = 'Rotates the rune bar',
+        disabled = function()
+                     return not UnitBars.RuneBar.General.BarMode
+                   end,
+        min = RuneBarAngleMin,
+        max = RuneBarAngleMax,
+        step = 45,
+      },
+      RunePadding = {
+        type = 'range',
+        name = 'Rune Padding',
+        order = 13,
+        desc = 'Set the Amount of space between each rune',
+        disabled = function()
+                     return not UnitBars.RuneBar.General.BarMode
+                   end,
+        min = RuneBarPaddingMin,
+        max = RuneBarPaddingMax,
+        step = 1,
+      },
+      RuneSize = {
+        type = 'range',
+        name = 'Rune Size',
+        order = 14,
+        hidden = function()
+                   return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
+                 end,
+        desc = 'Change the size of all the runes',
+        min = RuneBarSizeMin,
+        max = RuneBarSizeMax,
+        step = 1,
       },
     },
   }
@@ -2709,11 +2747,17 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         order = 2,
         desc = 'If checked half the bar becomes lit to show the slider direction',
       },
-      Text = {
+      PowerText = {
         type = 'toggle',
-        name = 'Text',
+        name = 'Power Text',
         order = 3,
         desc = 'If checked then eclipse power text will be shown',
+      },
+      PredictedPower = {
+        type = 'toggle',
+        name = 'Predicted Power',
+        order = 4,
+        desc = 'If checked, the energy from wrath, starfire and starsurge will be shown ahead of time',
       },
       Spacer10 = {
         type = 'description',
@@ -2721,10 +2765,59 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         order = 10,
         width = 'full',
       },
+      PredictedOptions = {
+        type = 'group',
+        name = 'Predicted Options',
+        dialogInline = true,
+        order = 11,
+        hidden = function()
+                   return not UnitBars[BarType].General.PredictedPower
+                 end,
+        args = {
+          PredicterHideShow  = {
+            type = 'select',
+            name = 'Predicter (predicted power)',
+            order = 1,
+            desc = 'Hide or Show the predicter',
+            values = PredicterDropdown,
+            style = 'dropdown',
+          },
+          Spacer10 = {
+            type = 'description',
+            name = '',
+            order = 10,
+            width = 'full',
+          },
+          PredictedHalfLit = {
+            type = 'toggle',
+            name = 'Half Lit',
+            order = 11,
+            desc = 'If checked, bar half lit is based on predicted power',
+          },
+          PredictedPowerText = {
+            type = 'toggle',
+            name = 'Power Text',
+            order = 12,
+            desc = 'If checked, predicted power text will be shown instead',
+          },
+          PredictedHideSlider = {
+            type = 'toggle',
+            name = 'Hide Slider',
+            order = 13,
+            desc = 'If checked, the slider will be hidden',
+          },
+          PredictedEclipse = {
+            type = 'toggle',
+            name = 'Eclipse',
+            order = 14,
+            desc = 'If checked, the sun or moon will light up based on predicted power',
+          },
+        },
+      },
       SliderDirection = {
         type = 'select',
         name = 'Slider Direction',
-        order = 11,
+        order = 12,
         values = DirectionDropdown,
         style = 'dropdown',
         desc = 'Specifies the direction the slider will move in'
@@ -2732,11 +2825,20 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       EclipseAngle = {
         type = 'range',
         name = 'Eclipse Rotation',
-        order = 12,
+        order = 13,
         desc = 'Rotates the eclipse bar',
         min = EclipseAngleMin,
         max = EclipseAngleMax,
         step = 90,
+      },
+      EclipseFadeOutTime = {
+        type = 'range',
+        name = 'Eclipse Fadeout Time',
+        order = 14,
+        desc = 'The amount of time in seconds to fade out sun and moon',
+        min = EclipseBarFadeOutMin,
+        max = EclipseBarFadeOutMax,
+        step = 1,
       },
       Spacer20 = {
         type = 'description',
@@ -2914,7 +3016,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                      local UB = UnitBars[BarType]
                      local x, y =  UB.x, UB.y
 
-                     GUB.UnitBars:CopyTableValues(Defaults.profile[BarType], UB)
+                     Main:CopyTableValues(Defaults.profile[BarType], UB)
 
                      UB.x, UB.y = x, y
 
@@ -2969,6 +3071,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Sun = CreateBackgroundOptions(BarType, 'sun', 2, 'Sun'),
         Bar = CreateBackgroundOptions(BarType, 'bar', 3, 'Bar'),
         Slider = CreateBackgroundOptions(BarType, 'slider', 4, 'Slider'),
+        PredictedSlider = CreateBackgroundOptions(BarType, 'predicter', 5, 'Predicter'),
       }
     }
     UBO.Bar = {
@@ -2981,6 +3084,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Sun = CreateBarOptions(BarType, 'sun', 2, 'Sun'),
         Bar = CreateBarOptions(BarType, 'bar', 3, 'Bar'),
         Slider = CreateBarOptions(BarType, 'slider', 4, 'Slider'),
+        PredictedSlider = CreateBarOptions(BarType, 'predicter', 5, 'Predicter'),
       }
     }
   else
@@ -3222,28 +3326,28 @@ local function CreateCopySettingsOptions(Order, Name)
                  local x, y = Dest.x, Dest.y
 
                  if CopySettings.All then
-                   GUB.UnitBars:CopyTableValues(Source, Dest)
+                   Main:CopyTableValues(Source, Dest)
                  else
                    if CopySettings.Status and not CopySettingsHidden.Status then
-                     GUB.UnitBars:CopyTableValues(Source.Status, Dest.Status)
+                     Main:CopyTableValues(Source.Status, Dest.Status)
                    end
                    if CopySettings.General and not CopySettingsHidden.General then
-                     GUB.UnitBars:CopyTableValues(Source.General, Dest.General)
+                     Main:CopyTableValues(Source.General, Dest.General)
                    end
                    if CopySettings.Other and not CopySettingsHidden.Other then
-                     GUB.UnitBars:CopyTableValues(Source.Other, Dest.Other)
+                     Main:CopyTableValues(Source.Other, Dest.Other)
                    end
                    if CopySettings.Background and not CopySettingsHidden.Background then
-                     GUB.UnitBars:CopyTableValues(Source.Background, Dest.Background)
+                     Main:CopyTableValues(Source.Background, Dest.Background)
                    end
                    if CopySettings.Bar and not CopySettingsHidden.Bar then
-                     GUB.UnitBars:CopyTableValues(Source.Bar, Dest.Bar)
+                     Main:CopyTableValues(Source.Bar, Dest.Bar)
                    end
                    if CopySettings.Text and not CopySettingsHidden.Text then
-                     GUB.UnitBars:CopyTableValues(Source.Text, Dest.Text)
+                     Main:CopyTableValues(Source.Text, Dest.Text)
                    end
                    if CopySettings.Text2 and not CopySettingsHidden.Text2 then
-                     GUB.UnitBars:CopyTableValues(Source.Text2, Dest.Text2)
+                     Main:CopyTableValues(Source.Text2, Dest.Text2)
                    end
                  end
 
@@ -3309,7 +3413,7 @@ local function CreateAlignUnitBarsOptions(Order, Name)
 
   -- Function inside of a function.  But yeah I didn't want to call this huge thing in 4 different places.
   local function AlignBars()
-    GUB.UnitBars:AlignUnitBars(AlignmentBar, BarsToAlign, AlignmentType, Alignment[AlignmentType], PadEnabled, Padding)
+    Main:AlignUnitBars(AlignmentBar, BarsToAlign, AlignmentType, Alignment[AlignmentType], PadEnabled, Padding)
   end
 
   local AlignOptions = {
@@ -3679,7 +3783,7 @@ local function CreateMainOptions()
               end,
         set = function(Info, Value)
                 UnitBars[Info[#Info]] = Value
-                GUB.UnitBars:UnitBarsSetAllOptions()
+                Main:UnitBarsSetAllOptions()
                 GUB:UnitBarsUpdateStatus()
               end,
         args = {
@@ -3713,16 +3817,10 @@ local function CreateMainOptions()
             order = 5,
             desc = 'Turns off the description in mouse over tooltips when bars are not locked',
           },
-          SmoothUpdate = {
-            type = 'toggle',
-            name = 'Smooth Update',
-            order = 6,
-            desc = 'Health and power bars will update smoothly if checked',
-          },
           FadeOutTime = {
             type = 'range',
             name = 'Fadeout Time',
-            order = 7,
+            order = 6,
             desc = 'The amount of time in seconds to fade out a bar',
             min = 0,
             max = 5,
@@ -3732,7 +3830,7 @@ local function CreateMainOptions()
                   end,
             set = function(Info, Value)
                     UnitBars.FadeOutTime = Value
-                    GUB.UnitBars:UnitBarsSetAllOptions()
+                    Main:UnitBarsSetAllOptions()
                   end,
           },
         },
@@ -3855,7 +3953,7 @@ end
 function GUB.Options:OnInitialize()
 
   -- Create the unitbars options.
-  ProfileOptions = LibStub('AceDBOptions-3.0'):GetOptionsTable(GUB.UnitBarsDB)
+  ProfileOptions = LibStub('AceDBOptions-3.0'):GetOptionsTable(GUB.MainDB)
 
   SlashOptions = CreateSlashOptions()
   MainOptions = CreateMainOptions()

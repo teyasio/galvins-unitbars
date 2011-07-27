@@ -9,13 +9,14 @@
 local MyAddon, GUB = ...
 
 GUB.EclipseBar = {}
+local Main = GUB.Main
 
 -- shared from Main.lua
-local LSM = GUB.UnitBars.LSM
-local CheckPowerType = GUB.UnitBars.CheckPowerType
-local CheckEvent = GUB.UnitBars.CheckEvent
-local PowerTypeToNumber = GUB.UnitBars.PowerTypeToNumber
-local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+local LSM = Main.LSM
+local CheckPowerType = Main.CheckPowerType
+local CheckEvent = Main.CheckEvent
+local PowerTypeToNumber = Main.PowerTypeToNumber
+local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
@@ -35,9 +36,10 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 
 -- UnitBarF = UnitBarsF[]
 -- UnitBarF.UnitBar                  Reference to the unitbar data for the eclipse bar.
--- UnitBarF.Border                   Border frame for the eclipse bar. This is a parent of
--- UnitBarF.SunMoonBorder            Frame level border for sun and moon.
--- UnitBarF.SliderBorder             Frame level border for the slider.
+-- UnitBarF.Border                   Border frame for the eclipse bar. This is a parent of OffsetFrame
+-- UnitBarF.OffsetFrame              Used for rotation.
+-- UnitBarF.SunMoonBorder            Frame level border for sun and moon. Child of OffsetFrame.
+-- UnitBarF.SliderBorder             Frame level border for the slider. Child of SunMoonBorder.
 -- UnitBarF.EclipseF                 Table containing the frames that make up the eclipse bar.
 --
 -- Border.Anchor                     Anchor reference for moving.
@@ -45,11 +47,13 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- Border.TooltipDesc                Description under the name for mouse over.
 --
 -- EclipseF.Moon                     Table containing frame data for moon.
+--   Dark                            If true the Moon is not lit.
 --   Frame                           Child of SunMoonBorder. Used to hide/show the moon.
 --   Border                          Child of SunMoonBorder. Used to show a visible border for moon.
 --   StatusBar                       Child of Moon.Frame.  Statusbar containing the visible texture.
 --
 -- EclipseF.Sun                      Table containing frame data for sun.
+--   Dark                            If true then the Sun is not lit.
 --   Frame                           Child of SunMoonBorder. Used to hide/show the sun.
 --   Border                          Child of SunMoonBorder. Used to show a visible border for sun.
 --   StatusBar                       Child of Sun.Frame.  Statusbar containing the visible texture.
@@ -57,24 +61,81 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- EclipseF.Bar                      Table containing the frame for the bar.
 --   Frame                           Child of Border. Used to hide/show the bar.
 --   Border                          Child of Border. Used to show a visible border for the bar.
---   StatusBarLunar                  Child of Bar.Frame.  This texture fills the lunar side of the bar.
---   StatusBarSolar                  Child of Bar.Frame.  This texture fills the solar side of the bar.
+--
+-- EclipseF.Lunar                    Table containing the lunar statusbar.
+--   Dark                            If true then the StatusBarLunar is not lit.
+--   Frame                           Child of Bar.Frame.  This texture fills the lunar side of the bar.
+--
+-- EclipseF.Solar
+--   Dark                            If true then the StatusBarSolar is not lit.
+--   Frame                           Child of Bar.Frame.  This texture fills the solar side of the bar.
 --
 -- EclipseF.Slider                   Table containing the frame data for the slider.
 --   Frame                           Child of SliderBorder. Used to hide/show the slider.
---   Border                          Child of SliderBorder. Used to show a visible border for the slider.
+--   Border                          Child of Slider.Frame. Used to show a visible border for the slider.
 --   StatusBar                       Child of Slider.Frame.  Statusbar containing the visible texture.
+--                                   This is set up so that Frame:Hide() will hide the whole Slider.
+--
+-- EclipseF.Predicter                Table containing the frame data for the predicter.
+--   Frame                           Child of PredictedBorder. Used to hide/show the predicter.
+--   Border                          Child of Predicter.Frame. Used to show a visible border for the predicter.
+--   StatusBar                       Child of Predicter.Frame. Statusbar containing the visible texture.
+--                                   This is set up so that Frame:Hide() will hide the whole Predicter.
+--
 -- Txt                               Standard text data.
 --
 -- RotateBar                         Table containing data for the bar rotation.
+--
+-- EclipseDirection                  Only gets updated during Energize events.  Or when it's neutral.
+--                                   Sometimes the direction can change before the eclipse power hits
+--                                   max power.  So to fix this, the direction gets updated when the
+--                                   spell causes an energize event.  If EclipseDirection is nil then
+--                                   it will be set to the current direction.
+--
+-- WrathSequence                     A positive floating point number that keeps track of the wrath sequence.
+-- SequenceRounded                   Rounded off value of WrathSequence used to calculate the next wrath value.
+-- WrathNormalValue                  Floating point normal wrath to advance the sequence.
+-- WrathFourPcValue                  Four pc tier 12 set bonus wrath value to advance the sequence.
+-- SavedWrathSequence                Used to save the current value of WrathSequence.
+-- SavedSequenceRounded              Used to save the current value of SequenceRounded.
+-- LastWrathServerValue              Used to by SyncWrathSequence().  Helps to detect if the sequence is in sync with
+--                                   the server. This contains the last wrath value from the server.
+-- WrathSync                         If true then in sync otherwise false.
+
+-- Tier12FourPcBonus                 If true then the tier 12 four pc bonus is active, otherwise false.
+--
 -------------------------------------------------------------------------------
 
 -- Powertype constants
 local PowerEclipse = PowerTypeToNumber['ECLIPSE']
 
+local Tier12FourPcBonus = false
+local EclipseDirection = nil
+
+local WrathSequence = 0
+local SequenceRounded = 0
+local SavedWrathSequence = 0
+local SavedSequenceRounded = 0
+local LastWrathServerValue = 0
+local WrathSync = false
+local WrathNormalValue = 13.333333
+local WrathFourPcValue = 16.666667
+
 local SolarBuff = 48517;
 local LunarBuff = 48518;
-local LastDirection = nil
+
+-- Predicted spell ID constants.
+local SpellWrath      = 5176
+local SpellStarfire   = 2912
+local SpellStarsurge  = 78674
+local SpellEnergizeWS = 89265 -- Energize for Wrath and Starfire
+local SpellEnergizeSS = 86605 -- Energize for Starsurge
+
+local PredictedValue = {
+  [SpellWrath] = 13,
+  [SpellStarfire] = 20,
+  [SpellStarsurge] = 15,
+}
 
 local RotateBar = {
   [90] = {  -- Left to right.
@@ -117,38 +178,315 @@ local RotateBar = {
 
 --*****************************************************************************
 --
+-- Eclipsebar predicted power and initialization
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- ResetWrathSequence
+--
+-- Resets the wrath sequence.
+--
+-- Usage: ResetWrathSequence()
+-------------------------------------------------------------------------------
+local function ResetWrathSequence()
+  SequenceRounded = 0
+  WrathSequence = 0
+end
+
+-------------------------------------------------------------------------------
+-- AdvanceWrathSequence
+--
+-- Advanced the wrath sequence to the next value.
+--
+-- Usage: WrathValue = AdvanceWrathSequence(Bonus)
+--
+-- Bonus        If true then the sequence gets advanced based on the set bonus.
+--
+-- WrathValue   Next value in the sequence.
+--
+-- NOTES:  The server uses the same math.  As long as the sequence matches the
+--         server it will always return the correct value.
+-------------------------------------------------------------------------------
+local function AdvanceWrathSequence(Bonus)
+  local Value = WrathNormalValue
+
+  -- Get 4pc bonus value.
+  if Bonus then
+    Value = WrathFourPcValue
+  end
+
+  local LastSequenceRounded = SequenceRounded
+  WrathSequence = WrathSequence + Value
+  SequenceRounded = WrathSequence
+
+  -- To return the correct value the WrathSequence has to be rounded.
+  if SequenceRounded - floor(SequenceRounded) > 0.90 then
+    SequenceRounded = floor(SequenceRounded) + 1
+  else
+    SequenceRounded = floor(SequenceRounded)
+  end
+
+  -- Return the wrath value.
+  return SequenceRounded - LastSequenceRounded
+end
+
+-------------------------------------------------------------------------------
+-- SyncWrathSequence
+--
+-- Sync the wrath sequence. Matches the wrath sequence with the server.  Takes 1 to 2 tries.
+--
+-- usage: SyncWrathSequence(Value)
+--
+-- Value       Value to sync to.
+--
+-- NOTES:      Matches the wrath sequence value.  If it doesn't then it
+--             forwards the sequence till a match is found.
+--             If its an euphoria value.  Then it advances the sequence till the sum
+--             of two values equals the euphoria.
+-------------------------------------------------------------------------------
+local function SyncWrathSequence(Value)
+  local LastWrathValue = 0
+  local WrathValue = 0
+  local WrathCount = 0
+  local Found = false
+  local Bonus = false
+
+  Value = abs(Value)
+
+  -- Don't advance the sequence on euphoria of 30.
+  if Value == 30 then
+    return
+  end
+
+  -- 4pc tier 12 bonus value. set bonus to true.
+  if Value == 16 or Value == 17 then
+    Bonus = true
+  end
+
+  -- Help sync faster.
+  if not WrathSync and (LastWrathServerValue == 13 and Value == 13 or LastWrathServerValue == 17 and Value == 17) then
+    Value = LastWrathServerValue + Value
+  end
+
+  -- Forward the sequence to the next matching value.
+  while not Found and WrathCount < 10 do
+    WrathCount = WrathCount + 1
+    LastWrathValue = WrathValue
+    WrathValue = AdvanceWrathSequence(Bonus)
+    --print('WRATH SEQUENCE VALUE = ', WrathValue, 'SERVER VALUE = ', Value)
+    if Value == WrathValue or Value == LastWrathValue + WrathValue then
+      Found = true
+    end
+  end
+
+  -- Check to see if in sync.
+  if Found then
+    if WrathValue == 14 or WrathValue == 16 or Value == 26 or
+       LastWrathServerValue == 13 and Value == 13 or LastWrathServerValue == 17 and Value == 17 then
+      WrathSync = true
+    end
+    LastWrathServerValue = Value
+  else
+    print('Unable to find ', -Value, ' in the wrath sequence')
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SaveRestoreWrathSequence
+--
+-- Saves/restores the current sequence.
+--
+-- Usage: SaveRestoreWrathSequence(Action)
+--
+-- Action     'save' saves the current wrath sequence.
+--            'restore' restores the last saved wrath sequence.
+--
+-- NOTE: Since the prediction code needs to look ahead in the wrath sequence.
+--       The sequence needs to be restored so that the prediction code
+--       doesn't advance it.
+-------------------------------------------------------------------------------
+local function SaveRestoreWrathSequence(Action)
+  if Action == 'save' then
+    SavedWrathSequence = WrathSequence
+    SavedSequenceRounded = SequenceRounded
+  elseif Action == 'restore' then
+    WrathSequence = SavedWrathSequence
+    SequenceRounded = SavedSequenceRounded
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CheckSpell [User defined function for predicted power] Only called by SetPredictedSpell()
+--
+-- This function gets called when a damage spell or energize spell hits the target.
+--
+-- If an energize spell comes in it checks to see what spellID triggered it.
+-- then tells SetPredictedSpell() to remove that spellID.  If a damage spell
+-- comes in it removes it from the spell stack if it doesn't produce an energize event.
+--
+-- The wrath sequence only gets updated on damage when a wrath energize event happens.
+--
+-- NOTE: See SetPredictedSpell() in Main.lua for details on how this function is called.
+-------------------------------------------------------------------------------
+local function CheckSpell(SpellID, Value)
+
+  -- Remove spell from stack that will not generate an energize event.
+  if SpellID == SpellWrath or SpellID == SpellStarfire  or SpellID == SpellStarsurge then
+    local RemoveSpell = false
+    if SpellID == SpellWrath and EclipseDirection == 'sun' then
+      RemoveSpell = true
+    elseif SpellID == SpellStarfire and EclipseDirection == 'moon' then
+      RemoveSpell = true
+    else
+
+      -- Spell has an energize event, dont remove the spell from the stack.
+      RemoveSpell = false
+    end
+
+    return RemoveSpell
+  else
+
+    -- Update eclipse direction on energize.
+    EclipseDirection = GetEclipseDirection()
+
+    -- Check for energize spell and convert it to spellID damage.
+    -- Also a spell damage will happen or happened since energize happened.
+    if SpellID == SpellEnergizeWS then
+      if Value < 0 then
+
+        -- Update the sequence based on Value.
+        SyncWrathSequence(Value)
+
+        -- Spell is wrath from energize.
+        SpellID = SpellWrath
+      else
+
+        -- Spell is starfire from energize.
+        SpellID = SpellStarfire
+      end
+    else
+
+      -- Spell is starsurge from energize.
+      SpellID = SpellStarsurge
+    end
+
+    -- pass back the SpellID to be removed.
+    return SpellID
+  end
+end
+
+-------------------------------------------------------------------------------
+-- Set Wrath, Starfire, Starsurge to need a flight time. Also CheckSpell will be
+-- called when either of the spells hit the target.
+-- Set Energize to call CheckSpell as well.
+-------------------------------------------------------------------------------
+Main:SetPredictedSpells(SpellWrath,      true,  CheckSpell)
+Main:SetPredictedSpells(SpellStarfire,   true,  CheckSpell)
+Main:SetPredictedSpells(SpellStarsurge,  true,  CheckSpell)
+Main:SetPredictedSpells(SpellEnergizeWS, false, CheckSpell)
+Main:SetPredictedSpells(SpellEnergizeSS, false, CheckSpell)
+
+--*****************************************************************************
+--
 -- Eclipsebar utility
 --
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- CheckSolarLunar
+-- GetEclipsePowerType
 --
--- Checks for the solar or lunar buffs
+-- Returns -1 for lunar or 1 for solar or 0 for nuetral.
 --
--- Usage Solar, Lunar = CheckSolarLunar()
+-- usage: EclipsePowerType = GetEclipsePowerType(EclipsePower)
 --
--- Solar           If true then Unit has the solar buff.
--- Lunar           If true then the Unit has the lunar buff.
+-- EclipsePower          Eclipse Power
+--
+-- EclipsePowerType      -1 = lunar, 1 = solar, 0 = neutral
 -------------------------------------------------------------------------------
-local function CheckSolarLunar()
-  local Name = nil
-  local SpellID = 0
-  local Solar = false
-  local Lunar = false
-  local i = 1
-  repeat
-    Name, _, _, _, _, _, _, _, _, _, SpellID = UnitBuff('player', i)
-    if Name then
-      if SpellID == SolarBuff then
-        Solar = true
-      elseif SpellID == LunarBuff then
-        Lunar = true
-      end
+local function GetEclipsePowerType(Power)
+  if Power < 0 then
+    return -1
+  elseif Power > 0 then
+    return 1
+  else
+    return 0
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetPredictedEclipsePower
+--
+-- Calculates different parts of the eclipse bar for prediction.
+--
+-- usage: PPower, PEclipse, PPowerType, PDirection , PowerChange =
+--          GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType)
+--
+-- SpellID         ID of the value being added.  See GetPredictedSpell()
+-- Value           Positive value to add to Power.
+-- Power           Current eclipse power.
+-- MaxPower        Maximum eclipse power (constant)
+-- Direction       Current direction the power is going in 'sun', 'moon', or 'none'.
+-- PowerType       Type of power -1 lunar, 1 solar
+--
+-- The returned values are based on the Value passed being added to Power.
+--
+-- PPower          Value added to Power.
+-- PEclipse        -1 = lunar eclipse, 1 = solar eclipse, 0 = none
+-- PPowerType      -1 = lunar, 1 = solar, 0 = nuetral
+-- PDirection      'moon' = lunar, 'sun' = solar, or 'none'.
+-- PowerChange     If true then the SpellID actually caused a power change.
+-------------------------------------------------------------------------------
+local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType)
+  local PowerChange = false
+  local Eclipse = 0
+
+  -- Add value based on eclipse direction.
+  if Direction == 'moon' then
+    if SpellID == SpellWrath or SpellID == SpellStarsurge then
+      Power = Power - Value
+      PowerChange = true
     end
-    i = i + 1
-  until Name == nil
-  return Solar, Lunar
+  elseif Direction == 'sun' then
+    if SpellID == SpellStarfire or SpellID == SpellStarsurge then
+      Power = Power + Value
+      PowerChange = true
+    end
+  elseif SpellID == SpellWrath then
+    Power = Power - Value
+    PowerChange = true
+  elseif SpellID == SpellStarfire then
+    Power = Power + Value
+    PowerChange = true
+  elseif SpellID == SpellStarsurge then
+    if PowerType == 0 then
+      Power = Power + Value
+    else
+      Power = Power + Value * PowerType
+    end
+    PowerChange = true
+  end
+
+  -- Clip power if its greater than maxpower.
+  if abs(Power) > MaxPower then
+    Power = MaxPower * PowerType
+  end
+
+  -- Calc direction.
+  if PowerChange then
+    if Power <= -MaxPower then
+      Direction = 'sun'
+    elseif Power >= MaxPower then
+      Direction = 'moon'
+    end
+  end
+
+  -- Calc eclipse.
+  if Direction == 'moon' and Power > 0 and Power <= MaxPower or Direction == 'sun' and Power < 0 and Power >= -MaxPower then
+    Eclipse = PowerType
+  end
+
+  return Power, Eclipse, GetEclipsePowerType(Power), Direction, PowerChange
 end
 
 --*****************************************************************************
@@ -166,7 +504,7 @@ end
 local function EclipseBarStartMoving(self, Button)
 
   -- Call the base moving function for group or anchor movement.
-  if GUB.UnitBars.UnitBarStartMoving(self.Anchor, Button) then
+  if Main.UnitBarStartMoving(self.Anchor, Button) then
     self.UnitBarMoving = true
   end
 end
@@ -181,7 +519,7 @@ local function EclipseBarStopMoving(self, Button)
   -- Call the stop moving base function if there was a group move or anchor move.
   if self.UnitBarMoving then
     self.UnitBarMoving = false
-    GUB.UnitBars.UnitBarStopMoving(self.Anchor, Button)
+    Main.UnitBarStopMoving(self.Anchor, Button)
   end
 end
 
@@ -192,58 +530,83 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UpdateEclipseBar (Update) [UnitBar assigned function]
+-- EclipseBarHide
 --
--- Update the eclipse bar energy, sun, and moon.
+-- Hides/Shows the sun and moon
 --
--- usage: UpdateEclipseBar(Event, ...)
+-- usage: EclipseBarHide(EF, Frame, FadeOutTime, Hide)
 --
--- Event                If nil no event check will be done.
--- ...                  Event data depending on one of three events passed.
+-- EF          EclipseFrame contains the frame data for the slider.
+-- Frame       Frame to hide or show.  Can be 'Sun' or 'Moon'
+-- Hide        If true frame is hidden else shown.
+-- FadeOutTime if > 0 then fadeout animation will be used.
+--             if -1 then all fadeout animation will be canceled.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
+local function EclipseBarHide(EF, Frame, Hide, FadeOutTime)
 
-  -- Do nothing if the event is not an eclipse event.
-  if Event ~= nil or not self.Enabled then
-    local EventType = CheckEvent[Event]
-    if not self.Enabled or EventType ~= 'power' and EventType ~= 'eclipsedirection' and EventType ~= 'aura' then
-      return
+  --Get frame.
+  local SliderF = EF[Frame]
+  local Frame = SliderF.Frame
+
+  if FadeOutTime == -1 then
+    if SliderF.Dark then
+      Main:AnimationFadeOut(Frame.FadeOut, 'finish', function() Frame:Hide() end)
     end
-    if EventType ~= 'eclipsedirection' and select(1, ...) ~= 'player' or
-       EventType == 'power' and CheckPowerType[select(2, ...)] ~= 'eclipse' then
-      return
+
+  elseif not Hide and SliderF.Dark then
+    if FadeOutTime > 0 then
+
+      -- Finish animation if it's playing.
+      Main:AnimationFadeOut(Frame.FadeOut, 'finish')
     end
+    Frame:Show()
+    SliderF.Dark = false
+
+  elseif Hide and not SliderF.Dark then
+    if FadeOutTime > 0 then
+
+      -- Fade out the soul shard then hide it.
+      Main:AnimationFadeOut(Frame.FadeOut, 'start', function() Frame:Hide() end)
+    else
+      Frame:Hide()
+    end
+    SliderF.Dark = true
   end
+end
+
+-------------------------------------------------------------------------------
+-- DisplayEclipseSlider
+--
+-- Subfunction of UpdateEclipseBar()
+--
+-- Displays a slider on the eclipse bar.
+--
+-- usage: DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, PowerType)
+--
+-- EF           EclipseFrame contains the frame data for the slider.
+-- UB           Unitbar data that is needed to display the slider.
+-- Slider       Name of the slider table name.
+-- Power        Current eclipse power
+-- MaxPower     Maximum eclipse power
+-- Eclipse      The current eclipse state.
+-- PowerType    -1 = 'lunar', 1 = 'solar', 0 = neutral
+-------------------------------------------------------------------------------
+local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, PowerType)
 
   -- Get frame data.
-  local UB = self.UnitBar
-  local Background = UB.Background
-  local Bar = UB.Bar
   local Gen = UB.General
-  local EF = self.EclipseF
   local SliderDirection = Gen.SliderDirection
   local EclipseAngle = Gen.EclipseAngle
-  local SunFrame = EF.Sun.Frame
-  local MoonFrame = EF.Moon.Frame
-  local StatusBarLunar = EF.Bar.StatusBarLunar
-  local StatusBarSolar = EF.Bar.StatusBarSolar
-  local SliderF = EF.Slider
+  local Background = UB.Background
+  local Bar = UB.Bar
+  local SliderF = EF[Slider]
 
-  -- Get eclipse data from server.
-  local Direction = GetEclipseDirection()
-  local EclipsePower = UnitPower('player', PowerEclipse)
-  local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
-  local Solar, Lunar = CheckSolarLunar()
-
-  -- Display the eclipse power
-  if UB.General.Text then
-    EF.Txt:SetText(abs(EclipsePower))
-  else
-    EF.Txt:SetText('')
+  -- Clip eclipsepower if out of range.
+  if abs(Power) > MaxPower then
+    Power = Power * PowerType
   end
 
-  -- Update slider position.
-  local SliderPos = EclipsePower / EclipseMaxPower
+  local SliderPos = Power / MaxPower
   local BdSize = Background.Bar.BackdropSettings.BdSize / 2
   local BarSize = 0
   local SliderSize = 0
@@ -251,13 +614,13 @@ function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
   -- Get slider direction.
   if SliderDirection == 'VERTICAL' then
     BarSize = Bar.Bar.BarHeight
-    SliderSize = Bar.Slider.SliderHeight
+    SliderSize = Bar[Slider][('%sHeight'):format(Slider)]
   else
     BarSize = Bar.Bar.BarWidth
-    SliderSize = Bar.Slider.SliderWidth
+    SliderSize = Bar[Slider][('%sWidth'):format(Slider)]
   end
 
-  -- Calc rotate direction
+  -- Calc rotate direction.
   if EclipseAngle == 180 or EclipseAngle == 270 then
     SliderPos = SliderPos * -1
   end
@@ -276,10 +639,10 @@ function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
   end
 
   -- Set slider color.
-  local SliderColor = Bar.Slider.Color
+  local SliderColor = Bar[Slider].Color
 
   -- Check for sun/moon color option.
-  if Bar.Slider.SunMoon then
+  if Bar[Slider].SunMoon then
     if Direction == 'sun' then
       SliderColor = Bar.Sun.Color
     elseif Direction == 'moon' then
@@ -287,40 +650,169 @@ function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
     end
   end
   SliderF.StatusBar:SetStatusBarColor(SliderColor.r, SliderColor.g, SliderColor.b, SliderColor.a)
+end
 
-  -- Check the HalfLit option.
-  if Gen.BarHalfLit then
-    if Direction == 'sun' then
-      StatusBarLunar:Hide()
-      StatusBarSolar:Show()
-    elseif Direction == 'moon' then
-      StatusBarLunar:Show()
-      StatusBarSolar:Hide()
+-------------------------------------------------------------------------------
+-- UpdateEclipseBar (Update) [UnitBar assigned function]
+--
+-- Update the eclipse bar power, sun, and moon.
+--
+-- usage: UpdateEclipseBar(Event, ...)
+--
+-- Event                If nil no event check will be done.
+-- ...                  Event data depending on one of three events passed.
+-------------------------------------------------------------------------------
+function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
+
+  -- Do nothing if not enabled.
+  if not self.Enabled then
+    return
+  end
+
+  -- Need to keep getting eclipsedirection on 'none' since after login, the direction may take a few seconds
+  -- to update to something other than 'none'.
+  if EclipseDirection == nil or EclipseDirection == 'none' then
+    EclipseDirection = GetEclipseDirection()
+  end
+
+  local EclipsePower = UnitPower('player', PowerEclipse)
+  local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
+  local SpellID = Main:CheckAura('o', SolarBuff, LunarBuff)
+  local Eclipse = SpellID == SolarBuff and 1 or SpellID == LunarBuff and -1 or 0
+  local EclipsePowerType = GetEclipsePowerType(EclipsePower)
+
+  -- Check for tier 12 four pc bonus only if in solar eclipse.
+  Tier12FourPcBonus = Main:GetSetBonus(12) == 4 and Eclipse == 1
+
+  local UB = self.UnitBar
+  local Gen = UB.General
+  local PredictedPower = Gen.PredictedPower
+  local PredicterHideShow = Gen.PredicterHideShow
+  local FadeOutTime = Gen.EclipseFadeOutTime
+  local PredictedEclipse = Gen.PredictedEclipse
+  local PredictedHalfLit = Gen.PredictedHalfLit
+  local EF = self.EclipseF
+
+  local Value = 0
+  local Index = 1
+  local PowerChange = false
+  local PC = false
+  local PEclipseDirection = EclipseDirection
+  local PEclipsePower = EclipsePower
+  local PEclipsePowerType = EclipsePowerType
+  local PEclipse = Eclipse
+
+  -- Check hide slider option.
+  if PredictedPower and Gen.PredictedHideSlider then
+    EF.Slider.Frame:Hide()
+  else
+    EF.Slider.Frame:Show()
+    DisplayEclipseSlider(EF, UB, 'Slider', EclipsePower, EclipseMaxPower, EclipseDirection, EclipsePowerType)
+  end
+
+  -- Calculate predicted eclipse.
+  if PredictedPower then
+
+    -- Save the wrath sequence so that it can be looked ahead.
+    SaveRestoreWrathSequence('save')
+    repeat
+      SpellID = Main:GetPredictedSpell(Index)
+      if SpellID ~= 0 then
+        Value = PredictedValue[SpellID]
+
+        -- Get the next wrath value in the sequence. 4pc bonus is only active if predicted solar eclipse is 1.
+        if SpellID == SpellWrath then
+          Value = AdvanceWrathSequence(Tier12FourPcBonus and PEclipse == 1 and true or false)
+        end
+
+        PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
+          GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
+
+        -- Set power change flag.
+        if PowerChange then
+          PC = true
+        end
+      end
+      Index = Index + 1
+    until SpellID == 0
+
+    -- Restore the wrath sequence.
+    SaveRestoreWrathSequence('restore')
+
+    -- Display predicter based on predicted power options.
+    if PC and PredicterHideShow ~= 'hidealways' or PredicterHideShow == 'showalways' then
+      EF.Predicter.Frame:Show()
+      if PC or PredicterHideShow == 'showalways' then
+        DisplayEclipseSlider(EF, UB, 'Predicter', PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
+      end
     else
-      StatusBarLunar:Show()
-      StatusBarSolar:Show()
+      EF.Predicter.Frame:Hide()
     end
   else
-    StatusBarLunar:Show()
-    StatusBarSolar:Show()
+    EF.Predicter.Frame:Hide()
+  end
+
+  -- Display the eclipse power.
+  if Gen.PowerText then
+    local Value = EclipsePower
+    if Gen.PredictedPowerText then
+      Value = PEclipsePower
+    end
+    EF.Txt:SetText(abs(Value))
+  else
+    EF.Txt:SetText('')
   end
 
   -- Hide/show sun and moon
-  if Solar then
-    SunFrame:Show()
+  if Eclipse == 1 and PEclipse == 1 or PEclipse == 1 and EclipseDirection ~= 'moon' or
+     Eclipse == 1 and not PC then
+    EclipseBarHide(EF, 'Sun', false, FadeOutTime)
   else
-    SunFrame:Hide()
+    EclipseBarHide(EF, 'Sun', true, FadeOutTime)
   end
-  if Lunar then
-    MoonFrame:Show()
+  if Eclipse == -1 and PEclipse == -1 or PEclipse == -1 and EclipseDirection ~= 'sun' or
+     Eclipse == -1 and not PC then
+   EclipseBarHide(EF, 'Moon', false, FadeOutTime)
   else
-    MoonFrame:Hide()
+    EclipseBarHide(EF, 'Moon', true, FadeOutTime)
+  end
+
+  -- Check the HalfLit option, predicted power can change how this works.
+  if Gen.BarHalfLit then
+    if EclipseDirection == 'sun' or PEclipseDirection == 'sun' and PredictedHalfLit then
+      if PEclipseDirection == 'sun' then
+        EclipseBarHide(EF, 'Lunar', true, FadeOutTime)
+        EclipseBarHide(EF, 'Solar', false, FadeOutTime)
+      end
+    end
+    if EclipseDirection == 'moon' or PEclipseDirection == 'moon' and PredictedHalfLit then
+      if PEclipseDirection == 'moon' then
+        EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
+        EclipseBarHide(EF, 'Solar', true, FadeOutTime)
+      end
+    end
+    if EclipseDirection == 'none' then
+      EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
+      EclipseBarHide(EF, 'Solar', false, FadeOutTime)
+    end
+  else
+    EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
+    EclipseBarHide(EF, 'Solar', false, FadeOutTime)
   end
 end
 
 -------------------------------------------------------------------------------
 -- CancelAnimationEclipse (CancelAnimation) [UnitBar assigned function]
+--
+-- Cancels all animation playing in the eclipse bar.
 -------------------------------------------------------------------------------
+function GUB.EclipseBar:CancelAnimationEclipse()
+  local EF = self.EclipseF
+  EclipseBarHide(EF, 'Sun', false, -1)
+  EclipseBarHide(EF, 'Moon', false, -1)
+  EclipseBarHide(EF, 'Lunar', false, -1)
+  EclipseBarHide(EF, 'Solar', false, -1)
+end
 
 --*****************************************************************************
 --
@@ -351,10 +843,10 @@ function GUB.EclipseBar:FrameSetScriptEclipse(Enable)
                                  EclipseBarStopMoving(self)
                               end)
     Border:SetScript('OnEnter', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, false)
+                                  Main.UnitBarTooltip(self, false)
                                end)
     Border:SetScript('OnLeave', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, true)
+                                  Main.UnitBarTooltip(self, true)
                                end)
   else
     Border:SetScript('OnMouseDown', nil)
@@ -384,6 +876,7 @@ end
 -- Object       Object being changed:
 --               'bg'        for background (Border).
 --               'bar'       for forground (StatusBar).
+--               'text'      for the text.
 --               'frame'     for the frame.
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
@@ -397,7 +890,8 @@ end
 --               'sun'       Apply changes to the sun.
 --               'bar'       Apply changes to the bar.
 --               'slider'    Apply changes to the slider.
---              if Eclipse is nil then only frame scale can be changed.
+--               'Predicter' Apply changes to the predicted slider.
+--              if Eclipse is nil then only frame scale or text can be changed.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -423,7 +917,7 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
     local TextColor = UB.Text.Color
 
     if Attr == nil or Attr == 'font' then
-      GUB.UnitBars:SetFontString(Txt, UB.Text.FontSettings)
+      Main:SetFontString(Txt, UB.Text.FontSettings)
     end
     if Attr == nil or Attr == 'color' then
       Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
@@ -449,7 +943,7 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
     local BgColor = Background.Color
 
     if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(Background.BackdropSettings))
+      Border:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
       Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
     end
     if Attr == nil or Attr == 'color' then
@@ -460,8 +954,8 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
   -- Forground (Statusbar).
   if Object == nil or Object == 'bar' then
     local StatusBar = UBF.StatusBar
-    local StatusBarLunar = UBF.StatusBarLunar
-    local StatusBarSolar = UBF.StatusBarSolar
+    local StatusBarLunar = EclipseF.Lunar.Frame
+    local StatusBarSolar = EclipseF.Solar.Frame
     local Frame = UBF.Frame
 
     local Padding = Bar.Padding
@@ -546,6 +1040,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   local SunOffsetY = Gen.SunOffsetY
   local MoonOffsetX = Gen.MoonOffsetX
   local MoonOffsetY = Gen.MoonOffsetY
+  local FadeOutTime = Gen.EclipseFadeOutTime
   local SunWidth = Bar.Sun.SunWidth
   local SunHeight = Bar.Sun.SunHeight
   local MoonWidth = Bar.Moon.MoonWidth
@@ -556,6 +1051,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   local SliderHeight = Bar.Slider.SliderHeight
   local EF = self.EclipseF
   local SliderFrame = EF.Slider.Frame
+  local PredicterFrame = EF.Predicter.Frame
 
   local SunX, SunY = 0, 0
   local MoonX, MoonY = 0, 0
@@ -593,11 +1089,11 @@ function GUB.EclipseBar:SetLayoutEclipse()
 
   -- Calculate the upper left for the bar.
   if TableName == 'Moon' then
-    x, y = GUB.UnitBars:CalcSetPoint(RB.RelativePoint2, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
+    x, y = Main:CalcSetPoint(RB.RelativePoint2, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
   else
-    x, y = GUB.UnitBars:CalcSetPoint(RB.RelativePoint2, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
+    x, y = Main:CalcSetPoint(RB.RelativePoint2, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
   end
-  x1, y1 = GUB.UnitBars:CalcSetPoint(RB.Point2, BarWidth, BarHeight, 0, 0)
+  x1, y1 = Main:CalcSetPoint(RB.Point2, BarWidth, BarHeight, 0, 0)
 
   BarX = x - x1
   BarY = y - y1
@@ -612,14 +1108,14 @@ function GUB.EclipseBar:SetLayoutEclipse()
 
   -- Caculate the upper left for sun or moon.
   Frame3:ClearAllPoints()
-  x, y = GUB.UnitBars:CalcSetPoint(RB.RelativePoint3, BarWidth, BarHeight, BarX, BarY)
+  x, y = Main:CalcSetPoint(RB.RelativePoint3, BarWidth, BarHeight, BarX, BarY)
   if TableName == 'Moon' then
-    x1, y1 = GUB.UnitBars:CalcSetPoint(RB.Point3, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
+    x1, y1 = Main:CalcSetPoint(RB.Point3, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
     MoonX = x - x1
     MoonY = y - y1
     Frame3:SetPoint('TOPLEFT', MoonX, MoonY)
   else
-    x1, y1 = GUB.UnitBars:CalcSetPoint(RB.Point3, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
+    x1, y1 = Main:CalcSetPoint(RB.Point3, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
     SunX = x - x1
     SunY = y - y1
     Frame3:SetPoint('TOPLEFT', SunX, SunY)
@@ -627,11 +1123,15 @@ function GUB.EclipseBar:SetLayoutEclipse()
   F.Border:SetAllPoints(Frame3)
 
   -- Set up the slider.
-  SliderFrame:ClearAllPoints()
+  -- Dont clear points, Ecplise:Update() sets the point.
   EF.Slider.Border:SetAllPoints(SliderFrame)
 
+  -- Set up the predicter.
+  -- Dont clear points, EclipseBar:Update() sets the point.
+  EF.Predicter.Border:SetAllPoints(PredicterFrame)
+
   -- Calculate upper left of slider for border calculation.
-  SliderX, SliderY = GUB.UnitBars:CalcSetPoint('CENTER', BarWidth, BarHeight, -(SliderWidth / 2), SliderHeight / 2)
+  SliderX, SliderY = Main:CalcSetPoint('CENTER', BarWidth, BarHeight, -(SliderWidth / 2), SliderHeight / 2)
   SliderX = BarX + SliderX
   SliderY = BarY + SliderY
 
@@ -641,7 +1141,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   Border:SetPoint('TOPLEFT', 0, 0)
 
   -- Calculate the offsets for the offsetframe, get the borderwidth and borderheight
-  x, y, BorderWidth, BorderHeight = GUB.UnitBars:GetBorder(SunX, SunY, SunWidth, SunHeight,
+  x, y, BorderWidth, BorderHeight = Main:GetBorder(SunX, SunY, SunWidth, SunHeight,
                                                                 MoonX, MoonY, MoonWidth, MoonHeight,
                                                                 BarX, BarY, BarWidth, BarHeight,
                                                                 SliderX, SliderY, SliderWidth, SliderHeight)
@@ -658,11 +1158,18 @@ function GUB.EclipseBar:SetLayoutEclipse()
   OffsetFrame:SetWidth(BorderWidth)
   OffsetFrame:SetHeight(BorderHeight)
 
+  -- Set the duration of the fade out for sun, moon, lunar and solar.
+  Frame1.FadeOutA:SetDuration(FadeOutTime)
+  Frame3.FadeOutA:SetDuration(FadeOutTime)
+  EF.Lunar.Frame.FadeOutA:SetDuration(FadeOutTime)
+  EF.Solar.Frame.FadeOutA:SetDuration(FadeOutTime)
+
   -- Set all attributes.
   self:SetAttr(nil, nil, 'moon')
   self:SetAttr(nil, nil, 'bar')
   self:SetAttr(nil, nil, 'sun')
   self:SetAttr(nil, nil, 'slider')
+  self:SetAttr(nil, nil, 'predicter')
 
   -- Save size data to self (UnitBarF).
   self.Width = BorderWidth
@@ -680,26 +1187,31 @@ end
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
-
+  local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Lunar = {}, Solar = {}, Slider = {}, Predicter = {}}
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, Border)
 
   -- Create a BorderFrame for Sun and moon for frame level
-  local SunMoonBorder = CreateFrame('Frame', nil, OffsetFrame)
-  SunMoonBorder:SetAllPoints(OffsetFrame)
-  SunMoonBorder:SetFrameLevel(SunMoonBorder:GetFrameLevel() + 10)
+  local SunMoonBorderFL = CreateFrame('Frame', nil, OffsetFrame)
+  SunMoonBorderFL:SetAllPoints(OffsetFrame)
+  SunMoonBorderFL:SetFrameLevel(SunMoonBorderFL:GetFrameLevel() + 10)
 
   -- Create a borderframe for slider frame level
-  local SliderBorder = CreateFrame('Frame', nil, SunMoonBorder)
-  SliderBorder:SetAllPoints(OffsetFrame)
-  SliderBorder:SetFrameLevel(SliderBorder:GetFrameLevel() + 20)
+  local SliderBorderFL = CreateFrame('Frame', nil, SunMoonBorderFL)
+  SliderBorderFL:SetAllPoints(OffsetFrame)
+  SliderBorderFL:SetFrameLevel(SliderBorderFL:GetFrameLevel() + 30)
+
+  -- Create a borderframe for predicter frame level
+  local PredicterBorderFL = CreateFrame('Frame', nil, SunMoonBorderFL)
+  PredicterBorderFL:SetAllPoints(OffsetFrame)
+  PredicterBorderFL:SetFrameLevel(PredicterBorderFL:GetFrameLevel() + 20)
 
   -- Create the text frame.
   local TxtBorder = CreateFrame('Frame', nil, Border)
   TxtBorder:SetAllPoints(Border)
-  TxtBorder:SetFrameLevel(TxtBorder:GetFrameLevel() + 40)
+  TxtBorder:SetFrameLevel(TxtBorder:GetFrameLevel() + 50)
   local Txt = TxtBorder:CreateFontString(nil, 'OVERLAY')
 
   -- MOON
@@ -707,26 +1219,28 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   Border:SetToplevel(true)
 
   -- Create the moon frame.  This is used for hide/show
-  local MoonFrame = CreateFrame('Frame', nil, SunMoonBorder)
+  local MoonFrame = CreateFrame('Frame', nil, SunMoonBorderFL)
 
   -- Set the moon to dark.
+  EclipseFrame.Moon.Dark = true
   MoonFrame:Hide()
 
   -- Create the visible border for the moon.
-  local MoonBorder = CreateFrame('Frame', nil, SunMoonBorder)
+  local MoonBorder = CreateFrame('Frame', nil, SunMoonBorderFL)
 
   -- Create the statusbar for the moon.
   local Moon = CreateFrame('StatusBar', nil, MoonFrame)
 
   -- SUN
   -- Create the sun frame.  This is used for hide/show
-  local SunFrame = CreateFrame('Frame', nil, SunMoonBorder)
+  local SunFrame = CreateFrame('Frame', nil, SunMoonBorderFL)
 
   -- Set the sun to dark
+  EclipseFrame.Sun.Dark = true
   SunFrame:Hide()
 
   -- Create the visible border for the sun.
-  local SunBorder = CreateFrame('Frame', nil, SunMoonBorder)
+  local SunBorder = CreateFrame('Frame', nil, SunMoonBorderFL)
 
   -- Create the statusbar for the sun.
   local Sun = CreateFrame('StatusBar', nil, SunFrame)
@@ -738,21 +1252,48 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Create the visible border for eclipse bar.
   local BarBorder = CreateFrame('Frame', nil, OffsetFrame)
 
-  -- Create the left and right statusbars for the bar.
+  -- Create the left and right statusbars for the bar and set then to lit.
   local BarLunar = CreateFrame('StatusBar', nil, BarFrame)
   local BarSolar = CreateFrame('StatusBar', nil, BarFrame)
+  EclipseFrame.Lunar.Dark = false
+  EclipseFrame.Solar.Dark = false
 
   -- SLIDER
   -- Create the slider frame.
-  local SliderFrame = CreateFrame('Frame', nil, SliderBorder)
+  local SliderFrame = CreateFrame('Frame', nil, SliderBorderFL)
 
   -- Create the slider border.
-  local SliderBorder = CreateFrame('Frame', nil, SliderBorder)
+  local SliderBorder = CreateFrame('Frame', nil, SliderFrame)
 
-  -- Create the statusbar for slider.
+  -- create the statusbar for slider.
   local Slider = CreateFrame('StatusBar', nil, SliderFrame)
 
-  local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Slider = {}}
+  -- create the predicter frame.
+  local PredicterFrame = CreateFrame('Frame', nil, PredicterBorderFL)
+
+  -- create the predicter border.
+  local PredicterBorder = CreateFrame('Frame', nil, PredicterFrame)
+
+  -- create the statusbar for the predicted slider border.
+  local Predicter = CreateFrame('StatusBar', nil, PredicterFrame)
+
+  -- Create fadeout for Sun, Moon, Lunar, and Solar.
+  local FadeOut, FadeOutA = Main:CreateFadeOut(MoonFrame)
+  MoonFrame.FadeOut = FadeOut
+  MoonFrame.FadeOutA = FadeOutA
+
+  FadeOut, FadeOutA = Main:CreateFadeOut(SunFrame)
+  SunFrame.FadeOut = FadeOut
+  SunFrame.FadeOutA = FadeOutA
+
+  FadeOut, FadeOutA = Main:CreateFadeOut(BarLunar)
+  BarLunar.FadeOut = FadeOut
+  BarLunar.FadeOutA = FadeOutA
+
+  FadeOut, FadeOutA = Main:CreateFadeOut(BarSolar)
+  BarSolar.FadeOut = FadeOut
+  BarSolar.FadeOutA = FadeOutA
+
   EclipseFrame.Moon.Frame = MoonFrame
   EclipseFrame.Moon.Border = MoonBorder
   EclipseFrame.Moon.StatusBar = Moon
@@ -761,11 +1302,15 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   EclipseFrame.Sun.StatusBar = Sun
   EclipseFrame.Bar.Frame = BarFrame
   EclipseFrame.Bar.Border = BarBorder
-  EclipseFrame.Bar.StatusBarLunar = BarLunar
-  EclipseFrame.Bar.StatusBarSolar = BarSolar
+  EclipseFrame.Lunar.Frame = BarLunar
+  EclipseFrame.Solar.Frame = BarSolar
   EclipseFrame.Slider.Frame = SliderFrame
   EclipseFrame.Slider.Border = SliderBorder
   EclipseFrame.Slider.StatusBar = Slider
+  EclipseFrame.Predicter.Frame = PredicterFrame
+  EclipseFrame.Predicter.Border = PredicterBorder
+  EclipseFrame.Predicter.StatusBar = Predicter
+
   EclipseFrame.Txt = Txt
 
   -- Save the name for tooltips.
@@ -777,8 +1322,9 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   -- Save the borders and Eclipse frames
   UnitBarF.Border = Border
-  UnitBarF.SunMoonBorder = SunMoonBorder
-  UnitBarF.SliderBorder = SliderBorder
+  UnitBarF.SunMoonBorder = SunMoonBorderFL
+  UnitBarF.SliderBorder = SliderBorderFL
+  UnitBarF.PredicterBorder = PredicterBorderFL
   UnitBarF.TxtBorder = TxtBorder
   UnitBarF.OffsetFrame = OffsetFrame
   UnitBarF.EclipseF = EclipseFrame

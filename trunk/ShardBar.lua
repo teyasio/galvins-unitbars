@@ -9,13 +9,14 @@
 local MyAddon, GUB = ...
 
 GUB.ShardBar = {}
+local Main = GUB.Main
 
 -- shared from Main.lua
-local LSM = GUB.UnitBars.LSM
-local CheckPowerType = GUB.UnitBars.CheckPowerType
-local CheckEvent = GUB.UnitBars.CheckEvent
-local PowerTypeToNumber = GUB.UnitBars.PowerTypeToNumber
-local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+local LSM = Main.LSM
+local CheckPowerType = Main.CheckPowerType
+local CheckEvent = Main.CheckEvent
+local PowerTypeToNumber = Main.PowerTypeToNumber
+local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
@@ -100,7 +101,7 @@ local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
 local function ShardBarStartMoving(self, Button)
 
   -- Call the base moving function for group or anchor movement.
-  if GUB.UnitBars.UnitBarStartMoving(self.Anchor, Button) then
+  if Main.UnitBarStartMoving(self.Anchor, Button) then
     self.UnitBarMoving = true
   end
 end
@@ -115,7 +116,7 @@ local function ShardBarStopMoving(self, Button)
   -- Call the stop moving base function if there was a group move or anchor move.
   if self.UnitBarMoving then
     self.UnitBarMoving = false
-    GUB.UnitBars.UnitBarStopMoving(self.Anchor, Button)
+    Main.UnitBarStopMoving(self.Anchor, Button)
   end
 end
 
@@ -151,7 +152,7 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
     -- If FinishFadeOut is true then stop any fadout animation and darken the soul shard.
     if FinishFadeOut then
       if SSF.Dark then
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish', function() SSF:Hide() end)
+        Main:AnimationFadeOut(FadeOut, 'finish', function() SSF:Hide() end)
       end
 
     -- Light a soul shard based on SoulShards.
@@ -159,7 +160,7 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
       if FadeOutTime > 0 then
 
         -- Finish animation if it's playing.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
+        Main:AnimationFadeOut(FadeOut, 'finish')
       end
       SSF:Show()
       SSF.Dark = false
@@ -169,7 +170,7 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
       if FadeOutTime > 0 then
 
         -- Fade out the soul shard then hide it.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() SSF:Hide() end)
+        Main:AnimationFadeOut(FadeOut, 'start', function() SSF:Hide() end)
       else
         SSF:Hide()
       end
@@ -271,10 +272,10 @@ function GUB.ShardBar:FrameSetScriptShard(Enable)
                                    ShardBarStopMoving(self)
                                 end)
       Frame:SetScript('OnEnter', function(self)
-                                    GUB.UnitBars.UnitBarTooltip(self, false)
+                                    Main.UnitBarTooltip(self, false)
                                  end)
       Frame:SetScript('OnLeave', function(self)
-                                    GUB.UnitBars.UnitBarTooltip(self, true)
+                                    Main.UnitBarTooltip(self, true)
                                  end)
     else
       Frame:SetScript('OnMouseDown', nil)
@@ -377,7 +378,7 @@ function GUB.ShardBar:SetAttrShard(Object, Attr)
         local SoulShardBoxFrame = SSF.SoulShardBoxFrame
 
         if Attr == nil or Attr == 'backdrop' then
-          SoulShardBoxFrame:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+          SoulShardBoxFrame:SetBackdrop(Main:ConvertBackdrop(UB.Background.BackdropSettings))
           SoulShardBoxFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
         end
         if Attr == nil or Attr == 'color' then
@@ -427,7 +428,7 @@ function GUB.ShardBar:SetAttrShard(Object, Attr)
       local BgColor = UB.Background.Color
 
       if Attr == nil or Attr == 'backdrop' then
-        Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+        Border:SetBackdrop(Main:ConvertBackdrop(UB.Background.BackdropSettings))
         Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
       if Attr == nil or Attr == 'color' then
@@ -472,7 +473,7 @@ function GUB.ShardBar:SetLayoutShard()
 
   if BoxMode then
     -- Get the offsets based on angle for boxmode.
-    XOffset, YOffset = GUB.UnitBars:AngleToOffset(BoxWidth + Padding, BoxHeight + Padding, Angle)
+    XOffset, YOffset = Main:AngleToOffset(BoxWidth + Padding, BoxHeight + Padding, Angle)
   end
 
   for ShardIndex, SSF in ipairs(self.SoulShardF) do
@@ -569,7 +570,7 @@ function GUB.ShardBar:SetLayoutShard()
       SoulShardDark:SetHeight(ScaleY)
 
       -- Get the offsets based on angle.
-      XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
+      XOffset, YOffset = Main:AngleToOffset(Width + Padding, Height + Padding, Angle)
 
       -- Calculate the x and y location before setting the location if angle is > 180.
       if Angle > 180 and ShardIndex > 1 then
