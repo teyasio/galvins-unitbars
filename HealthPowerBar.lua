@@ -9,13 +9,15 @@
 local MyAddon, GUB = ...
 
 GUB.HapBar = {}
+local Main = GUB.Main
 
 -- shared from Main.lua
-local LSM = GUB.UnitBars.LSM
-local CheckPowerType = GUB.UnitBars.CheckPowerType
-local CheckEvent = GUB.UnitBars.CheckEvent
-local PowerTypeToNumber = GUB.UnitBars.PowerTypeToNumber
-local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+local LSM = Main.LSM
+local CheckPowerType = Main.CheckPowerType
+local CheckEvent = Main.CheckEvent
+local PowerTypeToNumber = Main.PowerTypeToNumber
+local MouseOverDesc = Main.MouseOverDesc
+local GetPredictedPower = Main.GetPredictedPower
 
 -- localize some globals.
 local _
@@ -267,7 +269,7 @@ end
 local function HapBarStartMoving(self, Button)
 
   -- Call the base moving function for group or anchor movement.
-  if GUB.UnitBars.UnitBarStartMoving(self.Anchor, Button) then
+  if Main.UnitBarStartMoving(self.Anchor, Button) then
     self.UnitBarMoving = true
   end
 end
@@ -282,7 +284,7 @@ local function HapBarStopMoving(self, Button)
   -- Call the stop moving base function if there was a group move or anchor move.
   if self.UnitBarMoving then
     self.UnitBarMoving = false
-    GUB.UnitBars.UnitBarStopMoving(self.Anchor, Button)
+    Main.UnitBarStopMoving(self.Anchor, Button)
   end
 end
 
@@ -445,10 +447,10 @@ function GUB.HapBar:FrameSetScriptHap(Enable)
     Border:SetScript('OnMouseUp', HapBarStopMoving)
     Border:SetScript('OnHide', HapBarStopMoving)
     Border:SetScript('OnEnter', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, false)
+                                  Main.UnitBarTooltip(self, false)
                                 end)
     Border:SetScript('OnLeave', function(self)
-                                  GUB.UnitBars.UnitBarTooltip(self, true)
+                                  Main.UnitBarTooltip(self, true)
                                 end)
     Border:SetScript('OnSizeChanged', HapBarOnSizeChanged)
   else
@@ -520,7 +522,7 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     local BgColor = UB.Background.Color
 
     if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(GUB.UnitBars:ConvertBackdrop(UB.Background.BackdropSettings))
+      Border:SetBackdrop(Main:ConvertBackdrop(UB.Background.BackdropSettings))
       Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
     end
     if Attr == nil or Attr == 'color' then
@@ -588,7 +590,7 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     local TextColor = UB.Text.Color
 
     if Attr == nil or Attr == 'font' then
-      GUB.UnitBars:SetFontString(Txt, UB.Text.FontSettings)
+      Main:SetFontString(Txt, UB.Text.FontSettings)
     end
     if Attr == nil or Attr == 'color' then
       Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
@@ -602,7 +604,7 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
     local TextColor = UB.Text2.Color
 
     if Attr == nil or Attr == 'font' then
-      GUB.UnitBars:SetFontString(Txt, UB.Text2.FontSettings)
+      Main:SetFontString(Txt, UB.Text2.FontSettings)
     end
     if Attr == nil or Attr == 'color' then
       Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)

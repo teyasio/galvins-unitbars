@@ -8,6 +8,9 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+GUB.Main = {}
+local Main = GUB.Main
+
 -------------------------------------------------------------------------------
 -- Setup Ace3
 -------------------------------------------------------------------------------
@@ -19,7 +22,6 @@ LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 local LSM = LibStub('LibSharedMedia-3.0')
 local CataVersion = select(4,GetBuildInfo()) >= 40000
 
-GUB.UnitBars = {}
 
 -- localize some globals.
 local _
@@ -104,13 +106,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- DefaultUnitBars      The default unitbar table.  Used for first time initialization.
 --
--- UnitBarRefresh       Time in seconds before updating all the unit bars.  Once the timer
---                      goes off this is set to nil.  To start a timer UnitBarRefresh = <time to wait>
---                      Setting this to nil will cancel the timer.
 -- UnitBarInterval      Time to wait before doing the next update in the onupdate handler.
 -- CooldownBarTimeInterval
 --                      Amount of time to wait before updating the timerbar in the onupdate handler.
-
 --                      This works for health and power bars only.  If true then the updates happen thru
 --                      UnitBarsOnUpdate. If false then the UnitBarEventHandler does the updates.
 -- PowerColorType       Table used by InitializeColors()
@@ -123,7 +121,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- CheckPowerType       Check to see if a power type is correct.  Converts a power type into the following:
 --                       * 'power' for a target or player power bar.
 --                       * 'holy'  for the holy bar
+--
 -- PlayerClass          Name of the class for the player in english.
+-- PlayerGUID           Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 --
 -- Backdrop             This contains a Backdrop table that has texture path names.  Since this addon uses
 --                      shared media.  Texture names need to be converted into path names.  So ConvertBackdrop()
@@ -173,9 +173,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                      by its self.
 -- UnitBars.IsLocked    If true all unitbars can not be clicked on.
 -- UnitBars.IsClamped   If true all frames can't be moved off screen.
--- UnitBars.SmoothUpdate
---                      If true all health and power bars update 10x per second.  Other wise the bars update
---                      by waiting for events.
 -- UnitBars.HideTooltips
 --                      If true tooltips are not shown when mousing over unlocked bars.
 -- UnitBars.HideTooltipsDesc
@@ -365,10 +362,19 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     SliderInside       If true the slider is kept inside the bar is slides on.
 --                        Otherwise the slider box will appear a little out side when it reaches edges of the bar.
 --     BarHalfLit         Only half of the bar is lit based on the direction the slider is going in.
---     Text               If true then eclipse power text will be shown.
+--     PowerText          If true then eclipse power text will be shown.
 --     EclipseAngle       Angle in degrees in which the bar will be displayed.
 --     SliderDirection    if 'HORIZONTAL' slider will move left to right and right to left.
 --                        if 'VERTICAL' slider will move top to bottom and bottom to top.
+--     PredictedPower     if true then predicted power will be activated.
+--     PredicterHideShow  'showalways' the predicter will never auto hide.
+--                        'hidealways' the predicter will never be shown.
+--                        'none'       default.
+--     PredictedHideSlider
+--                        Hide the slider when predicter power is on.
+--     PredictedEclipse   Show an eclipse proc based on predicted power.
+--     PredictedHalfLit   Same as BarHalfLit except it is based on predicted power
+--     PredictedPowerText If true predicted power text is shown in place of power text.
 --   Background
 --     Moon,Sun, Bar, and Slider
 --       PaddingAll       If true then padding can be set with one value otherwise four.
@@ -390,6 +396,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --       SunMoon          If true the slider uses the Sun and Moon color based on which direction it's going in.
 --       SliderWidth      Width of the slider.
 --       SliderHeight     Height of the slider.
+--     Pslider            Same as slider except used for predicted power.
 --     Bar
 --       BarWidth         Width of the bar.
 --       BarHeight        Height of the bar.
@@ -403,6 +410,77 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     FontSettings       Contains the settings for the text.
 --     Color              Current color of the text for the bar.
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Predicted Power
+--
+-- PredictedSpellEvent  Used by SetPredictedSpell().
+-- PredictedSpellStackTimeout
+--                      Amount of time in seconds before removing a spell from the stack.
+--                      This is used by GetPredictedSpell().  This way SetPredictedSpell()
+--                      doesn't haev to check for every event.
+--
+-- PredictedSpellCasting
+--   SpellID            Spell that is casting
+--   LineID             LineID of Spell
+--
+-- PredictedSpellStack  Used by SetPredictedSpell() and GetPredictedSpell()
+--   SpellID            Spell in flight.
+--   Time               Starting time when spell started to fly.
+--
+-- PredictedSpellCount  Keeps count of how many spells are on the stack.
+--
+-- PredictedSpells[SpellID]  Used by SetPredictedSpells() and SetPredictedSpell()
+--   SpellID            SpellID to search for.
+--   Flight             If true the spell must fly to the target before its considered done.
+--   Fn                 User defined function to override a spell being removed from the stack
+--                      or not.  See SetPredictedSpell() on how it's used.
+--                      Fn() is only called when the spell damages or generates an energize event.
+--
+-- EventSpellStart
+-- EventSpellSucceeded
+-- EventSpellDamage
+-- EventSpellEnergize
+-- EventSpellFailed    These constants are used to track the spell events in SetPredictedSpell()
+--
+-- PredictedSpellsOn   Time since last GetPredictedSpell() call.  If this timer reaches 0 then
+--                     predicted spells sytem unregistes events that make it work.
+--                     Used by UnitBarsOnUpdate()
+-- PredictedSpellsWaitTime
+--                     Time in seconds to wait after the last GetPredictedSpell() call to turn
+--                     off.
+--
+-- NOTE: See the notes on each of the predicted power functions for more details.  Also
+--       See Eclipse.lua on how this is used.
+--
+--       The eventspell system will disable its self if not used after a PredictedSpellsWaitTime.
+--       When GetPredictedSpell() is used it'll be renabled.
+--       By default predicted spells is disabled until used.
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Equipment set bonus
+--
+-- EquipmentSet[Slot][ItemID]    Holds the Tier number based on ItemID and Slot.
+--                               Used by CheckSetBonus().
+-- EquipmentSetBonus             Keeps track of 1 or more equipment set bonus.
+-- EquipmentSetBonus[Tier]       Contains the active bonus of that tier set.
+--                               GetSetBonus() and CheckSetBonus().
+--
+-- EquipmentSetChanged           False if no set bonus checks have been done yet.
+--                               Used by PlayerEquipmentChanged() and GetSetBonus()
+--
+-- EquipmentSetBonusOn           Amount of time since the last GetSetBonus() call.
+--                               Once this timer reaches 0 all the events get unregisted
+--                               for the equipment set bonus system.
+--                               Used by UnitBarsOnUpdate()
+-- EquipmentSetBonusTime         Time in seconds to wait before turning off.
+
+-- NOTE: See Eclipse.lua on how this is used.
+--       The equipment set will will disable its self if not used after EquipmentSetBonusTime.
+--       When GetSetBonus() is called it will be renabled.
+--       by default equipment set bonus is disabled till used.
+-------------------------------------------------------------------------------
 local InCombat = false
 local InVehicle = false
 local IsDead = false
@@ -411,13 +489,29 @@ local HasFocus = false
 local HasPet = false
 local PlayerPowerType = nil
 local PlayerClass = nil
+local PlayerGUID = nil
 local MoonkinForm = 31
 local Initialized = false
 
+local EquipmentSetChanged = false
+
+local PredictedPowerID = -1
+local PredictedSpellCount = 0
+local PredictedSpellStackTimeout = 5
+local EventSpellStart     = 1
+local EventSpellSucceeded = 2
+local EventSpellDamage    = 3
+local EventSpellEnergize  = 4
+local EventSpellMissed    = 5
+local EventSpellFailed    = 6
+
 local UnitBarInterval = 0.10 -- 10 times per second.
 local UnitBarTimeLeft = -1
-local UnitBarRefresh = nil
 local CooldownBarTimeInterval = 0.04 -- 25 times per second.
+local PredictedSpellsOn = 0
+local EquipmentSetBonusOn = 0
+local PredictedSpellsWaitTime = 5 -- 5 secs
+local EquipmentSetBonusWaitTime = 5 -- 5 secs
 
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -464,7 +558,6 @@ local Defaults = {
     IsGrouped = false,
     IsLocked = false,
     IsClamped = true,
-    SmoothUpdate = true,
     HideTooltips = false,
     HideTooltipsDesc = false,
     FadeOutTime = 1.0,
@@ -1504,13 +1597,20 @@ local Defaults = {
       General = {
         SliderInside = true,
         BarHalfLit = false,
-        Text = false,
+        PowerText = false,
         EclipseAngle = 90,
         SliderDirection = 'HORIZONTAL',
+        EclipseFadeOutTime = 1,
         SunOffsetX = 0,
         SunOffsetY = 0,
         MoonOffsetX = 0,
         MoonOffsetY = 0,
+        PredictedPower = false,
+        PredicterHideShow = 'none',
+        PredictedHideSlider = false,
+        PredictedEclipse = true,
+        PredictedHalfLit = false,
+        PredictedPowerText = true,
       },
       Other = {
         Scale = 1,
@@ -1553,6 +1653,18 @@ local Defaults = {
           Color = {r = 0, g = 0, b = 0, a = 1},
         },
         Slider = {
+          PaddingAll = true,
+          BackdropSettings = {
+            BgTexture = BgTexture,
+            BdTexture = BdTexture,
+            BgTile = false,
+            BgTileSize = 16,
+            BdSize = 12,
+            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+          },
+          Color = {r = 0, g = 0, b = 0, a = 1},
+        },
+        Predicter = {
           PaddingAll = true,
           BackdropSettings = {
             BgTexture = BgTexture,
@@ -1609,6 +1721,17 @@ local Defaults = {
           StatusBarTexture = GUBStatusBarTexture,
           Color = {r = 0, g = 1, b = 0, a = 1},
         },
+        Predicter = {
+          SunMoon = false,
+          PredicterWidth = 20,
+          PredicterHeight = 20,
+          FillDirection = 'HORIZONTAL',
+          RotateTexture = false,
+          PaddingAll = true,
+          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+          StatusBarTexture = GUBStatusBarTexture,
+          Color = {r = 0, g = 1, b = 0, a = 1},
+        },
       },
       Text = {
         FontSettings = {
@@ -1642,6 +1765,38 @@ local PointCalc = {
         BOTTOMRIGHT = {x = 1,   y = 1}
       }
 
+-- first ID is normal, second is heroic. Last number is tier.
+local EquipmentSet = {
+  [1]  = {[71108] = 12, [71497] = 12}, -- Balance druid helmet
+  [3]  = {[71111] = 12, [71500] = 12}, -- Balance druid shoulders
+  [5]  = {[71110] = 12, [71499] = 12}, -- Balance druid chest
+  [7]  = {[71109] = 12, [71498] = 12}, -- Balance druid legs
+  [10] = {[71107] = 12, [71496] = 12}, -- Balance druid gloves
+}
+
+local EquipmentSetBonus = {}
+
+local PredictedSpellEvent = {
+  UNIT_SPELLCAST_START       = EventSpellStart,
+  UNIT_SPELLCAST_SUCCEEDED   = EventSpellSucceeded,
+  SPELL_DAMAGE               = EventSpellDamage,
+  SPELL_ENERGIZE             = EventSpellEnergize,
+  SPELL_MISSED               = EventSpellMissed,
+  UNIT_SPELLCAST_INTERRUPTED = EventSpellFailed,
+  UNIT_SPELLCAST_FAILED      = EventSpellFailed,
+}
+
+local PredictedSpells = {}
+--  [56641] = {Flight = false, Fn = nil}, -- Steady Shot  (hunter)
+--  [77767] = {Flight = false, Fn = nil}, -- Cobra Shot   (hunter)
+
+local PredictedSpellCasting = {
+  SpellID = 0,
+  LineID = -1,
+}
+
+local PredictedSpellStack = {}
+
 local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
 local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3,
                            RUNIC_POWER = 6, SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9}
@@ -1662,110 +1817,76 @@ local CheckEvent = {
   UNIT_COMBO_POINTS = 'combo', ECLIPSE_DIRECTION_CHANGE = 'eclipsedirection', UNIT_AURA = 'aura'
 }
 
--- For older versions of WoW
-local EventToPowerType = {
-  UNIT_MANA = 'MANA', UNIT_MAXMANA = 'MANA',
-  UNIT_RAGE = 'RAGE', UNIT_MAXRAGE = 'RAGE',
-  UNIT_FOCUS = 'FOCUS', UNIT_MAXFOCUS = 'FOCUS',
-  UNIT_ENERGY = 'ENERGY', UNIT_MAXENERGY = 'ENERGY',
-  UNIT_RUNIC_POWER = 'RUNIC_POWER', UNIT_MAXRUNIC_POWER = 'RUNIC_POWER',
-}
-
--- For older versions of WoW
-local ConvertEvent = {
-  UNIT_MANA = 'UNIT_POWER', UNIT_MAXMANA = 'UNIT_MAXPOWER',
-  UNIT_RAGE = 'UNIT_POWER', UNIT_MAXRAGE = 'UNIT_MAXPOWER',
-  UNIT_FOCUS = 'UNIT_POWER', UNIT_MAXFOCUS = 'UNIT_MAXPOWER',
-  UNIT_ENERGY = 'UNIT_POWER', UNIT_MAXENERGY = 'UNIT_MAXPOWER',
-  UNIT_RUNIC_POWER = 'UNIT_POWER', UNIT_RUNIC_POWER = 'UNIT_MAXPOWER',
-}
-
 -- Share with the whole addon.
-GUB.UnitBars.LSM = LSM
-GUB.UnitBars.UnitBarsF = UnitBarsF
-GUB.UnitBars.Defaults = Defaults
-GUB.UnitBars.PowerTypeToNumber = PowerTypeToNumber
-GUB.UnitBars.CheckPowerType = CheckPowerType
-GUB.UnitBars.CheckEvent = CheckEvent
-GUB.UnitBars.MouseOverDesc = 'Modifier + left mouse button to drag'
+Main.LSM = LSM
+Main.UnitBarsF = UnitBarsF
+Main.Defaults = Defaults
+Main.PowerTypeToNumber = PowerTypeToNumber
+Main.CheckPowerType = CheckPowerType
+Main.CheckEvent = CheckEvent
+Main.MouseOverDesc = 'Modifier + left mouse button to drag'
 
 -------------------------------------------------------------------------------
--- Register and unregister event functions.
+-- RegisterEvents
+--
+-- Register/unregister events
+--
+-- Usage: RegisterEvents(Action, EventType)
+--
+-- Action       'unregister' or 'register'
+-- EventType    'main'             Registers the main events for the mod.
+--              'predictedspell'   Registers events for predicted spells.
+--              'setbonus'         Registers events for equipment set bonus
 -------------------------------------------------------------------------------
-local function RegisterEvents()
-  if not CataVersion then
-    GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_RAGE', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXRAGE', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MANA', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXMANA', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_ENERGY', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXENERGY', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_RUNIC_POWER', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXRUNIC_POWER', 'UnitBarsUpdate')
-  else
-    GUB:RegisterEvent('UNIT_HEALTH', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXHEALTH', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_POWER', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_MAXPOWER', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdate')
-    GUB:RegisterEvent('ECLIPSE_DIRECTION_CHANGE', 'UnitBarsUpdate')
-    GUB:RegisterEvent('UNIT_AURA', 'UnitBarsUpdate')
+local function RegisterEvents(Action, EventType)
+  if EventType == 'main' then
+
+    -- Register status events
+    GUB:RegisterEvent('UNIT_ENTERED_VEHICLE', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('UNIT_EXITED_VEHICLE', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('UNIT_DISPLAYPOWER', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('UNIT_PET', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_REGEN_ENABLED', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_REGEN_DISABLED', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_TARGET_CHANGED', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_FOCUS_CHANGED', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_DEAD', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_UNGHOST', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_ALIVE', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
+
+    -- Register rune power events
+    GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdate')
+    GUB:RegisterEvent('RUNE_TYPE_UPDATE', 'UnitBarsUpdate')
+
+  elseif EventType == 'predictedspells' then
+    if Action == 'register' then
+
+      -- Register events for predicted power.
+      GUB:RegisterEvent('COMBAT_LOG_EVENT_UNFILTERED', 'CombatLogUnfiltered')
+      GUB:RegisterEvent('UNIT_SPELLCAST_START', 'SpellCasting')
+      GUB:RegisterEvent('UNIT_SPELLCAST_SUCCEEDED', 'SpellCasting')
+      GUB:RegisterEvent('UNIT_SPELLCAST_INTERRUPTED', 'SpellCasting')
+      GUB:RegisterEvent('UNIT_SPELLCAST_FAILED', 'SpellCasting')
+    else
+      GUB:UnregisterEvent('COMBAT_LOG_EVENT_UNFILTERED')
+      GUB:UnregisterEvent('UNIT_SPELLCAST_START')
+      GUB:UnregisterEvent('UNIT_SPELLCAST_SUCCEEDED')
+      GUB:UnregisterEvent('UNIT_SPELLCAST_INTERRUPTED')
+      GUB:UnregisterEvent('UNIT_SPELLCAST_FAILED')
+    end
+
+  elseif EventType == 'setbonus' then
+    if Action == 'register' then
+
+      -- Register event for tier set bonus checking
+      GUB:RegisterEvent('PLAYER_EQUIPMENT_CHANGED', 'PlayerEquipmentChanged')
+    else
+      GUB:UnregisterEvent('PLAYER_EQUIPMENT_CHANGED')
+    end
   end
-  GUB:RegisterEvent('UNIT_COMBO_POINTS', 'UnitBarsUpdate')
-end
-
-local function UnregisterEvents()
-  if not CataVersion then
-    GUB:UnregisterEvent('UNIT_HEALTH')
-    GUB:UnregisterEvent('UNIT_MAXHEALTH')
-    GUB:UnregisterEvent('UNIT_RAGE')
-    GUB:UnregisterEvent('UNIT_MAXRAGE')
-    GUB:UnregisterEvent('UNIT_MANA')
-    GUB:UnregisterEvent('UNIT_MAXMANA')
-    GUB:UnregisterEvent('UNIT_ENERGY')
-    GUB:UnregisterEvent('UNIT_MAXENERGY')
-    GUB:UnregisterEvent('UNIT_RUNIC_POWER')
-    GUB:UnregisterEvent('UNIT_MAXRUNIC_POWER')
-  else
-    GUB:UnregisterEvent('UNIT_HEALTH')
-    GUB:UnregisterEvent('UNIT_MAXHEALTH')
-    GUB:UnregisterEvent('UNIT_POWER')
-    GUB:UnregisterEvent('UNIT_MAXPOWER')
-    GUB:UnregisterEvent('UNIT_HEAL_PREDICTION')
-    GUB:UnregisterEvent('ECLIPSE_DIRECTION_CHANGE')
-    GUB:UnregisterEvent('UNIT_AURA')
-  end
-  GUB:UnregisterEvent('UNIT_COMBO_POINTS')
-end
-
--------------------------------------------------------------------------------
--- Register events for status and runes.
--------------------------------------------------------------------------------
-local function RegisterOtherEvents()
-
-  -- Register status events
-  GUB:RegisterEvent('UNIT_ENTERED_VEHICLE', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('UNIT_EXITED_VEHICLE', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('UNIT_DISPLAYPOWER', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('UNIT_PET', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_REGEN_ENABLED', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_REGEN_DISABLED', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_TARGET_CHANGED', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_FOCUS_CHANGED', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_DEAD', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_UNGHOST', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_ALIVE', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
-  GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
-
-  -- Register rune power events
-  GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdate')
-  GUB:RegisterEvent('RUNE_TYPE_UPDATE', 'UnitBarsUpdate')
-
-  -- Register events for the eclipse bar
 end
 
 -------------------------------------------------------------------------------
@@ -1814,6 +1935,263 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- CreateFadeOut
+--
+-- Creates a fadeout animation group
+--
+-- Usage FadeOut, FadeOutA = CreateFadeOut(Frame)
+--
+-- Frame       Frame that the fadeout is being created for.
+--
+-- FadeOut     The fadeout animation group.
+-- FadeOutA    The fadeout animation.
+-------------------------------------------------------------------------------
+function GUB.Main:CreateFadeOut(Frame)
+
+  -- Create an animation for fade out.
+  local FadeOut = Frame:CreateAnimationGroup()
+  local FadeOutA = FadeOut:CreateAnimation('Alpha')
+
+  -- Set the animation group values.
+  FadeOut:SetLooping('NONE')
+  FadeOutA:SetChange(-1)
+  FadeOutA:SetOrder(1)
+
+  return FadeOut, FadeOutA
+end
+
+-------------------------------------------------------------------------------
+-- CheckSetBonus
+--
+-- Checks to see if a set bonus is active, if any have been set
+-------------------------------------------------------------------------------
+local function CheckSetBonus()
+  local Tier = 0
+  local SetBonus = 0
+  local NewSetBonus = 0
+  local ESItemID = nil
+
+  -- Reset set bonus counter
+  for Tier, _ in pairs(EquipmentSetBonus) do
+    EquipmentSetBonus[Tier] = 0
+  end
+
+  -- Count each tier piece.
+  for Slot, ES in pairs(EquipmentSet) do
+    Tier = ES[GetInventoryItemID('player', Slot)]
+    if Tier then
+      SetBonus = EquipmentSetBonus[Tier]
+      if SetBonus then
+        SetBonus = SetBonus + 1
+      else
+        SetBonus = 1
+      end
+      EquipmentSetBonus[Tier] = SetBonus
+    end
+  end
+
+  -- Clip Set bonus.
+  for Tier, SetBonus in pairs(EquipmentSetBonus) do
+    if SetBonus >= 4 then
+      NewSetBonus = 4
+    elseif SetBonus >= 2 then
+      NewSetBonus = 2
+    else
+      NewSetBonus = 0
+    end
+    EquipmentSetBonus[Tier] = NewSetBonus
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetSetBonus
+--
+-- Returns set bonus info.
+--
+-- Usage: SetBonus = GetSetBonus(Tier)
+--
+-- Tie        TierNumber of gear 11, 12 etc.
+--
+-- SetBonus   Set bonus 2 or 4, 0 if no bonus is detected.
+-------------------------------------------------------------------------------
+function GUB.Main:GetSetBonus(Tier)
+
+  -- Check to see if wait time expired
+  if EquipmentSetBonusOn == 0 then
+    RegisterEvents('register', 'setbonus')
+  end
+  EquipmentSetBonusOn = EquipmentSetBonusWaitTime
+
+  -- Did equipment set change event happen yet.
+  if not EquipmentSetChanged then
+    CheckSetBonus()
+    EquipmentSetChanged = true
+  end
+
+  local SetBonus = EquipmentSetBonus[Tier]
+  if SetBonus then
+    return SetBonus
+  else
+    return 0
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CheckAura
+--
+-- Checks to see if one or more auras are active
+--
+-- Usage: Found = CheckAura(Condition, ...)
+--
+-- Condition    'a' for and or 'o' for or.  If 'a' is specified then all
+--              auras have to be active.  If 'o' then only one of the auras needs
+--              to be active.
+-- ...          One or more auras specified as a SpellID.
+--
+-- Found        Returns true if condition 'a' is used and all auras were found.
+--              Returns the SpellID of the aura found if condition 'o' is used.
+-------------------------------------------------------------------------------
+function GUB.Main:CheckAura(Condition, ...)
+  local Name = nil
+  local SpellID = 0
+  local MaxSpellID = select('#', ...)
+  local Found = 0
+  local i = 1
+  repeat
+    Name, _, _, _, _, _, _, _, _, _, SpellID = UnitBuff('player', i)
+    if Name then
+      for i = 1, MaxSpellID do
+        if SpellID == select(i, ...) then
+          Found = Found + 1
+          break
+        end
+      end
+      if Condition == 'o' and Found > 0 then
+        return SpellID
+      end
+    end
+    i = i + 1
+  until Name == nil or Found == MaxSpellID
+  return Found == MaxSpellID
+end
+
+-------------------------------------------------------------------------------
+-- ModifyPredictedSpellStack
+--
+-- Adds/removes spells from the spell stack. Or checks for timeouts on the stack.
+
+-- usage: ModifyPredictedSpellStack(Action, SpellID)
+--
+-- Action          'add'     Will add a spell.
+--                 'remove   will remove spell.
+--                 'timeout' will remove all spells that have timed out.
+-- SpellID         Used for 'add' or 'remove'.
+-------------------------------------------------------------------------------
+local function RemovePredictedSpellStack(Index)
+  local PST = nil
+  for Index2 = Index, PredictedSpellCount - 1 do
+    PST = PredictedSpellStack[Index2]
+    PST.SpellID = PredictedSpellStack[Index2 + 1].SpellID
+    PST.Time = PredictedSpellStack[Index2 + 1].Time
+  end
+  PST = PredictedSpellStack[PredictedSpellCount]
+  PST.SpellID = 0
+  PST.Time = 0
+  PredictedSpellCount = PredictedSpellCount - 1
+end
+
+local function ModifyPredictedSpellStack(Action, SpellID)
+  if Action == 'add' then
+    PredictedSpellCount = PredictedSpellCount + 1
+    local PST = PredictedSpellStack[PredictedSpellCount]
+    if PST then
+      PST.SpellID = SpellID
+      PST.Time = GetTime()
+    else
+
+      -- Create an entry if one doesn't exist.
+      PredictedSpellStack[PredictedSpellCount] = {SpellID = SpellID, Time = GetTime()}
+    end
+  elseif Action == 'remove' and SpellID > 0 then
+    local Index = 0
+    local Found = false
+    local SpellID2 = 0
+
+    while not Found and Index < PredictedSpellCount do
+      Index = Index + 1
+      Found = PredictedSpellStack[Index].SpellID == SpellID
+    end
+    if Found then
+      RemovePredictedSpellStack(Index)
+    end
+  elseif Action == 'timeout' and PredictedSpellCount > 0 then
+    local Time = 0
+    repeat
+      Time = GetTime() - PredictedSpellStack[1].Time
+      if Time > PredictedSpellStackTimeout then
+        RemovePredictedSpellStack(1)
+      end
+    until Time < PredictedSpellStackTimeout or PredictedSpellCount == 0
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetPredictedSpell
+--
+-- Returns a predicted powerID.
+--
+-- usage: SpellID = GetPredictedSpell(Index)
+--
+-- Index        Ranged from 1 onward.  1 would return the first ID of a spell in flight or being cast.
+--
+-- SpellID      Returns the spell ID or 0 for no spell.
+--
+-- NOTE:  So if there was 2 spells in flight and one being casted.  Then using an index of 4 would
+--        return 0.  See eclipsebar.lua on how this is used.
+--        Spells that been flying too long are removed here.  This way SetPredictedSpell() doesn't have
+--        to check for every event.
+-------------------------------------------------------------------------------
+function GUB.Main:GetPredictedSpell(Index)
+
+  -- Register events if the wait time expired.
+  if PredictedSpellsOn == 0 then
+    RegisterEvents('register', 'predictedspells')
+
+    -- Remove any casting spell left over.
+    PredictedSpellCasting.SpellID = 0
+    PredictedSpellCasting.LineID = -1
+  end
+  PredictedSpellsOn = PredictedSpellsWaitTime
+
+  ModifyPredictedSpellStack('timeout')
+  if Index > PredictedSpellCount then
+    if Index == PredictedSpellCount + 1 then
+      return PredictedSpellCasting.SpellID
+    else
+      return 0
+    end
+  else
+    return PredictedSpellStack[Index].SpellID
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetPredictedSpells
+--
+-- Adds a spellID to the list for predicted spells.
+--
+-- usage: SetPredictedSpells(SpellID, Flight, Energized, Fn)
+--
+-- SpellID       ID of the spell to track.
+-- Flight        if true the spell can be tracked till it reaches its target.
+-- Fn            See SetPredictedSpell() and Eclipse.lua on how Fn() is used.
+-------------------------------------------------------------------------------
+function GUB.Main:SetPredictedSpells(SpellID, Flight, Fn)
+  local PS = {Flight = Flight, Fn = Fn}
+  PredictedSpells[SpellID] = PS
+end
+
+-------------------------------------------------------------------------------
 -- CalcSetPoint
 --
 -- Returns where a child sub frame point would be set on another frame.
@@ -1828,7 +2206,7 @@ end
 --
 -- x, y       New screen location within the frame.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:CalcSetPoint(Point, Width, Height, OffsetX, OffSetY)
+function GUB.Main:CalcSetPoint(Point, Width, Height, OffsetX, OffSetY)
   return Width * PointCalc[Point].x + OffsetX, -(Height * PointCalc[Point].y + -OffSetY)
 end
 
@@ -1848,7 +2226,7 @@ end
 -- Width       Based on the distance from x1 to x1 + Width1.  Returns the largest.
 -- Height      Based on the distance from y1 to y1 + Height1.  Returns the largest.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:GetBorder(...)
+function GUB.Main:GetBorder(...)
   local Left = 0
   local Top = 0
   local Right = 0
@@ -1957,7 +2335,7 @@ end
 -- If EdgeFrame is nil then no EdgeFrame will be shown or the existing EdgeFrame
 -- will be removed.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, Width, Height)
+function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, Width, Height)
   if EdgeFrame then
 
     -- Hide the edgeframe
@@ -1995,7 +2373,7 @@ end
 -- Enable        if set to 1 the timer will be set to start at StartTime.
 --               if set to 0 the existing timer will be stopped
 -------------------------------------------------------------------------------
-function GUB.UnitBars:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
+function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
   if Enable then
     StatusBar.StartTime = StartTime
     StatusBar.Duration = Duration
@@ -2034,13 +2412,13 @@ end
 --
 -- NOTE: The source and dest tables must have the same keys.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:CopyTableValues(Source, Dest)
+function GUB.Main:CopyTableValues(Source, Dest)
   for k, v in pairs(Source) do
     if type(v) == 'table' then
 
       -- Make sure value is not nil.
       if Dest[k] ~= nil then
-        GUB.UnitBars:CopyTableValues(v, Dest[k])
+        Main:CopyTableValues(v, Dest[k])
       end
 
     -- Check to see if key exists in destination before setting value
@@ -2064,7 +2442,7 @@ end
 -- XO           Negative or positive value of XOffset depending on angle.
 -- YO           Negative or positive value of YOffset depending on angle.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:AngleToOffset(XO, YO, Angle)
+function GUB.Main:AngleToOffset(XO, YO, Angle)
   local XOffset = 0
   local YOffset = 0
 
@@ -2094,14 +2472,14 @@ end
 --
 -- Converts BackdropSettings that can be used in SetBackdrop()
 --
--- Usage: Backdrop = GUB.UnitBars:ConvertBackdrop(Bd)
+-- Usage: Backdrop = GUB.Main:ConvertBackdrop(Bd)
 --
 -- Bd               Usually from saved unitbar data that has shared media
 --                  strings for textures.
 -- Backdrop         A table that is usable by blizzard. This table always
 --                  reference the local table in main.lua
 -------------------------------------------------------------------------------
-function GUB.UnitBars:ConvertBackdrop(Bd)
+function GUB.Main:ConvertBackdrop(Bd)
   Backdrop.bgFile   = LSM:Fetch('background', Bd.BgTexture)
   Backdrop.edgeFile = LSM:Fetch('border', Bd.BdTexture)
   Backdrop.tile = Bd.BgTile
@@ -2122,12 +2500,12 @@ end
 --
 -- Set new settings to fontstring.
 --
--- Usage: GUB.UnitBars:SetFontString(FontString, FS)
+-- Usage: GUB.Main:SetFontString(FontString, FS)
 --
 -- FontString        Fontstring object.
 -- FS                Reference to the FontSettings table.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:SetFontString(FontString, FS)
+function GUB.Main:SetFontString(FontString, FS)
   FontString:SetFont(LSM:Fetch('font', FS.FontType), FS.FontSize, FS.FontStyle)
   FontString:ClearAllPoints()
   FontString:SetPoint('CENTER', FontString:GetParent(), FS.Position, FS.OffsetX, FS.OffsetY)
@@ -2147,7 +2525,7 @@ end
 --
 -- Frame   The frame you want to restore relative points.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:RestoreRelativePoints(Frame)
+function GUB.Main:RestoreRelativePoints(Frame)
   local Parent = Frame:GetParent()
   local Scale = Frame:GetScale()
   local PScale = Parent:GetScale()
@@ -2172,17 +2550,6 @@ function GUB.UnitBars:RestoreRelativePoints(Frame)
 end
 
 -------------------------------------------------------------------------------
--- UpdateUnitBars
---
--- Displays all the unitbars unless Event, Unit are specified.
--------------------------------------------------------------------------------
-local function UpdateUnitBars(Event, ...)
-  for _, UBF in pairs(UnitBarsF) do
-    UBF:Update(Event, ...)
-  end
-end
-
--------------------------------------------------------------------------------
 -- AnimationFadeOut
 --
 -- Starts or finishes an alpha animation fade out.
@@ -2196,7 +2563,7 @@ end
 -- Fn        Function to call after the animation fades out.
 --           If set to nil then does nothing.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:AnimationFadeOut(AG, Action, Fn)
+function GUB.Main:AnimationFadeOut(AG, Action, Fn)
 
   -- Stop animation if its playing
   if AG:IsPlaying() then
@@ -2244,7 +2611,7 @@ local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
     if UnitBars.FadeOutTime > 0 then
 
       -- Start the animation fadeout.
-      GUB.UnitBars:AnimationFadeOut(FadeOut, 'start', function() Anchor:Hide() end)
+      Main:AnimationFadeOut(FadeOut, 'start', function() Anchor:Hide() end)
     else
       Anchor:Hide()
     end
@@ -2254,7 +2621,7 @@ local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
       if UnitBars.FadeOutTime > 0 then
 
         -- Finish the animation fade out if its still playing.
-        GUB.UnitBars:AnimationFadeOut(FadeOut, 'finish')
+        Main:AnimationFadeOut(FadeOut, 'finish')
       end
       Anchor:Show()
       UnitBarF.Hidden = false
@@ -2275,7 +2642,7 @@ end
 --
 -- This function is called by setscript OnEnter and OnLeave
 -------------------------------------------------------------------------------
-function GUB.UnitBars:UnitBarTooltip(Hide)
+function GUB.Main:UnitBarTooltip(Hide)
   if UnitBars.HideTooltips then
     return
   end
@@ -2297,6 +2664,155 @@ function GUB.UnitBars:UnitBarTooltip(Hide)
 end
 
 -------------------------------------------------------------------------------
+-- SetPredictedSpell
+--
+-- Subfunction of CombatLogUnfiltered()
+-- Subfunction of SpellCasting()
+--
+-- Sets the predicted spell based on events from CombatLogUnfiltered() and SpellCasting().
+--
+-- Usage: SetPredictedSpell(Event, SpellID, LineID, Message)
+--
+-- Event        Event from CombatlogUnfiltered() or SpellCasting().
+-- SpellID      SpellID of the spell.
+-- LineID       Only valid for start, success, an events.
+-- Message      Message from combatlog.
+--
+-- NOTES:  Spells with cast times, flight times, and instant cast spells are tracked.
+--         When a spell has a cast time, it's set to PredictedSpellCasting.
+--         When a spell is done casting or was an instant. Its then added to the PredictedSpellStack.
+--         And removed from the PredictedSpellCasting if it wasn't instant otherwise it was never
+--         added to PredictedSpellCasting.
+--
+--         When a spell is flagged as not requiring a flight time.  Then its never added to the stack.
+--         Each time a spell is retrieved thru GetPredictedSpell().  A timeout check is done.  Any spells
+--         on the stack will be removed if they've been on the stack longer than PredictedSpellStackTimeout.
+--
+--         Timeouts are used so only events SPELL_DAMAGE, SPELL_MISS, and SPELL_ENERGIZE needs to be tracked.
+--         If one of those events didn't happen, then the timeout will remove the spell.
+--
+--         See the notes at the top of the file about Predicted Spells.
+--
+--         Fn() will only get called on SPELL_ENERGIZE or SPELL_DAMAGE.  If Fn() gets called on
+--         an energize event.  Then Fn() needs to return a spellID to remove the spell from the stack
+--         otherwise 0 to leave it.
+--         If its a SPELL_DAMAGE event then Fn() needs to return true to remove the spell from
+--         the stack.  Otherwise false to leave it. See Eclipse.lua on how this is used.
+--
+--         The only thing I couldn't account for is when you already cast a spell and then cast
+--         a second spell that has no travel time.  Theres no way to figure out ahead of time if that
+--         new spell will hit the target before the previous one.
+--
+--         Hopefully blizzard will add a way to get predicted spells from the server.
+-------------------------------------------------------------------------------
+local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
+  local PSE = PredictedSpellEvent[Event]
+  if PSE ~= nil then
+    local PS = PredictedSpells[SpellID]
+
+    -- Check for valid spellID.
+    if PS ~= nil then
+      local Flight = PS.Flight
+
+      -- Detect start cast.
+      if PSE == EventSpellStart then
+
+        -- Set casting spell.
+        PredictedSpellCasting.SpellID = SpellID
+        PredictedSpellCasting.LineID = LineID
+      end
+
+      -- Detect instant spell or finished casting.
+      if PSE == EventSpellSucceeded then
+
+        -- Convert spell into a flying spell if the flight flag is true.
+        if Flight then
+          ModifyPredictedSpellStack('add', SpellID)
+        end
+      end
+
+      -- Remove casting spell or a failed casting spell.
+      if (PSE == EventSpellSucceeded or PSE == EventSpellFailed) and LineID == PredictedSpellCasting.LineID  then
+        PredictedSpellCasting.SpellID = 0
+        PredictedSpellCasting.LineID = -1
+      end
+
+      if PSE == EventSpellDamage or PSE == EventSpellEnergize or PSE == EventSpellMissed then
+        local Fn = PS.Fn
+
+        -- Call user defined function to see which spell to remove from stack.
+        -- This is only gets called for energize event.
+        -- Fn() must return a SpellID or -1 if no spell is to be removed.
+        if PSE == EventSpellEnergize and Fn then
+          SpellID = Fn(SpellID, Message)
+        end
+
+        -- Call user defined function for a spell damage event.
+        -- Fn() must return true or false.
+        if PSE == EventSpellDamage and Fn and not Fn(SpellID, Message) then
+          return
+        end
+
+        -- Search for a flying spell to remove.
+        ModifyPredictedSpellStack('remove', SpellID)
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- PlayerEquipmentChanged
+--
+-- Gets called when ever a player changes a piece of gear.
+-- This function then calls CheckSetBonus()
+-------------------------------------------------------------------------------
+function GUB:PlayerEquipmentChanged()
+
+  -- Update gear set bonus.
+  CheckSetBonus()
+
+  -- Set changed flag to true.
+  EquipmentSetChanged = true
+end
+
+-------------------------------------------------------------------------------
+-- CombatLogUnfiltered
+--
+-- Captures combat log events.
+-------------------------------------------------------------------------------
+function GUB:CombatLogUnfiltered(Event, TimeStamp, CombatEvent, HideCaster, SourceGUID, SourceName, SourceFlags, DestGUID, DestName, DestFlags, ...)
+
+  -- Predicted power.
+  if SourceGUID == PlayerGUID then
+
+    -- Pass spellID and Message.
+    SetPredictedSpell(CombatEvent, TimeStamp, select(3, ...), nil, select(6, ...))
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SpellCasting
+--
+-- Gets called when the player started or stopped casting a spell.
+-------------------------------------------------------------------------------
+function GUB:SpellCasting(Event, Unit, Name, Rank, LineID, SpellID)
+  if Unit == 'player' then
+    SetPredictedSpell(Event, nil, SpellID, LineID, '')
+  end
+end
+
+-------------------------------------------------------------------------------
+-- UpdateUnitBars
+--
+-- Displays all the unitbars unless Event, Unit are specified.
+-------------------------------------------------------------------------------
+local function UpdateUnitBars(Event, ...)
+  for _, UBF in pairs(UnitBarsF) do
+    UBF:Update(Event, ...)
+  end
+end
+
+-------------------------------------------------------------------------------
 -- UnitBarsUpdate
 --
 -- Event handler for updating the unitbars. Also can be used to update all bars.
@@ -2310,18 +2826,6 @@ end
 --   Update the unitbars that match Event and ...
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdate(Event, ...)
-
-  -- Start unit bar refresh timer.
-  UnitBarRefresh = 4.0
-
-  -- Convert event if not using WoW 4.0
-  if not CataVersion then
-    local PowerEvent = ConvertEvent[Event]
-    if PowerEvent then
-      UpdateUnitBars(PowerEvent, select(1, ...), EventToPowerType[Event])
-      return
-    end
-  end
   UpdateUnitBars(Event, ...)
 end
 
@@ -2365,28 +2869,30 @@ end
 local function UnitBarsOnUpdate(self,  Elapsed)
   local UpdateBars = false
 
-  -- Check for smooth update
-  if UnitBars.SmoothUpdate then
-    UnitBarTimeLeft = UnitBarTimeLeft - Elapsed
+  UnitBarTimeLeft = UnitBarTimeLeft - Elapsed
 
-    -- Check if timeleft reached zero.
-    -- Don't update the bars more times than what interval is set at.
-    if UnitBarTimeLeft < 0 then
-      UnitBarTimeLeft = UnitBarInterval
-      UpdateBars = true
-    end
+  -- Check if timeleft reached zero.
+  -- Don't update the bars more times than what interval is set at.
+  if UnitBarTimeLeft < 0 then
+    UnitBarTimeLeft = UnitBarInterval
+    UpdateBars = true
   end
 
-  -- Refresh unit bars if a refresh timer was set.
-  if UnitBarRefresh then
-
-    -- Timer is not nil start counting down.
-    UnitBarRefresh = UnitBarRefresh - Elapsed
-    if UnitBarRefresh < 0 then
-      UnitBarRefresh = nil
-      UpdateBars = true
-    end
+  -- Turn off the events for Predicted spells and equipment set bonus if they're
+  -- not used after a certain amount of time.
+  if PredictedSpellsOn > 0 then
+    PredictedSpellsOn = PredictedSpellsOn - Elapsed
+  elseif PredictedSpellsOn < 0 then
+    RegisterEvents('unregister' , 'predictedspells')
+    PredictedSpellsOn = 0
   end
+  if EquipmentSetBonusOn > 0 then
+    EquipmentSetBonusOn = EquipmentSetBonusOn - Elapsed
+  elseif EquipmentSetBonusOn < 0 then
+    RegisterEvents('unregister' , 'setbonus')
+    EquipmentSetBonusOn = 0
+  end
+
   if UpdateBars then
     UpdateUnitBars()
   end
@@ -2401,7 +2907,7 @@ end
 -- Note: To move a frame the unitbars anchor needs to be moved.
 --       This function returns false if it didn't do anything otherwise true.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:UnitBarStartMoving(Button)
+function GUB.Main:UnitBarStartMoving(Button)
 
   -- Check to see if shift/alt/control and left button are held down
   if Button ~= 'LeftButton' or not IsModifierKeyDown() then
@@ -2426,7 +2932,7 @@ end
 --
 -- Same as above except it stops moving and saves the new coordinates.
 -------------------------------------------------------------------------------
-function GUB.UnitBars:UnitBarStopMoving(Button)
+function GUB.Main:UnitBarStopMoving(Button)
   if UnitBarsParent.IsMoving then
     UnitBarsParent.IsMoving = false
     UnitBarsParent:StopMovingOrSizing()
@@ -2440,7 +2946,7 @@ function GUB.UnitBars:UnitBarStopMoving(Button)
     -- StartMoving() sets the coordinates of the frame relative to UIParent, so we
     -- Need to recalculate where it is relative to frames parent.
     -- Update the UnitBar data with the new coordinates.
-    self.UnitBar.x, self.UnitBar.y = GUB.UnitBars:RestoreRelativePoints(self)
+    self.UnitBar.x, self.UnitBar.y = Main:RestoreRelativePoints(self)
   end
 end
 
@@ -2821,10 +3327,11 @@ local function UnitBarsAssignFunctions()
 
   SetFunction(Func, n, DoNothing, 'PlayerHealth', 'PlayerPower', 'TargetHealth', 'TargetPower',
                                   'FocusHealth', 'FocusPower', 'PetHealth', 'PetPower', 'MainPower',
-                                  'RuneBar', 'EclipseBar')
+                                  'RuneBar')
   SetFunction(Func, n, GUB.ComboBar.CancelAnimationCombo, 'ComboBar')
   SetFunction(Func, n, GUB.HolyBar.CancelAnimationHoly, 'HolyBar')
   SetFunction(Func, n, GUB.ShardBar.CancelAnimationShard, 'ShardBar')
+  SetFunction(Func, n, GUB.EclipseBar.CancelAnimationEclipse, 'EclipseBar')
 
   -- Add the functions to the unitbars frame table.
   for BarType, UBF in pairs(UnitBarsF) do
@@ -2849,19 +3356,13 @@ end
 --
 -- Activates the current settings in UnitBars.
 --
--- SmoothUpdate
 -- IsLocked
 -- IsClamped
 -- FadeOutTime
 -------------------------------------------------------------------------------
-function GUB.UnitBars:UnitBarsSetAllOptions()
+function GUB.Main:UnitBarsSetAllOptions()
 
   -- Apply the settings.
-  if UnitBars.SmoothUpdate then
-    UnregisterEvents()
-  else
-    RegisterEvents()
-  end
   for _, UBF in pairs(UnitBarsF) do
     UBF:EnableMouseClicks(not UnitBars.IsLocked)
     UBF:EnableScreenClamp(UnitBars.IsClamped)
@@ -2915,7 +3416,7 @@ local function SetUnitBarsLayout()
 
     -- Stop any old fadeout animation for this unitbar.
     UnitBarF:CancelAnimation()
-    GUB.UnitBars:AnimationFadeOut(UnitBarF.FadeOut, 'finish')
+    Main:AnimationFadeOut(UnitBarF.FadeOut, 'finish')
 
     -- Set the anchor position and size.
     Anchor:ClearAllPoints()
@@ -3092,7 +3593,7 @@ local function SortX(a, b)
   return a.UBF.UnitBar.x < b.UBF.UnitBar.x
 end
 
-function GUB.UnitBars:AlignUnitBars(AlignmentBar, BarsToAlign, AlignType, Align, PadEnabled, Padding)
+function GUB.Main:AlignUnitBars(AlignmentBar, BarsToAlign, AlignType, Align, PadEnabled, Padding)
 
   -- Add the BarsToAlign data to UnitBarsFList.
   local UnitBarI = 1
@@ -3291,6 +3792,9 @@ local function OnInitializeOnce()
     -- Get the main power type for the player.
     PlayerPowerType = ClassToPowerType[PlayerClass]
 
+    -- Get the globally unique identifier for the player.
+    PlayerGUID = UnitGUID('player')
+
     -- Set PlayerClass and PlayerPowerType in options.lua
     GUB.Options:SendOptionsData(nil, PlayerClass, PlayerPowerType)
 
@@ -3298,9 +3802,9 @@ local function OnInitializeOnce()
     -- Delaying Options init to make sure PlayerClass is accessible first.
     GUB.Options:OnInitialize()
 
-    GUB.UnitBarsDB.RegisterCallback(GUB, 'OnProfileReset', 'ProfileChanged')
-    GUB.UnitBarsDB.RegisterCallback(GUB, 'OnProfileChanged', 'ProfileChanged')
-    GUB.UnitBarsDB.RegisterCallback(GUB, 'OnProfileCopied', 'ProfileChanged')
+    GUB.MainDB.RegisterCallback(GUB, 'OnProfileReset', 'ProfileChanged')
+    GUB.MainDB.RegisterCallback(GUB, 'OnProfileChanged', 'ProfileChanged')
+    GUB.MainDB.RegisterCallback(GUB, 'OnProfileCopied', 'ProfileChanged')
 
     LSM.RegisterCallback(GUB, 'LibSharedMedia_Registered', 'MediaUpdate')
 
@@ -3317,10 +3821,10 @@ function GUB:OnInitialize()
   InitializeColors()
 
   -- Load the unitbars database
-  GUB.UnitBarsDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', Defaults, true)
+  GUB.MainDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', Defaults, true)
 
   -- Save the unitbars data from the current profile.
-  UnitBars = GUB.UnitBarsDB.profile
+  UnitBars = GUB.MainDB.profile
 
   -- Set unitbars to the new profile in options.lua.
   GUB.Options:SendOptionsData(UnitBars, nil, nil)
@@ -3347,10 +3851,10 @@ function GUB:OnEnable()
   UnitBarsSetScript(true)
 
   -- Initialize the events.
-  RegisterOtherEvents()
+  RegisterEvents('register', 'main')
 
   -- Set the unitbars global settings
-  GUB.UnitBars:UnitBarsSetAllOptions()
+  Main:UnitBarsSetAllOptions()
 
   -- Set the unitbars status and show the unitbars.
   GUB:UnitBarsUpdateStatus()

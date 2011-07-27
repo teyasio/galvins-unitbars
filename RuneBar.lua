@@ -10,11 +10,12 @@
 local MyAddon, GUB = ...
 
 GUB.RuneBar = {}
+local Main = GUB.Main
 
 -- shared from Main.lua
-local LSM = GUB.UnitBars.LSM
-local CheckEvent = GUB.UnitBars.CheckEvent
-local MouseOverDesc = GUB.UnitBars.MouseOverDesc
+local LSM = Main.LSM
+local CheckEvent = Main.CheckEvent
+local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
@@ -226,7 +227,7 @@ end
 local function RuneOnEnter(RuneF)
   RuneF.Highlight:SetTexture(RuneHighlightTexture)
 
-  local Backdrop = GUB.UnitBars:ConvertBackdrop(RuneF.UnitBarF.UnitBar.Background.BackdropSettings)
+  local Backdrop = Main:ConvertBackdrop(RuneF.UnitBarF.UnitBar.Background.BackdropSettings)
   Backdrop.bgFile = ''
   RuneF.CooldownBarHighlight:SetBackdrop(Backdrop)
 end
@@ -295,7 +296,7 @@ local function RuneBarStartMoving(self, Button)
   end
 
   -- Call the base moving function for group or anchor movement.
-  if GUB.UnitBars.UnitBarStartMoving(self.Anchor, Button) then
+  if Main.UnitBarStartMoving(self.Anchor, Button) then
     self.UnitBarMoving = true
   else
     if Button == 'RightButton' then
@@ -326,7 +327,7 @@ local function RuneBarStopMoving(self, Button)
   -- Call the stop moving base function if there was a group move or anchor move.
   if self.UnitBarMoving then
     self.UnitBarMoving = false
-    GUB.UnitBars.UnitBarStopMoving(self.Anchor, Button)
+    Main.UnitBarStopMoving(self.Anchor, Button)
 
   -- Stop moving a rune if it was moving.
   elseif self.IsMoving then
@@ -344,7 +345,7 @@ local function RuneBarStopMoving(self, Button)
 
     -- Move the rune if we're not in bar mode.
     elseif not UnitBarF.UnitBar.General.BarMode then
-      self.RuneLocation.x, self.RuneLocation.y = GUB.UnitBars:RestoreRelativePoints(self)
+      self.RuneLocation.x, self.RuneLocation.y = Main:RestoreRelativePoints(self)
     end
 
     -- Update the layout.
@@ -394,7 +395,7 @@ local function RuneCooldownOnUpdate(self, Elapsed)
     -- Hide cooldown flash if HideCooldownFlash is set to true.
     -- Or stop the animation if the rune came off cooldown early.
     if RuneTime > 0 then
-      GUB.UnitBars:CooldownBarSetTimer(self.RuneCooldownBar, 0, 0, 0)
+      Main:CooldownBarSetTimer(self.RuneCooldownBar, 0, 0, 0)
     end
     if self.CooldownAnimation and (self.HideCooldownFlash or RuneTime > 0) then
       CooldownFrame_SetTimer(self.Cooldown, 0, 0, 0)
@@ -430,7 +431,7 @@ local function StartRuneCooldown(RuneF, Start, Duration)
 
     RuneF.LastTime = 100
 
-    GUB.UnitBars:CooldownBarSetTimer(RuneF.RuneCooldownBar, Start, Duration, 1)
+    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, Start, Duration, 1)
     -- Start a cooldown timer if cooldown animation is true.
     if RuneF.CooldownAnimation then
       CooldownFrame_SetTimer(RuneF.Cooldown, Start, Duration, 1)
@@ -529,14 +530,14 @@ function GUB.RuneBar:FrameSetScriptRune(Enable)
                                    RuneBarStopMoving(self)
 
                                    -- stop any cooldown timers currently running.
-                                   GUB.UnitBars:CooldownBarSetTimer(self.RuneCooldownBar, 0, 0, 0)
+                                   Main:CooldownBarSetTimer(self.RuneCooldownBar, 0, 0, 0)
                                    CooldownFrame_SetTimer(self.Cooldown, 0, 0, 0)
                                 end)
       RF:SetScript('OnEnter', function(self)
-                                GUB.UnitBars.UnitBarTooltip(self, false)
+                                Main.UnitBarTooltip(self, false)
                               end)
       RF:SetScript('OnLeave', function(self)
-                                GUB.UnitBars.UnitBarTooltip(self, true)
+                                Main.UnitBarTooltip(self, true)
                               end)
     else
       RF:SetScript('OnMouseDown', nil)
@@ -624,7 +625,7 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
         end
 
         if Attr == nil or Attr == 'backdrop' then
-          RuneCooldownBarFrame:SetBackdrop(GUB.UnitBars:ConvertBackdrop(Background.BackdropSettings))
+          RuneCooldownBarFrame:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
           RuneCooldownBarFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
         end
         if Attr == nil or Attr == 'color' then
@@ -669,7 +670,7 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
       local Txt = RF.Txt
 
       if Attr == nil or Attr == 'font' then
-        GUB.UnitBars:SetFontString(Txt, FontSettings)
+        Main:SetFontString(Txt, FontSettings)
       end
       if Attr == nil or Attr == 'color' then
         local TextColor = nil
@@ -750,7 +751,7 @@ function GUB.RuneBar:SetLayoutRune()
 
       -- Get the upper left location of rune location.
       -- Make RuneSize / 2 a negative value since we're looking for upper left.
-      local x, y = GUB.UnitBars:CalcSetPoint(RunePosition, RuneWidth, RuneHeight, -(RuneSize / 2), RuneSize / 2)
+      local x, y = Main:CalcSetPoint(RunePosition, RuneWidth, RuneHeight, -(RuneSize / 2), RuneSize / 2)
 
       -- Apply the offsets to the rune location.
       x = x + RuneOffsetX
@@ -761,12 +762,12 @@ function GUB.RuneBar:SetLayoutRune()
       CooldownBarOffsetY = y > 0 and -y or 0
 
       -- Calculate the new size of the rune frame.
-      _, _, Width, Height = GUB.UnitBars:GetBorder(x, y, RuneSize, RuneSize, 0, 0, RuneWidth, RuneHeight)
+      _, _, Width, Height = Main:GetBorder(x, y, RuneSize, RuneSize, 0, 0, RuneWidth, RuneHeight)
     end
   end
 
   -- Get the offsets for rotation.
-  XOffset, YOffset = GUB.UnitBars:AngleToOffset(Width + Padding, Height + Padding, Angle)
+  XOffset, YOffset = Main:AngleToOffset(Width + Padding, Height + Padding, Angle)
 
   -- Set up the rune positions
   for RuneIndex, Rune in ipairs(UB.RuneBarOrder) do
@@ -914,15 +915,15 @@ function GUB.RuneBar:SetLayoutRune()
       if BarDrawEdge then
         if FillDirection == 'HORIZONTAL' then
           RF.CooldownEdge:SetTexCoord(0, 1, 0, 1)
-          GUB.UnitBars:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, RF.CooldownEdgeFrame, FillDirection,
+          Main:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, RF.CooldownEdgeFrame, FillDirection,
                                                CooldownBarSparkTexture.Width, RuneHeight / 0.57142)
         else
           RF.CooldownEdge:SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0)
-          GUB.UnitBars:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, RF.CooldownEdgeFrame, FillDirection,
+          Main:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, RF.CooldownEdgeFrame, FillDirection,
                                                RuneWidth / 0.57142, CooldownBarSparkTexture.Height)
         end
       else
-        GUB.UnitBars:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, nil)
+        Main:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, nil)
       end
     end
 
@@ -939,7 +940,7 @@ function GUB.RuneBar:SetLayoutRune()
   -- The border gets offsetted, but then we need to shift the offset frame in the opposite direction.
   -- So the runes appear in the correct location on the screen.
   if not BarMode then
-    x, y, BorderWidth, BorderHeight = GUB.UnitBars:GetBorder(RuneLocation[1].x, RuneLocation[1].y, Width, Height,
+    x, y, BorderWidth, BorderHeight = Main:GetBorder(RuneLocation[1].x, RuneLocation[1].y, Width, Height,
                                                              RuneLocation[2].x, RuneLocation[2].y, Width, Height,
                                                              RuneLocation[3].x, RuneLocation[3].y, Width, Height,
                                                              RuneLocation[4].x, RuneLocation[4].y, Width, Height,
