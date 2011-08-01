@@ -13,11 +13,8 @@ local Main = GUB.Main
 
 -- shared from Main.lua
 local LSM = Main.LSM
-local CheckPowerType = Main.CheckPowerType
-local CheckEvent = Main.CheckEvent
 local PowerTypeToNumber = Main.PowerTypeToNumber
 local MouseOverDesc = Main.MouseOverDesc
-local GetPredictedPower = Main.GetPredictedPower
 
 -- localize some globals.
 local _
@@ -49,11 +46,33 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- Border.UnitBarF            Reference to unitbarF for for onsizechange.
 --
 -- StatusBar.UnitBar          Reference to unitbar data for GetStatusBarTextValue()
+--
+-- LastCurrValue
+-- LastMaxValue
+-- LastPowerType              These three values keep track of any changes in the health and power bars.
+--
+-- LastPredictedValue         Hunters only.  Keeps track of predicted power change.
 -------------------------------------------------------------------------------
 
 -- Powertype constants
 local PowerMana = PowerTypeToNumber['MANA']
 local PowerEnergy = PowerTypeToNumber['ENERGY']
+local PowerFocus = PowerTypeToNumber['FOCUS']
+
+local LastCurrValue = {}
+local LastMaxValue = {}
+local LastPowerType = {}
+local LastPredictedValue = {}
+
+-- Predicted spell ID constants.
+local SpellSteadyShot = 56641
+local SpellCobraShot  = 77767
+
+local PredictedSpellValue = {
+  [0]               = 0,
+  [SpellSteadyShot] = 9,
+  [SpellCobraShot]  = 9,
+}
 
 -- Constants used in NumberToDigitGroups
 local Thousands = ('%.1f'):format(1/5):match('([^0-9])') == '.' and ',' or '.'
@@ -61,6 +80,17 @@ local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Th
 local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local ThousandFormat = '%s%d' .. Thousands..'%03d'
 
+--*****************************************************************************
+--
+-- health and Power - predicted power and initialization
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- Set Steady shot and cobra shot for predicted power.
+-------------------------------------------------------------------------------
+Main:SetPredictedSpells(SpellSteadyShot, false)
+Main:SetPredictedSpells(SpellCobraShot,  false)
 
 --*****************************************************************************
 --
@@ -299,21 +329,36 @@ end
 --
 -- Updates the health of the current player or target
 --
--- Usage: UpdateHealthBar(UnitBarF, Event, Unit)
+-- Usage: UpdateHealthBar(Event, Unit)
 --
--- UnitBarF   The unitbar that contains the Health and Power bar frame.
--- Event      If it's not a health event then health bar doesn't
---            get updated. Set to nil to bypass this check
--- Unit       player or target
+-- Event      'change' then the bar will only get updated if there is a change.
+-- Unit       player, target, pet, etc
 -------------------------------------------------------------------------------
 function GUB.HapBar:UpdateHealthBar(Event, Unit)
 
-  -- Do nothing if this bar is not enabled or not a health event.
-  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'health' then
+  -- Return if the unitbar is disabled
+  if not self.Enabled then
     return
   end
+
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
+
+  local BarType = self.BarType
+  local Gen = self.UnitBar.General
+  local PredictedHealing = Gen and Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
+
+  -- Return if there is no change.
+  if Event == 'change' and
+     CurrValue == LastCurrValue[BarType] and MaxValue == LastMaxValue[BarType] and
+     PredictedHealing == LastPredictedValue[BarType] then
+    return
+  end
+
+  LastCurrValue[BarType] = CurrValue
+  LastMaxValue[BarType] = MaxValue
+  LastPredictedValue[BarType] = PredictedHealing
+
   local Bar = self.UnitBar.Bar
   local PredictedBar = self.PredictedBar
 
@@ -328,8 +373,7 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
 
   -- Set the color and display the predicted health.
   local PredictedColor = Bar.PredictedColor
-  local PredictedHealing = UnitGetIncomingHeals(Unit) or 0
-  if PredictedColor and PredictedHealing > 0 then
+  if PredictedColor and PredictedHealing > 0 and CurrValue < MaxValue then
     PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
     PredictedBar:SetMinMaxValues(0, MaxValue)
     PredictedBar:SetValue(CurrValue + PredictedHealing)
@@ -344,7 +388,7 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedHealing)
 
   -- Set the IsActive flag.
-  self.IsActive = CurrValue < MaxValue
+  self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
 
   -- Do a status check for active status.
   self:StatusCheck()
@@ -353,57 +397,74 @@ end
 -------------------------------------------------------------------------------
 -- UpdatePowerBar (Update) [UnitBar assigned function]
 --
--- Updates the power of the current player or target.
+-- Updates the power of the unit.
 --
--- Usage: UpdatePowerBar(Event, Unit, UpdatePowerType, PowerType)
+-- Usage: UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
 --
--- Event                If nil no event check will be done.
--- UpdatePowerType      If true then the current unit power type must equal
---                      this value.
---                      If false then the PowerType gets updated instead.
--- PowerType            String format. This is based on UpdatePowerType.
---                      If nil then current units powertype is used only
---                      if UpdatePowerType is equal to false.
+-- Event         'change' then the bar will only get updated if there is a change.
+-- Unit          Unit name 'player' ,'target', etc
+-- PowerType     If not nil then this value will be used as the powertype.
+--               if nil then the Unit's powertype will be used instead.
+-- PlayerClass   Name of the class. If nil not used.
 -------------------------------------------------------------------------------
-function GUB.HapBar:UpdatePowerBar(Event, Unit, UpdatePowerType, PowerType)
+function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
 
-  -- Return if the unitbar is disabled, or event is not a power event.
-  -- or powertype is not for a powerbar
-  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'power' or
-     PowerType ~= nil and CheckPowerType[PowerType] ~= 'power' then
+  -- Return if the unitbar is disabled
+  if not self.Enabled then
     return
   end
 
-  -- Convert powertype into a number.
-  PowerType = PowerTypeToNumber[PowerType]
-
-  local CurrPowerType = UnitPowerType(Unit)
-
-  -- If PowerType is nil then use the current units powertype.
   if PowerType == nil then
-    PowerType = CurrPowerType
+    PowerType = UnitPowerType(Unit)
   end
 
-  -- Return if UpdatePowerType is true and PowerType is not equal to CurrPowerType
-  if UpdatePowerType and PowerType ~= CurrPowerType then
-    return
-  end
-
+  local BarType = self.BarType
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
-  local UB = self.UnitBar
 
-  local Color = UB.Bar.Color[PowerType]
+  local Gen = self.UnitBar.General
+
+  -- Get predicted power for hunters only.
+  local PredictedPower = Gen and Gen.PredictedPower and Unit == 'player' and PlayerClass == 'HUNTER' and
+                         PredictedSpellValue[Main:GetPredictedSpell(1)] or 0
+
+  -- Return if there is no change.
+  if Event == 'change' and
+     CurrValue == LastCurrValue[BarType] and MaxValue == LastMaxValue[BarType] and
+     PowerType == LastPowerType[BarType] and PredictedPower == 0 and LastPredictedValue[BarType] == 0 then
+    return
+  end
+
+  LastCurrValue[BarType] = CurrValue
+  LastMaxValue[BarType] = MaxValue
+  LastPowerType[BarType] = PowerType
+  LastPredictedValue[BarType] = PredictedPower
+
+  local Bar = self.UnitBar.Bar
+  local Color = Bar.Color[PowerType]
+
+  local PredictedBar = self.PredictedBar
+
+  -- Set the color and display the predicted health.
+  local PredictedColor = Bar.PredictedColor
+  if PredictedColor and PredictedPower > 0 and CurrValue < MaxValue then
+    PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
+    PredictedBar:SetMinMaxValues(0, MaxValue)
+    PredictedBar:SetValue(CurrValue + PredictedPower)
+  else
+    PredictedPower = 0
+    PredictedBar:SetValue(0)
+  end
 
   -- Set the color and display the value.
   local StatusBar = self.StatusBar
   StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  SetStatusBarValue(StatusBar, CurrValue, MaxValue)
+  SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedPower)
 
   -- Set the IsActive flag.
   local IsActive = false
-  if PowerType == PowerMana or PowerType == PowerEnergy then
-    if CurrValue < MaxValue then
+  if PowerType == PowerMana or PowerType == PowerEnergy or PowerType == PowerFocus then
+    if CurrValue < MaxValue or PredictedPower > 0 then
       IsActive = true
     end
   else

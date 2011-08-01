@@ -13,7 +13,6 @@ local Main = GUB.Main
 
 -- shared from Main.lua
 local LSM = Main.LSM
-local CheckEvent = Main.CheckEvent
 local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
@@ -56,8 +55,12 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- ComboPointBoxFrame.Anchor           Anchor reference for moving.
 -- ComboPointBoxFrame.TooltipName      Name of this combopoint for mouse over tooltips.
 -- ComboPointBoxFrame.TooltipDesc      Description to show with the name for mouse over tooltips.
+--
+-- LastComboPoints                     Keeps track of change in the combo bar.
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
+
+local LastComboPoints = nil
 
 local SoulShardTexture = {
         Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
@@ -162,21 +165,24 @@ end
 -------------------------------------------------------------------------------
 -- UpdateComboBar (Update) [UnitBar assigned function]
 --
--- Usage: UpdateComboBar(Event)
---
--- Event     Combo point event.  If this is not a combo point event then the
---           function does nothing.
---           If event == nil then the bar will get updated.
+-- Usage: UpdateComboBar()
 -------------------------------------------------------------------------------
-function GUB.ComboBar:UpdateComboBar(Event)
+function GUB.ComboBar:UpdateComboBar()
+
+  -- Return if the unitbar is disabled.
+  if not self.Enabled then
+    return
+  end
 
   -- Get the combo points.
   local ComboPoints = GetComboPoints('player', 'target')
 
-  -- Return if combo points hasn't changed or event check fails.
-  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'combo' then
+  -- Return if no change.
+  if ComboPoints == LastComboPoints then
     return
   end
+
+  LastComboPoints = ComboPoints
 
   -- Display the combo points
   UpdateComboPoints(self, ComboPoints)

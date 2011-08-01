@@ -2,6 +2,51 @@
 -- EclipseBar.lua
 --
 -- Displays the druid moonkin eclipse bar.
+--
+-- Predicted power:
+--
+-- Predicted power is calculated by taking any spell thats casting and any spells that are flying and totals them
+-- up.  Flying spells on a 5sec timeout, if they take longer than 5secs to reach their target, they'll be removed
+-- from the stack.  Spells that generate damage, energize, or miss the target are removed from the stack right away.
+--
+--
+-- Wrath prediction explained:
+--
+-- When the player first logs in, the wrath sequence will be in sync with the server.  Since the wrath sequence
+-- gets reset as well.  This is only true as long as the player has the eclipse bar turned on before casting
+-- any spells.
+--
+-- As long as the player doesn't cast a wrath that will not move the energy bar, it will always be in sync.
+-- Euphoria can't be predicted but the wrath sequence will still stay in sync.
+--
+--
+-- Technical explanation of wrath prediction:
+--
+-- The wrath sequence is calculated by adding a constant value to a floating point number.
+-- Wrath without 4pc bonus is 13.333333
+-- Wrath with bonus is        16.666667
+--
+-- The wrath values are calculated by rounding the wrath sequence down.  But if the fractional part
+-- is greater than 0.90 then its rounded up. Using positive values in this example.
+--
+-- Wrath Value   Sequence Value   Rounded       Current Wrath Value
+--
+-- 13.333333     13.333333        13            13 - 0    = 13
+-- 13.333333     26.666666        26            26 - 13   = 13
+-- 13.333333     39.999999        40            40 - 26   = 14
+-- 13.333333     53.333332        53            53 - 40   = 13
+-- Player gaines 4pc bonus
+-- 16.666667     69.999999        70            70 - 53   = 17
+-- 16.666667     86.666666        86            86 - 70   = 16
+-- 16.666667     103.333333       103           103 - 86  = 17
+-- 16.666667     120.0            120           120 - 103 = 17
+-- Player loses 4pc bonus
+-- 13.333333     133.333333       133           133 - 120 = 13
+-- 13.333333     146.666666       146           146 - 133 = 13
+-- Player gains 4pc bonus
+-- 16.666667     163.333333       163           163 - 146 = 17
+-- 16.666667     180.0            180           180 - 163 = 17
+-------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -13,8 +58,6 @@ local Main = GUB.Main
 
 -- shared from Main.lua
 local LSM = Main.LSM
-local CheckPowerType = Main.CheckPowerType
-local CheckEvent = Main.CheckEvent
 local PowerTypeToNumber = Main.PowerTypeToNumber
 local MouseOverDesc = Main.MouseOverDesc
 
@@ -40,6 +83,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- UnitBarF.OffsetFrame              Used for rotation.
 -- UnitBarF.SunMoonBorder            Frame level border for sun and moon. Child of OffsetFrame.
 -- UnitBarF.SliderBorder             Frame level border for the slider. Child of SunMoonBorder.
+-- UnitBarF.IndicatorBorder          Frame level border for the indicator. Child of SunMoonBorder.
+--
 -- UnitBarF.EclipseF                 Table containing the frames that make up the eclipse bar.
 --
 -- Border.Anchor                     Anchor reference for moving.
@@ -76,21 +121,26 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 --   StatusBar                       Child of Slider.Frame.  Statusbar containing the visible texture.
 --                                   This is set up so that Frame:Hide() will hide the whole Slider.
 --
--- EclipseF.Predicter                Table containing the frame data for the predicter.
---   Frame                           Child of PredictedBorder. Used to hide/show the predicter.
---   Border                          Child of Predicter.Frame. Used to show a visible border for the predicter.
---   StatusBar                       Child of Predicter.Frame. Statusbar containing the visible texture.
---                                   This is set up so that Frame:Hide() will hide the whole Predicter.
+-- EclipseF.Indicator                Table containing the frame data for the indicator.
+--   Frame                           Child of IndicatorBorder. Used to hide/show the indicator.
+--   Border                          Child of Indicator.Frame. Used to show a visible border for the indicator.
+--   StatusBar                       Child of Indicator.Frame. Statusbar containing the visible texture.
+--                                   This is set up so that Frame:Hide() will hide the whole Indicator.
 --
 -- Txt                               Standard text data.
 --
 -- RotateBar                         Table containing data for the bar rotation.
 --
--- EclipseDirection                  Only gets updated during Energize events.  Or when it's neutral.
+-- EclipseDirection                  Only gets when eclipse power is at max.
 --                                   Sometimes the direction can change before the eclipse power hits
 --                                   max power.  So to fix this, the direction gets updated when the
---                                   spell causes an energize event.  If EclipseDirection is nil then
+--                                   eclipsepower is at maxpower.  If EclipseDirection is nil or none then
 --                                   it will be set to the current direction.
+--
+-- LastEclipseDirection
+-- LastEclipse
+-- LastEclipsePower
+-- LastPredictedSpells               These four values keep track if there is a change in the eclipse bar.
 --
 -- WrathSequence                     A positive floating point number that keeps track of the wrath sequence.
 -- SequenceRounded                   Rounded off value of WrathSequence used to calculate the next wrath value.
@@ -101,16 +151,16 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- LastWrathServerValue              Used to by SyncWrathSequence().  Helps to detect if the sequence is in sync with
 --                                   the server. This contains the last wrath value from the server.
 -- WrathSync                         If true then in sync otherwise false.
-
--- Tier12FourPcBonus                 If true then the tier 12 four pc bonus is active, otherwise false.
---
 -------------------------------------------------------------------------------
 
 -- Powertype constants
 local PowerEclipse = PowerTypeToNumber['ECLIPSE']
 
-local Tier12FourPcBonus = false
 local EclipseDirection = nil
+local LastEclipsePower = nil
+local LastEclipseDirection = nil
+local LastEclipse = nil
+local LastPredictedSpells = nil
 
 local WrathSequence = 0
 local SequenceRounded = 0
@@ -131,7 +181,7 @@ local SpellStarsurge  = 78674
 local SpellEnergizeWS = 89265 -- Energize for Wrath and Starfire
 local SpellEnergizeSS = 86605 -- Energize for Starsurge
 
-local PredictedValue = {
+local PredictedSpellValue = {
   [SpellWrath] = 13,
   [SpellStarfire] = 20,
   [SpellStarsurge] = 15,
@@ -274,7 +324,6 @@ local function SyncWrathSequence(Value)
     WrathCount = WrathCount + 1
     LastWrathValue = WrathValue
     WrathValue = AdvanceWrathSequence(Bonus)
-    --print('WRATH SEQUENCE VALUE = ', WrathValue, 'SERVER VALUE = ', Value)
     if Value == WrathValue or Value == LastWrathValue + WrathValue then
       Found = true
     end
@@ -346,9 +395,6 @@ local function CheckSpell(SpellID, Value)
 
     return RemoveSpell
   else
-
-    -- Update eclipse direction on energize.
-    EclipseDirection = GetEclipseDirection()
 
     -- Check for energize spell and convert it to spellID damage.
     -- Also a spell damage will happen or happened since energize happened.
@@ -625,7 +671,7 @@ local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, 
     SliderPos = SliderPos * -1
   end
 
-  -- Check the SliderInside option
+  -- Check the SliderInside option.  Need to divide by 2 since we have negative to positive coordinates.
   if Gen.SliderInside then
     SliderPos = SliderPos * ((BarSize - BdSize - SliderSize) / 2)
   else
@@ -657,23 +703,20 @@ end
 --
 -- Update the eclipse bar power, sun, and moon.
 --
--- usage: UpdateEclipseBar(Event, ...)
+-- usage: UpdateEclipseBar(Event)
 --
--- Event                If nil no event check will be done.
--- ...                  Event data depending on one of three events passed.
+-- Event     'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
+function GUB.EclipseBar:UpdateEclipseBar(Event)
 
-  -- Do nothing if not enabled.
+  --Return if the unitbar is disabled
   if not self.Enabled then
     return
   end
 
-  -- Need to keep getting eclipsedirection on 'none' since after login, the direction may take a few seconds
-  -- to update to something other than 'none'.
-  if EclipseDirection == nil or EclipseDirection == 'none' then
-    EclipseDirection = GetEclipseDirection()
-  end
+  local UB = self.UnitBar
+  local Gen = UB.General
+  local PredictedPower = Gen.PredictedPower
 
   local EclipsePower = UnitPower('player', PowerEclipse)
   local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
@@ -681,26 +724,38 @@ function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
   local Eclipse = SpellID == SolarBuff and 1 or SpellID == LunarBuff and -1 or 0
   local EclipsePowerType = GetEclipsePowerType(EclipsePower)
 
-  -- Check for tier 12 four pc bonus only if in solar eclipse.
-  Tier12FourPcBonus = Main:GetSetBonus(12) == 4 and Eclipse == 1
+  -- Update EclipseDirection on maxpower or nil or none.
+  local ED = GetEclipseDirection()
+  if abs(EclipsePower) == EclipseMaxPower or EclipseDirection == nil or EclipseDirection == 'none' then
+    EclipseDirection = ED
+  end
 
-  local UB = self.UnitBar
-  local Gen = UB.General
-  local PredictedPower = Gen.PredictedPower
-  local PredicterHideShow = Gen.PredicterHideShow
+  local PredictedSpells = PredictedPower and Main:GetPredictedSpell(1) > 0 and 1 or 0
+
+  -- Return if there is no change.
+  if Event == 'change' and EclipsePower == LastEclipsePower and EclipseDirection == LastEclipseDirection and
+     Eclipse == LastEclipse and PredictedSpells == 0 and LastPredictedSpells == 0 then
+    return
+  end
+
+  LastEclipsePower = EclipsePower
+  LastEclipseDirection = EclipseDirection
+  LastEclipse = Eclipse
+  LastPredictedSpells = PredictedSpells
+
+  local IndicatorHideShow = Gen.IndicatorHideShow
   local FadeOutTime = Gen.EclipseFadeOutTime
+  local BarHalfLit = Gen.BarHalfLit
   local PredictedEclipse = Gen.PredictedEclipse
-  local PredictedHalfLit = Gen.PredictedHalfLit
+  local PredictedBarHalfLit = Gen.PredictedBarHalfLit
   local EF = self.EclipseF
 
   local Value = 0
-  local Index = 1
-  local PowerChange = false
   local PC = false
-  local PEclipseDirection = EclipseDirection
-  local PEclipsePower = EclipsePower
-  local PEclipsePowerType = EclipsePowerType
-  local PEclipse = Eclipse
+  local PEclipseDirection = nil
+  local PEclipsePower = nil
+  local PEclipsePowerType = nil
+  local PEclipse = nil
 
   -- Check hide slider option.
   if PredictedPower and Gen.PredictedHideSlider then
@@ -710,19 +765,26 @@ function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
     DisplayEclipseSlider(EF, UB, 'Slider', EclipsePower, EclipseMaxPower, EclipseDirection, EclipsePowerType)
   end
 
-  -- Calculate predicted eclipse.
+  -- Calculate predicted power.
   if PredictedPower then
+    local Index = 1
+    local PowerChange = false
+    PEclipseDirection = EclipseDirection
+    PEclipsePower = EclipsePower
+    PEclipsePowerType = EclipsePowerType
+    PEclipse = Eclipse
 
     -- Save the wrath sequence so that it can be looked ahead.
     SaveRestoreWrathSequence('save')
     repeat
       SpellID = Main:GetPredictedSpell(Index)
+
       if SpellID ~= 0 then
-        Value = PredictedValue[SpellID]
+        Value = PredictedSpellValue[SpellID]
 
         -- Get the next wrath value in the sequence. 4pc bonus is only active if predicted solar eclipse is 1.
         if SpellID == SpellWrath then
-          Value = AdvanceWrathSequence(Tier12FourPcBonus and PEclipse == 1 and true or false)
+          Value = AdvanceWrathSequence(Main:GetSetBonus(12) == 4 and PEclipse == 1)
         end
 
         PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
@@ -739,62 +801,54 @@ function GUB.EclipseBar:UpdateEclipseBar(Event, ...)
     -- Restore the wrath sequence.
     SaveRestoreWrathSequence('restore')
 
-    -- Display predicter based on predicted power options.
-    if PC and PredicterHideShow ~= 'hidealways' or PredicterHideShow == 'showalways' then
-      EF.Predicter.Frame:Show()
-      if PC or PredicterHideShow == 'showalways' then
-        DisplayEclipseSlider(EF, UB, 'Predicter', PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
+    -- Display indicator based on predicted power options.
+    if PC and IndicatorHideShow ~= 'hidealways' or IndicatorHideShow == 'showalways' then
+      EF.Indicator.Frame:Show()
+      if PC or IndicatorHideShow == 'showalways' then
+        DisplayEclipseSlider(EF, UB, 'Indicator', PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
       end
     else
-      EF.Predicter.Frame:Hide()
+      EF.Indicator.Frame:Hide()
     end
   else
-    EF.Predicter.Frame:Hide()
+    EF.Indicator.Frame:Hide()
   end
 
   -- Display the eclipse power.
-  if Gen.PowerText then
-    local Value = EclipsePower
-    if Gen.PredictedPowerText then
-      Value = PEclipsePower
-    end
+  Value = nil
+  if Gen.PredictedPowerText then
+    Value = PEclipsePower
+  end
+  if Gen.PowerText and Value == nil then
+    Value = EclipsePower
+  end
+  if Value then
     EF.Txt:SetText(abs(Value))
   else
     EF.Txt:SetText('')
   end
 
   -- Hide/show sun and moon
-  if Eclipse == 1 and PEclipse == 1 or PEclipse == 1 and EclipseDirection ~= 'moon' or
-     Eclipse == 1 and not PC then
+  if PredictedEclipse and PEclipse == 1 or (not PredictedEclipse or PEclipse ~= 0) and Eclipse == 1 then
     EclipseBarHide(EF, 'Sun', false, FadeOutTime)
   else
     EclipseBarHide(EF, 'Sun', true, FadeOutTime)
   end
-  if Eclipse == -1 and PEclipse == -1 or PEclipse == -1 and EclipseDirection ~= 'sun' or
-     Eclipse == -1 and not PC then
+  if PredictedEclipse and PEclipse == -1 or (not PredictedEclipse or PEclipse ~= 0) and Eclipse == -1 then
    EclipseBarHide(EF, 'Moon', false, FadeOutTime)
   else
     EclipseBarHide(EF, 'Moon', true, FadeOutTime)
   end
 
   -- Check the HalfLit option, predicted power can change how this works.
-  if Gen.BarHalfLit then
-    if EclipseDirection == 'sun' or PEclipseDirection == 'sun' and PredictedHalfLit then
-      if PEclipseDirection == 'sun' then
-        EclipseBarHide(EF, 'Lunar', true, FadeOutTime)
-        EclipseBarHide(EF, 'Solar', false, FadeOutTime)
-      end
-    end
-    if EclipseDirection == 'moon' or PEclipseDirection == 'moon' and PredictedHalfLit then
-      if PEclipseDirection == 'moon' then
-        EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
-        EclipseBarHide(EF, 'Solar', true, FadeOutTime)
-      end
-    end
-    if EclipseDirection == 'none' then
-      EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
-      EclipseBarHide(EF, 'Solar', false, FadeOutTime)
-    end
+  if PredictedBarHalfLit and PEclipseDirection == 'sun' or
+     BarHalfLit and EclipseDirection == 'sun' then
+    EclipseBarHide(EF, 'Lunar', true, FadeOutTime)
+    EclipseBarHide(EF, 'Solar', false, FadeOutTime)
+  elseif PredictedBarHalfLit and PEclipseDirection == 'moon' or
+         BarHalfLit and EclipseDirection == 'moon' then
+    EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
+    EclipseBarHide(EF, 'Solar', true, FadeOutTime)
   else
     EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
     EclipseBarHide(EF, 'Solar', false, FadeOutTime)
@@ -808,8 +862,8 @@ end
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:CancelAnimationEclipse()
   local EF = self.EclipseF
-  EclipseBarHide(EF, 'Sun', false, -1)
   EclipseBarHide(EF, 'Moon', false, -1)
+  EclipseBarHide(EF, 'Sun', false, -1)
   EclipseBarHide(EF, 'Lunar', false, -1)
   EclipseBarHide(EF, 'Solar', false, -1)
 end
@@ -826,7 +880,11 @@ end
 -- This will enable or disbable mouse clicks for the eclipse bar.
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:EnableMouseClicksEclipse(Enable)
-  self.Border:EnableMouse(Enable)
+  local EF = self.EclipseF
+
+  EF.Moon.Border:EnableMouse(Enable)
+  EF.Sun.Border:EnableMouse(Enable)
+  EF.Bar.Border:EnableMouse(Enable)
 end
 
 -------------------------------------------------------------------------------
@@ -835,26 +893,33 @@ end
 -- Set up script handlers for the eclipsebar.
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:FrameSetScriptEclipse(Enable)
-  local Border = self.Border
-  if Enable then
-    Border:SetScript('OnMouseDown', EclipseBarStartMoving)
-    Border:SetScript('OnMouseUp', EclipseBarStopMoving)
-    Border:SetScript('OnHide', function(self)
-                                 EclipseBarStopMoving(self)
-                              end)
-    Border:SetScript('OnEnter', function(self)
-                                  Main.UnitBarTooltip(self, false)
-                               end)
-    Border:SetScript('OnLeave', function(self)
-                                  Main.UnitBarTooltip(self, true)
-                               end)
-  else
-    Border:SetScript('OnMouseDown', nil)
-    Border:SetScript('OnMouseUp', nil)
-    Border:SetScript('OnHide', nil)
-    Border:SetScript('OnEnter', nil)
-    Border:SetScript('OnLeave', nil)
+  local EF = self.EclipseF
+
+  local function FrameSetScript(Frame, Enable)
+    if Enable then
+      Frame:SetScript('OnMouseDown', EclipseBarStartMoving)
+      Frame:SetScript('OnMouseUp', EclipseBarStopMoving)
+      Frame:SetScript('OnHide', function(self)
+                                   EclipseBarStopMoving(self)
+                                end)
+      Frame:SetScript('OnEnter', function(self)
+                                    Main.UnitBarTooltip(self, false)
+                                 end)
+      Frame:SetScript('OnLeave', function(self)
+                                    Main.UnitBarTooltip(self, true)
+                                 end)
+    else
+      Frame:SetScript('OnMouseDown', nil)
+      Frame:SetScript('OnMouseUp', nil)
+      Frame:SetScript('OnHide', nil)
+      Frame:SetScript('OnEnter', nil)
+      Frame:SetScript('OnLeave', nil)
+    end
   end
+
+  FrameSetScript(EF.Moon.Border, Enable)
+  FrameSetScript(EF.Sun.Border, Enable)
+  FrameSetScript(EF.Bar.Border, Enable)
 end
 
 -------------------------------------------------------------------------------
@@ -890,7 +955,7 @@ end
 --               'sun'       Apply changes to the sun.
 --               'bar'       Apply changes to the bar.
 --               'slider'    Apply changes to the slider.
---               'Predicter' Apply changes to the predicted slider.
+--               'Indicator' Apply changes to the predicted slider.
 --              if Eclipse is nil then only frame scale or text can be changed.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
@@ -1051,7 +1116,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   local SliderHeight = Bar.Slider.SliderHeight
   local EF = self.EclipseF
   local SliderFrame = EF.Slider.Frame
-  local PredicterFrame = EF.Predicter.Frame
+  local IndicatorFrame = EF.Indicator.Frame
 
   local SunX, SunY = 0, 0
   local MoonX, MoonY = 0, 0
@@ -1126,9 +1191,9 @@ function GUB.EclipseBar:SetLayoutEclipse()
   -- Dont clear points, Ecplise:Update() sets the point.
   EF.Slider.Border:SetAllPoints(SliderFrame)
 
-  -- Set up the predicter.
+  -- Set up the indicator.
   -- Dont clear points, EclipseBar:Update() sets the point.
-  EF.Predicter.Border:SetAllPoints(PredicterFrame)
+  EF.Indicator.Border:SetAllPoints(IndicatorFrame)
 
   -- Calculate upper left of slider for border calculation.
   SliderX, SliderY = Main:CalcSetPoint('CENTER', BarWidth, BarHeight, -(SliderWidth / 2), SliderHeight / 2)
@@ -1169,7 +1234,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   self:SetAttr(nil, nil, 'bar')
   self:SetAttr(nil, nil, 'sun')
   self:SetAttr(nil, nil, 'slider')
-  self:SetAttr(nil, nil, 'predicter')
+  self:SetAttr(nil, nil, 'indicator')
 
   -- Save size data to self (UnitBarF).
   self.Width = BorderWidth
@@ -1187,8 +1252,11 @@ end
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
-  local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Lunar = {}, Solar = {}, Slider = {}, Predicter = {}}
+  local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Lunar = {}, Solar = {}, Slider = {}, Indicator = {}}
   local Border = CreateFrame('Frame', nil, ScaleFrame)
+
+  -- Make the border frame top when clicked.
+  Border:SetToplevel(true)
 
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, Border)
@@ -1203,10 +1271,10 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   SliderBorderFL:SetAllPoints(OffsetFrame)
   SliderBorderFL:SetFrameLevel(SliderBorderFL:GetFrameLevel() + 30)
 
-  -- Create a borderframe for predicter frame level
-  local PredicterBorderFL = CreateFrame('Frame', nil, SunMoonBorderFL)
-  PredicterBorderFL:SetAllPoints(OffsetFrame)
-  PredicterBorderFL:SetFrameLevel(PredicterBorderFL:GetFrameLevel() + 20)
+  -- Create a borderframe for indicator frame level
+  local IndicatorBorderFL = CreateFrame('Frame', nil, SunMoonBorderFL)
+  IndicatorBorderFL:SetAllPoints(OffsetFrame)
+  IndicatorBorderFL:SetFrameLevel(IndicatorBorderFL:GetFrameLevel() + 20)
 
   -- Create the text frame.
   local TxtBorder = CreateFrame('Frame', nil, Border)
@@ -1215,8 +1283,6 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   local Txt = TxtBorder:CreateFontString(nil, 'OVERLAY')
 
   -- MOON
-  -- Make the border frame top when clicked.
-  Border:SetToplevel(true)
 
   -- Create the moon frame.  This is used for hide/show
   local MoonFrame = CreateFrame('Frame', nil, SunMoonBorderFL)
@@ -1268,14 +1334,14 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- create the statusbar for slider.
   local Slider = CreateFrame('StatusBar', nil, SliderFrame)
 
-  -- create the predicter frame.
-  local PredicterFrame = CreateFrame('Frame', nil, PredicterBorderFL)
+  -- create the indicator frame.
+  local IndicatorFrame = CreateFrame('Frame', nil, IndicatorBorderFL)
 
-  -- create the predicter border.
-  local PredicterBorder = CreateFrame('Frame', nil, PredicterFrame)
+  -- create the indicator border.
+  local IndicatorBorder = CreateFrame('Frame', nil, IndicatorFrame)
 
   -- create the statusbar for the predicted slider border.
-  local Predicter = CreateFrame('StatusBar', nil, PredicterFrame)
+  local Indicator = CreateFrame('StatusBar', nil, IndicatorFrame)
 
   -- Create fadeout for Sun, Moon, Lunar, and Solar.
   local FadeOut, FadeOutA = Main:CreateFadeOut(MoonFrame)
@@ -1294,6 +1360,19 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   BarSolar.FadeOut = FadeOut
   BarSolar.FadeOutA = FadeOutA
 
+  -- Save the name for tooltips.
+  MoonBorder.TooltipName = UB.Name
+  MoonBorder.TooltipDesc = MouseOverDesc
+  SunBorder.TooltipName = UB.Name
+  SunBorder.TooltipDesc = MouseOverDesc
+  BarBorder.TooltipName = UB.Name
+  BarBorder.TooltipDesc = MouseOverDesc
+
+  -- Save a reference to the anchor for moving.
+  MoonBorder.Anchor = Anchor
+  SunBorder.Anchor = Anchor
+  BarBorder.Anchor = Anchor
+
   EclipseFrame.Moon.Frame = MoonFrame
   EclipseFrame.Moon.Border = MoonBorder
   EclipseFrame.Moon.StatusBar = Moon
@@ -1307,24 +1386,17 @@ function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
   EclipseFrame.Slider.Frame = SliderFrame
   EclipseFrame.Slider.Border = SliderBorder
   EclipseFrame.Slider.StatusBar = Slider
-  EclipseFrame.Predicter.Frame = PredicterFrame
-  EclipseFrame.Predicter.Border = PredicterBorder
-  EclipseFrame.Predicter.StatusBar = Predicter
+  EclipseFrame.Indicator.Frame = IndicatorFrame
+  EclipseFrame.Indicator.Border = IndicatorBorder
+  EclipseFrame.Indicator.StatusBar = Indicator
 
   EclipseFrame.Txt = Txt
-
-  -- Save the name for tooltips.
-  Border.TooltipName = UB.Name
-  Border.TooltipDesc = MouseOverDesc
-
-  -- Save a reference to the anchor for moving.
-  Border.Anchor = Anchor
 
   -- Save the borders and Eclipse frames
   UnitBarF.Border = Border
   UnitBarF.SunMoonBorder = SunMoonBorderFL
   UnitBarF.SliderBorder = SliderBorderFL
-  UnitBarF.PredicterBorder = PredicterBorderFL
+  UnitBarF.IndicatorBorder = IndicatorBorderFL
   UnitBarF.TxtBorder = TxtBorder
   UnitBarF.OffsetFrame = OffsetFrame
   UnitBarF.EclipseF = EclipseFrame

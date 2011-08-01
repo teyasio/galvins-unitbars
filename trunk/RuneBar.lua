@@ -432,6 +432,7 @@ local function StartRuneCooldown(RuneF, Start, Duration)
     RuneF.LastTime = 100
 
     Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, Start, Duration, 1)
+
     -- Start a cooldown timer if cooldown animation is true.
     if RuneF.CooldownAnimation then
       CooldownFrame_SetTimer(RuneF.Cooldown, Start, Duration, 1)
@@ -465,12 +466,12 @@ end
 --
 -- Event                    Rune type event.  If this is not a rune event
 --                          function does nothing.
--- ...        RuneId        RuneId from 1 to 8.
+-- ...        RuneId        RuneId from 1 to 6.
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function GUB.RuneBar:UpdateRuneBar(Event, ...)
 
-  -- Do nothing if the event is not a rune event.
+  -- Return if the unitbar is disabled or if the event is not a rune event.
   local EventType = CheckEvent[Event]
   if not self.Enabled or EventType ~= 'runepower' and EventType ~= 'runetype' then
     return
