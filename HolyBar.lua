@@ -13,8 +13,6 @@ local Main = GUB.Main
 
 -- shared from Main.lua
 local LSM = Main.LSM
-local CheckPowerType = Main.CheckPowerType
-local CheckEvent = Main.CheckEvent
 local PowerTypeToNumber = Main.PowerTypeToNumber
 local MouseOverDesc = Main.MouseOverDesc
 
@@ -74,12 +72,17 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 --   Left, Right, Top, Bottom        Amount of padding within each HolyRuneFrame.
 --                                   This makes it so each holy rune texture doesn't
 --                                   touch the border.  Makes it look nicer.
+--
+-- LastHolyPower                     Keeps track if there is a change in the holy bar.
+--
 -- NOTE: holy bar has two modes.  In BoxMode the holy bar is broken into 3 statusbars.
 --       This works just like the combobar.  When not normal mode.  The bar uses textures instead.
 -------------------------------------------------------------------------------
 
 -- Powertype constants
 local PowerHoly = PowerTypeToNumber['HOLY_POWER']
+
+local LastHolyPower = nil
 
 local HolyPowerTexture = [[Interface\PlayerFrame\PaladinPowerTextures]]
 local HolyRunes = {
@@ -197,26 +200,23 @@ end
 --
 -- Update the holy power level of the player
 --
--- usage: UpdateHolyBar(Event, PowerType)
---
--- Event                If nil no event check will be done.
--- PowerType            If not equal to 'HOLY_POWER' then nothing will be updated
---                      unless it's nil
+-- usage: UpdateHolyBar()
 -------------------------------------------------------------------------------
-function GUB.HolyBar:UpdateHolyBar(Event, PowerType)
+function GUB.HolyBar:UpdateHolyBar()
 
-  -- If PowerType is nil then set it to holy power type.
-  if PowerType == nil then
-    PowerType = 'HOLY_POWER'
-  end
-
-  -- Return if the unitbar is disabled, or event is not a power event, or its not holy power.
-  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'power' or
-     CheckPowerType[PowerType] ~= 'holy' then
+  -- Return if the unitbar is disabled
+  if not self.Enabled then
     return
   end
 
   local HolyPower = UnitPower('player', PowerHoly)
+
+  -- Return if no change.
+  if HolyPower == LastHolyPower then
+    return
+  end
+
+  LastHolyPower = HolyPower
 
   UpdateHolyRunes(self, HolyPower)
 

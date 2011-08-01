@@ -40,7 +40,7 @@ local HelpText = GUB.Help.HelpText
 -- AlignmentTypeDropdown         Table used to pick vertical or horizontal alignment.
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
--- PredicterDropdown             Table used to for the predicter for predicted power.
+-- IndicatorDropdown             Table used to for the indicator for predicted power.
 -------------------------------------------------------------------------------
 
 -- Addon Constants
@@ -48,7 +48,7 @@ local AddonName = GetAddOnMetadata(MyAddon, 'Title')
 local AddonVersion = GetAddOnMetadata(MyAddon, 'Version')
 local AddonOptionsName = MyAddon .. 'options'
 local AddonProfileName = MyAddon .. 'profile'
-local AddonSlashName = MyAddon .. 'slash'
+local AddonSlashName = MyAddon
 
 local MainOptionsFrame = nil
 local ProfileFrame = nil
@@ -162,8 +162,7 @@ local EclipseMoonOffsetXMax = 50
 local EclipseMoonOffsetYMin = -50
 local EclipseMoonOffsetYMax = 50
 
-
--- Size variables for combu, holy, and shard bars.
+-- Size variables for combo, holy, and shard bars.
 local BoxBarWidthMin = 10
 local BoxBarWidthMax = 100
 local BoxBarHeightMin = 10
@@ -281,7 +280,7 @@ local RuneModeDropdown = {
   runecooldownbar = 'Cooldown Bars and Runes'
 }
 
-local PredicterDropdown = {
+local IndicatorDropdown = {
   showalways = 'Show Always',
   hidealways = 'Hide always',
   none       = 'None',
@@ -297,7 +296,7 @@ local PredicterDropdown = {
 --
 -- Sends data to options.lua
 --
--- Usage SendOptionsData(UB, PC, PPT)
+-- Usage: SendOptionsData(UB, PC, PPT)
 --
 -- UB       UnitBar from Main.lua
 -- PC       PlayerClass from main.lua
@@ -399,7 +398,7 @@ local function CreateSlashOptions()
                    InterfaceOptionsFrame:Hide()
 
                    -- Hide the UI panel behind blizz options.
-                  -- HideUIPanel(GameMenuFrame)
+                   HideUIPanel(GameMenuFrame)
                  end
 
                  -- Open a movable options frame.
@@ -993,11 +992,7 @@ end
 -- TextOptions     Options table for background options.
 -------------------------------------------------------------------------------
 local function GetValueNameDropdown(BarType)
-  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' then
-    return ValueNameDropdownPredicted
-  else
-    return ValueNameDropdown
-  end
+  return ValueNameDropdownPredicted
 end
 
 local function CreateTextOptions(BarType, Object, Order, Name)
@@ -1790,7 +1785,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
             order = 4,
             hidden = function()
                        return BarType ~= 'PlayerHealth' and BarType ~= 'TargetHealth' and
-                              BarType ~= 'FocusHealth'
+                              BarType ~= 'FocusHealth' and BarType ~= 'PlayerPower' or
+                              BarType == 'PlayerPower' and PlayerClass ~= 'HUNTER'
                      end,
             dialogControl = 'LSM30_Statusbar',
             values = LSM:HashTable('statusbar'),
@@ -1997,24 +1993,24 @@ local function CreateBarOptions(BarType, Object, Order, Name)
             step = 1,
             arg = {'size'},
           },
-          PredicterWidth = {
+          IndicatorWidth = {
             type = 'range',
             name = 'Width',
             order = 35,
             hidden = function()
-                       return BarType ~= 'EclipseBar' or Object ~= 'predicter'
+                       return BarType ~= 'EclipseBar' or Object ~= 'indicator'
                      end,
             min = EclipseSliderWidthMin,
             max = EclipseSliderWidthMax,
             step = 1,
             arg = {'size'},
           },
-          PredicterHeight = {
+          IndicatorHeight = {
             type = 'range',
             name = 'Height',
             order = 36,
             hidden = function()
-                       return BarType ~= 'EclipseBar' or Object ~= 'predicter'
+                       return BarType ~= 'EclipseBar' or Object ~= 'indicator'
                      end,
             min = EclipseSliderHeightMin,
             max = EclipseSliderHeightMax,
@@ -2199,8 +2195,9 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     },
   }
 
-  -- Add predicted color for Health bars only.
-  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
+  -- Add predicted color for Health bars only or for Player Power for hunters.
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or
+     BarType == 'PlayerPower' and PlayerClass == 'HUNTER' then
     BarOptions.args.PredictedColors = CreatePredictedColorOptions(BarType, 3, 'Predicted Color')
   end
 
@@ -2249,13 +2246,70 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       BarOptions.args.General.args.BarColor = nil
       BarOptions.args.SliderColor = CreateEclipseColorOptions(BarType, 'bar', 'slider', 2, 'Color')
     end
-    if Object == 'predicter' then
+    if Object == 'indicator' then
       BarOptions.args.General.args.BarColor = nil
-      BarOptions.args.PredicterColor = CreateEclipseColorOptions(BarType, 'bar', 'predicter', 2, 'Color')
+      BarOptions.args.IndicatorColor = CreateEclipseColorOptions(BarType, 'bar', 'indicator', 2, 'Color')
     end
   end
 
   return BarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateHapBarOptions
+--
+-- Creates health and power bar options
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: HapBarOptions = CreateHapBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- HapBarOptions         Options table for the health and power bar.
+-------------------------------------------------------------------------------
+local function CreateHapBarOptions(BarType, Order, Name)
+  local HealthBar = string.find(BarType, 'Health')
+
+  local HapBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UnitBars[BarType].General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UnitBars[BarType].General[Info[#Info]] = Value
+
+            -- Update the bar to show changes.
+            UnitBarsF[BarType]:Update()
+          end,
+    args = {
+      PredictedHealth = {
+        type = 'toggle',
+        name = 'Predicted Health',
+        order = 1,
+        hidden = function()
+                   return not HealthBar
+                 end,
+        desc = 'If checked, predicted health will be shown',
+      },
+      PredictedPower = {
+        type = 'toggle',
+        name = 'Predicted Power',
+        order = 2,
+        hidden = function()
+                   return HealthBar
+                 end,
+        desc = 'If checked, predicted power will be shown',
+      },
+    },
+  }
+
+  return HapBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -2774,12 +2828,12 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
                    return not UnitBars[BarType].General.PredictedPower
                  end,
         args = {
-          PredicterHideShow  = {
+          IndicatorHideShow  = {
             type = 'select',
-            name = 'Predicter (predicted power)',
+            name = 'Indicator (predicted power)',
             order = 1,
-            desc = 'Hide or Show the predicter',
-            values = PredicterDropdown,
+            desc = 'Hide or Show the indicator',
+            values = IndicatorDropdown,
             style = 'dropdown',
           },
           Spacer10 = {
@@ -2788,9 +2842,9 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
             order = 10,
             width = 'full',
           },
-          PredictedHalfLit = {
+          PredictedBarHalfLit = {
             type = 'toggle',
-            name = 'Half Lit',
+            name = 'Bar Half Lit',
             order = 11,
             desc = 'If checked, bar half lit is based on predicted power',
           },
@@ -3071,7 +3125,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Sun = CreateBackgroundOptions(BarType, 'sun', 2, 'Sun'),
         Bar = CreateBackgroundOptions(BarType, 'bar', 3, 'Bar'),
         Slider = CreateBackgroundOptions(BarType, 'slider', 4, 'Slider'),
-        PredictedSlider = CreateBackgroundOptions(BarType, 'predicter', 5, 'Predicter'),
+        PredictedSlider = CreateBackgroundOptions(BarType, 'indicator', 5, 'Indicator'),
       }
     }
     UBO.Bar = {
@@ -3084,7 +3138,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Sun = CreateBarOptions(BarType, 'sun', 2, 'Sun'),
         Bar = CreateBarOptions(BarType, 'bar', 3, 'Bar'),
         Slider = CreateBarOptions(BarType, 'slider', 4, 'Slider'),
-        PredictedSlider = CreateBarOptions(BarType, 'predicter', 5, 'Predicter'),
+        PredictedSlider = CreateBarOptions(BarType, 'indicator', 5, 'Indicator'),
       }
     }
   else
@@ -3107,27 +3161,28 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   -- Add runebar options
   if BarType == 'RuneBar' then
     UBO.RuneBar = CreateRuneBarOptions(BarType, 3, 'General')
-  end
 
   -- Add combobar options
-  if BarType == 'ComboBar' then
+  elseif BarType == 'ComboBar' then
     UBO.ComboBar =  CreateComboBarOptions(BarType, 4, 'General')
-  end
 
   -- Add holybar options
-  if BarType == 'HolyBar' then
+  elseif BarType == 'HolyBar' then
     UBO.HolyBar = CreateHolyBarOptions(BarType, 5, 'General')
-  end
 
   -- Add shardbar options
-  if BarType == 'ShardBar' then
+  elseif BarType == 'ShardBar' then
     UBO.ShardBar = CreateShardBarOptions(BarType, 6, 'General')
-  end
 
   -- Add eclipsebar options
-  if BarType == 'EclipseBar' then
+  elseif BarType == 'EclipseBar' then
     UBO.EclipseBar = CreateEclipseBarOptions(BarType, 7, 'General')
+
+  -- Add health and power bar options
+  elseif BarType == 'PlayerPower' and PlayerClass == 'HUNTER' or string.find(BarType, 'Power') == nil and BarType ~= 'PetHealth' then
+    UBO.HapBar = CreateHapBarOptions(BarType, 8, 'General')
   end
+
   return UnitBarOptions
 end
 

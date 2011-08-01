@@ -27,7 +27,7 @@ All bars have status flags.  This tells a bar what to do based on a certain cond
 
    Never Show           Disables and hides the bar.
    Hide when Dead       Hide the bar when the player is dead.
-   Hide in Vehicle      Hide the bar if a vehicle.
+   Hide in Vehicle      Hide the bar when in a vehicle.
    Show Always          The bar will be shown all the time.
    Hide not Active      Hide the bar when it's not active.
    Hide no Combat       Don't hide the bar when not in combat.
@@ -50,6 +50,12 @@ Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 %.2fk -> 999.99k
 
 For more information you can google stringformat for lua.
+
+
+|cff00ff00Eclipse Bar - Predicted Power|r
+When eclipse power is turned on.  The mod will add up all the flying spells and the one that's casting and show it as predicted power.  Eclipse can also be predicted.
+
+For this to work smoothly every spell must hit and euphoria won't proc.  Since euphoria can't be predicted.  When a spell lands and euphoria procs, the predicted power will jump beyond what the predicted power showed.
 
 
 |cff00ff00Copy Settings|r

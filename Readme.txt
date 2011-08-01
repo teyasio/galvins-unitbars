@@ -52,6 +52,13 @@ Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 
 For more information you can google stringformat for lua.
 
+* Eclipse Bar - Predicted Power
+When eclipse power is turned on.  The mod will add up all the flying spells and the one that's casting and show it
+as predicted power.  Eclipse can also be predicted. 
+
+For this to work smoothly every spell must hit and euphoria won't proc.  Since euphoria can't be predicted.  When
+a spell lands and euphoria procs, the predicted power will jump beyond what the predicted power showed.
+
 * Copy Settings
 This allows you to copy the settings of one bar to another.  Not everything can be copied unless both bars are of the
 same type.  For example a player health bar has all the same properties of a target health bar.  So everything can be

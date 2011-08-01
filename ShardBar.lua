@@ -13,8 +13,6 @@ local Main = GUB.Main
 
 -- shared from Main.lua
 local LSM = Main.LSM
-local CheckPowerType = Main.CheckPowerType
-local CheckEvent = Main.CheckEvent
 local PowerTypeToNumber = Main.PowerTypeToNumber
 local MouseOverDesc = Main.MouseOverDesc
 
@@ -70,7 +68,9 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 --   Height                          Height of the texture.
 --   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
 -- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
-
+--
+-- LastSoulShards                    Keeps track of change in the soulshard bar.
+--
 -- NOTE: SoulShard bar has two modes.  In BoxMode the soulshard bar is broken into 3 statusbars.
 --       This works just like the combobar.  When not normal mode.  The bar uses textures instead.
 -------------------------------------------------------------------------------
@@ -78,6 +78,8 @@ local MaxSoulShards = 3
 
 -- Powertype constants
 local PowerShard = PowerTypeToNumber['SOUL_SHARDS']
+
+local LastSoulShards = nil
 
 local SoulShardTexture = {
         Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
@@ -184,26 +186,23 @@ end
 --
 -- Update the number of shards of the player
 --
--- usage: UpdateShardBar(Event, PowerType)
---
--- Event                If nil no event check will be done.
--- PowerType            If not equal to 'SOUL_SHARDS' then nothing will be updated
---                      unless it's nil
+-- usage: UpdateShardBar()
 -------------------------------------------------------------------------------
-function GUB.ShardBar:UpdateShardBar(Event, PowerType)
+function GUB.ShardBar:UpdateShardBar()
 
-  -- If PowerType is nil then set it to soul shard power type.
-  if PowerType == nil then
-    PowerType = 'SOUL_SHARDS'
-  end
-
-  -- Return if the unitbar is disabled, or event is not a power event, or its not soul shard.
-  if not self.Enabled or Event ~= nil and CheckEvent[Event] ~= 'power' or
-     CheckPowerType[PowerType] ~= 'shards' then
+  -- Return if the unitbar is disabled.
+  if not self.Enabled then
     return
   end
 
   local SoulShards = UnitPower('player', PowerShard)
+
+  -- Return if no change.
+  if SoulShards == LastSoulShards then
+    return
+  end
+
+  LastSoulShards = SoulShards
 
   UpdateSoulShards(self, SoulShards)
 
