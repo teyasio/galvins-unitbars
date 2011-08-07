@@ -19,16 +19,20 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
+local bitband,  bitbxor,  bitbor,  bitlshift =
+      bit.band, bit.bxor, bit.bor, bit.lshift
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -41,6 +45,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetS
 -- UnitBarF.Border          Ivisible border thats surrounds the unitbar. This is used
 --                          by SetScreenClamp.
 -- UnitBarF.ColorAllNames[] List of names to be used in the color all options panel.
+-- UnitBarF.RuneF.ActivityBits
+--                          Keeps track of rune activity.
 -- UnitBarF.RuneF[]         Frame array 1 to 6 that keeps all the death knight runes.
 --                          This also contains the frame for the rune.
 -- RuneF[].Anchor           Reference to the unitbar anchor for moving.
@@ -360,84 +366,97 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- RuneCooldownOnUpdate
+-- StartRuneCooldown
 --
--- Displays numeric cooldown text and stops the flash animation.
+-- Start a rune cooldown onevent timer.
+--
+-- Usage: StartRuneCooldown(RuneF, Start, Duration, RuneReady)
+--
+-- RuneF      A cooldown will be started for this runeframe.
+-- Start      Start time for the cooldown.
+-- Duration   Duration of the cooldown.
+-- RuneReady  If true all cooldown timers are stopped, otherwise they're started.
 -------------------------------------------------------------------------------
-local function RuneCooldownOnUpdate(self, Elapsed)
-  local Start, Duration, RuneReady = GetRuneCooldown(self.RuneId)
+local function StartRuneCooldown(RuneF, Start, Duration, RuneReady)
+  local HideCooldownFlash = false
+  local CooldownAnimation = false
 
-  -- Get the amount of time left on cooldown.
-  local TimeElapsed = GetTime() - Start
-  local RuneTime = Duration - TimeElapsed
+  -- Define values used in RuneCooldownUpdate()
+  local CooldownText = false
+  local LastTime = 0
+  local RuneTimeLeft = 0
+  local RuneId = 0
+  local Txt = nil
 
-  -- Display the time left if cooldowntext is true
-  if self.CooldownText then
-    if TimeElapsed >= 0 then
-      local Seconds = floor(RuneTime)
-      if Seconds < self.LastTime then
-        self.LastTime = Seconds
-        if Seconds < 0 then
-          self.Txt:SetText('')
-        else
-          self.Txt:SetText(Seconds + 1)
+  -- To increase speed create the onupdate as a sub function.
+  local function RuneCooldownOnUpdate(self)
+
+    -- Get the amount of time left on cooldown.
+    local TimeElapsed = GetTime() - Start
+    RuneTimeLeft = Duration - TimeElapsed
+
+    -- Display the time left if cooldowntext is true
+    if CooldownText then
+      if TimeElapsed >= 0 then
+        local Seconds = floor(RuneTimeLeft)
+        if Seconds < LastTime then
+          LastTime = Seconds
+          if Seconds < 0 then
+            Txt:SetText('')
+          else
+            Txt:SetText(Seconds + 1)
+          end
         end
       end
     end
   end
 
-  if RuneReady then
-    self.OnCooldown = false
+  -- Function to get the RuneTimeLeft
+  local function GetRuneTimeLeft()
+    return RuneTimeLeft
+  end
+
+  -- Get the options.
+  local Gen = RuneF.UnitBarF.UnitBar.General
+  HideCooldownFlash = Gen.HideCooldownFlash
+  CooldownAnimation = Gen.CooldownAnimation
+  CooldownText = Gen.CooldownText
+  Txt = RuneF.Txt
+
+  if not RuneReady then
+    RuneId = RuneF.RuneId
+    LastTime = 100
+
+    -- Save function to retrieve RuneTimeLeft later.
+    RuneF.GetRuneTimeLeft = GetRuneTimeLeft
+
+    -- Start cooldown bar timer.
+    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, Start, Duration, 1)
+
+    -- Start a clockface cooldown timer if cooldown animation is true.
+    if CooldownAnimation then
+      CooldownFrame_SetTimer(RuneF.Cooldown, Start, Duration, 1)
+    end
+
+    -- Start rune timer.
+    Main:SetOnUpdate(RuneF, RuneCooldownOnUpdate)
+  else
+
+    -- Get RuneTimeLeft.
+    local GetRuneTimeLeft = RuneF.GetRuneTimeLeft
+    local RuneTimeLeft = GetRuneTimeLeft and GetRuneTimeLeft() or 0
 
     -- Set text to blank in case rune came off cooldown early.
-    self.Txt:SetText('')
+    Txt:SetText('')
 
     -- Hide cooldown flash if HideCooldownFlash is set to true.
     -- Or stop the animation if the rune came off cooldown early.
-    if RuneTime > 0 then
-      Main:CooldownBarSetTimer(self.RuneCooldownBar, 0, 0, 0)
+    if CooldownAnimation and (HideCooldownFlash or RuneTimeLeft > 0) then
+      CooldownFrame_SetTimer(RuneF.Cooldown, 0, 0, 0)
     end
-    if self.CooldownAnimation and (self.HideCooldownFlash or RuneTime > 0) then
-      CooldownFrame_SetTimer(self.Cooldown, 0, 0, 0)
-    end
-    self:SetScript('OnUpdate', nil)
-  end
-end
 
--------------------------------------------------------------------------------
--- StartRuneCooldown
---
--- Start a rune cooldown onevent timer.
---
--- Usage: StartRuneCooldown(RuneF)
---
--- RuneF      A cooldown will be started for this runeframe.
--- Start      Start time for the cooldown.
--- Duration   Duration of the cooldown.
--------------------------------------------------------------------------------
-local function StartRuneCooldown(RuneF, Start, Duration)
-
-  -- Since blizzard sends us rune events while the rune is on cooldown
-  -- We need to ignore them.
-  if not RuneF.OnCooldown then
-    RuneF.OnCooldown = true
-
-    local Gen = RuneF.UnitBarF.UnitBar.General
-
-    -- Get the options.
-    RuneF.HideCooldownFlash = Gen.HideCooldownFlash
-    RuneF.CooldownAnimation = Gen.CooldownAnimation
-    RuneF.CooldownText = Gen.CooldownText
-
-    RuneF.LastTime = 100
-
-    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, Start, Duration, 1)
-
-    -- Start a cooldown timer if cooldown animation is true.
-    if RuneF.CooldownAnimation then
-      CooldownFrame_SetTimer(RuneF.Cooldown, Start, Duration, 1)
-    end
-    RuneF:SetScript('OnUpdate' , RuneCooldownOnUpdate)
+    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, 0, 0, 0)
+    Main:SetOnUpdate(RuneF, nil)
   end
 end
 
@@ -470,33 +489,51 @@ end
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function GUB.RuneBar:UpdateRuneBar(Event, ...)
-
-  -- Return if the unitbar is disabled or if the event is not a rune event.
   local EventType = CheckEvent[Event]
-  if not self.Enabled or EventType ~= 'runepower' and EventType ~= 'runetype' then
-    return
-  end
+  if EventType == 'runepower' or EventType == 'runetype' then
 
-  -- Get the rune frame.
-  local RuneId = select(1, ...)
-  local RuneF = self.RuneF[RuneId]
+    -- Get the rune frame.
+    local RuneId = select(1, ...)
+    local RuneF = self.RuneF[RuneId]
 
-  if RuneF then
-    if EventType == 'runetype' then
+    if RuneF then
+      if EventType == 'runetype' then
 
-      -- Flip between default and death rune textures.
-      RefreshRune(RuneF)
+        -- Flip between default and death rune textures.
+        RefreshRune(RuneF)
 
-      -- Update the bar color for blood/death runes for cooldownbar mode.
-      self:SetAttr(nil, 'color')
+        -- Update the bar color for blood/death runes for cooldownbar mode.
+        self:SetAttr(nil, 'color')
 
-    -- Update the rune cooldown.
-    elseif EventType == 'runepower' then
-      local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
-      if not RuneReady then
-        StartRuneCooldown(RuneF, Start, Duration)
+      -- Update the rune cooldown.
+      elseif EventType == 'runepower' then
+        local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
+        StartRuneCooldown(RuneF, Start, Duration, RuneReady)
+
+        -- Calculate active status.
+        local RuneBit = bitlshift(1, RuneId - 1)
+        local ActivityBits = self.RuneF.ActivityBits
+        if RuneReady then
+
+          -- Remove the bit for the runeId
+          ActivityBits = bitbxor(ActivityBits, RuneBit)
+        else
+
+          -- Add the bit for the runeId.
+          ActivityBits = bitbor(ActivityBits, RuneBit)
+        end
+        self.RuneF.ActivityBits = ActivityBits
+
+        -- Set the IsActive flag
+        self.IsActive = ActivityBits > 0
       end
     end
+  end
+
+  if Event ~= 'change' then
+
+    -- Do a status check for active status.
+    self:StatusCheck()
   end
 end
 
@@ -578,6 +615,7 @@ end
 --               'font'      Font settings being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
 --               'scale'     Scale settings being set to the object.
+--               'strata'    Frame strata for the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -600,6 +638,9 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
   if Object == nil or Object == 'frame' then
     if Attr == nil or Attr == 'scale' then
       self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+    if Attr == nil or Attr == 'strata' then
+      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
     end
   end
 
@@ -797,9 +838,6 @@ function GUB.RuneBar:SetLayoutRune()
       -- Set the location in floating mode.
       RF:ClearAllPoints()
       RF:SetPoint('TOPLEFT', x, y)
-
-      -- Save a copy of x ,y for rune mode calculations.
-      x1, y1 = x, y
 
       -- Calculate the next x or y location.
       x = x + XOffset
@@ -1084,6 +1122,9 @@ function GUB.RuneBar:CreateRuneBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local RuneF = {}
   local ColorAllNames = {}
+
+  -- Initialize activity bits
+  RuneF.ActivityBits = 0
 
   -- Create the rune frames for the runebar.
   for Rune = 1, MaxRunes do

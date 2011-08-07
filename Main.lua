@@ -25,16 +25,20 @@ local CataVersion = select(4,GetBuildInfo()) >= 40000
 
 -- localize some globals.
 local _
+local bitband,  bitbxor,  bitbor,  bitlshift =
+      bit.band, bit.bxor, bit.bor, bit.lshift
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -101,15 +105,14 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- UnitBarsF[BarType].BarType
 --                      Some functions need to know what frame they're working on. Also for debugging.
 --
+-- OnUpdateFrame        Frame that used for OnUpdate script.  Which is used to call UnitBarsOnUpdate()
+--
 -- UnitBarsParent       This is the parent frame for all unitbars.  This frame is used to control group
---                      dragging.  Also this frame has a setscript for an OnUpdate that updates
---                      unitbars.
+--                      dragging.
 --
 -- DefaultUnitBars      The default unitbar table.  Used for first time initialization.
 --
 -- UnitBarInterval      Time to wait before doing the next update in the onupdate handler.
--- CooldownBarTimeInterval
---                      Amount of time to wait before updating the timerbar in the onupdate handler.
 -- PowerColorType       Table used by InitializeColors()
 -- PowerTypeToNumber    Converts a string powertype into a number.
 -- CheckEvent           Check to see if an event is correct.  Converts an event into one of the following:
@@ -416,7 +419,12 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -------------------------------------------------------------------------------
 -- Predicted Power
 --
+-- Keeps track of spells flying and casting.
+--
 -- PredictedSpellEvent  Used by SetPredictedSpell().
+-- PredictedSpellMessage
+--                      Used with EventSpellFailed.  If the Message is not found in the table.
+--                      then the spell is considered failed.
 -- PredictedSpellStackTimeout
 --                      Amount of time in seconds before removing a spell from the stack.
 --                      This is used by GetPredictedSpell().  This way SetPredictedSpell()
@@ -463,6 +471,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -------------------------------------------------------------------------------
 -- Equipment set bonus
 --
+-- Keeps track of gear set bonus.
+--
 -- EquipmentSet[Slot][ItemID]    Holds the Tier number based on ItemID and Slot.
 --                               Used by CheckSetBonus().
 -- EquipmentSetBonus             Keeps track of 1 or more equipment set bonus.
@@ -474,6 +484,21 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                               Used by GetSetBonus()
 --
 -- NOTE: See Eclipse.lua on how this is used.
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- SetOnUpdate
+--
+-- Creates OnUpdates through UnitBarOnUpdate()
+--
+-- SetOnUpdateFunctions          Contains 1 or more functions to be called from an OnUpdate script.
+--                               Used by UnitBarsOnUpdate(), SetOnUpdate()
+-- SetOnUpdateCount              Keeps count of how many functions are stored in OnUpdateFunctions
+--                               Used by UnitBarsOnUpdate(), SetOnUpdate()
+-- SetOnUpdateInterval           Time to wait between each update.
+-- SetOnUpdateTimeLeft           Count time remaining since last update.
+--
+-- NOTE: See CooldownBarSetTimer() on how this is used.
 -------------------------------------------------------------------------------
 local InCombat = false
 local InVehicle = false
@@ -492,6 +517,7 @@ local EquipmentSetRegisterEvent = false
 local PredictedPowerID = -1
 local PredictedSpellCount = 0
 local PredictedSpellStackTimeout = 5
+
 local EventSpellStart     = 1
 local EventSpellSucceeded = 2
 local EventSpellDamage    = 3
@@ -499,12 +525,17 @@ local EventSpellEnergize  = 4
 local EventSpellMissed    = 5
 local EventSpellFailed    = 6
 
-local UnitBarInterval = 0.10 -- 10 times per second.
+local SetOnUpdateCount = 0
+local SetOnUpdateInterval = 1 / 30 -- 30 times per second.
+local SetOnUpdateTimeLeft = -1
+
+local UnitBarInterval = 1 / 10 -- 10 times per second.
 local UnitBarTimeLeft = -1
-local CooldownBarTimeInterval = 0.04 -- 25 times per second.
+
 local PredictedSpellsTime = 0
 local PredictedSpellsWaitTime = 5 -- 5 secs
 
+local OnUpdateFrame = nil
 local UnitBarsParent = nil
 local UnitBars = nil
 local UnitBarsF = {}
@@ -571,6 +602,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -658,6 +690,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -743,6 +776,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -827,6 +861,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -910,6 +945,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -994,6 +1030,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -1074,6 +1111,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -1155,6 +1193,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -1235,6 +1274,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         PaddingAll = true,
@@ -1331,6 +1371,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         ColorAll = false,
@@ -1431,6 +1472,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         ColorAll = false,
@@ -1494,6 +1536,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         ColorAll = false,
@@ -1551,6 +1594,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         ColorAll = false,
@@ -1618,6 +1662,7 @@ local Defaults = {
       },
       Other = {
         Scale = 1,
+        FrameStrata = 'MEDIUM',
       },
       Background = {
         Moon = {
@@ -1757,6 +1802,8 @@ local Defaults = {
 
 local UnitBarsFList = {}
 
+local SetOnUpdateFunctions = {}
+
 local PointCalc = {
         TOPLEFT     = {x = 0,   y = 0},
         TOP         = {x = 0.5, y = 0},
@@ -1786,14 +1833,15 @@ local PredictedSpellEvent = {
   SPELL_DAMAGE               = EventSpellDamage,
   SPELL_ENERGIZE             = EventSpellEnergize,
   SPELL_MISSED               = EventSpellMissed,
-  UNIT_SPELLCAST_INTERRUPTED = EventSpellFailed,
-  UNIT_SPELLCAST_FAILED      = EventSpellFailed,
-  UNIT_SPELLCAST_STOP        = EventSpellFailed,
+  SPELL_CAST_FAILED          = EventSpellFailed,
+}
+
+local PredictedSpellMessage = {
+  ['Not yet recovered']             = 1,     -- SPELL_FAILED_NOT_READY
+  ['Another action is in progress'] = 1,     -- SPELL_FAILED_SPELL_IN_PROGRESS
 }
 
 local PredictedSpells = {}
---  [56641] = {Flight = false, Fn = nil}, -- Steady Shot  (hunter)
---  [77767] = {Flight = false, Fn = nil}, -- Cobra Shot   (hunter)
 
 local PredictedSpellCasting = {
   SpellID = 0,
@@ -1812,10 +1860,7 @@ local ClassToPowerType = {
 }
 
 local CheckEvent = {
-  UNIT_HEALTH = 'health', UNIT_MAXHEALTH = 'health', UNIT_HEAL_PREDICTION = 'health',
-  UNIT_POWER = 'power', UNIT_MAXPOWER = 'power',
   RUNE_POWER_UPDATE = 'runepower', RUNE_TYPE_UPDATE = 'runetype',
-  UNIT_COMBO_POINTS = 'combo', ECLIPSE_DIRECTION_CHANGE = 'eclipsedirection', UNIT_AURA = 'aura'
 }
 
 -- Share with the whole addon.
@@ -1868,16 +1913,10 @@ local function RegisterEvents(Action, EventType)
       GUB:RegisterEvent('COMBAT_LOG_EVENT_UNFILTERED', 'CombatLogUnfiltered')
       GUB:RegisterEvent('UNIT_SPELLCAST_START', 'SpellCasting')
       GUB:RegisterEvent('UNIT_SPELLCAST_SUCCEEDED', 'SpellCasting')
-      GUB:RegisterEvent('UNIT_SPELLCAST_INTERRUPTED', 'SpellCasting')
-      GUB:RegisterEvent('UNIT_SPELLCAST_FAILED', 'SpellCasting')
-      GUB:RegisterEvent('UNIT_SPELLCAST_STOP', 'SpellCasting')
     else
       GUB:UnregisterEvent('COMBAT_LOG_EVENT_UNFILTERED')
       GUB:UnregisterEvent('UNIT_SPELLCAST_START')
       GUB:UnregisterEvent('UNIT_SPELLCAST_SUCCEEDED')
-      GUB:UnregisterEvent('UNIT_SPELLCAST_INTERRUPTED')
-      GUB:UnregisterEvent('UNIT_SPELLCAST_FAILED')
-      GUB:UnregisterEvent('UNIT_SPELLCAST_STOP')
     end
 
   elseif EventType == 'setbonus' then
@@ -1960,6 +1999,31 @@ function GUB.Main:CreateFadeOut(Frame)
   FadeOutA:SetOrder(1)
 
   return FadeOut, FadeOutA
+end
+
+-------------------------------------------------------------------------------
+-- SetOnUpdate
+--
+-- Will call a function from UnitBarsOnUpdate()
+--
+-- usage: SetOnUpdate(Frame, Fn)
+--
+-- Frame   : Frame data that will be passed to Fn
+-- Fn      : Function to be added. If nil then Fn will be removed.
+--
+-- NOTE:  Fn will be called as Fn(Frame) from UnitBarsOnUpdate()
+--        See CooldownBarSetTimer() on how this is used.
+-------------------------------------------------------------------------------
+function GUB.Main:SetOnUpdate(Frame, Fn)
+  if Fn then
+    if SetOnUpdateFunctions[Frame] == nil then
+      SetOnUpdateFunctions[Frame] = Fn
+      SetOnUpdateCount = SetOnUpdateCount + 1
+    end
+  elseif SetOnUpdateFunctions[Frame] then
+    SetOnUpdateFunctions[Frame] = nil
+    SetOnUpdateCount = SetOnUpdateCount - 1
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -2257,66 +2321,6 @@ function GUB.Main:GetBorder(...)
 end
 
 -------------------------------------------------------------------------------
--- CooldownBarOnUpdate
---
--- OnUpdate script for CooldownBarSetTimer
---
--- Usage: CooldownBarOnUpdate(self, Elapsed)
---
--- self      Statusbar
--- Elapsed   Amount of time since last OnUpdate call.
--------------------------------------------------------------------------------
-local function CooldownBarOnUpdate(self, Elapsed)
-  local CurrentTime = GetTime()
-
-  -- Check to see if the starttime has been reached
-  if CurrentTime >= self.StartTime then
-    local CooldownBarTime = self.CooldownBarTime
-    CooldownBarTime = CooldownBarTime - Elapsed
-
-    -- Check to see if Interval has passed.
-    if CooldownBarTime < 0 then
-      CooldownBarTime = CooldownBarTimeInterval
-      local TimeElapsed = CurrentTime - self.StartTime
-
-      -- Check to see if we're less than duration
-      if TimeElapsed <= self.Duration then
-        self:SetValue(TimeElapsed)
-
-        -- Position and show the edgeframe if one is present.
-        if self.EdgeFrame then
-          if self.FillDirection == 'HORIZONTAL' then
-            self.EdgeFrame:SetPoint('CENTER', self, 'LEFT', ( TimeElapsed / self.Duration ) * self:GetWidth(), 0)
-          else
-            self.EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, ( TimeElapsed / self.Duration ) * self:GetHeight())
-          end
-
-          if not self.ShowEdgeFrame then
-            self.EdgeFrame:Show()
-            self.ShowEdgeFrame = true
-          end
-        end
-
-      else
-        if self.EdgeFrame then
-
-          -- Hide the edgeframe.
-          self.EdgeFrame:Hide()
-          self.ShowEdgeFrame = false
-        end
-
-        -- stop the timer.
-        self.Start = false
-        self:SetValue(0)
-        self:SetScript('OnUpdate', nil)
-      end
-    end
-
-    self.CooldownBarTime = CooldownBarTime
-  end
-end
-
--------------------------------------------------------------------------------
 -- SetCooldownBarEdgeFrame
 --
 -- Creates a frame that gets placed on the edge of the bar.
@@ -2335,7 +2339,7 @@ end
 function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, Width, Height)
   if EdgeFrame then
 
-    -- Hide the edgeframe
+    -- Hide the edgeframe if the statusbar is not in progress.
     EdgeFrame:Hide()
 
     -- Set the width and height.
@@ -2347,8 +2351,9 @@ function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, W
   else
 
     -- Hide the old edgeframe
-    if StatusBar.EdgeFrame then
-      StatusBar.EdgeFrame:Hide()
+    local EdgeFrame = StatusBar.EdgeFrame
+    if EdgeFrame then
+      EdgeFrame:Hide()
     end
     StatusBar.EdgeFrame = nil
   end
@@ -2371,29 +2376,80 @@ end
 --               if set to 0 the existing timer will be stopped
 -------------------------------------------------------------------------------
 function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
-  if Enable then
-    StatusBar.StartTime = StartTime
-    StatusBar.Duration = Duration
-    StatusBar.CooldownBarTime = -1
+  local FillDirection = nil
+  local LastX = nil
+  local LastY = nil
+  local LastTime = 0
 
+  -- Create a sub function for onupdate.
+  local function CooldownBarOnUpdate(self)
+    local CurrentTime = GetTime()
+    local Elapsed = CurrentTime - LastTime
+    LastTime = CurrentTime
+
+    -- Check to see if the start time has been reached
+    if CurrentTime >= StartTime then
+      local TimeElapsed = CurrentTime - StartTime
+
+      -- Check to see if we're less than duration
+      if TimeElapsed <= Duration then
+        local EdgeFrame = self.EdgeFrame
+        self:SetMinMaxValues(0, Duration)
+        self:SetValue(TimeElapsed)
+
+        -- Position and show the edgeframe if one is present.
+        if EdgeFrame then
+          if self.FillDirection == 'HORIZONTAL' then
+            local x = TimeElapsed / Duration * self:GetWidth()
+            if x ~= LastX then
+              EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
+              LastX = x
+            end
+          else
+            local y = TimeElapsed / Duration * self:GetHeight()
+            if y ~= LastY then
+              EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
+              LastY = y
+            end
+          end
+          EdgeFrame:Show()
+        end
+
+      else
+        if self.EdgeFrame then
+
+          -- Hide the edgeframe.
+          self.EdgeFrame:Hide()
+        end
+
+        -- stop the timer.
+        self.Start = false
+        self:SetValue(0)
+        Main:SetOnUpdate(self, nil)
+      end
+    end
+  end
+
+  if Enable then
     StatusBar:SetMinMaxValues(0, Duration)
 
     -- Check to see if the timer is not already running and only start a timer if duration > 0.
-    if Duration > 0 and ( StatusBar.Start == nil or not StatusBar.Start ) then
+    if Duration > 0 and (StatusBar.Start == nil or not StatusBar.Start) then
+      LastTime = GetTime()
       StatusBar.Start = true
-      StatusBar:SetScript('OnUpdate', CooldownBarOnUpdate)
+      Main:SetOnUpdate(StatusBar, CooldownBarOnUpdate)
     end
   else
-    if StatusBar.EdgeFrame then
+    local EdgeFrame = StatusBar.EdgeFrame
+    if EdgeFrame then
 
       -- Hide the edgeframe.
-      StatusBar.EdgeFrame:Hide()
-      StatusBar.ShowEdgeFrame = false
+      EdgeFrame:Hide()
     end
 
     -- stop the timer.
     StatusBar:SetValue(0)
-    StatusBar:SetScript('OnUpdate', nil)
+    Main:SetOnUpdate(StatusBar, nil)
   end
 end
 
@@ -2729,7 +2785,8 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
       end
 
       -- Remove casting spell or a failed casting spell.
-      if (PSE == EventSpellSucceeded or PSE == EventSpellFailed) and LineID == PredictedSpellCasting.LineID  then
+      if PSE == EventSpellSucceeded and LineID == PredictedSpellCasting.LineID or
+         PSE == EventSpellFailed and PredictedSpellMessage[Message] == nil then
         PredictedSpellCasting.SpellID = 0
         PredictedSpellCasting.LineID = -1
       end
@@ -2887,6 +2944,17 @@ local function UnitBarsOnUpdate(self,  Elapsed)
     PredictedSpellsTime = 0
   end
 
+    -- Call any onupdate functions.
+  if SetOnUpdateCount > 0 then
+    SetOnUpdateTimeLeft = SetOnUpdateTimeLeft - Elapsed
+    if SetOnUpdateTimeLeft < 0 then
+      SetOnUpdateTimeLeft = SetOnUpdateInterval
+      for Frame, Fn in pairs(SetOnUpdateFunctions) do
+        Fn(Frame)
+      end
+    end
+  end
+
   -- Update each bar only if there is change.
   if UpdateBars then
     UpdateUnitBars('change')
@@ -3019,7 +3087,6 @@ local function StatusCheckShowHide(UnitBarF)
   local ShowUnitBar = UnitBarF.Enabled
   local UB = UnitBarF.UnitBar
   local Status = UB.Status
-
 
   if ShowUnitBar then
 
@@ -3179,48 +3246,74 @@ local function UnitBarsAssignFunctions()
   local PowerMana = PowerTypeToNumber['MANA']
 
   Func.PlayerHealth[n] = function(self, Event)
-                           UpdateHealthBar(self, Event, 'player')
+                           if self.Enabled then
+                             UpdateHealthBar(self, Event, 'player')
+                           end
                          end
   Func.PlayerPower[n]  = function(self, Event)
-                           UpdatePowerBar(self, Event, 'player', nil, PlayerClass)
+                           if self.Enabled then
+                             UpdatePowerBar(self, Event, 'player', nil, PlayerClass)
+                           end
                          end
   Func.TargetHealth[n] = function(self, Event)
-                           UpdateHealthBar(self, Event, 'target')
+                           if self.Enabled then
+                             UpdateHealthBar(self, Event, 'target')
+                           end
                          end
   Func.TargetPower[n]  = function(self, Event)
-                           UpdatePowerBar(self, Event, 'target')
+                           if self.Enabled then
+                             UpdatePowerBar(self, Event, 'target')
+                           end
                          end
   Func.FocusHealth[n]  = function(self, Event)
-                           UpdateHealthBar(self, Event, 'focus')
+                           if self.Enabled then
+                             UpdateHealthBar(self, Event, 'focus')
+                           end
                           end
   Func.FocusPower[n]   = function(self, Event)
-                           UpdatePowerBar(self, Event, 'focus')
+                           if self.Enabled then
+                             UpdatePowerBar(self, Event, 'focus')
+                           end
                          end
   Func.PetHealth[n]    = function(self, Event)
-                           UpdateHealthBar(self, Event, 'pet')
+                           if self.Enabled then
+                             UpdateHealthBar(self, Event, 'pet')
+                           end
                          end
   Func.PetPower[n]     = function(self, Event)
-                           UpdatePowerBar(self, Event, 'pet')
+                           if self.Enabled then
+                             UpdatePowerBar(self, Event, 'pet')
+                           end
                          end
   Func.MainPower[n]    = function(self, Event)
-                           UpdatePowerBar(self, Event, 'player', PowerMana)
+                           if self.Enabled then
+                             UpdatePowerBar(self, Event, 'player', PowerMana)
+                           end
                          end
   Func.RuneBar[n]      = function(self, Event, ...)
-                           if Event ~= nil then
+                           if self.Enabled then
                              UpdateRuneBar(self, Event, ...)
                            end
                          end
-  Func.ComboBar[n]     = function(self)
-                           UpdateComboBar(self)
+  Func.ComboBar[n]     = function(self, Event)
+                           if self.Enabled then
+                             UpdateComboBar(self, Event)
+                           end
                          end
-  Func.HolyBar[n]      = function(self)
-                           UpdateHolyBar(self)
+  Func.HolyBar[n]      = function(self, Event)
+                           if self.Enabled then
+                             UpdateHolyBar(self, Event)
+                           end
                          end
-  Func.ShardBar[n]     = function(self)
-                           UpdateShardBar(self)
+  Func.ShardBar[n]     = function(self, Event)
+                           if self.Enabled then
+                             UpdateShardBar(self, Event)
+                           end
                          end
   Func.EclipseBar[n]   = function(self, Event)
-                           UpdateEclipseBar(self, Event)
+                           if self.Enabled then
+                             UpdateEclipseBar(self, Event)
+                           end
                          end
 
   -- StatusCheck functions.
@@ -3362,9 +3455,9 @@ local function UnitBarsSetScript(Enable)
 
   -- Set the unitbar parent frame to call UnitBarsOnUpdate.
   if Enable then
-    UnitBarsParent:SetScript('OnUpdate', UnitBarsOnUpdate)
+    OnUpdateFrame:SetScript('OnUpdate', UnitBarsOnUpdate)
   else
-    UnitBarsParent:SetScript('OnUpdate', nil)
+    OnUpdateFrame:SetScript('OnUpdate', nil)
   end
   for _, UBF in pairs(UnitBarsF) do
     UBF:FrameSetScript(Enable)
@@ -3432,6 +3525,9 @@ end
 -- Creates all the bars used by GalvinUnitBars.
 -------------------------------------------------------------------------------
 local function CreateUnitBars(UnitBarDB)
+
+  -- Create the OnUpdate frame.
+  OnUpdateFrame = CreateFrame('Frame', nil)
 
   -- Create the unitbar parent frame.
   UnitBarsParent = CreateFrame('Frame', nil, UIParent)

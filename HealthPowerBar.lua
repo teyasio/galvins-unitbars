@@ -18,16 +18,20 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
+local bitband,  bitbxor,  bitbor,  bitlshift =
+      bit.band, bit.bxor, bit.bor, bit.lshift
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -335,12 +339,6 @@ end
 -- Unit       player, target, pet, etc
 -------------------------------------------------------------------------------
 function GUB.HapBar:UpdateHealthBar(Event, Unit)
-
-  -- Return if the unitbar is disabled
-  if not self.Enabled then
-    return
-  end
-
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
 
@@ -408,12 +406,6 @@ end
 -- PlayerClass   Name of the class. If nil not used.
 -------------------------------------------------------------------------------
 function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
-
-  -- Return if the unitbar is disabled
-  if not self.Enabled then
-    return
-  end
-
   if PowerType == nil then
     PowerType = UnitPowerType(Unit)
   end
@@ -557,6 +549,7 @@ end
 --               'font'      Font settings being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
 --               'scale'     Scale settings being set to the object.
+--               'strata'    Frame strata for the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -574,6 +567,9 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
   if Object == nil or Object == 'frame' then
     if Attr == nil or Attr == 'scale' then
       self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+    if Attr == nil or Attr == 'strata' then
+      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
     end
   end
 

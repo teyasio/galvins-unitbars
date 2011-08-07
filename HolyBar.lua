@@ -18,16 +18,20 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
+local bitband,  bitbxor,  bitbor,  bitlshift =
+      bit.band, bit.bxor, bit.bor, bit.lshift
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -200,19 +204,15 @@ end
 --
 -- Update the holy power level of the player
 --
--- usage: UpdateHolyBar()
+-- usage: UpdateHolyBar(Event)
+--
+-- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:UpdateHolyBar()
-
-  -- Return if the unitbar is disabled
-  if not self.Enabled then
-    return
-  end
-
+function GUB.HolyBar:UpdateHolyBar(Event)
   local HolyPower = UnitPower('player', PowerHoly)
 
   -- Return if no change.
-  if HolyPower == LastHolyPower then
+  if Event == 'change' and HolyPower == LastHolyPower then
     return
   end
 
@@ -348,6 +348,7 @@ end
 --               'size'      Size being set to the object.
 --               'padding'   Amount of padding set to the object.
 --               'texture'   One or more textures set to the object.
+--               'strata'    Frame strata for the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -363,6 +364,9 @@ function GUB.HolyBar:SetAttrHoly(Object, Attr)
   if Object == nil or Object == 'frame' then
     if Attr == nil or Attr == 'scale' then
       self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+    if Attr == nil or Attr == 'strata' then
+      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
     end
   end
 
