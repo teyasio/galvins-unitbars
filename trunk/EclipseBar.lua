@@ -63,16 +63,20 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
+local bitband,  bitbxor,  bitbor,  bitlshift =
+      bit.band, bit.bxor, bit.bor, bit.lshift
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -708,12 +712,6 @@ end
 -- Event     'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:UpdateEclipseBar(Event)
-
-  --Return if the unitbar is disabled
-  if not self.Enabled then
-    return
-  end
-
   local UB = self.UnitBar
   local Gen = UB.General
   local PredictedPower = Gen.PredictedPower
@@ -726,7 +724,7 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
 
   -- Update EclipseDirection on maxpower or nil or none.
   local ED = GetEclipseDirection()
-  if abs(EclipsePower) == EclipseMaxPower or EclipseDirection == nil or EclipseDirection == 'none' then
+  if abs(EclipsePower) == EclipseMaxPower or EclipsePower == 0 or EclipseDirection == nil then
     EclipseDirection = ED
   end
 
@@ -829,12 +827,14 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
   end
 
   -- Hide/show sun and moon
-  if PredictedEclipse and PEclipse == 1 or (not PredictedEclipse or PEclipse ~= 0) and Eclipse == 1 then
+  if PredictedEclipse and (EclipseDirection ~= 'moon' and PEclipse == 1 or PEclipse == 1 and Eclipse == 1) or
+     (not PredictedEclipse or PEclipse ~= 0) and Eclipse == 1 then
     EclipseBarHide(EF, 'Sun', false, FadeOutTime)
   else
     EclipseBarHide(EF, 'Sun', true, FadeOutTime)
   end
-  if PredictedEclipse and PEclipse == -1 or (not PredictedEclipse or PEclipse ~= 0) and Eclipse == -1 then
+  if PredictedEclipse and (EclipseDirection ~= 'sun' and PEclipse == -1 or PEclipse == -1 and Eclipse == -1) or
+     (not PredictedEclipse or PEclipse ~= 0) and Eclipse == -1 then
    EclipseBarHide(EF, 'Moon', false, FadeOutTime)
   else
     EclipseBarHide(EF, 'Moon', true, FadeOutTime)
@@ -950,13 +950,14 @@ end
 --               'size'      Size being set to the object.
 --               'padding'   Amount of padding set to the object.
 --               'texture'   One or more textures set to the object.
+--               'strata'    Frame strata for the object.
 -- Eclipse      Which part of the eclispe bar being changed
 --               'moon'      Apply changes to the moon.
 --               'sun'       Apply changes to the sun.
 --               'bar'       Apply changes to the bar.
 --               'slider'    Apply changes to the slider.
 --               'Indicator' Apply changes to the predicted slider.
---              if Eclipse is nil then only frame scale or text can be changed.
+--              if Eclipse is nil then only frame scale, frame strata, or text can be changed.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -972,6 +973,9 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
   if Object == nil or Object == 'frame' then
     if Attr == nil or Attr == 'scale' then
       self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+    if Attr == nil or Attr == 'strata' then
+      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
     end
   end
 

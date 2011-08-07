@@ -41,6 +41,7 @@ local HelpText = GUB.Help.HelpText
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -- IndicatorDropdown             Table used to for the indicator for predicted power.
+-- FrameStrataDropdown           Table used for changing the frame strats for any unitbar.
 -------------------------------------------------------------------------------
 
 -- Addon Constants
@@ -285,6 +286,37 @@ local IndicatorDropdown = {
   hidealways = 'Hide always',
   none       = 'None',
 }
+
+local FrameStrataDropdown = {
+  [1] = 'Background',
+  [2] = 'Low',
+  [3] = 'Medium (default)',
+  [4] = 'High',
+  [5] = 'Dialog',
+  [6] = 'Full Screen',
+  [7] = 'Full Screen Dialog',
+  [8] = 'Tooltip',
+}
+
+local ConvertFrameStrata = {
+  BACKGROUND        = 1,
+  LOW               = 2,
+  MEDIUM            = 3,
+  HIGH              = 4,
+  DIALOG            = 5,
+  FULLSCREEN        = 6,
+  FULLSCREEN_DIALOG = 7,
+  TOOLTIP           = 8,
+  [1] = 'BACKGROUND',
+  [2] = 'LOW',
+  [3] = 'MEDIUM',
+  [4] = 'HIGH',
+  [5] = 'DIALOG',
+  [6] = 'FULLSCREEN',
+  [7] = 'FULLSCREEN_DIALOG',
+  [8] = 'TOOLTIP',
+}
+
 --*****************************************************************************
 --
 -- Options creation/setting
@@ -2351,28 +2383,34 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         values = RuneModeDropdown,
         style = 'dropdown',
       },
+      Spacer10 = {
+        type = 'description',
+        name = '',
+        order = 10,
+        width = 'full',
+      },
       BarMode = {
         type = 'toggle',
         name = 'Bar Mode',
-        order = 2,
+        order = 11,
         desc = "If checked the runes can't be moved anywhere on the screen",
       },
       RuneSwap = {
         type = 'toggle',
         name = 'Swap Runes',
-        order = 3,
+        order = 12,
         desc = 'Runes can be swapped by dragging a rune on another rune',
       },
       CooldownText = {
         type = 'toggle',
         name = 'Cooldown Text',
-        order = 4,
+        order = 13,
         desc = 'Show cooldown text',
       },
       CooldownAnimation = {
         type = 'toggle',
         name = 'Cooldown Animation',
-        order = 5,
+        order = 14,
         hidden = function()
                    return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
                  end,
@@ -2381,7 +2419,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       HideCooldownFlash = {
         type = 'toggle',
         name = 'Hide Flash',
-        order = 6,
+        order = 15,
         hidden = function()
                    return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
                  end,
@@ -2393,7 +2431,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       CooldownDrawEdge = {
         type = 'toggle',
         name = 'Draw Edge',
-        order = 7,
+        order = 16,
         hidden = function()
                    return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
                  end,
@@ -2405,23 +2443,23 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       CooldownBarDrawEdge = {
         type = 'toggle',
         name = 'Bar Draw Edge',
-        order = 8,
+        order = 17,
         hidden = function()
                    return BarType == 'RuneBar' and UnitBars[BarType].General.RuneMode == 'rune'
                  end,
         desc = 'Shows a line on the cooldown bar animation',
       },
-      Spacer10 = {
+      Spacer20 = {
         type = 'description',
         name = '',
-        order = 10,
+        order = 20,
         width = 'full',
       },
       RuneLocation = {
         type = 'group',
         name = 'Rune Location',
         dialogInline = true,
-        order = 11,
+        order = 21,
         hidden = function()
                    return UnitBars[BarType].General.RuneMode ~= 'runecooldownbar'
                  end,
@@ -2455,7 +2493,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       BarModeAngle = {
         type = 'range',
         name = 'Rune Rotation',
-        order = 12,
+        order = 22,
         desc = 'Rotates the rune bar',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -2467,7 +2505,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       RunePadding = {
         type = 'range',
         name = 'Rune Padding',
-        order = 13,
+        order = 23,
         desc = 'Set the Amount of space between each rune',
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
@@ -2479,7 +2517,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
       RuneSize = {
         type = 'range',
         name = 'Rune Size',
-        order = 14,
+        order = 24,
         hidden = function()
                    return BarType == 'RuneBar' and strsub(UnitBars[BarType].General.RuneMode, 1, 4) ~= 'rune'
                  end,
@@ -3015,9 +3053,9 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             type = 'toggle',
             name = 'Hide not Active',
             order = 5,
-            hidden  = function()
-                        return BarType == 'RuneBar'
-                      end,
+            hidden = function()
+                       return BarType == 'EclipseBar'
+                     end,
             desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
           },
           HideNoCombat = {
@@ -3052,16 +3090,31 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             step = 0.01,
             isPercent  = true,
           },
+          FrameStrata = {
+            type = 'select',
+            name = 'Frame Strata',
+            order = 2,
+            desc = 'Sets the frame strata making the bar appear below or above other frames',
+            values = FrameStrataDropdown,
+            style = 'dropdown',
+            get = function()
+                    return ConvertFrameStrata[UnitBars[BarType].Other.FrameStrata]
+                  end,
+            set = function(Info, Value)
+                    UnitBars[BarType].Other.FrameStrata = ConvertFrameStrata[Value]
+                    UnitBarsF[BarType]:SetAttr('frame', 'strata')
+                  end,
+          },
           Spacer = {
             type = 'description',
             name = '',
-            order = 2,
+            order = 10,
             width = 'full',
           },
           Reset = {
             type = 'execute',
             name = 'Reset Defaults',
-            order = 3,
+            order = 11,
             desc = "Sets the bar to its default values. Location doesn't get changed",
             confirm = true,
             func = function()
@@ -3082,7 +3135,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
           ResetPosition = {
             type = 'execute',
             name = 'Reset Location',
-            order = 4,
+            order = 12,
             desc = "Sets the bar to its default location",
             confirm = true,
             func = function()
@@ -3250,7 +3303,6 @@ local function CreateCopySettingsOptions(Order, Name)
               end,
         set = function(Info, Value)
                 CopySettingsTo = Value
-                Key = Info[#Info]
               end,
       },
       Settings = {

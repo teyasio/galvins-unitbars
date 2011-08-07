@@ -17,16 +17,20 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
+local bitband,  bitbxor,  bitbor,  bitlshift =
+      bit.band, bit.bxor, bit.bor, bit.lshift
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -165,20 +169,17 @@ end
 -------------------------------------------------------------------------------
 -- UpdateComboBar (Update) [UnitBar assigned function]
 --
--- Usage: UpdateComboBar()
+-- Usage: UpdateComboBar(Event)
+--
+-- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:UpdateComboBar()
-
-  -- Return if the unitbar is disabled.
-  if not self.Enabled then
-    return
-  end
+function GUB.ComboBar:UpdateComboBar(Event)
 
   -- Get the combo points.
   local ComboPoints = GetComboPoints('player', 'target')
 
   -- Return if no change.
-  if ComboPoints == LastComboPoints then
+  if Event == 'change' and ComboPoints == LastComboPoints then
     return
   end
 
@@ -187,7 +188,7 @@ function GUB.ComboBar:UpdateComboBar()
   -- Display the combo points
   UpdateComboPoints(self, ComboPoints)
 
-  -- Set this IsActive flag
+  -- Set the IsActive flag
   self.IsActive = ComboPoints > 0
 
   -- Do a status check for active status.
@@ -280,6 +281,7 @@ end
 --               'padding' Amount of padding set to the object.
 --               'texture' One or more textures set to the object.
 --               'scale'   Scale settings being set to the object.
+--               'strata'    Frame strata for the object.
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -297,6 +299,9 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
   if Object == nil or Object == 'frame' then
     if Attr == nil or Attr == 'scale' then
       self.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+    if Attr == nil or Attr == 'strata' then
+      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
     end
   end
 
