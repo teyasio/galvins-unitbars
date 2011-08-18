@@ -749,6 +749,7 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
   local EF = self.EclipseF
 
   local Value = 0
+  local Bonus = false
   local PC = false
   local PEclipseDirection = nil
   local PEclipsePower = nil
@@ -779,10 +780,15 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
 
       if SpellID ~= 0 then
         Value = PredictedSpellValue[SpellID]
+        Bonus = Main:GetSetBonus(12) == 4 and PEclipse == 0
 
         -- Get the next wrath value in the sequence. 4pc bonus is only active if predicted solar eclipse is 1.
         if SpellID == SpellWrath then
-          Value = AdvanceWrathSequence(Main:GetSetBonus(12) == 4 and PEclipse == 1)
+          Value = AdvanceWrathSequence(Bonus)
+
+        -- Add 5 to starfire if predicted bonus is active.
+        elseif SpellID == SpellStarfire and Bonus then
+          Value = Value + 5
         end
 
         PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
@@ -1246,16 +1252,16 @@ function GUB.EclipseBar:SetLayoutEclipse()
 end
 
 -------------------------------------------------------------------------------
--- CreateEclipseBar
+-- CreateBar
 --
--- Usage: GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the eclipse bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Lunar = {}, Solar = {}, Slider = {}, Indicator = {}}
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 

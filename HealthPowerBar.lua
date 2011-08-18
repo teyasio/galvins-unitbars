@@ -210,6 +210,22 @@ end
 -- MaxValue         Maximum value.  Used for percentage.
 -- PredictedValue   Predicted health or power value.
 -------------------------------------------------------------------------------
+
+-- Use recursion to build a parameter list to pass back to setformat.
+local function GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position, ...)
+  if Position > 0 then
+    local Type = ValueType[Position]
+    if Type ~= 'none' then
+      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1,
+                           GetTextValue(ValueName[Position], Type, CurrValue, MaxValue, PredictedValue), ...)
+    else
+      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1, ...)
+    end
+  else
+    return ...
+  end
+end
+
 local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue, PredictedValue)
   local TextTable = 'Text'
 
@@ -219,26 +235,10 @@ local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue,
 
   local TextType = StatusBar.UnitBar[TextTable].TextType
   local MaxValues = TextType.MaxValues
-  local ValueName = TextType.ValueName
-  local ValueType = TextType.ValueType
-  local Layout = TextType.Layout
-
-  -- Use recursion to build a parameter list to pass back to setformat.
-  local function GetTextValues(Position, ...)
-    if Position > 0 then
-      local Type = ValueType[Position]
-      if Type ~= 'none' then
-        return GetTextValues(Position - 1, GetTextValue(ValueName[Position], Type, CurrValue, MaxValue, PredictedValue), ...)
-      else
-        return GetTextValues(Position - 1, ...)
-      end
-    else
-      return ...
-    end
-  end
 
   if MaxValues > 0 then
-    StatusBar[TextFrame]:SetFormattedText(Layout, GetTextValues(MaxValues))
+    StatusBar[TextFrame]:SetFormattedText(TextType.Layout,
+      GetTextValues(TextType.ValueName, TextType.ValueType, CurrValue, MaxValue, PredictedValue, MaxValues))
   else
     StatusBar[TextFrame]:SetText('')
   end
@@ -406,9 +406,7 @@ end
 -- PlayerClass   Name of the class. If nil not used.
 -------------------------------------------------------------------------------
 function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
-  if PowerType == nil then
-    PowerType = UnitPowerType(Unit)
-  end
+  PowerType = PowerType or UnitPowerType(Unit)
 
   local BarType = self.BarType
   local CurrValue = UnitPower(Unit, PowerType)
@@ -710,16 +708,16 @@ function GUB.HapBar:SetLayoutHap()
 end
 
 -------------------------------------------------------------------------------
--- CreateHapBar
+-- CreateBar
 --
--- Usage: CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the health and power bar.
 -- UB           Unitbar data.
 -- Anchor       Unitbar's anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local Border = CreateFrame('Frame', nil, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   local PredictedBar = CreateFrame('StatusBar', nil, Border)

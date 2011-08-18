@@ -669,16 +669,16 @@ function GUB.HolyBar:SetLayoutHoly()
 end
 
 -------------------------------------------------------------------------------
--- CreateHolyBar
+-- CreateBar
 --
--- Usage: GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the holy rune bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 
@@ -719,13 +719,7 @@ function GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
     local HolyRuneBox = CreateFrame('StatusBar', nil, HolyRuneFrame)
 
     -- Create an animation for fade out.
-    local FadeOut = HolyRuneFrame:CreateAnimationGroup()
-    local FadeOutA = FadeOut:CreateAnimation('Alpha')
-
-    -- Set the animation group values.
-    FadeOut:SetLooping('NONE')
-    FadeOutA:SetChange(-1)
-    FadeOutA:SetOrder(1)
+    local FadeOut, FadeOutA = Main:CreateFadeOut(HolyRuneFrame)
 
     -- Set the holy rune to dark.
     HolyRuneFrame.Dark = true

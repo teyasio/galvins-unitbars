@@ -472,16 +472,16 @@ function GUB.ComboBar:SetLayoutCombo()
 end
 
 -------------------------------------------------------------------------------
--- CreateComboBar
+-- CreateBar
 --
--- Usage: GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the combo bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 
@@ -506,13 +506,7 @@ function GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
     local ComboPointBox = CreateFrame('StatusBar', nil, ComboPointFrame)
 
     -- Create an animation for fade out.
-    local FadeOut = ComboPointFrame:CreateAnimationGroup()
-    local FadeOutA = FadeOut:CreateAnimation('Alpha')
-
-    -- Set the animation group values.
-    FadeOut:SetLooping('NONE')
-    FadeOutA:SetChange(-1)
-    FadeOutA:SetOrder(1)
+    local FadeOut, FadeOutA = Main:CreateFadeOut(ComboPointFrame)
 
     -- Set the combo point to dark.
     ComboPointFrame.Dark = true
