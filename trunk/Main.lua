@@ -17,7 +17,7 @@ local Main = GUB.Main
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
 -------------------------------------------------------------------------------
--- Setup shared media and LibBackdrop
+-- Setup shared media
 -------------------------------------------------------------------------------
 local LSM = LibStub('LibSharedMedia-3.0')
 local CataVersion = select(4,GetBuildInfo()) >= 40000
@@ -25,8 +25,8 @@ local CataVersion = select(4,GetBuildInfo()) >= 40000
 
 -- localize some globals.
 local _
-local bitband,  bitbxor,  bitbor,  bitlshift =
-      bit.band, bit.bxor, bit.bor, bit.lshift
+local bitband,  bitbxor,  bitbor,  bitlshift,  stringfind =
+      bit.band, bit.bxor, bit.bor, bit.lshift, string.find
 local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
       pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
@@ -105,19 +105,18 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- UnitBarsF[BarType].BarType
 --                      Some functions need to know what frame they're working on. Also for debugging.
 --
--- OnUpdateFrame        Frame that used for OnUpdate script.  Which is used to call UnitBarsOnUpdate()
---
 -- UnitBarsParent       This is the parent frame for all unitbars.  This frame is used to control group
 --                      dragging.
 --
--- DefaultUnitBars      The default unitbar table.  Used for first time initialization.
+-- Defaults             The default unitbar table.  Used for first time initialization.
 --
--- UnitBarInterval      Time to wait before doing the next update in the onupdate handler.
+-- CooldownBarTimerDelay
+--                      Delay for the cooldown timer bar.
+-- UnitBarDelay      Delay for health and power bars.
+--
 -- PowerColorType       Table used by InitializeColors()
 -- PowerTypeToNumber    Converts a string powertype into a number.
 -- CheckEvent           Check to see if an event is correct.  Converts an event into one of the following:
---                       * Power type value from 0 to 6.
---                       * 'health' for a health event.
 --                       * 'runepower', 'runetype' for a rune event.
 -- ClassToPowerType     Converts class string to the primary power type for that class.
 -- PlayerClass          Name of the class for the player in english.
@@ -137,12 +136,13 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- HasPet               Set to true if the player has a pet.
 --
 -- PlayerPowerType      The main power type for the player.
--- FadeOutTime          Time in seconds to fade the unitbars.
 -- Initialized          Flag for OnInitializeOnce().
 --
 -- BgTexure             Default background texture for the backdrop.
 -- BdTexture            Default border texture for the backdrop.
 -- StatusBarTexure      Default bar texture for the health and power bars.
+--
+-- SavedObjects         Contains a list of saved objects. Mostly used to store instanced functions.
 --
 -- UnitBarsFList        Reusable table used by the alignment tool.
 --
@@ -226,7 +226,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          This array is for powerbars only.  By default they're loaded from blizzards default
 --                          colors.
 --   Text
---     Align              All position data gets shared with Text2 or vice versa with Text2.
 --     TextType
 --       Custom           If true then a user layout is specified otherwise the default layout is used.
 --       Layout           Layout to display the text, this can vary depending on the ValueType.
@@ -279,11 +278,11 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     BackdropSettings   Contains the settings for background, border, and padding for each cooldown bar.
 --                        This is used for cooldown bars only.
 --     Color              Color used for all the cooldown bars when ColorAll is true
---     Color[1 to 8]      Colors used for each cooldown bar when ColorAll if false.
+--     Color[1 to 8]      Colors used for each cooldown bar when ColorAll is false.
 --   Bar                  Only used for cooldown bars.
 --     ColorAll           If true then all cooldown bars use the same color.
 --     RuneWidth          Width of the cooldown bar.
---     RuneHeightt        Height of the cooldown bar.
+--     RuneHeight         Height of the cooldown bar.
 --     FillDirection      Changes the fill direction. 'VERTICAL' or 'HORIZONTAL'.
 --     RotateTexture      If true then the bar texture will be rotated 90 degree counter-clockwise
 --                        If false no rotation takes place.
@@ -381,7 +380,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     PredictedHalfLit   Same as BarHalfLit except it is based on predicted power
 --     PredictedPowerText If true predicted power text is shown in place of power text.
 --   Background
---     Moon,Sun, Bar, and Slider
+--     Moon, Sun, Bar, Slider, and Indicator
 --       PaddingAll       If true then padding can be set with one value otherwise four.
 --       BackdropSettings Contains the settings for background, border, and padding.
 --       Color            Contains the color.
@@ -401,7 +400,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --       SunMoon          If true the slider uses the Sun and Moon color based on which direction it's going in.
 --       SliderWidth      Width of the slider.
 --       SliderHeight     Height of the slider.
---     Pslider            Same as slider except used for predicted power.
+--     Indicator          Same as slider except used for predicted power.
 --     Bar
 --       BarWidth         Width of the bar.
 --       BarHeight        Height of the bar.
@@ -451,11 +450,12 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- EventSpellSucceeded
 -- EventSpellDamage
 -- EventSpellEnergize
+-- EventSpellMissed
 -- EventSpellFailed    These constants are used to track the spell events in SetPredictedSpell()
 --
 -- PredictedSpellsTime Time since last GetPredictedSpell() call.  If this timer reaches 0 then
 --                     predicted spells sytem unregistes events that make it work.
---                     Used by UnitBarsOnUpdate()
+--                     Used by CreateUnitBarTimers()
 -- PredictedSpellsWaitTime
 --                     Time in seconds to wait after the last GetPredictedSpell() call to turn
 --                     off.
@@ -479,26 +479,19 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- EquipmentSetBonus[Tier]       Contains the active bonus of that tier set.
 --                               GetSetBonus() and CheckSetBonus().
 --
--- EquipmentSetRegisterEvent     False then events for equipment set hasn't been registed.
---                               Otherwise they been registered.
+-- EquipmentSetRegisterEvent     if false then events for equipment set hasn't been registed.
+--                               Otherwise they've been registered.
 --                               Used by GetSetBonus()
 --
 -- NOTE: See Eclipse.lua on how this is used.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- SetOnUpdate
+-- SetTimer
 --
--- Creates OnUpdates through UnitBarOnUpdate()
+-- Calls functions based on a delay.
 --
--- SetOnUpdateFunctions          Contains 1 or more functions to be called from an OnUpdate script.
---                               Used by UnitBarsOnUpdate(), SetOnUpdate()
--- SetOnUpdateCount              Keeps count of how many functions are stored in OnUpdateFunctions
---                               Used by UnitBarsOnUpdate(), SetOnUpdate()
--- SetOnUpdateInterval           Time to wait between each update.
--- SetOnUpdateTimeLeft           Count time remaining since last update.
---
--- NOTE: See CooldownBarSetTimer() on how this is used.
+-- NOTE: See CreateUnitBarTimers() on how this is used.
 -------------------------------------------------------------------------------
 local InCombat = false
 local InVehicle = false
@@ -518,24 +511,19 @@ local PredictedPowerID = -1
 local PredictedSpellCount = 0
 local PredictedSpellStackTimeout = 5
 
-local EventSpellStart     = 1
-local EventSpellSucceeded = 2
-local EventSpellDamage    = 3
-local EventSpellEnergize  = 4
-local EventSpellMissed    = 5
-local EventSpellFailed    = 6
+local EventSpellStart       = 1
+local EventSpellSucceeded   = 2
+local EventSpellDamage      = 3
+local EventSpellEnergize    = 4
+local EventSpellMissed      = 5
+local EventSpellFailed      = 6
 
-local SetOnUpdateCount = 0
-local SetOnUpdateInterval = 1 / 30 -- 30 times per second.
-local SetOnUpdateTimeLeft = -1
-
-local UnitBarInterval = 1 / 10 -- 10 times per second.
-local UnitBarTimeLeft = -1
+local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
+local UnitBarDelay = 1 / 12   -- 12 times per second.
 
 local PredictedSpellsTime = 0
 local PredictedSpellsWaitTime = 5 -- 5 secs
 
-local OnUpdateFrame = nil
 local UnitBarsParent = nil
 local UnitBars = nil
 local UnitBarsF = {}
@@ -1357,6 +1345,8 @@ local Defaults = {
         BarModeAngle = 90,
         BarMode = true,  -- Must be true for default or no default rune positions gets created.
         RuneMode = 'rune',
+        EnergizeShow = 'rune',
+        EnergizeTime = 3,
         CooldownDrawEdge = false,
         CooldownBarDrawEdge = false,
         HideCooldownFlash = true,
@@ -1368,6 +1358,20 @@ local Defaults = {
         RunePosition = 'LEFT',
         RuneOffsetX = 0,
         RuneOffsetY = 0,
+        Energize = {
+          ColorAll = false,
+          Color = {
+            r = 1, g = 0, b = 0, a = 1,               -- All runes
+            [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
+            [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
+            [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
+            [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
+            [5] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
+            [6] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
+            [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+            [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+          },
+        },
       },
       Other = {
         Scale = 1,
@@ -1802,7 +1806,7 @@ local Defaults = {
 
 local UnitBarsFList = {}
 
-local SetOnUpdateFunctions = {}
+local SavedObjects = {}
 
 local PointCalc = {
         TOPLEFT     = {x = 0,   y = 0},
@@ -1946,9 +1950,7 @@ local function InitializeColors()
       if BarType == 'PlayerPower' or BarType == 'TargetPower' or
          BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'MainPower' then
         local Bar = UB.Bar
-        if Bar.Color == nil then
-          Bar.Color = {}
-        end
+        Bar.Color = Bar.Color or {}
         Bar.Color[PowerType] = {r = r, g = g, b = b, a = 1}
       end
     end
@@ -1960,9 +1962,7 @@ local function InitializeColors()
     for BarType, UB in pairs(UnitBars) do
       if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
         local Bar = UB.Bar
-        if Bar.Color == nil then
-          Bar.Color = {}
-        end
+        Bar.Color = Bar.Color or {}
         Bar.Color[Class] = {r = r, g = g, b = b, a = 1}
       end
     end
@@ -1974,6 +1974,221 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- AlignUnitBars
+--
+-- Aligns one or more unitbars with a single unitbar.
+--
+-- Subfunction of GUB.Options:CreateAlignUnitBarsOptions()
+--
+-- Usage: AlignUnitBars(AlignmentBar, BarsToAlign, AlignType, Align, PadEnabled, Padding)
+--
+-- AlignmentBar     Unitbar to align other bars with.
+-- BarsToAlign      List of unitbars to align with AlignmentBar
+-- AlignType        Type of alignment being done. 'horizontal' or 'vertical'
+-- Align            If doing vertical alignment then this is set to 'left' or 'right'
+--                  if doing horizontal alignment then this is set to 'top' or 'bottom'
+--                  'right' Align each bar to the right side the AlignmentBar.
+-- PadEnabled       If true Padding will be applied, otherwise ignored.
+-- Padding          Each bar will be spaced apart in pixels equal to padding.
+--
+-- NOTES:  Since this is a slightly complex function I need some notes for it.
+--
+-- UnitBarsFList (UBFL)    This is designed to be a reusable table since this function
+--                         can get called a lot when setting up alignment.
+-- UBFL                    Contains a reference to UnitBarsF[BarType]
+-- UBFL.Valid              If true then the UnitBarsF[BarType] reference can be used.
+--                         If false then the reference is left over from another alignement call
+--                         and will not be used.
+--
+-- When the function gets called it first adds the list of bars to be aligned to the
+-- UBFL.  Then it adds the main alignment bar to the list.  Flagging each entry added
+-- as valid.
+--
+-- Then it sorts the list, the reason for having the valid flags is so when sort
+-- the data we can tell which is the new data and the old.
+--
+-- Now we need to find our alignment bar in the sorted list.
+--
+-- For PadEnabled only
+--   Bars can be aligned vertically or horizontally.  When we start out and are going
+--   right or down.  We need to push our X or Y (XY) value to the next location.  So before
+--   entering the main loop.  We push XY by the size of the alignmentbar.  Then inside the
+--   loop we need to set that new XY value before pushing XY again.
+--   When going left or up we dont push XY and when we go into the main loop we then push
+--   XY forward because we first need to get the new width and heigh of the bar thats behind
+--   the alignment bar.  This can only be done once we're in the loop.  Then we set the value
+--   after.
+--
+-- For left/right top/bottom alignment we don't adjust XY.  We just line up the bars.
+--
+-- The Flip value acts as a flag to tell us if we're doing vertical or horizontal.  It's also
+-- used to flip negative values to positive or vice versa.  This is because when doing
+-- vertical alignment.  The screen coordinates says that -1 goes down and +1 goes up.  So
+-- as we go down our list we also want to go down on the screen.  So we take +1 and change it
+-- to -1.  Flip = 1 for horizontal because -1 goes left and +1 goes right.  No need to flip values.
+--
+-- This code was a doozy to write, but it works and it's awesome. Who knows if theres a
+-- better way to do it.
+-------------------------------------------------------------------------------
+local function SortY(a, b)
+  return a.UBF.UnitBar.y > b.UBF.UnitBar.y
+end
+
+local function SortX(a, b)
+  return a.UBF.UnitBar.x < b.UBF.UnitBar.x
+end
+
+function GUB.Main:AlignUnitBars(AlignmentBar, BarsToAlign, AlignType, Align, PadEnabled, Padding)
+
+  -- Add the BarsToAlign data to UnitBarsFList.
+  local UnitBarI = 1
+  local UBFL = nil
+  local MaxUnitBars = 0
+
+  for BarType, v in pairs(BarsToAlign) do
+    MaxUnitBars = MaxUnitBars + 1
+    if v or BarType == AlignmentBar then
+      UBFL = UnitBarsFList[UnitBarI]
+      if UBFL == nil then
+        UBFL = {}
+        UnitBarsFList[UnitBarI] = UBFL
+      end
+      UBFL.Valid = true
+      UBFL.UBF = UnitBarsF[BarType]
+      UnitBarI = UnitBarI + 1
+    end
+  end
+
+  -- Set the remaining entries to false.
+  for i, v in ipairs(UnitBarsFList) do
+    if i >= UnitBarI then
+      v.Valid = false
+    end
+  end
+
+  local Flip = 0
+
+  -- Initialize Flip and sort on alignment type.
+  if AlignType == 'vertical' then
+    Flip = -1
+    table.sort(UnitBarsFList, SortY)
+  elseif AlignType == 'horizontal' then
+    Flip = 1
+    table.sort(UnitBarsFList, SortX)
+  end
+
+  local AWidth = 0
+  local AHeight = 0
+  local AlignmentBarI = 0
+  local AScale = 0
+
+  -- Find the alignementbar first
+  for i, UBFL in ipairs(UnitBarsFList) do
+    if UBFL.Valid and UBFL.UBF.BarType == AlignmentBar then
+      AlignmentBarI = i
+      local UBF = UBFL.UBF
+      AScale = UBF.UnitBar.Other.Scale
+      AWidth = UBF.Width * AScale
+      AHeight = UBF.Height * AScale
+    end
+  end
+
+  -- Get the starting x, y location
+  local StartX = UnitBars[AlignmentBar].x
+  local StartY = UnitBars[AlignmentBar].y
+
+  -- Direction tells us which direction to go in.
+  for Direction = -1, 1, 2 do
+    local x = StartX
+    local y = StartY
+    local i = AlignmentBarI + Direction * Flip
+
+    -- Initialize the starting location for padding.
+    -- Only if going down or right
+    if Flip == -1 then
+      if PadEnabled and Direction == -1 then
+        y = y + (AHeight + Padding) * Flip
+      end
+    elseif PadEnabled and Direction == 1 then
+      x = x + (AWidth + Padding)
+    end
+
+    while i > 0 and i <= MaxUnitBars do
+      local UBFL = UnitBarsFList[i]
+      if UBFL.Valid then
+        local UBF = UBFL.UBF
+        local UB = UBF.UnitBar
+        local Scale = UB.Other.Scale
+
+        local UBX = UB.x
+        local UBY = UB.y
+        local Width = UBF.Width * Scale
+        local Height = UBF.Height * Scale
+
+        -- Do left/right alignment if doing vertical.
+        if Flip == -1 then
+          local XOffset = 0
+          if Align == 'right' then
+            XOffset = AWidth - Width
+          end
+          UBX = x + XOffset
+
+        -- do top/bottom alignment if doing horizontal.
+        else
+          local YOffset = 0
+          if Align == 'bottom' then
+            YOffset = (AHeight - Height) * -1
+          end
+          UBY = y + YOffset
+        end
+
+        -- Check for padding
+        if PadEnabled then
+          if Flip == -1 then
+
+            -- Set the Y location before changing it if the direction is going down.
+            if Direction == -1 then
+              UBY = y
+            end
+
+            -- Increment the Y based on Direction
+            y = y + (Height + Padding) * Direction
+
+            -- Set the Y location after its changed if the direction is going up.
+            if Direction == 1 then
+              UBY = y
+            end
+          else
+
+            -- Set the X location before changing it if the direction is going down.
+            if Direction == 1 then
+              UBX = x
+            end
+
+            -- Increment the X based on Direction
+            x = x + (Width + Padding) * Direction
+
+            -- Set the X location after its changed if the direction is going up.
+            if Direction == -1 then
+              UBX = x
+            end
+          end
+        end
+
+        -- Update the unitbars location based on the scale.
+        UB.x = UBX
+        UB.y = UBY
+        local Anchor = UBF.Anchor
+
+        Anchor:ClearAllPoints()
+        Anchor:SetPoint('TOPLEFT', UBX, UBY)
+      end
+      i = i + Direction * Flip
+    end
+  end
+end
 
 -------------------------------------------------------------------------------
 -- CreateFadeOut
@@ -2002,31 +2217,100 @@ function GUB.Main:CreateFadeOut(Frame)
 end
 
 -------------------------------------------------------------------------------
--- SetOnUpdate
+-- GetObject
 --
--- Will call a function from UnitBarsOnUpdate()
+-- Returns an object that was saved.
 --
--- usage: SetOnUpdate(Frame, Fn)
+-- Usage: Item = GetObject(Name, Object, Index)
 --
--- Frame   : Frame data that will be passed to Fn
--- Fn      : Function to be added. If nil then Fn will be removed.
+-- Name       Name containing the Object
+-- Object     Object containing the item.
+-- Index      Index into Object containing the item.
 --
--- NOTE:  Fn will be called as Fn(Frame) from UnitBarsOnUpdate()
---        See CooldownBarSetTimer() on how this is used.
+-- Item       Item being returned.  nil if no item was saved.
 -------------------------------------------------------------------------------
-function GUB.Main:SetOnUpdate(Frame, Fn)
-  if Fn then
-    if SetOnUpdateFunctions[Frame] == nil then
-      SetOnUpdateFunctions[Frame] = Fn
-      SetOnUpdateCount = SetOnUpdateCount + 1
-    end
-  elseif SetOnUpdateFunctions[Frame] then
-    SetOnUpdateFunctions[Frame] = nil
-    SetOnUpdateCount = SetOnUpdateCount - 1
-  end
+function Main:GetObject(Name, Object)
+  return SavedObjects[Name .. ' ' .. tostring(Object)]
 end
 
 -------------------------------------------------------------------------------
+-- SaveObject
+--
+-- Saves an object to be retrieved later.
+--
+-- Usage: Item = SaveObject(Name, Object, Index, Item)
+--
+-- Name      Object will be saved under this Name.
+-- Object    Item will be saved under this object.
+-- Item      Item to be saved.  Can be anything, frame, string, number, function, etc.
+--           This value also gets passed back
+--
+-- NOTE:   Set SetTimer() on how this is used.
+-------------------------------------------------------------------------------
+function Main:SaveObject(Name, Object, Item)
+  SavedObjects[Name .. ' ' .. tostring(Object)] = Item
+  return Item
+end
+
+-------------------------------------------------------------------------------
+-- SetTimer
+--
+-- Will call a function based on a delay.
+--
+-- To start a timer
+--   usage: SetTimer(Frame, Delay, TimerFn)
+-- To stop a timer
+--   usage: SetTimer(Frame, nil)
+--
+-- Object   Object the timer is attached to. Can be anything, numbers, tables, functions, etc.
+-- Delay    Amount of time to delay after each call to Fn()
+-- TimerFn  Function to be added. If nil then the timer will be stopped.
+--
+-- NOTE:  TimerFn will be called as TimerFn(Frame, Elapsed) from AnimationGroup in StartTimer()
+--        See CreateUnitBarTimers() on how this is used.
+--
+--        To reduce garbage.  Only a new StartTimer() will get created when a new object is passed.
+--
+--        I decided to do it this way because the overhead of using indexed
+--        arrays for multiple timers ended up using more cpu.
+---------------------------------------------------------------------------------
+function GUB.Main:SetTimer(Object, Delay, TimerFn)
+  local AnimationGroup = nil
+  local Animation = nil
+
+  local StartTimer = Main:GetObject('SetTimer', Object) or
+                     Main:SaveObject('SetTimer', Object,
+    function(Start, Delay, TimerFn2)
+
+      -- Create an animation Group timer if one doesn't exist.
+      if AnimationGroup == nil then
+        AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
+        Animation = AnimationGroup:CreateAnimation('Animation')
+        Animation:SetOrder(1)
+        AnimationGroup:SetLooping('REPEAT')
+        AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Object, self:GetDuration()) end )
+      end
+      if Start then
+        TimerFn = TimerFn2
+        Animation:SetDuration(Delay)
+        AnimationGroup:Play()
+      else
+        AnimationGroup:Stop()
+      end
+    end )
+
+  if TimerFn then
+
+    -- Start timer since a function was passed
+    StartTimer(true, Delay, TimerFn)
+  else
+
+    -- Stop timer since no function was passed.
+    StartTimer(false)
+  end
+end
+
+------------------------------------------------------------------------------
 -- CheckSetBonus
 --
 -- Checks to see if a set bonus is active, if any have been set
@@ -2104,7 +2388,7 @@ end
 --
 -- Usage: Found = CheckAura(Condition, ...)
 --
--- Condition    'a' for and or 'o' for or.  If 'a' is specified then all
+-- Condition    'a' for 'and' or 'o' for 'or'.  If 'a' is specified then all
 --              auras have to be active.  If 'o' then only one of the auras needs
 --              to be active.
 -- ...          One or more auras specified as a SpellID.
@@ -2338,8 +2622,6 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, Width, Height)
   if EdgeFrame then
-
-    -- Hide the edgeframe if the statusbar is not in progress.
     EdgeFrame:Hide()
 
     -- Set the width and height.
@@ -2351,7 +2633,7 @@ function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, W
   else
 
     -- Hide the old edgeframe
-    local EdgeFrame = StatusBar.EdgeFrame
+    EdgeFrame = StatusBar.EdgeFrame
     if EdgeFrame then
       EdgeFrame:Hide()
     end
@@ -2376,68 +2658,74 @@ end
 --               if set to 0 the existing timer will be stopped
 -------------------------------------------------------------------------------
 function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
-  local FillDirection = nil
   local LastX = nil
   local LastY = nil
-  local LastTime = 0
 
-  -- Create a sub function for onupdate.
-  local function CooldownBarOnUpdate(self)
-    local CurrentTime = GetTime()
-    local Elapsed = CurrentTime - LastTime
-    LastTime = CurrentTime
+  local Timer = Main:GetObject('CooldownBarSetTimer', StatusBar) or
+                Main:SaveObject('CooldownBarSetTimer', StatusBar,
+    function(self)
+      local CurrentTime = GetTime()
 
-    -- Check to see if the start time has been reached
-    if CurrentTime >= StartTime then
-      local TimeElapsed = CurrentTime - StartTime
+      -- Check to see if the start time has been reached
+      if CurrentTime >= StartTime then
+        local TimeElapsed = CurrentTime - StartTime
 
-      -- Check to see if we're less than duration
-      if TimeElapsed <= Duration then
-        local EdgeFrame = self.EdgeFrame
-        self:SetMinMaxValues(0, Duration)
-        self:SetValue(TimeElapsed)
+        -- Check to see if we're less than duration
+        if TimeElapsed <= Duration then
+          local EdgeFrame = self.EdgeFrame
+          self:SetMinMaxValues(0, Duration)
+          self:SetValue(TimeElapsed)
+          self:Show()
 
-        -- Position and show the edgeframe if one is present.
-        if EdgeFrame then
-          if self.FillDirection == 'HORIZONTAL' then
-            local x = TimeElapsed / Duration * self:GetWidth()
-            if x ~= LastX then
-              EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
-              LastX = x
+          -- Position and show the edgeframe if one is present.
+          if EdgeFrame then
+            if self.FillDirection == 'HORIZONTAL' then
+              local x = TimeElapsed / Duration * self:GetWidth()
+              if x ~= LastX then
+                EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
+                LastX = x
+              end
+            else
+              local y = TimeElapsed / Duration * self:GetHeight()
+              if y ~= LastY then
+                EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
+                LastY = y
+              end
             end
-          else
-            local y = TimeElapsed / Duration * self:GetHeight()
-            if y ~= LastY then
-              EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
-              LastY = y
-            end
+            EdgeFrame:Show()
           end
-          EdgeFrame:Show()
+
+        else
+          if self.EdgeFrame then
+
+            -- Hide the edgeframe.
+            self.EdgeFrame:Hide()
+          end
+
+          -- stop the timer.
+          self.Start = false
+          self:SetValue(0)
+          Main:SetTimer(self, nil)
         end
-
-      else
-        if self.EdgeFrame then
-
-          -- Hide the edgeframe.
-          self.EdgeFrame:Hide()
-        end
-
-        -- stop the timer.
-        self.Start = false
-        self:SetValue(0)
-        Main:SetOnUpdate(self, nil)
       end
-    end
-  end
+    end )
 
-  if Enable then
-    StatusBar:SetMinMaxValues(0, Duration)
+  local SetData = Main:GetObject('CooldownBarSetTimer2', StatusBar) or
+                  Main:SaveObject('CooldownBarSetTimer2', StatusBar,
+    function(StartTime2, Duration2)
+      StartTime = StartTime2
+      Duration = Duration2
+    end )
+
+  if Enable == 1 then
 
     -- Check to see if the timer is not already running and only start a timer if duration > 0.
     if Duration > 0 and (StatusBar.Start == nil or not StatusBar.Start) then
-      LastTime = GetTime()
       StatusBar.Start = true
-      Main:SetOnUpdate(StatusBar, CooldownBarOnUpdate)
+      StatusBar.Delay = -1
+
+      SetData(StartTime, Duration)
+      Main:SetTimer(StatusBar, CooldownBarTimerDelay ,Timer)
     end
   else
     local EdgeFrame = StatusBar.EdgeFrame
@@ -2449,7 +2737,8 @@ function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
 
     -- stop the timer.
     StatusBar:SetValue(0)
-    Main:SetOnUpdate(StatusBar, nil)
+    StatusBar.Start = false
+    Main:SetTimer(StatusBar, nil)
   end
 end
 
@@ -2638,7 +2927,7 @@ function GUB.Main:AnimationFadeOut(AG, Action, Fn)
                                    Fn()
                                  end
                                  self:SetScript('OnFinished', nil)
-                               end)
+                               end )
 
     AG:Play()
   end
@@ -2733,7 +3022,7 @@ end
 --
 -- NOTES:  Spells with cast times, flight times, and instant cast spells are tracked.
 --         When a spell has a cast time, it's set to PredictedSpellCasting.
---         When a spell is done casting or was an instant. Its then added to the PredictedSpellStack.
+--         When a spell is done casting or was an instant. It's then added to the PredictedSpellStack.
 --         And removed from the PredictedSpellCasting if it wasn't instant otherwise it was never
 --         added to PredictedSpellCasting.
 --
@@ -2815,7 +3104,7 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
 end
 
 -------------------------------------------------------------------------------
--- PlayerEquipmentChanged
+-- PlayerEquipmentChanged (called by event)
 --
 -- Gets called when ever a player changes a piece of gear.
 -- This function then calls CheckSetBonus()
@@ -2827,7 +3116,7 @@ function GUB:PlayerEquipmentChanged()
 end
 
 -------------------------------------------------------------------------------
--- CombatLogUnfiltered
+-- CombatLogUnfiltered (called by event)
 --
 -- Captures combat log events.
 -------------------------------------------------------------------------------
@@ -2842,7 +3131,7 @@ function GUB:CombatLogUnfiltered(Event, TimeStamp, CombatEvent, HideCaster, Sour
 end
 
 -------------------------------------------------------------------------------
--- SpellCasting
+-- SpellCasting (called by event)
 --
 -- Gets called when the player started or stopped casting a spell.
 -------------------------------------------------------------------------------
@@ -2907,57 +3196,6 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
 
     -- Update incase some unitbars went from disabled to enabled.
     UBF:Update()
-  end
-end
-
--------------------------------------------------------------------------------
--- UnitBarsOnUpdate
---
--- This OnUpdate is attached to UnitBarsParent frame.
--- Main OnUpdate handler unit bars.
---
--- self     Frame that the OnUpdate is called from.
--- Elapsed  Amount of time since the last OnUpdate call.
--------------------------------------------------------------------------------
-local function UnitBarsOnUpdate(self,  Elapsed)
-  local UpdateBars = false
-
-  UnitBarTimeLeft = UnitBarTimeLeft - Elapsed
-
-  -- Check if timeleft reached zero.
-  -- Don't update the bars more times than what interval is set at.
-  if UnitBarTimeLeft < 0 then
-    UnitBarTimeLeft = UnitBarInterval
-    UpdateBars = true
-  end
-
-  -- Turn off the events for Predicted spells if they're
-  -- not used after a certain amount of time.
-  if PredictedSpellsTime > 0 then
-    PredictedSpellsTime = PredictedSpellsTime - Elapsed
-    if PredictedSpellsTime == 0 then
-      PredictedSpellsTime = -1
-    end
-  end
-  if PredictedSpellsTime < 0 then
-    RegisterEvents('unregister' , 'predictedspells')
-    PredictedSpellsTime = 0
-  end
-
-    -- Call any onupdate functions.
-  if SetOnUpdateCount > 0 then
-    SetOnUpdateTimeLeft = SetOnUpdateTimeLeft - Elapsed
-    if SetOnUpdateTimeLeft < 0 then
-      SetOnUpdateTimeLeft = SetOnUpdateInterval
-      for Frame, Fn in pairs(SetOnUpdateFunctions) do
-        Fn(Frame)
-      end
-    end
-  end
-
-  -- Update each bar only if there is change.
-  if UpdateBars then
-    UpdateUnitBars('change')
   end
 end
 
@@ -3049,8 +3287,7 @@ end
 --
 -- Usage: UnitBarsF[BarType]:SetAttr(Object, Attr)
 --
---    Look at SetAttr assigned functions in HealthPowerBar.lua and ComboBar.lua.
---    Runebar doesn't support attributes and calling a SetAttr on a runebar will do nothing.
+--    Look at SetAttr assigned functions.
 --
 -- Usage: UnitBarsF[BarType]:SetLayout()
 --
@@ -3452,13 +3689,6 @@ end
 -- Enable     If true scripts get set otherwise they get disabled.
 -------------------------------------------------------------------------------
 local function UnitBarsSetScript(Enable)
-
-  -- Set the unitbar parent frame to call UnitBarsOnUpdate.
-  if Enable then
-    OnUpdateFrame:SetScript('OnUpdate', UnitBarsOnUpdate)
-  else
-    OnUpdateFrame:SetScript('OnUpdate', nil)
-  end
   for _, UBF in pairs(UnitBarsF) do
     UBF:FrameSetScript(Enable)
   end
@@ -3526,9 +3756,6 @@ end
 -------------------------------------------------------------------------------
 local function CreateUnitBars(UnitBarDB)
 
-  -- Create the OnUpdate frame.
-  OnUpdateFrame = CreateFrame('Frame', nil)
-
   -- Create the unitbar parent frame.
   UnitBarsParent = CreateFrame('Frame', nil, UIParent)
   UnitBarsParent:SetMovable(true)
@@ -3549,29 +3776,16 @@ local function CreateUnitBars(UnitBarDB)
       -- Create the scale frame.
       local ScaleFrame = CreateFrame('Frame', nil, Anchor)
 
-      if BarType == 'RuneBar' then
-        GUB.RuneBar:CreateRuneBar(UnitBarF, UB, Anchor, ScaleFrame)
-      elseif BarType == 'ComboBar' then
-        GUB.ComboBar:CreateComboBar(UnitBarF, UB, Anchor, ScaleFrame)
-      elseif BarType == 'HolyBar' then
-        GUB.HolyBar:CreateHolyBar(UnitBarF, UB, Anchor, ScaleFrame)
-      elseif BarType == 'ShardBar' then
-        GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
-      elseif BarType == 'EclipseBar' then
-        GUB.EclipseBar:CreateEclipseBar(UnitBarF, UB, Anchor, ScaleFrame)
+      if stringfind(BarType, 'Health') or stringfind(BarType, 'Power') then
+        GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
       else
-        GUB.HapBar:CreateHapBar(UnitBarF, UB, Anchor, ScaleFrame)
+        GUB[BarType]:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
       end
+
       if next(UnitBarF) then
 
         -- Create an animation for fade out.
-        local FadeOut = Anchor:CreateAnimationGroup()
-        local FadeOutA = FadeOut:CreateAnimation('Alpha')
-
-        -- Set the animation group values.
-        FadeOut:SetLooping('NONE')
-        FadeOutA:SetChange(-1)
-        FadeOutA:SetOrder(1)
+        local FadeOut, FadeOutA = Main:CreateFadeOut(Anchor)
 
         -- Save the animation to the unitbar frame.
         UnitBarF.FadeOut = FadeOut
@@ -3593,225 +3807,63 @@ local function CreateUnitBars(UnitBarDB)
   UnitBarsAssignFunctions()
 end
 
---*****************************************************************************
---
--- Unitbar setter functions (global to the whole mod).
---
---*****************************************************************************
-
 -------------------------------------------------------------------------------
--- AlignUnitBars
+-- CreateUnitBarTimers
 --
--- Aligns one or more unitbars with a single unitbar.
---
--- Subfunction of GUB.Options:CreateAlignUnitBarsOptions()
---
--- Usage: AlignUnitBars(AlignmentBar, BarsToAlign, AlignType, Align, PadEnabled, Padding)
---
--- AlignmentBar     Unitbar to align other bars with.
--- BarsToAlign      List of unitbars to align with AlignmentBar
--- AlignType        Type of alignment being done. 'horizontal' or 'vertical'
--- Align            If doing vertical alignment then this is set to 'left' or 'right'
---                  if doing horizontal alignment then this is set to 'top' or 'bottom'
---                  'right' Align each bar to the right side the AlignmentBar.
--- PadEnabled       If true Padding will be applied, otherwise ignored.
--- Padding          Each bar will be spaced apart in pixels equal to padding.
---
--- NOTES:  Since this is a slightly complex function I need some notes for it.
---
--- UnitBarsFList (UBFL)    This is designed to be a reusable table since this function
---                         can get called a lot when setting up alignment.
--- UBFL                    Contains a reference to UnitBarsF[BarType]
--- UBFL.Valid              If true then the UnitBarsF[BarType] reference can be used.
---                         If false then the reference is left over from another alignement call
---                         and will not be used.
---
--- When the function gets called it first adds the list of bars to be aligned to the
--- UBFL.  Then it adds the main alignment bar to the list.  Flagging each entry added
--- as valid.
---
--- Then it sorts the list, the reason for having the valid flags is so when sort
--- the data we can tell which is the new data and the old.
---
--- Now we need to find our alignment bar in the sorted list.
---
--- For PadEnabled only
---   Bars can be aligned vertically or horizontally.  When we start out and are going
---   right or down.  We need to push our X or Y (XY) value to the next location.  So before
---   entering the main loop.  We push XY by the size of the alignmentbar.  Then inside the
---   loop we need to set that new XY value before pushing XY again.
---   When going left or up we dont push XY and when we go into the main loop we then push
---   XY forward because we first need to get the new width and heigh of the bar thats behind
---   the alignment bar.  This can only be done once we're in the loop.  Then we set the value
---   after.
---
--- For left/right top/bottom alignment we don't adjust XY.  We just line up the bars.
---
--- The Flip value acts as a flag to tell us if we're doing vertical or horizontal.  It's also
--- used to flip negative values to positive or vice versa.  This is because when doing
--- vertical alignment.  The screen coordinates says that -1 goes down and +1 goes up.  So
--- as we go down our list we also want to go down on the screen.  So we take +1 and change it
--- to -1.  Flip = 1 for horizontal because -1 goes left and +1 goes right.  No need to flip values.
---
--- This code was a doozy to write, but it works and it's awesome. Who knows if theres a
--- better way to do it.
+-- All unitbars are controlled thru SetTimer()
 -------------------------------------------------------------------------------
-local function SortY(a, b)
-  return a.UBF.UnitBar.y > b.UBF.UnitBar.y
-end
+local function CreateUnitBarTimers()
+  local HapBarsF = {}
+  local OtherBarsF = {}
+  local OtherBarsTime = 0
+  local HapBarsCount = 0
+  local OtherBarsCount = 0
 
-local function SortX(a, b)
-  return a.UBF.UnitBar.x < b.UBF.UnitBar.x
-end
+  -- Timer for updating health and power bars and keeping track of predicted spells.
+  local function UnitBarsHapTimer(self, Elapsed)
 
-function GUB.Main:AlignUnitBars(AlignmentBar, BarsToAlign, AlignType, Align, PadEnabled, Padding)
-
-  -- Add the BarsToAlign data to UnitBarsFList.
-  local UnitBarI = 1
-  local UBFL = nil
-  local MaxUnitBars = 0
-
-  for BarType, v in pairs(BarsToAlign) do
-    MaxUnitBars = MaxUnitBars + 1
-    if v or BarType == AlignmentBar then
-      UBFL = UnitBarsFList[UnitBarI]
-      if UBFL == nil then
-        UBFL = {}
-        UnitBarsFList[UnitBarI] = UBFL
+    -- Turn off the events for Predicted spells if they're
+    -- not used after a certain amount of time.
+    if PredictedSpellsTime > 0 then
+      PredictedSpellsTime = PredictedSpellsTime - Elapsed
+      if PredictedSpellsTime == 0 then
+        PredictedSpellsTime = -1
       end
-      UBFL.Valid = true
-      UBFL.UBF = UnitBarsF[BarType]
-      UnitBarI = UnitBarI + 1
     end
-  end
-
-  -- Set the remaining entries to false.
-  for i, v in ipairs(UnitBarsFList) do
-    if i >= UnitBarI then
-      v.Valid = false
+    if PredictedSpellsTime < 0 then
+      RegisterEvents('unregister' , 'predictedspells')
+      PredictedSpellsTime = 0
     end
-  end
 
-  local Flip = 0
-
-  -- Initialize Flip and sort on alignment type.
-  if AlignType == 'vertical' then
-    Flip = -1
-    table.sort(UnitBarsFList, SortY)
-  elseif AlignType == 'horizontal' then
-    Flip = 1
-    table.sort(UnitBarsFList, SortX)
-  end
-
-  local AWidth = 0
-  local AHeight = 0
-  local AlignmentBarI = 0
-  local AScale = 0
-
-  -- Find the alignementbar first
-  for i, UBFL in ipairs(UnitBarsFList) do
-    if UBFL.Valid and UBFL.UBF.BarType == AlignmentBar then
-      AlignmentBarI = i
-      local UBF = UBFL.UBF
-      AScale = UBF.UnitBar.Other.Scale
-      AWidth = UBF.Width * AScale
-      AHeight = UBF.Height * AScale
+    -- Update health and power bars if there is change.
+    for i = 1, HapBarsCount do
+      HapBarsF[i]:Update('change')
     end
-  end
 
-  -- Get the starting x, y location
-  local StartX = UnitBars[AlignmentBar].x
-  local StartY = UnitBars[AlignmentBar].y
-
-  -- Direction tells us which direction to go in.
-  for Direction = -1, 1, 2 do
-    local x = StartX
-    local y = StartY
-    local i = AlignmentBarI + Direction * Flip
-
-    -- Initialize the starting location for padding.
-    -- Only if going down or right
-    if Flip == -1 then
-      if PadEnabled and Direction == -1 then
-        y = y + (AHeight + Padding) * Flip
+    -- Update other bars at 4 times per second.
+    OtherBarsTime = OtherBarsTime + 1
+    if OtherBarsTime == 3 then
+      OtherBarsTime = 0
+      for i = 1, OtherBarsCount do
+        OtherBarsF[i]:Update('change')
       end
-    elseif PadEnabled and Direction == 1 then
-      x = x + (AWidth + Padding)
-    end
-
-    while i > 0 and i <= MaxUnitBars do
-      local UBFL = UnitBarsFList[i]
-      if UBFL.Valid then
-        local UBF = UBFL.UBF
-        local UB = UBF.UnitBar
-        local Scale = UB.Other.Scale
-
-        local UBX = UB.x
-        local UBY = UB.y
-        local Width = UBF.Width * Scale
-        local Height = UBF.Height * Scale
-
-        -- Do left/right alignment if doing vertical.
-        if Flip == -1 then
-          local XOffset = 0
-          if Align == 'right' then
-            XOffset = AWidth - Width
-          end
-          UBX = x + XOffset
-
-        -- do top/bottom alignment if doing horizontal.
-        else
-          local YOffset = 0
-          if Align == 'bottom' then
-            YOffset = (AHeight - Height) * -1
-          end
-          UBY = y + YOffset
-        end
-
-        -- Check for padding
-        if PadEnabled then
-          if Flip == -1 then
-
-            -- Set the Y location before changing it if the direction is going down.
-            if Direction == -1 then
-              UBY = y
-            end
-
-            -- Increment the Y based on Direction
-            y = y + (Height + Padding) * Direction
-
-            -- Set the Y location after its changed if the direction is going up.
-            if Direction == 1 then
-              UBY = y
-            end
-          else
-
-            -- Set the X location before changing it if the direction is going down.
-            if Direction == 1 then
-              UBX = x
-            end
-
-            -- Increment the X based on Direction
-            x = x + (Width + Padding) * Direction
-
-            -- Set the X location after its changed if the direction is going up.
-            if Direction == -1 then
-              UBX = x
-            end
-          end
-        end
-
-        -- Update the unitbars location based on the scale.
-        UB.x = UBX
-        UB.y = UBY
-        local Anchor = UBF.Anchor
-
-        Anchor:ClearAllPoints()
-        Anchor:SetPoint('TOPLEFT', UBX, UBY)
-      end
-      i = i + Direction * Flip
     end
   end
+
+  -- For speed store reference of bars into an indexed array.
+  local Index = 0
+  for BarType, UBF in pairs(UnitBarsF) do
+    if stringfind(BarType, 'Health') or stringfind(BarType, 'Power') then
+      HapBarsCount = HapBarsCount + 1
+      HapBarsF[HapBarsCount] = UBF
+    else
+      OtherBarsCount = OtherBarsCount + 1
+      OtherBarsF[OtherBarsCount] = UBF
+    end
+  end
+
+  -- Create health and power bars timer.
+  Main:SetTimer(CreateFrame('Frame'), UnitBarDelay, UnitBarsHapTimer)
 end
 
 --*****************************************************************************
@@ -3902,6 +3954,10 @@ function GUB:OnInitialize()
 
   -- Create the unitbars.
   CreateUnitBars()
+
+  -- Create the unitbar timers.
+  CreateUnitBarTimers()
+
 --@do-not-package@
   GUBfdata = UnitBarsF -- debugging 00000000000000000000000000000000000
 --@end-do-not-package@
@@ -3929,6 +3985,7 @@ function GUB:OnEnable()
 
   -- Set the unitbars status and show the unitbars.
   GUB:UnitBarsUpdateStatus()
+
 --@do-not-package@
   GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
   GUBdata = UnitBars

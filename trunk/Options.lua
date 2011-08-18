@@ -40,6 +40,7 @@ local HelpText = GUB.Help.HelpText
 -- AlignmentTypeDropdown         Table used to pick vertical or horizontal alignment.
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
+-- RuneEnergizeDropdown       Table used for changing rune energize.
 -- IndicatorDropdown             Table used to for the indicator for predicted power.
 -- FrameStrataDropdown           Table used for changing the frame strats for any unitbar.
 -------------------------------------------------------------------------------
@@ -103,6 +104,8 @@ local RuneOffsetXMin = -50
 local RuneOffsetXMax = 50
 local RuneOffsetYMin = -50
 local RuneOffsetYMax = 50
+local RuneEnergizeTimeMin = 0
+local RuneEnergizeTimeMax = 5
 
 
 local ComboBarPaddingMin = -10
@@ -279,6 +282,13 @@ local RuneModeDropdown = {
   rune = 'Runes',
   cooldownbar = 'Cooldown Bars',
   runecooldownbar = 'Cooldown Bars and Runes'
+}
+
+local RuneEnergizeDropdown = {
+  rune = 'Runes',
+  cooldownbar = 'Cooldown Bars',
+  runecooldownbar = 'Cooldown Bars and Runes',
+  none = 'None',
 }
 
 local IndicatorDropdown = {
@@ -491,6 +501,7 @@ end --]]
 --
 -- BarType       Type of options being created.
 -- Object        Can be 'bg', 'bar', or 'text'
+-- TableName     Table inside of Object.  If nil then its ignored.
 -- MaxColors     Maximum number of colors can be 3, 5, 6 or 8.
 -- Order         Order number.
 -- Name          Name text
@@ -500,6 +511,7 @@ end --]]
 local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
   local ColorAllNames = UnitBarsF[BarType].ColorAllNames
   local UnitBarTable = nil
+  local TableName = nil
 
   if Object == 'bg' then
     UnitBarTable = 'Background'
@@ -507,6 +519,10 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
     UnitBarTable = 'Bar'
   elseif Object == 'text' then
     UnitBarTable = 'Text'
+  elseif Object == 'runebarenergize' then
+    Object = 'texture'
+    UnitBarTable = 'General'
+    TableName = 'Energize'
   end
 
   local ColorAllOptions = {
@@ -521,7 +537,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
     get = function(Info)
 
             -- Info.arg[1] = color index.
-            local c = UnitBars[BarType][UnitBarTable].Color
+            local c = GetTable(BarType, UnitBarTable, TableName).Color
 
             if Info.arg[1] ~= 0 then
               c = c[Info.arg[1]]
@@ -529,7 +545,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
             return c.r, c.g, c.b, c.a
           end,
     set = function(Info, r, g, b, a)
-            local c = UnitBars[BarType][UnitBarTable].Color
+            local c = GetTable(BarType, UnitBarTable, TableName).Color
 
             if Info.arg[1] ~= 0 then
               c = c[Info.arg[1]]
@@ -546,10 +562,10 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 1,
         desc = 'If checked everything can be set to one color',
         get = function()
-                return UnitBars[BarType][UnitBarTable].ColorAll
+                return GetTable(BarType, UnitBarTable, TableName).ColorAll
               end,
         set = function(Info, Value)
-                UnitBars[BarType][UnitBarTable].ColorAll = Value
+                GetTable(BarType, UnitBarTable, TableName).ColorAll = Value
 
                 -- Refresh colors when changing between all and normal.
                 UnitBarsF[BarType]:SetAttr(Object, 'color')
@@ -562,7 +578,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         hasAlpha = true,
         desc = 'Set everything to one color',
         hidden = function()
-                   return not UnitBars[BarType][UnitBarTable].ColorAll
+                   return not GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         arg = {0},
       },
@@ -580,7 +596,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 4,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType][UnitBarTable].ColorAll
+                   return GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {1},
@@ -593,7 +609,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 5,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType][UnitBarTable].ColorAll
+                   return GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {2},
@@ -606,7 +622,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 6,
         hasAlpha = true,
         hidden = function()
-                   return UnitBars[BarType][UnitBarTable].ColorAll
+                   return GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {3},
@@ -619,7 +635,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 7,
         hasAlpha = true,
         hidden = function()
-                   return MaxColors < 4 or UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 4 or GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {4},
@@ -632,7 +648,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 8,
         hasAlpha = true,
         hidden = function()
-                   return MaxColors < 5 or UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 5 or GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {5},
@@ -645,7 +661,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 9,
         hasAlpha = true,
         hidden = function()
-                   return MaxColors < 6 or UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 6 or GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {6},
@@ -658,7 +674,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 10,
         hasAlpha = true,
         hidden = function()
-                   return MaxColors < 7 or UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 7 or GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {7},
@@ -671,7 +687,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         order = 11,
         hasAlpha = true,
         hidden = function()
-                   return MaxColors < 8 or UnitBars[BarType][UnitBarTable].ColorAll
+                   return MaxColors < 8 or GetTable(BarType, UnitBarTable, TableName).ColorAll
                  end,
         hasAlpha = true,
         arg = {8},
@@ -2375,12 +2391,20 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             UnitBarsF.RuneBar:SetLayout()
           end,
     args = {
-      RuneMode  = {
+      RuneMode = {
         type = 'select',
         name = 'Rune Mode',
         order = 1,
         desc = 'Select the way runes are shown',
         values = RuneModeDropdown,
+        style = 'dropdown',
+      },
+      EnergizeShow = {
+        type = 'select',
+        name = 'Empowerment',
+        order = 2,
+        desc = 'Select the way empowerment is shown',
+        values = RuneEnergizeDropdown,
         style = 'dropdown',
       },
       Spacer10 = {
@@ -2488,6 +2512,27 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             style = 'dropdown',
             desc = 'Position of the rune around the cooldown bar'
           },
+        },
+      },
+      RuneEnergize = {
+        type = 'group',
+        name = 'Empowerment',
+        dialogInline = true,
+        order = 22,
+        hidden = function()
+                   return UnitBars[BarType].General.EnergizeShow == 'none'
+                 end,
+        args = {
+          EnergizeTime = {
+            type = 'range',
+            name = 'Time',
+            order = 1,
+            desc = 'Amount of time to wait before removing empowerment graphic',
+            min = RuneEnergizeTimeMin,
+            max = RuneEnergizeTimeMax,
+            step = 1,
+          },
+          Color = CreateColorAllOptions(BarType, 'runebarenergize', 8, 2, 'Colors'),
         },
       },
       BarModeAngle = {

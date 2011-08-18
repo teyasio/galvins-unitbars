@@ -652,16 +652,16 @@ function GUB.ShardBar:SetLayoutShard()
 end
 
 -------------------------------------------------------------------------------
--- CreateShardBar
+-- CreateBar
 --
--- Usage: GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the shard bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 
@@ -700,13 +700,7 @@ function GUB.ShardBar:CreateShardBar(UnitBarF, UB, Anchor, ScaleFrame)
     local SoulShardBox = CreateFrame('StatusBar', nil, SoulShardFrame)
 
     -- Create an animation for fade out.
-    local FadeOut = SoulShardFrame:CreateAnimationGroup()
-    local FadeOutA = FadeOut:CreateAnimation('Alpha')
-
-    -- Set the animation group values.
-    FadeOut:SetLooping('NONE')
-    FadeOutA:SetChange(-1)
-    FadeOutA:SetOrder(1)
+    local FadeOut, FadeOutA = Main:CreateFadeOut(SoulShardFrame)
 
     -- Set the soul shard to dark.
     SoulShardFrame.Dark = true

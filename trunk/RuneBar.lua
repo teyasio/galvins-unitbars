@@ -56,6 +56,11 @@ local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirec
 -- RuneF[].RuneCooldownBarFrame
 --                          Frame to hide/show all cooldown bars dealing with cooldown bar runes.
 --                          Child of RuneFrame (RuneF[])
+-- RuneF[].RuneCooldownBarEnergizeFrame
+--                          Frame for the energize texture for the rune cooldown bar.
+--                          Child of RuneFrame (RuneF[])
+-- RuneF[].RuneCooldownBarEnergize
+--                          Energize texture for the rune cooldown bar.
 -- RuneF[].RuneBarTimer     Statusbar to keep track of the cooldown for the rune.  Used in cooldownbar mode.
 --                          Child of RuneFrame (RuneF[])
 -- RuneF[].TxtFrame         Frame for text. Child of RuneFrame (RuneF[])
@@ -63,6 +68,8 @@ local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirec
 -- RuneF[].RuneIcon         The texture containing the rune.
 -- RuneF[].RuneBorderFrame  The frame containing the rune border. Child of RuneNormalFrame
 -- RuneF[].RuneBorder       The texture containing the rune.
+-- RuneF[].RuneBorderEnergize
+--                          Energize texture for the rune.
 -- RuneF[].Cooldown         The cooldown frame also plays the cooldown animation.
 -- RuneF[].Highlight        Rune highlight frame to highlight a rune for dragging/dropping.
 -- RuneF[].CooldownBarHighlight
@@ -70,7 +77,7 @@ local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirec
 -- RuneF[].CooldownEdgeFrame
 --                          Frame that holds the spark texture in the cooldown bar.
 -- RuneF[].CooldownEdge     CooldownEdge texture that is a child of CooldownEdgeFrame
-
+-- RuneF[].Energize.RuneF   This is used by EndRuneEnergize().  For energize graphic.
 -- RuneF[].RuneTrackingFrame
 --                          Used for dragging/dropping.
 --
@@ -94,6 +101,10 @@ local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirec
 -- CooldownBarHighlightBackdrop
 --                          Backdrop for highlight when using cooldown bars.
 -- CooldownBarSparkTexture  Contains the spark texture to be used in cooldown bars.
+-- RuneBorderTextureEnergize
+--                          Contains the location of the texture for energize for runes.
+-- CooldownBarEnergizeTexture
+--                          Contains the location of the texture for cooldown bars.
 -------------------------------------------------------------------------------
 local MouseOverDesc2 = 'Modifier + right mouse button to drag this rune'
 
@@ -108,6 +119,9 @@ local MaxRunes = 6
 
 -- Textures
 local RuneBorderTexture = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Ring]]
+local RuneBorderTextureEnergize = [[Interface\Addons\GalvinUnitBars\Textures\GUB_DeathknightRingEnergize]]
+local CooldownBarEnergizeTexture = [[Interface\Addons\GalvinUnitBars\Textures\GUB_DeathknightBarEnergize]]
+
 local RuneHighlightTexture = RuneBorderTexture
 local CooldownBarSparkTexture = {
         Texture = [[Interface\CastingBar\UI-CastingBar-Spark]],
@@ -370,35 +384,35 @@ end
 --
 -- Start a rune cooldown onevent timer.
 --
--- Usage: StartRuneCooldown(RuneF, Start, Duration, RuneReady)
+-- Usage: StartRuneCooldown(RuneF, StartTime, Duration, RuneReady)
 --
 -- RuneF      A cooldown will be started for this runeframe.
--- Start      Start time for the cooldown.
+-- StartTime  Start time for the cooldown.
 -- Duration   Duration of the cooldown.
 -- RuneReady  If true all cooldown timers are stopped, otherwise they're started.
 -------------------------------------------------------------------------------
-local function StartRuneCooldown(RuneF, Start, Duration, RuneReady)
-  local HideCooldownFlash = false
-  local CooldownAnimation = false
+local function EndRuneEnergize(self, Elapsed)
+  local RuneF = self.RuneF
 
-  -- Define values used in RuneCooldownUpdate()
-  local CooldownText = false
+  RuneF.RuneBorderEnergize:Hide()
+  RuneF.RuneCooldownBarEnergize:Hide()
+  Main:SetTimer(self, nil)
+end
+
+local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize)
   local LastTime = 0
-  local RuneTimeLeft = 0
-  local RuneId = 0
   local Txt = nil
 
-  -- To increase speed create the onupdate as a sub function.
-  local function RuneCooldownOnUpdate(self)
+  local Timer = Main:GetObject('StartRuneCooldown', RuneF) or
+                Main:SaveObject('StartRuneCooldown', RuneF,
+    function()
 
-    -- Get the amount of time left on cooldown.
-    local TimeElapsed = GetTime() - Start
-    RuneTimeLeft = Duration - TimeElapsed
+      -- Get the amount of time left on cooldown.
+      local TimeElapsed = GetTime() - StartTime
 
-    -- Display the time left if cooldowntext is true
-    if CooldownText then
+      -- Display the time left
       if TimeElapsed >= 0 then
-        local Seconds = floor(RuneTimeLeft)
+        local Seconds = floor(Duration - TimeElapsed)
         if Seconds < LastTime then
           LastTime = Seconds
           if Seconds < 0 then
@@ -408,55 +422,74 @@ local function StartRuneCooldown(RuneF, Start, Duration, RuneReady)
           end
         end
       end
-    end
-  end
+    end )
 
-  -- Function to get the RuneTimeLeft
-  local function GetRuneTimeLeft()
-    return RuneTimeLeft
-  end
+  local SetData = Main:GetObject('StartRuneCooldown2', RuneF) or
+                  Main:SaveObject('StartRuneCooldown2', RuneF,
+    function(StartTime2, Duration2, Txt2)
+      StartTime = StartTime2
+      Duration = Duration2
+      LastTime = 100
+      Txt = Txt2
+    end )
 
   -- Get the options.
   local Gen = RuneF.UnitBarF.UnitBar.General
-  HideCooldownFlash = Gen.HideCooldownFlash
-  CooldownAnimation = Gen.CooldownAnimation
-  CooldownText = Gen.CooldownText
+  local HideCooldownFlash = Gen.HideCooldownFlash
+  local CooldownAnimation = Gen.CooldownAnimation
+  local EnergizeShow = Gen.EnergizeShow
   Txt = RuneF.Txt
+  local RuneId = RuneF.RuneId
 
-  if not RuneReady then
-    RuneId = RuneF.RuneId
-    LastTime = 100
-
-    -- Save function to retrieve RuneTimeLeft later.
-    RuneF.GetRuneTimeLeft = GetRuneTimeLeft
+  if not RuneReady and not Energize then
 
     -- Start cooldown bar timer.
-    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, Start, Duration, 1)
+    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, StartTime, Duration, 1)
 
     -- Start a clockface cooldown timer if cooldown animation is true.
     if CooldownAnimation then
-      CooldownFrame_SetTimer(RuneF.Cooldown, Start, Duration, 1)
+      CooldownFrame_SetTimer(RuneF.Cooldown, StartTime, Duration, 1)
     end
 
-    -- Start rune timer.
-    Main:SetOnUpdate(RuneF, RuneCooldownOnUpdate)
-  else
+    -- Start text timer if cooldown text option is on.
+    if Gen.CooldownText then
+      RuneF.CooldownText = true
+      SetData(StartTime, Duration, Txt)
+      Main:SetTimer(RuneF, 0.25, Timer)
+    end
 
-    -- Get RuneTimeLeft.
-    local GetRuneTimeLeft = RuneF.GetRuneTimeLeft
-    local RuneTimeLeft = GetRuneTimeLeft and GetRuneTimeLeft() or 0
+    -- Stop energize timer for this rune.
+    if EnergizeShow ~= 'none' then
+      EndRuneEnergize(RuneF.Energize)
+    end
+  else
 
     -- Set text to blank in case rune came off cooldown early.
     Txt:SetText('')
 
     -- Hide cooldown flash if HideCooldownFlash is set to true.
     -- Or stop the animation if the rune came off cooldown early.
-    if CooldownAnimation and (HideCooldownFlash or RuneTimeLeft > 0) then
+    if CooldownAnimation and (HideCooldownFlash or Energize) then
       CooldownFrame_SetTimer(RuneF.Cooldown, 0, 0, 0)
     end
 
     Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, 0, 0, 0)
-    Main:SetOnUpdate(RuneF, nil)
+
+    -- Stop text timer.
+    if RuneF.CooldownText then
+      Main:SetTimer(RuneF, nil)
+    end
+  end
+
+  -- Start an energize timer.
+  if EnergizeShow ~= 'none' and Energize then
+    if EnergizeShow == 'rune' or EnergizeShow == 'runecooldownbar' then
+      RuneF.RuneBorderEnergize:Show()
+    end
+    if EnergizeShow == 'cooldownbar' or EnergizeShow == 'runecooldownbar' then
+      RuneF.RuneCooldownBarEnergize:Show()
+    end
+    Main:SetTimer(RuneF.Energize, Gen.EnergizeTime, EndRuneEnergize)
   end
 end
 
@@ -503,12 +536,15 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
         RefreshRune(RuneF)
 
         -- Update the bar color for blood/death runes for cooldownbar mode.
+        -- Also updates the color for energize (empowerment)
         self:SetAttr(nil, 'color')
 
       -- Update the rune cooldown.
       elseif EventType == 'runepower' then
+        local Energize = select(2, ...)
         local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
-        StartRuneCooldown(RuneF, Start, Duration, RuneReady)
+
+        StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
 
         -- Calculate active status.
         local RuneBit = bitlshift(1, RuneId - 1)
@@ -564,13 +600,7 @@ function GUB.RuneBar:FrameSetScriptRune(Enable)
     if Enable then
       RF:SetScript('OnMouseDown', RuneBarStartMoving)
       RF:SetScript('OnMouseUp', RuneBarStopMoving)
-      RF:SetScript('OnHide', function(self)
-                                   RuneBarStopMoving(self)
-
-                                   -- stop any cooldown timers currently running.
-                                   Main:CooldownBarSetTimer(self.RuneCooldownBar, 0, 0, 0)
-                                   CooldownFrame_SetTimer(self.Cooldown, 0, 0, 0)
-                                end)
+      RF:SetScript('OnHide',  RuneBarStopMoving)
       RF:SetScript('OnEnter', function(self)
                                 Main.UnitBarTooltip(self, false)
                               end)
@@ -608,6 +638,7 @@ end
 --               'bar'       for forground (StatusBar).
 --               'text'      for text (StatusBar.Txt).
 --               'frame'     for the frame.
+--               'texture'   for the textures used in the unitbar. (different from 'bar' and 'bg')
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
 --               'padding'   Amount of padding set to the object.
@@ -625,6 +656,7 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
+  local Energize = UB.General.Energize
   local Background = UB.Background
   local Bar = UB.Bar
   local Padding = Bar.Padding
@@ -703,6 +735,24 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
           RuneCooldownBar:ClearAllPoints()
           RuneCooldownBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
           RuneCooldownBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+        end
+      end
+
+      -- Texture
+      if Object == nil or Object == 'texture' then
+        if Attr == nil or Attr == 'color' then
+          local EnergizeColor = nil
+
+          -- Get all color if ColorAll is true.
+          if Energize.ColorAll then
+            EnergizeColor = Energize.Color
+          else
+
+            -- Get color based on runetype
+            EnergizeColor = Energize.Color[RuneColorIndex]
+          end
+          RF.RuneCooldownBarEnergize:SetVertexColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
+          RF.RuneBorderEnergize:SetVertexColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
         end
       end
     end
@@ -1046,11 +1096,18 @@ local function CreateRune(RuneType, RuneF)
   RuneBorderFrame:SetFrameLevel(Cooldown:GetFrameLevel() + 1)
   RuneBorderFrame:SetAllPoints(RuneNormalFrame)
 
-  -- Create the border frame for the rune.
-  local RuneBorder = RuneBorderFrame:CreateTexture(nil, 'OVERLAY')
+  -- Create the border texture for the rune.
+  local RuneBorder = RuneBorderFrame:CreateTexture(nil, 'ARTWORK')
   RuneBorder:SetTexture(RuneBorderTexture)
   RuneBorder:SetAllPoints(RuneBorderFrame)
   RuneBorder:SetVertexColor(0.6, 0.6, 0.6, 1)
+
+  -- Create the energize border texture for the rune.
+  local RuneBorderEnergize = RuneBorderFrame:CreateTexture(nil, 'OVERLAY')
+  RuneBorderEnergize:SetTexture(RuneBorderTextureEnergize)
+  RuneBorderEnergize:SetAllPoints(RuneBorderFrame)
+  RuneBorderEnergize:SetVertexColor(1, 1, 1, 1)
+  RuneBorderEnergize:Hide()
 
   -- Create the highlight texture.
   local Highlight = RuneNormalFrame:CreateTexture(nil, 'OVERLAY')
@@ -1064,6 +1121,17 @@ local function CreateRune(RuneType, RuneF)
   local RuneCooldownBar = CreateFrame('StatusBar', nil, RuneCooldownBarFrame)
   RuneCooldownBar:SetMinMaxValues(0, 1)
   RuneCooldownBar:SetValue(0)
+
+  -- Create a energize frame for cooldown bar.
+  local RuneCooldownBarEnergizeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
+  RuneCooldownBarEnergizeFrame:SetFrameLevel(RuneCooldownBarEnergizeFrame:GetFrameLevel() + 10)
+  RuneCooldownBarEnergizeFrame:SetAllPoints(RuneCooldownBarFrame)
+
+  -- Create a texture for cooldown bar energize.
+  local RuneCooldownBarEnergize = RuneCooldownBarEnergizeFrame:CreateTexture(nil, 'OVERLAY')
+  RuneCooldownBarEnergize:SetTexture(CooldownBarEnergizeTexture)
+  RuneCooldownBarEnergize:SetAllPoints(RuneCooldownBarEnergizeFrame)
+  RuneCooldownBarEnergize:Hide()
 
   -- Create the cooldown edge frame
   local CooldownEdgeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
@@ -1079,6 +1147,9 @@ local function CreateRune(RuneType, RuneF)
   CooldownBarHighlight:SetPoint('TOPLEFT', -3, 3)
   CooldownBarHighlight:SetPoint('BOTTOMRIGHT', 3, -3)
 
+  -- Create a table for energize.
+  RuneF.Energize = {RuneF = RuneF}
+
   -- Save the rune type to RuneF.
   RuneF.RuneType = RuneType
 
@@ -1090,27 +1161,30 @@ local function CreateRune(RuneType, RuneF)
   RuneF.Cooldown = Cooldown
   RuneF.RuneBorderFrame = RuneBorderFrame
   RuneF.RuneBorder = RuneBorder
+  RuneF.RuneBorderEnergize = RuneBorderEnergize
   RuneF.Highlight = Highlight
   RuneF.CooldownBarHighlight = CooldownBarHighlight
   RuneF.RuneCooldownBarFrame = RuneCooldownBarFrame
   RuneF.RuneCooldownBar = RuneCooldownBar
+  RuneF.RuneCooldownBarEnergizeFrame = RuneCooldownBarEnergizeFrame
+  RuneF.RuneCooldownBarEnergize = RuneCooldownBarEnergize
   RuneF.CooldownEdgeFrame = CooldownEdgeFrame
   RuneF.CooldownEdge = CooldownEdge
 end
 
 -------------------------------------------------------------------------------
--- CreateRuneBar
+-- CreateBar
 --
 -- Creates the main rune bar frame that contains the death knight runes
 --
--- Usage: GUB.RuneBar:CreateRuneBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the rune bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbar's anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.RuneBar:CreateRuneBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local Border = CreateFrame('Frame', nil, ScaleFrame)
 
