@@ -142,8 +142,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- BdTexture            Default border texture for the backdrop.
 -- StatusBarTexure      Default bar texture for the health and power bars.
 --
--- SavedObjects         Contains a list of saved objects. Mostly used to store instanced functions.
---
 -- UnitBarsFList        Reusable table used by the alignment tool.
 --
 -- PointCalc            Table used by CalcSetPoint() to return a location inside a parent frame.
@@ -1806,8 +1804,6 @@ local Defaults = {
 
 local UnitBarsFList = {}
 
-local SavedObjects = {}
-
 local PointCalc = {
         TOPLEFT     = {x = 0,   y = 0},
         TOP         = {x = 0.5, y = 0},
@@ -2217,42 +2213,6 @@ function GUB.Main:CreateFadeOut(Frame)
 end
 
 -------------------------------------------------------------------------------
--- GetObject
---
--- Returns an object that was saved.
---
--- Usage: Item = GetObject(Name, Object, Index)
---
--- Name       Name containing the Object
--- Object     Object containing the item.
--- Index      Index into Object containing the item.
---
--- Item       Item being returned.  nil if no item was saved.
--------------------------------------------------------------------------------
-function Main:GetObject(Name, Object)
-  return SavedObjects[Name .. ' ' .. tostring(Object)]
-end
-
--------------------------------------------------------------------------------
--- SaveObject
---
--- Saves an object to be retrieved later.
---
--- Usage: Item = SaveObject(Name, Object, Index, Item)
---
--- Name      Object will be saved under this Name.
--- Object    Item will be saved under this object.
--- Item      Item to be saved.  Can be anything, frame, string, number, function, etc.
---           This value also gets passed back
---
--- NOTE:   Set SetTimer() on how this is used.
--------------------------------------------------------------------------------
-function Main:SaveObject(Name, Object, Item)
-  SavedObjects[Name .. ' ' .. tostring(Object)] = Item
-  return Item
-end
-
--------------------------------------------------------------------------------
 -- SetTimer
 --
 -- Will call a function based on a delay.
@@ -2278,35 +2238,33 @@ function GUB.Main:SetTimer(Object, Delay, TimerFn)
   local AnimationGroup = nil
   local Animation = nil
 
-  local StartTimer = Main:GetObject('SetTimer', Object) or
-                     Main:SaveObject('SetTimer', Object,
-    function(Start, Delay, TimerFn2)
+  Object.SetTimer = Object.SetTimer or function(Start, Delay, TimerFn2)
 
-      -- Create an animation Group timer if one doesn't exist.
-      if AnimationGroup == nil then
-        AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
-        Animation = AnimationGroup:CreateAnimation('Animation')
-        Animation:SetOrder(1)
-        AnimationGroup:SetLooping('REPEAT')
-        AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Object, self:GetDuration()) end )
-      end
-      if Start then
-        TimerFn = TimerFn2
-        Animation:SetDuration(Delay)
-        AnimationGroup:Play()
-      else
-        AnimationGroup:Stop()
-      end
-    end )
+    -- Create an animation Group timer if one doesn't exist.
+    if AnimationGroup == nil then
+      AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
+      Animation = AnimationGroup:CreateAnimation('Animation')
+      Animation:SetOrder(1)
+      AnimationGroup:SetLooping('REPEAT')
+      AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Object, self:GetDuration()) end )
+    end
+    if Start then
+      TimerFn = TimerFn2
+      Animation:SetDuration(Delay)
+      AnimationGroup:Play()
+    else
+      AnimationGroup:Stop()
+    end
+  end
 
   if TimerFn then
 
     -- Start timer since a function was passed
-    StartTimer(true, Delay, TimerFn)
+    Object.SetTimer(true, Delay, TimerFn)
   else
 
     -- Stop timer since no function was passed.
-    StartTimer(false)
+    Object.SetTimer(false)
   end
 end
 
@@ -2661,61 +2619,57 @@ function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
   local LastX = nil
   local LastY = nil
 
-  local Timer = Main:GetObject('CooldownBarSetTimer', StatusBar) or
-                Main:SaveObject('CooldownBarSetTimer', StatusBar,
-    function(self)
-      local CurrentTime = GetTime()
+  StatusBar.CooldownBarSetTimer = StatusBar.CooldownBarSetTimer or function(self)
+    local CurrentTime = GetTime()
 
-      -- Check to see if the start time has been reached
-      if CurrentTime >= StartTime then
-        local TimeElapsed = CurrentTime - StartTime
+    -- Check to see if the start time has been reached
+    if CurrentTime >= StartTime then
+      local TimeElapsed = CurrentTime - StartTime
 
-        -- Check to see if we're less than duration
-        if TimeElapsed <= Duration then
-          local EdgeFrame = self.EdgeFrame
-          self:SetMinMaxValues(0, Duration)
-          self:SetValue(TimeElapsed)
-          self:Show()
+       -- Check to see if we're less than duration
+      if TimeElapsed <= Duration then
+        local EdgeFrame = self.EdgeFrame
+        self:SetMinMaxValues(0, Duration)
+        self:SetValue(TimeElapsed)
+        self:Show()
 
-          -- Position and show the edgeframe if one is present.
-          if EdgeFrame then
-            if self.FillDirection == 'HORIZONTAL' then
-              local x = TimeElapsed / Duration * self:GetWidth()
-              if x ~= LastX then
-                EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
-                LastX = x
-              end
-            else
-              local y = TimeElapsed / Duration * self:GetHeight()
-              if y ~= LastY then
-                EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
-                LastY = y
-              end
+        -- Position and show the edgeframe if one is present.
+        if EdgeFrame then
+          if self.FillDirection == 'HORIZONTAL' then
+            local x = TimeElapsed / Duration * self:GetWidth()
+            if x ~= LastX then
+              EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
+              LastX = x
             end
-            EdgeFrame:Show()
+          else
+            local y = TimeElapsed / Duration * self:GetHeight()
+            if y ~= LastY then
+              EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
+              LastY = y
+            end
           end
-
-        else
-          if self.EdgeFrame then
-
-            -- Hide the edgeframe.
-            self.EdgeFrame:Hide()
-          end
-
-          -- stop the timer.
-          self.Start = false
-          self:SetValue(0)
-          Main:SetTimer(self, nil)
+          EdgeFrame:Show()
         end
-      end
-    end )
 
-  local SetData = Main:GetObject('CooldownBarSetTimer2', StatusBar) or
-                  Main:SaveObject('CooldownBarSetTimer2', StatusBar,
-    function(StartTime2, Duration2)
-      StartTime = StartTime2
-      Duration = Duration2
-    end )
+      else
+        if self.EdgeFrame then
+
+          -- Hide the edgeframe.
+          self.EdgeFrame:Hide()
+        end
+
+        -- stop the timer.
+        self.Start = false
+        self:SetValue(0)
+        Main:SetTimer(self, nil)
+      end
+    end
+  end
+
+  StatusBar.CooldownBarSetTimer2 = StatusBar.CooldownBarSetTimer2 or function(StartTime2, Duration2)
+    StartTime = StartTime2
+    Duration = Duration2
+  end
 
   if Enable == 1 then
 
@@ -2724,8 +2678,8 @@ function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
       StatusBar.Start = true
       StatusBar.Delay = -1
 
-      SetData(StartTime, Duration)
-      Main:SetTimer(StatusBar, CooldownBarTimerDelay ,Timer)
+      StatusBar.CooldownBarSetTimer2(StartTime, Duration)
+      Main:SetTimer(StatusBar, CooldownBarTimerDelay, StatusBar.CooldownBarSetTimer)
     end
   else
     local EdgeFrame = StatusBar.EdgeFrame
@@ -3820,7 +3774,7 @@ local function CreateUnitBarTimers()
   local OtherBarsCount = 0
 
   -- Timer for updating health and power bars and keeping track of predicted spells.
-  local function UnitBarsHapTimer(self, Elapsed)
+  local function UnitBarsTimer(self, Elapsed)
 
     -- Turn off the events for Predicted spells if they're
     -- not used after a certain amount of time.
@@ -3863,7 +3817,7 @@ local function CreateUnitBarTimers()
   end
 
   -- Create health and power bars timer.
-  Main:SetTimer(CreateFrame('Frame'), UnitBarDelay, UnitBarsHapTimer)
+  Main:SetTimer(CreateFrame('Frame'), UnitBarDelay, UnitBarsTimer)
 end
 
 --*****************************************************************************

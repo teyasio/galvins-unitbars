@@ -2527,7 +2527,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             type = 'range',
             name = 'Time',
             order = 1,
-            desc = 'Amount of time to wait before removing empowerment graphic',
+            desc = 'Amount of time to wait before removing empowerment overlay',
             min = RuneEnergizeTimeMin,
             max = RuneEnergizeTimeMax,
             step = 1,

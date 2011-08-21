@@ -403,35 +403,31 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
   local LastTime = 0
   local Txt = nil
 
-  local Timer = Main:GetObject('StartRuneCooldown', RuneF) or
-                Main:SaveObject('StartRuneCooldown', RuneF,
-    function()
+  RuneF.StartRuneCooldown = RuneF.StartRuneCooldown or function()
 
-      -- Get the amount of time left on cooldown.
-      local TimeElapsed = GetTime() - StartTime
+    -- Get the amount of time left on cooldown.
+    local TimeElapsed = GetTime() - StartTime
 
-      -- Display the time left
-      if TimeElapsed >= 0 then
-        local Seconds = floor(Duration - TimeElapsed)
-        if Seconds < LastTime then
-          LastTime = Seconds
-          if Seconds < 0 then
-            Txt:SetText('')
-          else
-            Txt:SetText(Seconds + 1)
-          end
+    -- Display the time left
+    if TimeElapsed >= 0 then
+      local Seconds = floor(Duration - TimeElapsed)
+      if Seconds < LastTime then
+        LastTime = Seconds
+        if Seconds < 0 then
+          Txt:SetText('')
+        else
+          Txt:SetText(Seconds + 1)
         end
       end
-    end )
+    end
+  end
 
-  local SetData = Main:GetObject('StartRuneCooldown2', RuneF) or
-                  Main:SaveObject('StartRuneCooldown2', RuneF,
-    function(StartTime2, Duration2, Txt2)
-      StartTime = StartTime2
-      Duration = Duration2
-      LastTime = 100
-      Txt = Txt2
-    end )
+  RuneF.StartRuneCooldown2 = RuneF.StartRuneCooldown2 or function(StartTime2, Duration2, Txt2)
+    StartTime = StartTime2
+    Duration = Duration2
+    LastTime = 100
+    Txt = Txt2
+  end
 
   -- Get the options.
   local Gen = RuneF.UnitBarF.UnitBar.General
@@ -454,8 +450,8 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
     -- Start text timer if cooldown text option is on.
     if Gen.CooldownText then
       RuneF.CooldownText = true
-      SetData(StartTime, Duration, Txt)
-      Main:SetTimer(RuneF, 0.25, Timer)
+      RuneF.StartRuneCooldown2(StartTime, Duration, Txt)
+      Main:SetTimer(RuneF, 0.25, RuneF.StartRuneCooldown)
     end
 
     -- Stop energize timer for this rune.
@@ -547,7 +543,15 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
         StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
 
         -- Calculate active status.
-        local RuneBit = bitlshift(1, RuneId - 1)
+        local Active = false
+        for i = 1, MaxRunes do
+          Start, Duration, RuneReady = GetRuneCooldown(i)
+          if not RuneReady then
+            Active = true
+            break
+          end
+        end
+--[[        local RuneBit = bitlshift(1, RuneId - 1)
         local ActivityBits = self.RuneF.ActivityBits
         if RuneReady then
 
@@ -561,7 +565,8 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
         self.RuneF.ActivityBits = ActivityBits
 
         -- Set the IsActive flag
-        self.IsActive = ActivityBits > 0
+        self.IsActive = ActivityBits > 0 --]]
+        self.IsActive = Active
       end
     end
   end
