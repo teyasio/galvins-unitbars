@@ -736,6 +736,25 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
     return
   end
 
+  local EF = self.EclipseF
+
+  -- Check for real zero eclipse power.
+  if EclipsePower == 0 then
+    local EclipsePowerZeroTime = EF.EclipsePowerZeroTime
+
+    -- Set the starting time and return.
+    if EclipsePowerZeroTime == nil or EclipsePowerZeroTime == 0 then
+      EF.EclipsePowerZeroTime = GetTime()
+      return
+
+    -- Keep returning if not enough time has passed.
+    elseif GetTime() - EclipsePowerZeroTime < 0.4 then
+      return
+    end
+  else
+    EF.EclipsePowerZeroTime = 0
+  end
+
   LastEclipsePower = EclipsePower
   LastEclipseDirection = EclipseDirection
   LastEclipse = Eclipse
@@ -746,7 +765,6 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
   local BarHalfLit = Gen.BarHalfLit
   local PredictedEclipse = Gen.PredictedEclipse
   local PredictedBarHalfLit = Gen.PredictedBarHalfLit
-  local EF = self.EclipseF
 
   local Value = 0
   local Bonus = false

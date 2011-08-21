@@ -560,7 +560,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
         type = 'toggle',
         name = 'All',
         order = 1,
-        desc = 'If checked everything can be set to one color',
+        desc = 'If checked, everything can be set to one color',
         get = function()
                 return GetTable(BarType, UnitBarTable, TableName).ColorAll
               end,
@@ -735,7 +735,7 @@ local function CreateEclipseColorOptions(BarType, Object, TableName, Order, Name
         type = 'toggle',
         name = 'Sun and Moon',
         order = 1,
-        desc = 'If checked the sun and moon color will be used',
+        desc = 'If checked, the sun and moon color will be used',
         get = function()
                 return UnitBars[BarType][UnitBarTable][TableName].SunMoon
               end,
@@ -1247,7 +1247,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
             type = 'toggle',
             name = 'Custom Layout',
             order = 101,
-            desc = 'If checked the layout can be changed',
+            desc = 'If checked, the layout can be changed',
             arg = {0},
           },
           Layout = {
@@ -1547,7 +1547,7 @@ local function CreateClassColorsOptions(BarType, Order, Name)
         type = 'toggle',
         name = 'Class Colors',
         order = 1,
-        desc = 'If checked class colors will be used',
+        desc = 'If checked, class colors will be used',
         get = function()
                 return UnitBars[BarType].Bar.ClassColor
               end,
@@ -2417,7 +2417,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         type = 'toggle',
         name = 'Bar Mode',
         order = 11,
-        desc = "If checked the runes can't be moved anywhere on the screen",
+        desc = "If checked, the runes can't be moved anywhere on the screen",
       },
       RuneSwap = {
         type = 'toggle',
@@ -2680,7 +2680,7 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         type = 'toggle',
         name = 'Box Mode',
         order = 1,
-        desc = 'If checked this bar will show boxes instead of textures',
+        desc = 'If checked, this bar will show boxes instead of textures',
       },
       HolyPadding = {
         type = 'range',
@@ -2779,7 +2779,7 @@ local function CreateShardBarOptions(BarType, Order, Name)
         type = 'toggle',
         name = 'Box Mode',
         order = 1,
-        desc = 'If checked this bar will show boxes instead of textures',
+        desc = 'If checked, this bar will show boxes instead of textures',
       },
       ShardPadding = {
         type = 'range',
@@ -2876,19 +2876,19 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         type = 'toggle',
         name = 'Slider Inside',
         order = 1,
-        desc = 'If checked the slider will stay inside the bar',
+        desc = 'If checked, the slider will stay inside the bar',
       },
       BarHalfLit = {
         type = 'toggle',
         name = 'Bar Half Lit',
         order = 2,
-        desc = 'If checked half the bar becomes lit to show the slider direction',
+        desc = 'If checked, half the bar becomes lit to show the slider direction',
       },
       PowerText = {
         type = 'toggle',
         name = 'Power Text',
         order = 3,
-        desc = 'If checked then eclipse power text will be shown',
+        desc = 'If checked, then eclipse power text will be shown',
       },
       PredictedPower = {
         type = 'toggle',
