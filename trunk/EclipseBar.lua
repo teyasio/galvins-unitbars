@@ -403,17 +403,23 @@ local function CheckSpell(SpellID, Value)
     -- Check for energize spell and convert it to spellID damage.
     -- Also a spell damage will happen or happened since energize happened.
     if SpellID == SpellEnergizeWS then
-      if Value < 0 then
 
-        -- Update the sequence based on Value.
-        SyncWrathSequence(Value)
+      -- Ignore energize if its from moonfire/sunfire.
+      if abs(Value) ~= 8 then
+        if Value < 0 then
 
-        -- Spell is wrath from energize.
-        SpellID = SpellWrath
+          -- Update the sequence based on Value.
+          SyncWrathSequence(Value)
+
+          -- Spell is wrath from energize.
+          SpellID = SpellWrath
+        else
+
+          -- Spell is starfire from energize.
+          SpellID = SpellStarfire
+        end
       else
-
-        -- Spell is starfire from energize.
-        SpellID = SpellStarfire
+        SpellID = -1
       end
     else
 
