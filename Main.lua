@@ -3003,6 +3003,7 @@ end
 -------------------------------------------------------------------------------
 local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
   local PSE = PredictedSpellEvent[Event]
+
   if PSE ~= nil then
     local PS = PredictedSpells[SpellID]
 
