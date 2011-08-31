@@ -45,8 +45,6 @@ local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirec
 -- UnitBarF.Border          Ivisible border thats surrounds the unitbar. This is used
 --                          by SetScreenClamp.
 -- UnitBarF.ColorAllNames[] List of names to be used in the color all options panel.
--- UnitBarF.RuneF.ActivityBits
---                          Keeps track of rune activity.
 -- UnitBarF.RuneF[]         Frame array 1 to 6 that keeps all the death knight runes.
 --                          This also contains the frame for the rune.
 -- RuneF[].Anchor           Reference to the unitbar anchor for moving.
@@ -551,21 +549,6 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
             break
           end
         end
---[[        local RuneBit = bitlshift(1, RuneId - 1)
-        local ActivityBits = self.RuneF.ActivityBits
-        if RuneReady then
-
-          -- Remove the bit for the runeId
-          ActivityBits = bitbxor(ActivityBits, RuneBit)
-        else
-
-          -- Add the bit for the runeId.
-          ActivityBits = bitbor(ActivityBits, RuneBit)
-        end
-        self.RuneF.ActivityBits = ActivityBits
-
-        -- Set the IsActive flag
-        self.IsActive = ActivityBits > 0 --]]
         self.IsActive = Active
       end
     end
@@ -1201,9 +1184,6 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   local RuneF = {}
   local ColorAllNames = {}
-
-  -- Initialize activity bits
-  RuneF.ActivityBits = 0
 
   -- Create the rune frames for the runebar.
   for Rune = 1, MaxRunes do
