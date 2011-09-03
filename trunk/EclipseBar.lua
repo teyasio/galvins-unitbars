@@ -308,13 +308,8 @@ local function SyncWrathSequence(Value)
 
   Value = abs(Value)
 
-  -- Don't advance the sequence on euphoria of 30.
-  if Value == 30 then
-    return
-  end
-
   -- 4pc tier 12 bonus value. set bonus to true.
-  if Value == 16 or Value == 17 then
+  if Value == 16 or Value == 17 or Value == 33 or Value == 34 then
     Bonus = true
   end
 
