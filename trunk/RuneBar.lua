@@ -539,20 +539,20 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
         local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
 
         StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
-
-        -- Calculate active status.
-        local Active = false
-        for i = 1, MaxRunes do
-          Start, Duration, RuneReady = GetRuneCooldown(i)
-          if not RuneReady then
-            Active = true
-            break
-          end
-        end
-        self.IsActive = Active
       end
     end
   end
+
+  -- Calculate active status.
+  local Active = false
+  for i = 1, MaxRunes do
+    Start, Duration, RuneReady = GetRuneCooldown(i)
+    if not RuneReady then
+      Active = true
+      break
+    end
+  end
+  self.IsActive = Active
 
   if Event ~= 'change' then
 
