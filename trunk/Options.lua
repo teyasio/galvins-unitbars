@@ -3985,6 +3985,27 @@ local function CreateMainOptions()
                     Main:UnitBarsSetAllOptions()
                   end,
           },
+          HideAllBars = {
+            type = 'execute',
+            name = 'Hide All Bars',
+            order = 7,
+            desc = 'Sets all the bars to never show',
+            confirm = true,
+            func = function()
+
+                     -- Hide all bars.
+                     for BarType, v in pairs(UnitBars) do
+                       if type(v) == 'table' then
+
+                         -- Set the show never flag to true.
+                         UnitBars[BarType].Status.ShowNever = true
+
+                         -- Must do a status check/update.
+                         GUB:UnitBarsUpdateStatus()
+                       end
+                     end
+                   end,
+          },
         },
       },
 --=============================================================================
@@ -4119,5 +4140,5 @@ function GUB.Options:OnInitialize()
 
   -- Add the Profiles UI as a subcategory below the main options.
   LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonProfileName, ProfileOptions)
---  ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)
+  -- ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)
 end

@@ -185,7 +185,11 @@ local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, Predicted
   elseif ValueType == 'whole_dgroups' then
     return NumberToDigitGroups(Value)
   elseif ValueType == 'percent' and Value > 0 then
-    return math.ceil(Value / MaxValue * 100)
+    if MaxValue == 0 then
+      return 0
+    else
+      return math.ceil(Value / MaxValue * 100)
+    end
   elseif ValueType == 'thousands' then
     return Value / 1000
   elseif ValueType == 'millions' then
