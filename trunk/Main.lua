@@ -1836,9 +1836,9 @@ local PredictedSpellEvent = {
   SPELL_CAST_FAILED          = EventSpellFailed,
 }
 
-local PredictedSpellMessage = {
-  ['Not yet recovered']             = 1,     -- SPELL_FAILED_NOT_READY
-  ['Another action is in progress'] = 1,     -- SPELL_FAILED_SPELL_IN_PROGRESS
+local PredictedSpellMessage = {         -- These variables are blizzard globals. Must be used for foreign languages.
+  [SPELL_FAILED_NOT_READY]         = 1, -- SPELL_FAILED_NOT_READY
+  [SPELL_FAILED_SPELL_IN_PROGRESS] = 1, -- SPELL_FAILED_SPELL_IN_PROGRESS
 }
 
 local PredictedSpells = {}
@@ -3079,7 +3079,6 @@ function GUB:CombatLogUnfiltered(Event, TimeStamp, CombatEvent, HideCaster, Sour
 
   -- Predicted spell for player only.
   if SourceGUID == PlayerGUID then
-
     -- Pass spellID and Message.
     SetPredictedSpell(CombatEvent, TimeStamp, select(3, ...), nil, select(6, ...))
   end
