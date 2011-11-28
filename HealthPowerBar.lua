@@ -429,6 +429,11 @@ function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
     return
   end
 
+  -- Check for two piece bonus hunters only.
+  if PlayerClass == 'HUNTER' and PredictedPower > 0 and Main:GetSetBonus(13) >= 2 then
+    PredictedPower = PredictedPower * 2
+  end
+
   LastCurrValue[BarType] = CurrValue
   LastMaxValue[BarType] = MaxValue
   LastPowerType[BarType] = PowerType

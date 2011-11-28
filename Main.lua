@@ -1816,13 +1816,23 @@ local PointCalc = {
         BOTTOMRIGHT = {x = 1,   y = 1}
       }
 
--- first ID is normal, second is heroic. Last number is tier.
+-- letter before ID is only to format the data here making it easier to read.
+-- its ignored
 local EquipmentSet = {
-  [1]  = {[71108] = 12, [71497] = 12}, -- Balance druid helmet
-  [3]  = {[71111] = 12, [71500] = 12}, -- Balance druid shoulders
-  [5]  = {[71110] = 12, [71499] = 12}, -- Balance druid chest
-  [7]  = {[71109] = 12, [71498] = 12}, -- Balance druid legs
-  [10] = {[71107] = 12, [71496] = 12}, -- Balance druid gloves
+
+-- Balanced druid set, ID, Normal, Heroic (tier 12)
+  a1  = {[71108] = 12, [71497] = 12}, -- helmet
+  a3  = {[71111] = 12, [71500] = 12}, -- shoulders
+  a5  = {[71110] = 12, [71499] = 12}, -- chest
+  a7  = {[71109] = 12, [71498] = 12}, -- legs
+  a10 = {[71107] = 12, [71496] = 12}, -- gloves
+
+-- Hunter set, ID, LFR, Normal, Heroic (tier 13)
+  b1  = {[78793] = 13, [77030] = 13, [78698] = 13}, -- helmet
+  b3  = {[78832] = 13, [77032] = 13, [78737] = 13}, -- shoulders
+  b5  = {[78756] = 13, [77028] = 13, [78661] = 13}, -- chest
+  b7  = {[78804] = 13, [77031] = 13, [78709] = 13}, -- legs
+  b10 = {[78769] = 13, [77029] = 13, [78674] = 13}, -- gloves
 }
 
 local EquipmentSetBonus = {}
@@ -2286,7 +2296,7 @@ local function CheckSetBonus()
 
   -- Count each tier piece.
   for Slot, ES in pairs(EquipmentSet) do
-    Tier = ES[GetInventoryItemID('player', Slot)]
+    Tier = ES[GetInventoryItemID('player', strsub(Slot, 2))]
     if Tier then
       SetBonus = EquipmentSetBonus[Tier]
       if SetBonus then
