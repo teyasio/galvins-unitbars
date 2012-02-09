@@ -115,10 +115,10 @@ local ComboBarFadeOutMax = 5
 local ComboBarAngleMin = 45
 local ComboBarAngleMax = 360
 
-local HolyBarSizeMin = 10
-local HolyBarSizeMax = 100
-local HolyBarScaleMin = 0.05
-local HolyBarScaleMax = 1.20
+local HolyBarSizeMin = 0.01
+local HolyBarSizeMax = 3
+local HolyBarScaleMin = 0.1
+local HolyBarScaleMax = 2
 local HolyBarPaddingMin = -50
 local HolyBarPaddingMax = 50
 local HolyBarFadeOutMin = 0
@@ -126,10 +126,10 @@ local HolyBarFadeOutMax = 5
 local HolyBarAngleMin = 45
 local HolyBarAngleMax = 360
 
-local ShardBarSizeMin = 10
-local ShardBarSizeMax = 100
-local ShardBarScaleMin = 0.05
-local ShardBarScaleMax = 1.20
+local ShardBarSizeMin = 0.01
+local ShardBarSizeMax = 3
+local ShardBarScaleMin = 0.1
+local ShardBarScaleMax = 2
 local ShardBarPaddingMin = -50
 local ShardBarPaddingMax = 50
 local ShardBarFadeOutMin = 0
@@ -2668,12 +2668,6 @@ local function CreateHolyBarOptions(BarType, Order, Name)
 
             -- Update the layout to show changes.
             UnitBarsF.HolyBar:SetLayout()
-
-            if Info[#Info] == 'BoxMode' then
-
-              -- Set the scripts since we changed modes.
-              UnitBarsF[BarType]:FrameSetScript(true)
-            end
           end,
     args = {
       BoxMode = {
@@ -2710,7 +2704,8 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         desc = 'Sets the size of all the holy power runes',
         min = HolyBarSizeMin,
         max = HolyBarSizeMax,
-        step = 1,
+        step = 0.01,
+        isPercent = true
       },
       HolyScale = {
         type = 'range',
@@ -2768,11 +2763,6 @@ local function CreateShardBarOptions(BarType, Order, Name)
 
             -- Update the layout to show changes.
             UnitBarsF.ShardBar:SetLayout()
-            if Info[#Info] == 'BoxMode' then
-
-              -- Set the scripts since we changed modes.
-              UnitBarsF[BarType]:FrameSetScript(true)
-            end
           end,
     args = {
       BoxMode = {
@@ -2809,7 +2799,8 @@ local function CreateShardBarOptions(BarType, Order, Name)
         desc = 'Sets the size of all the soul shards',
         min = ShardBarSizeMin,
         max = ShardBarSizeMax,
-        step = 1,
+        step = 0.01,
+        isPercent = true
       },
       ShardScale = {
         type = 'range',
