@@ -22,7 +22,6 @@ LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 local LSM = LibStub('LibSharedMedia-3.0')
 local CataVersion = select(4,GetBuildInfo()) >= 40000
 
-
 -- localize some globals.
 local _
 local bitband,  bitbxor,  bitbor,  bitlshift,  stringfind =
@@ -1530,7 +1529,7 @@ local Defaults = {
       },
       General = {
         BoxMode = false,
-        HolySize = 31,
+        HolySize = 1,
         HolyPadding = -2,
         HolyScale = 1,
         HolyFadeOutTime = 1,
@@ -1588,7 +1587,7 @@ local Defaults = {
       },
       General = {
         BoxMode = false,
-        ShardSize = 31,
+        ShardSize = 1,
         ShardPadding = 10,
         ShardScale = 0.80,
         ShardFadeOutTime = 1,
@@ -2707,6 +2706,32 @@ function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
 end
 
 -------------------------------------------------------------------------------
+-- DeepCopy
+--
+-- Copies a table and any subtables
+--
+-- Usage: CopiedTable = DeepCopy(OldTable)
+--
+-- CopiedTable      Copy of OldTable.
+-- OldTable         Table to be copied.
+-------------------------------------------------------------------------------
+function GUB.Main:DeepCopy(t)
+  if type(t) ~= 'table' then
+    return t
+  end
+  local MT = getmetatable(t)
+  local NewTable = {}
+  for k, v in pairs(t) do
+    if type(v) == 'table' then
+      v = DeepCopy(v)
+    end
+    NewTable[k] = v
+  end
+  setmetatable(NewTable, MT)
+  return NewTable
+end
+
+-------------------------------------------------------------------------------
 -- CopyTableValues
 --
 -- Copies all the values and sub table values of one table to another.
@@ -3617,11 +3642,41 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- UnitBarSetAttr
+--
+-- Base unitbar set attribute. Handles attributes that are shared across all bars.
+--
+-- Usage    UnitBarSetAttr(UnitBarF, Object, Attr)
+--
+-- UnitBarF    The Unitbar frame to work on.
+-- Object       Object being changed:
+--               'frame' for the frame.
+-- Attr         Type of attribute being applied to object:
+--               'scale'     Scale settings being set to the object.
+--               'strata'    Frame strata for the object.
+-------------------------------------------------------------------------------
+function GUB.Main:UnitBarSetAttr(UnitBarF, Object, Attr)
+  -- Get the unitbar data.
+  local UB = UnitBarF.UnitBar
+  local Border = UnitBarF.Border
+
+  -- Frame.
+  if Object == nil or Object == 'frame' then
+    if Attr == nil or Attr == 'scale' then
+      UnitBarF.ScaleFrame:SetScale(UB.Other.Scale)
+    end
+    if Attr == nil or Attr == 'strata' then
+      UnitBarF.Anchor:SetFrameStrata(UB.Other.FrameStrata)
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- UnitBarsSetAllOptions
 --
 -- Handles the settings that effect all the unitbars.
 --
--- Usage: UnitBarSetAllOption()
+-- Usage: UnitBarSetAllOptions()
 --
 -- Activates the current settings in UnitBars.
 --

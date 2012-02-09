@@ -1018,11 +1018,11 @@ function GUB.RuneBar:SetLayoutRune()
   -- So the runes appear in the correct location on the screen.
   if not BarMode then
     x, y, BorderWidth, BorderHeight = Main:GetBorder(RuneLocation[1].x, RuneLocation[1].y, Width, Height,
-                                                             RuneLocation[2].x, RuneLocation[2].y, Width, Height,
-                                                             RuneLocation[3].x, RuneLocation[3].y, Width, Height,
-                                                             RuneLocation[4].x, RuneLocation[4].y, Width, Height,
-                                                             RuneLocation[5].x, RuneLocation[5].y, Width, Height,
-                                                             RuneLocation[6].x, RuneLocation[6].y, Width, Height)
+                                                     RuneLocation[2].x, RuneLocation[2].y, Width, Height,
+                                                     RuneLocation[3].x, RuneLocation[3].y, Width, Height,
+                                                     RuneLocation[4].x, RuneLocation[4].y, Width, Height,
+                                                     RuneLocation[5].x, RuneLocation[5].y, Width, Height,
+                                                     RuneLocation[6].x, RuneLocation[6].y, Width, Height)
     OffsetFX = -x
     OffsetFY = -y
     Border:SetPoint('TOPLEFT', x, y)
