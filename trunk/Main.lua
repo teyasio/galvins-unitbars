@@ -24,10 +24,12 @@ local CataVersion = select(4,GetBuildInfo()) >= 40000
 
 -- localize some globals.
 local _
-local bitband,  bitbxor,  bitbor,  bitlshift,  stringfind =
-      bit.band, bit.bxor, bit.bor, bit.lshift, string.find
-local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
+local pcall, pairs, ipairs, type, table, select, next, print =
+      pcall, pairs, ipairs, type, table, select, next, print
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
@@ -38,6 +40,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local CreateFrame, UnitGUID, getmetatable, setmetatable =
+      CreateFrame, UnitGUID, getmetatable, setmetatable
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -602,6 +606,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -690,6 +695,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -776,6 +782,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -861,6 +868,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -945,6 +953,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -1030,6 +1039,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -1111,6 +1121,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -1193,6 +1204,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -1274,6 +1286,7 @@ local Defaults = {
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       Bar = {
+        Advanced = false,
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -1398,6 +1411,7 @@ local Defaults = {
         },
       },
       Bar = {
+        Advanced = false,
         ColorAll = false,
         RuneWidth = 40,
         RuneHeight = 25,
@@ -1496,6 +1510,7 @@ local Defaults = {
         },
       },
       Bar = {
+        Advanced = false,
         ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
@@ -1556,6 +1571,7 @@ local Defaults = {
         },
       },
       Bar = {
+        Advanced = false,
         ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
@@ -1614,6 +1630,7 @@ local Defaults = {
         },
       },
       Bar = {
+        Advanced = false,
         ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
@@ -1729,6 +1746,7 @@ local Defaults = {
       },
       Bar = {
         Moon = {
+          Advanced = false,
           MoonWidth = 25,
           MoonHeight = 25,
           FillDirection = 'HORIZONTAL',
@@ -1739,6 +1757,7 @@ local Defaults = {
           Color = {r = 0.847, g = 0.988, b = 0.972, a = 1},
         },
         Sun = {
+          Advanced = false,
           SunWidth = 25,
           SunHeight = 25,
           FillDirection = 'HORIZONTAL',
@@ -1749,6 +1768,7 @@ local Defaults = {
           Color = {r = 0.96, g = 0.925, b = 0.113, a = 1},
         },
         Bar = {
+          Advanced = false,
           BarWidth = 170,
           BarHeight = 25,
           FillDirection = 'HORIZONTAL',
@@ -1761,6 +1781,7 @@ local Defaults = {
           ColorSolar = {r = 0.631, g = 0.466, b = 0.184, a = 1}, -- sun
         },
         Slider = {
+          Advanced = false,
           SunMoon = true,
           SliderWidth = 16,
           SliderHeight = 20,
@@ -1772,6 +1793,7 @@ local Defaults = {
           Color = {r = 0, g = 1, b = 0, a = 1},
         },
         Indicator = {
+          Advanced = false,
           SunMoon = false,
           IndicatorWidth = 16,
           IndicatorHeight = 20,
@@ -1876,6 +1898,7 @@ local CheckEvent = {
 Main.LSM = LSM
 Main.UnitBarsF = UnitBarsF
 Main.Defaults = Defaults
+Main.PowerColorType = PowerColorType
 Main.PowerTypeToNumber = PowerTypeToNumber
 Main.CheckEvent = CheckEvent
 Main.MouseOverDesc = 'Modifier + left mouse button to drag'
@@ -2723,7 +2746,7 @@ function GUB.Main:DeepCopy(t)
   local NewTable = {}
   for k, v in pairs(t) do
     if type(v) == 'table' then
-      v = DeepCopy(v)
+      v = Main:DeepCopy(v)
     end
     NewTable[k] = v
   end
@@ -2788,11 +2811,11 @@ function GUB.Main:AngleToOffset(XO, YO, Angle)
   end
 
   -- Calculate the direction.
-  local Angle = math.rad(Angle)
-  if math.sin(Angle) < 0 then
+  local Angle = mrad(Angle)
+  if msin(Angle) < 0 then
     XOffset = -XOffset
   end
-  if math.cos(Angle) < 0 then
+  if mcos(Angle) < 0 then
     YOffset = -YOffset
   end
   return XOffset, YOffset
@@ -3795,7 +3818,7 @@ local function CreateUnitBars(UnitBarDB)
       -- Create the scale frame.
       local ScaleFrame = CreateFrame('Frame', nil, Anchor)
 
-      if stringfind(BarType, 'Health') or stringfind(BarType, 'Power') then
+      if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
         GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
       else
         GUB[BarType]:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
@@ -3872,7 +3895,7 @@ local function CreateUnitBarTimers()
   -- For speed store reference of bars into an indexed array.
   local Index = 0
   for BarType, UBF in pairs(UnitBarsF) do
-    if stringfind(BarType, 'Health') or stringfind(BarType, 'Power') then
+    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
       HapBarsCount = HapBarsCount + 1
       HapBarsF[HapBarsCount] = UBF
     else

@@ -18,10 +18,12 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
-local bitband,  bitbxor,  bitbor,  bitlshift =
-      bit.band, bit.bxor, bit.bor, bit.lshift
-local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
+local pcall, pairs, ipairs, type, table, select, next, print =
+      pcall, pairs, ipairs, type, table, select, next, print
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
@@ -32,6 +34,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local CreateFrame, UnitGUID, getmetatable, setmetatable =
+      CreateFrame, UnitGUID, getmetatable, setmetatable
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -296,7 +300,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     ComboBar:CreateBoxTexture(ComboIndex, ComboBarBox, 'statusbar')
 
      -- Set and save the name for tooltips.
-    local Name = strconcat('Combo Point ', ComboIndex)
+    local Name = 'Combo Point ' .. ComboIndex
 
     ComboBar:SetTooltip(ComboIndex, Name, MouseOverDesc)
 
