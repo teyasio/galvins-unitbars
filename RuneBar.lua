@@ -19,10 +19,12 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
-local bitband,  bitbxor,  bitbor,  bitlshift =
-      bit.band, bit.bxor, bit.bor, bit.lshift
-local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
+local pcall, pairs, ipairs, type, table, select, next, print =
+      pcall, pairs, ipairs, type, table, select, next, print
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
@@ -33,6 +35,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local CreateFrame, UnitGUID, getmetatable, setmetatable =
+      CreateFrame, UnitGUID, getmetatable, setmetatable
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -184,7 +188,7 @@ local function GetRuneName(RuneF)
     RuneName = 'Death'
   end
 
-  return ('%s %s'):format(RuneName, RuneNumber)
+  return format('%s %s', RuneName, RuneNumber)
 end
 
 -------------------------------------------------------------------------------
@@ -546,7 +550,7 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
   -- Calculate active status.
   local Active = false
   for i = 1, MaxRunes do
-    Start, Duration, RuneReady = GetRuneCooldown(i)
+    local Start, Duration, RuneReady = GetRuneCooldown(i)
     if not RuneReady then
       Active = true
       break
@@ -654,15 +658,8 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
   local RuneMode = UB.General.RuneMode
   local RuneF = self.RuneF
 
-  -- Frame.
-  if Object == nil or Object == 'frame' then
-    if Attr == nil or Attr == 'scale' then
-      self.ScaleFrame:SetScale(UB.Other.Scale)
-    end
-    if Attr == nil or Attr == 'strata' then
-      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
-    end
-  end
+  -- Check scale and strata for 'frame'
+  Main:UnitBarSetAttr(self, Object, Attr)
 
   for _, Rune in ipairs(UB.RuneBarOrder) do
     local RF = RuneF[Rune]
@@ -1199,7 +1196,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     RF.RuneTrackingFrame = RuneTrackingFrame
 
     -- Create the rune. This math converts rune into runetype.
-    CreateRune(math.ceil(Rune / 2), RF)
+    CreateRune(ceil(Rune / 2), RF)
 
     -- Make the rune movable.
     RF:SetMovable(true)

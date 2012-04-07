@@ -18,10 +18,12 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
-local bitband,  bitbxor,  bitbor,  bitlshift =
-      bit.band, bit.bxor, bit.bor, bit.lshift
-local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
+local pcall, pairs, ipairs, type, table, select, next, print =
+      pcall, pairs, ipairs, type, table, select, next, print
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
@@ -32,6 +34,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local CreateFrame, UnitGUID, getmetatable, setmetatable =
+      CreateFrame, UnitGUID, getmetatable, setmetatable
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -79,7 +83,7 @@ local PredictedSpellValue = {
 }
 
 -- Constants used in NumberToDigitGroups
-local Thousands = ('%.1f'):format(1/5):match('([^0-9])') == '.' and ',' or '.'
+local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.'
 local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local ThousandFormat = '%s%d' .. Thousands..'%03d'
@@ -121,13 +125,13 @@ local function NumberToDigitGroups(Value)
   end
 
   if Value >= 1000000000 then
-    return (BillionFormat):format(Sign, Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
+    return format(BillionFormat, Sign, Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
   elseif Value >= 1000000 then
-    return (MillionFormat):format(Sign, Value / 1000000, (Value / 1000) % 1000, Value % 1000)
+    return format(MillionFormat, Sign, Value / 1000000, (Value / 1000) % 1000, Value % 1000)
   elseif Value >= 1000 then
-    return (ThousandFormat):format(Sign, Value / 1000, Value % 1000)
+    return format(ThousandFormat, Sign, Value / 1000, Value % 1000)
   else
-    return tostring(Value)
+    return format('%s', Value)
   end
 end
 
@@ -144,11 +148,11 @@ end
 -------------------------------------------------------------------------------
 local function GetShortTextValue(Value)
   if Value < 1000 then
-    return tostring(Value)
+    return format('%s', Value)
   elseif Value < 1000000 then
-    return ('%.fk'):format(Value / 1000)
+    return format('%.fk', Value / 1000)
   else
-    return ('%.1fm'):format(Value / 1000000)
+    return format('%.1fm', Value / 1000000)
   end
 end
 
@@ -188,7 +192,7 @@ local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, Predicted
     if MaxValue == 0 then
       return 0
     else
-      return math.ceil(Value / MaxValue * 100)
+      return ceil(Value / MaxValue * 100)
     end
   elseif ValueType == 'thousands' then
     return Value / 1000
@@ -570,15 +574,8 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
   -- Get the unitbar data.
   local UB = self.UnitBar
 
-  -- Frame.
-  if Object == nil or Object == 'frame' then
-    if Attr == nil or Attr == 'scale' then
-      self.ScaleFrame:SetScale(UB.Other.Scale)
-    end
-    if Attr == nil or Attr == 'strata' then
-      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
-    end
-  end
+  -- Check scale and strata for 'frame'
+  Main:UnitBarSetAttr(self, Object, Attr)
 
   -- Background (Border).
   if Object == nil or Object == 'bg' then

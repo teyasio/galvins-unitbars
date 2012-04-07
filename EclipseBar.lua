@@ -63,10 +63,12 @@ local MouseOverDesc = Main.MouseOverDesc
 
 -- localize some globals.
 local _
-local bitband,  bitbxor,  bitbor,  bitlshift =
-      bit.band, bit.bxor, bit.bor, bit.lshift
-local pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select =
-      pcall, abs, mod, max, floor, strsub, strupper, strconcat, tostring, pairs, ipairs, type, math, table, select
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
+local pcall, pairs, ipairs, type, table, select, next, print =
+      pcall, pairs, ipairs, type, table, select, next, print
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
@@ -77,6 +79,8 @@ local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local CreateFrame, UnitGUID, getmetatable, setmetatable =
+      CreateFrame, UnitGUID, getmetatable, setmetatable
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -665,10 +669,10 @@ local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, 
   -- Get slider direction.
   if SliderDirection == 'VERTICAL' then
     BarSize = Bar.Bar.BarHeight
-    SliderSize = Bar[Slider][('%sHeight'):format(Slider)]
+    SliderSize = Bar[Slider][format('%sHeight', Slider)]
   else
     BarSize = Bar.Bar.BarWidth
-    SliderSize = Bar[Slider][('%sWidth'):format(Slider)]
+    SliderSize = Bar[Slider][format('%sWidth', Slider)]
   end
 
   -- Calc rotate direction.
@@ -994,15 +998,8 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
   local UB = self.UnitBar
   local EclipseF = self.EclipseF
 
-  -- Frame.
-  if Object == nil or Object == 'frame' then
-    if Attr == nil or Attr == 'scale' then
-      self.ScaleFrame:SetScale(UB.Other.Scale)
-    end
-    if Attr == nil or Attr == 'strata' then
-      self.Anchor:SetFrameStrata(UB.Other.FrameStrata)
-    end
-  end
+  -- Check scale and strata for 'frame'
+  Main:UnitBarSetAttr(self, Object, Attr)
 
   -- Text (StatusBar.Txt).
   if Object == nil or Object == 'text' then
@@ -1024,7 +1021,7 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
   end
 
   -- Uppercase the first character.
-  Eclipse = ('%s%s'):format(strupper(strsub(Eclipse, 1, 1)), strsub(Eclipse, 2))
+  Eclipse = gsub(Eclipse, '%a', strupper, 1)
 
   -- Get bar data.
   local Background = UB.Background[Eclipse]
@@ -1109,8 +1106,8 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
     end
 
     if Attr == nil or Attr == 'size' then
-      Frame:SetWidth(Bar[('%sWidth'):format(Eclipse)])
-      Frame:SetHeight(Bar[('%sHeight'):format(Eclipse)])
+      Frame:SetWidth(Bar[format('%sWidth', Eclipse)])
+      Frame:SetHeight(Bar[format('%sHeight', Eclipse)])
     end
   end
 end
