@@ -53,30 +53,27 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.EclipseBar = {}
 local Main = GUB.Main
-
--- shared from Main.lua
-local LSM = Main.LSM
-local PowerTypeToNumber = Main.PowerTypeToNumber
-local MouseOverDesc = Main.MouseOverDesc
+local LSM = GUB.LSM
+local PowerTypeToNumber = GUB.PowerTypeToNumber
+local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -87,52 +84,55 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 
 -- UnitBarF = UnitBarsF[]
 -- UnitBarF.UnitBar                  Reference to the unitbar data for the eclipse bar.
--- UnitBarF.Border                   Border frame for the eclipse bar. This is a parent of OffsetFrame
+-- UnitBarF.Border                   Border frame for the eclipse bar. This helps position the offsetframe.
 -- UnitBarF.OffsetFrame              Used for rotation.
--- UnitBarF.SunMoonBorder            Frame level border for sun and moon. Child of OffsetFrame.
--- UnitBarF.SliderBorder             Frame level border for the slider. Child of SunMoonBorder.
--- UnitBarF.IndicatorBorder          Frame level border for the indicator. Child of SunMoonBorder.
 --
 -- UnitBarF.EclipseF                 Table containing the frames that make up the eclipse bar.
 --
 -- Border.Anchor                     Anchor reference for moving.
--- Border.TooltipName                Tooltip text to display for mouse over when bars are unlocked.
--- Border.TooltipDesc                Description under the name for mouse over.
 --
 -- EclipseF.Moon                     Table containing frame data for moon.
 --   Dark                            If true the Moon is not lit.
---   Frame                           Child of SunMoonBorder. Used to hide/show the moon.
---   Border                          Child of SunMoonBorder. Used to show a visible border for moon.
+--   Frame                           Child of MoonBorder. Used to hide/show the moon.
+--   Border                          Child of OffsetFrame. Used to show a visible border for moon.
 --   StatusBar                       Child of Moon.Frame.  Statusbar containing the visible texture.
+--   FadeOut                         Animation group for fadeout.
+--   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
 --
 -- EclipseF.Sun                      Table containing frame data for sun.
 --   Dark                            If true then the Sun is not lit.
---   Frame                           Child of SunMoonBorder. Used to hide/show the sun.
---   Border                          Child of SunMoonBorder. Used to show a visible border for sun.
+--   Frame                           Child of MoonBorder. Used to hide/show the sun.
+--   Border                          Child of OffsetFrame. Used to show a visible border for sun.
 --   StatusBar                       Child of Sun.Frame.  Statusbar containing the visible texture.
+--   FadeOut                         Animation group for fadeout.
+--   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
 --
 -- EclipseF.Bar                      Table containing the frame for the bar.
---   Frame                           Child of Border. Used to hide/show the bar.
---   Border                          Child of Border. Used to show a visible border for the bar.
+--   Frame                           Child of BarBorder. Used to hide/show the bar.
+--   Border                          Child of OffsetFrame. Used to show a visible border for the bar.
 --
 -- EclipseF.Lunar                    Table containing the lunar statusbar.
 --   Dark                            If true then the StatusBarLunar is not lit.
---   Frame                           Child of Bar.Frame.  This texture fills the lunar side of the bar.
+--   Frame                           Child of BarBorder.  This texture fills the lunar side of the bar.
+--   FadeOut                         Animation group for fadeout.
+--   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
 --
 -- EclipseF.Solar
 --   Dark                            If true then the StatusBarSolar is not lit.
---   Frame                           Child of Bar.Frame.  This texture fills the solar side of the bar.
+--   Frame                           Child of BarBorder.  This texture fills the solar side of the bar.
+--   FadeOut                         Animation group for fadeout.
+--   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
 --
 -- EclipseF.Slider                   Table containing the frame data for the slider.
---   Frame                           Child of SliderBorder. Used to hide/show the slider.
---   Border                          Child of Slider.Frame. Used to show a visible border for the slider.
---   StatusBar                       Child of Slider.Frame.  Statusbar containing the visible texture.
+--   Frame                           Child of OffsetFrame. Used to hide/show the slider.
+--   Border                          Child of SliderFrame. Used to show a visible border for the slider.
+--   StatusBar                       Child of SliderBorder.  Statusbar containing the visible texture.
 --                                   This is set up so that Frame:Hide() will hide the whole Slider.
 --
 -- EclipseF.Indicator                Table containing the frame data for the indicator.
---   Frame                           Child of IndicatorBorder. Used to hide/show the indicator.
---   Border                          Child of Indicator.Frame. Used to show a visible border for the indicator.
---   StatusBar                       Child of Indicator.Frame. Statusbar containing the visible texture.
+--   Frame                           Child of OffsetFrame. Used to hide/show the indicator.
+--   Border                          Child of IndicatorFrame. Used to show a visible border for the indicator.
+--   StatusBar                       Child of IndicatorBorder. Statusbar containing the visible texture.
 --                                   This is set up so that Frame:Hide() will hide the whole Indicator.
 --
 -- Txt                               Standard text data.
@@ -159,6 +159,29 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- LastWrathServerValue              Used to by SyncWrathSequence().  Helps to detect if the sequence is in sync with
 --                                   the server. This contains the last wrath value from the server.
 -- WrathSync                         If true then in sync otherwise false.
+--
+-- Eclipse bar frame layout:
+--
+-- ScaleFrame
+--   Border
+--     OffsetFrame
+--       MoonBorder
+--         MoonFrame
+--           Moon
+--       SunBorder
+--         SunFrame
+--           Sun
+--       BarBorder
+--         BarFrame
+--           BarLunar
+--           BarSolar
+--       IndicatorFrame
+--         IndicatorBorder
+--           Indicator
+--       SliderFrame
+--         SliderBorder
+--           Slider
+--       TxtBorder
 -------------------------------------------------------------------------------
 
 -- Powertype constants
@@ -233,6 +256,11 @@ local RotateBar = {
     SolarPoint2 = 'BOTTOMRIGHT', SolarRelativePoint2 = 'RIGHT',       SolarPadding2X = 1, SolarPadding2Y = 0,
   },
 }
+
+-------------------------------------------------------------------------------
+-- Statuscheck    UnitBarsF function
+-------------------------------------------------------------------------------
+GUB.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -632,7 +660,7 @@ end
 -------------------------------------------------------------------------------
 -- DisplayEclipseSlider
 --
--- Subfunction of UpdateEclipseBar()
+-- Subfunction of Update()
 --
 -- Displays a slider on the eclipse bar.
 --
@@ -708,15 +736,19 @@ local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, 
 end
 
 -------------------------------------------------------------------------------
--- UpdateEclipseBar (Update) [UnitBar assigned function]
+-- Update    UnitBarsF function
 --
 -- Update the eclipse bar power, sun, and moon.
 --
--- usage: UpdateEclipseBar(Event)
+-- usage: Update(Event)
 --
 -- Event     'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:UpdateEclipseBar(Event)
+function GUB.UnitBarsF.EclipseBar:Update(Event)
+  if not self.Enabled then
+    return
+  end
+
   local UB = self.UnitBar
   local Gen = UB.General
   local PredictedPower = Gen.PredictedPower
@@ -885,11 +917,11 @@ function GUB.EclipseBar:UpdateEclipseBar(Event)
 end
 
 -------------------------------------------------------------------------------
--- CancelAnimationEclipse (CancelAnimation) [UnitBar assigned function]
+-- CancelAnimation    UnitBarsF function
 --
 -- Cancels all animation playing in the eclipse bar.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:CancelAnimationEclipse()
+function GUB.UnitBarsF.EclipseBar:CancelAnimation()
   local EF = self.EclipseF
   EclipseBarHide(EF, 'Moon', false, -1)
   EclipseBarHide(EF, 'Sun', false, -1)
@@ -904,11 +936,11 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksEclipse (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicks    UnitBarsF function
 --
 -- This will enable or disbable mouse clicks for the eclipse bar.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:EnableMouseClicksEclipse(Enable)
+function GUB.UnitBarsF.EclipseBar:EnableMouseClicks(Enable)
   local EF = self.EclipseF
 
   EF.Moon.Border:EnableMouse(Enable)
@@ -917,11 +949,11 @@ function GUB.EclipseBar:EnableMouseClicksEclipse(Enable)
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScriptEclipse (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScript    UnitBarsF function
 --
 -- Set up script handlers for the eclipsebar.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:FrameSetScriptEclipse(Enable)
+function GUB.UnitBarsF.EclipseBar:FrameSetScript(Enable)
   local EF = self.EclipseF
 
   local function FrameSetScript(Frame, Enable)
@@ -952,20 +984,11 @@ function GUB.EclipseBar:FrameSetScriptEclipse(Enable)
 end
 
 -------------------------------------------------------------------------------
--- EnableScreenClampEclipse (EnableScreenEclipse) [UnitBar assigned function]
---
--- Enables or disble screen clamp for the eclipse bar.
--------------------------------------------------------------------------------
-function GUB.EclipseBar:EnableScreenClampEclipse(Enable)
-  self.Border:SetClampedToScreen(Enable)
-end
-
--------------------------------------------------------------------------------
--- SetAttrEclipse  (SetAttr) [UnitBar assigned function]
+-- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the eclipsebar.
 --
--- Usage: SetAttrEclipse(Object, Attr, Eclipse)
+-- Usage: SetAttr(Object, Attr, Eclipse)
 --
 -- Object       Object being changed:
 --               'bg'        for background (Border).
@@ -992,7 +1015,7 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
+function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, Eclipse)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -1113,13 +1136,11 @@ function GUB.EclipseBar:SetAttrEclipse(Object, Attr, Eclipse)
 end
 
 -------------------------------------------------------------------------------
--- SetLayoutEclipse (SetLayout) [UnitBar assigned function]
+-- SetLayout    UnitBarsF function
 --
 -- Set an eclipsebar to a new layout
---
--- Usage: SetLayoutEclipse()
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:SetLayoutEclipse()
+function GUB.UnitBarsF.EclipseBar:SetLayout()
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -1143,6 +1164,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   local EF = self.EclipseF
   local SliderFrame = EF.Slider.Frame
   local IndicatorFrame = EF.Indicator.Frame
+  local OffsetFrame = self.OffsetFrame
 
   local SunX, SunY = 0, 0
   local MoonX, MoonY = 0, 0
@@ -1171,7 +1193,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   local MoonX = 0
   local MoonY = 0
   Frame1:ClearAllPoints()
-  Frame1:SetPoint(RB.Point1, 0, 0)
+  Frame1:SetPoint(RB.Point1, OffsetFrame, 0, 0)
   F.Border:SetAllPoints(Frame1)
 
   -- Set the bar.
@@ -1189,7 +1211,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   BarX = x - x1
   BarY = y - y1
   Frame2:ClearAllPoints()
-  Frame2:SetPoint('TOPLEFT', BarX, BarY)
+  Frame2:SetPoint('TOPLEFT', OffsetFrame, BarX, BarY)
   F.Border:SetAllPoints(Frame2)
 
   -- Set the sun or moon.
@@ -1204,12 +1226,12 @@ function GUB.EclipseBar:SetLayoutEclipse()
     x1, y1 = Main:CalcSetPoint(RB.Point3, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
     MoonX = x - x1
     MoonY = y - y1
-    Frame3:SetPoint('TOPLEFT', MoonX, MoonY)
+    Frame3:SetPoint('TOPLEFT', OffsetFrame, MoonX, MoonY)
   else
     x1, y1 = Main:CalcSetPoint(RB.Point3, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
     SunX = x - x1
     SunY = y - y1
-    Frame3:SetPoint('TOPLEFT', SunX, SunY)
+    Frame3:SetPoint('TOPLEFT', OffsetFrame, SunX, SunY)
   end
   F.Border:SetAllPoints(Frame3)
 
@@ -1226,24 +1248,15 @@ function GUB.EclipseBar:SetLayoutEclipse()
   SliderX = BarX + SliderX
   SliderY = BarY + SliderY
 
-  -- Set the size of the border.
-  local Border = self.Border
-  Border:ClearAllPoints()
-  Border:SetPoint('TOPLEFT', 0, 0)
-
   -- Calculate the offsets for the offsetframe, get the borderwidth and borderheight
   x, y, BorderWidth, BorderHeight = Main:GetBorder(SunX, SunY, SunWidth, SunHeight,
-                                                                MoonX, MoonY, MoonWidth, MoonHeight,
-                                                                BarX, BarY, BarWidth, BarHeight,
-                                                                SliderX, SliderY, SliderWidth, SliderHeight)
+                                                               MoonX, MoonY, MoonWidth, MoonHeight,
+                                                               BarX, BarY, BarWidth, BarHeight,
+                                                               SliderX, SliderY, SliderWidth, SliderHeight)
   OffsetFX = -x
   OffsetFY = -y
 
-  Border:SetWidth(BorderWidth)
-  Border:SetHeight(BorderHeight)
-
   -- Set the x, y location off the offset frame.
-  local OffsetFrame = self.OffsetFrame
   OffsetFrame:ClearAllPoints()
   OffsetFrame:SetPoint('LEFT', OffsetFX, OffsetFY)
   OffsetFrame:SetWidth(BorderWidth)
@@ -1263,8 +1276,7 @@ function GUB.EclipseBar:SetLayoutEclipse()
   self:SetAttr(nil, nil, 'indicator')
 
   -- Save size data to self (UnitBarF).
-  self.Width = BorderWidth
-  self.Height = BorderHeight
+  self:SetSize(BorderWidth, BorderHeight)
 end
 
 -------------------------------------------------------------------------------
@@ -1279,95 +1291,99 @@ end
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Lunar = {}, Solar = {}, Slider = {}, Indicator = {}}
+
+  -- Create a border to help position the offsetframe.
   local Border = CreateFrame('Frame', nil, ScaleFrame)
+  Border:SetAllPoints(Anchor)
 
-  -- Make the border frame top when clicked.
-  Border:SetToplevel(true)
+    -- Create the text frame.
+    local TxtBorder = CreateFrame('Frame', nil, Border)
+    TxtBorder:SetAllPoints(Border)
+    local Txt = TxtBorder:CreateFontString(nil, 'OVERLAY')
 
-  -- Create the offset frame.
-  local OffsetFrame = CreateFrame('Frame', nil, Border)
-
-  -- Create a BorderFrame for Sun and moon for frame level
-  local SunMoonBorderFL = CreateFrame('Frame', nil, OffsetFrame)
-  SunMoonBorderFL:SetAllPoints(OffsetFrame)
-  SunMoonBorderFL:SetFrameLevel(SunMoonBorderFL:GetFrameLevel() + 10)
-
-  -- Create a borderframe for slider frame level
-  local SliderBorderFL = CreateFrame('Frame', nil, SunMoonBorderFL)
-  SliderBorderFL:SetAllPoints(OffsetFrame)
-  SliderBorderFL:SetFrameLevel(SliderBorderFL:GetFrameLevel() + 30)
-
-  -- Create a borderframe for indicator frame level
-  local IndicatorBorderFL = CreateFrame('Frame', nil, SunMoonBorderFL)
-  IndicatorBorderFL:SetAllPoints(OffsetFrame)
-  IndicatorBorderFL:SetFrameLevel(IndicatorBorderFL:GetFrameLevel() + 20)
-
-  -- Create the text frame.
-  local TxtBorder = CreateFrame('Frame', nil, Border)
-  TxtBorder:SetAllPoints(Border)
-  TxtBorder:SetFrameLevel(TxtBorder:GetFrameLevel() + 50)
-  local Txt = TxtBorder:CreateFontString(nil, 'OVERLAY')
+    -- Create the offset frame.
+    local OffsetFrame = CreateFrame('Frame', nil, Border)
 
   -- MOON
 
-  -- Create the moon frame.  This is used for hide/show
-  local MoonFrame = CreateFrame('Frame', nil, SunMoonBorderFL)
+      -- Create the visible border for the moon.
+      local MoonBorder = CreateFrame('Frame', nil, OffsetFrame)
+
+        -- Create the moon frame.  This is used for hide/show
+        local MoonFrame = CreateFrame('Frame', nil, MoonBorder)
+
+          -- Create the statusbar for the moon.
+          local Moon = CreateFrame('StatusBar', nil, MoonFrame)
+
+  -- SUN
+
+      -- Create the visible border for the sun.
+      local SunBorder = CreateFrame('Frame', nil, OffsetFrame)
+
+        -- Create the sun frame.  This is used for hide/show
+        local SunFrame = CreateFrame('Frame', nil, SunBorder)
+
+          -- Create the statusbar for the sun.
+          local Sun = CreateFrame('StatusBar', nil, SunFrame)
+
+  -- BAR
+
+      -- Create the visible border for eclipse bar.
+      local BarBorder = CreateFrame('Frame', nil, OffsetFrame)
+
+        -- Create the eclipse bar for the slider.
+        local BarFrame = CreateFrame('Frame', nil, BarBorder)
+
+          -- Create the left stausbar for lunar and set it to lit.
+          local BarLunar = CreateFrame('StatusBar', nil, BarFrame)
+
+          -- Create the right stausbar for solar and set then to lit.
+          local BarSolar = CreateFrame('StatusBar', nil, BarFrame)
+
+  -- INDICATOR (predictor power)
+
+      -- create the indicator frame.
+      local IndicatorFrame = CreateFrame('Frame', nil, OffsetFrame)
+
+        -- create the indicator border.
+        local IndicatorBorder = CreateFrame('Frame', nil, IndicatorFrame)
+
+          -- create the statusbar for the indicator slider.
+          local Indicator = CreateFrame('StatusBar', nil, IndicatorBorder)
+
+  -- SLIDER
+
+      -- Create the slider frame.
+      local SliderFrame = CreateFrame('Frame', nil, OffsetFrame)
+
+        -- Create the slider border.
+        local SliderBorder = CreateFrame('Frame', nil, SliderFrame)
+
+          -- create the statusbar for slider.
+          local Slider = CreateFrame('StatusBar', nil, SliderBorder)
+
+  -- Set Frame levels
+
+  -- Set Sun and Moon to be above the bar.
+  MoonBorder:SetFrameLevel(BarLunar:GetFrameLevel() + 1)
+  SunBorder:SetFrameLevel(BarSolar:GetFrameLevel() + 1)
+
+  -- Indicator needs to be above everything but the Slider.
+  IndicatorFrame:SetFrameLevel(Sun:GetFrameLevel() + 1)
+
+  -- Slider needs to be above everything but text.
+  SliderFrame:SetFrameLevel(Indicator:GetFrameLevel() + 1)
+
+  -- Set the text to be above all.
+  TxtBorder:SetFrameLevel(Slider:GetFrameLevel() + 1)
 
   -- Set the moon to dark.
   EclipseFrame.Moon.Dark = true
   MoonFrame:Hide()
 
-  -- Create the visible border for the moon.
-  local MoonBorder = CreateFrame('Frame', nil, SunMoonBorderFL)
-
-  -- Create the statusbar for the moon.
-  local Moon = CreateFrame('StatusBar', nil, MoonFrame)
-
-  -- SUN
-  -- Create the sun frame.  This is used for hide/show
-  local SunFrame = CreateFrame('Frame', nil, SunMoonBorderFL)
-
   -- Set the sun to dark
   EclipseFrame.Sun.Dark = true
   SunFrame:Hide()
-
-  -- Create the visible border for the sun.
-  local SunBorder = CreateFrame('Frame', nil, SunMoonBorderFL)
-
-  -- Create the statusbar for the sun.
-  local Sun = CreateFrame('StatusBar', nil, SunFrame)
-
-  -- BAR
-  -- Create the eclipse bar for the slider.
-  local BarFrame = CreateFrame('Frame', nil, OffsetFrame)
-
-  -- Create the visible border for eclipse bar.
-  local BarBorder = CreateFrame('Frame', nil, OffsetFrame)
-
-  -- Create the left and right statusbars for the bar and set then to lit.
-  local BarLunar = CreateFrame('StatusBar', nil, BarFrame)
-  local BarSolar = CreateFrame('StatusBar', nil, BarFrame)
-  EclipseFrame.Lunar.Dark = false
-  EclipseFrame.Solar.Dark = false
-
-  -- SLIDER
-  -- Create the slider frame.
-  local SliderFrame = CreateFrame('Frame', nil, SliderBorderFL)
-
-  -- Create the slider border.
-  local SliderBorder = CreateFrame('Frame', nil, SliderFrame)
-
-  -- create the statusbar for slider.
-  local Slider = CreateFrame('StatusBar', nil, SliderFrame)
-
-  -- create the indicator frame.
-  local IndicatorFrame = CreateFrame('Frame', nil, IndicatorBorderFL)
-
-  -- create the indicator border.
-  local IndicatorBorder = CreateFrame('Frame', nil, IndicatorFrame)
-
-  -- create the statusbar for the predicted slider border.
-  local Indicator = CreateFrame('StatusBar', nil, IndicatorFrame)
 
   -- Create fadeout for Sun, Moon, Lunar, and Solar.
   local FadeOut, FadeOutA = Main:CreateFadeOut(MoonFrame)
@@ -1387,12 +1403,9 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   BarSolar.FadeOutA = FadeOutA
 
   -- Save the name for tooltips.
-  MoonBorder.TooltipName = UB.Name
-  MoonBorder.TooltipDesc = MouseOverDesc
-  SunBorder.TooltipName = UB.Name
-  SunBorder.TooltipDesc = MouseOverDesc
-  BarBorder.TooltipName = UB.Name
-  BarBorder.TooltipDesc = MouseOverDesc
+  Main:SetTooltip(MoonBorder,  UB.Name, MouseOverDesc)
+  Main:SetTooltip(SunBorder, UB.Name, MouseOverDesc)
+  Main:SetTooltip(BarBorder, UB.Name, MouseOverDesc)
 
   -- Save a reference to the anchor for moving.
   MoonBorder.Anchor = Anchor
@@ -1408,7 +1421,9 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   EclipseFrame.Bar.Frame = BarFrame
   EclipseFrame.Bar.Border = BarBorder
   EclipseFrame.Lunar.Frame = BarLunar
+  EclipseFrame.Lunar.Dark = false
   EclipseFrame.Solar.Frame = BarSolar
+  EclipseFrame.Solar.Dark = false
   EclipseFrame.Slider.Frame = SliderFrame
   EclipseFrame.Slider.Border = SliderBorder
   EclipseFrame.Slider.StatusBar = Slider
@@ -1420,9 +1435,6 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   -- Save the borders and Eclipse frames
   UnitBarF.Border = Border
-  UnitBarF.SunMoonBorder = SunMoonBorderFL
-  UnitBarF.SliderBorder = SliderBorderFL
-  UnitBarF.IndicatorBorder = IndicatorBorderFL
   UnitBarF.TxtBorder = TxtBorder
   UnitBarF.OffsetFrame = OffsetFrame
   UnitBarF.EclipseF = EclipseFrame

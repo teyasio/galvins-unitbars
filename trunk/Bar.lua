@@ -8,28 +8,25 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.Bar = {}
 local Main = GUB.Main
-
--- shared from Main.lua
-local LSM = Main.LSM
+local LSM = GUB.LSM
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -71,6 +68,16 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- Texture.FadeOut                   Fadeout animation group for TextureFrame
 -- Texture.FadeOutA                  Fadeout animation
 -- Texture.Hidden                    If true the frame is hidden otherwise it's visible.
+--
+-- Bar frame layout:
+--
+-- ParentFrame
+--   Border
+--   OffsetFrame
+--     BoxFrame
+--       TextureFrame
+--         Texture (frame or texture)
+--     Border
 -------------------------------------------------------------------------------
 local BarDB = {}
 
@@ -328,8 +335,7 @@ end
 --             Disables or enables mouse interaction with frame.
 -- SetEnableMouse (BoxNumber)
 --             Enables box or bar to be dragged and dropped and to show mouse over tooltips.
--- SetClamp (true or false)
--- SetTooltip (BoxNumber, TooltipName, TooltipDescription)
+-- SetTooltip (BoxNumber, TooltipName, TooltipDescription) = Main:SetTooltip
 -- SetAngle (Angle)
 --             Angle can be 45 90 135 180 225 270 315 or 360
 -- SetBackdrop (BoxNumber, BackdropSettings, r, g, b, a)
@@ -462,14 +468,6 @@ function BarDB:SetEnableMouse(BoxNumber, Action)
   end)
 end
 
--- SetClamp
-function BarDB:SetClamp(Action)
-  DoBar(self, nil, nil, function(Border)
-    Border:SetClampedToScreen(Action)
-  end)
-end
-
-
 -- SetTooltip
 function BarDB:SetTooltip(BoxNumber, TooltipName, TooltipDescription)
   DoBar(self, BoxNumber, nil, function(Border, Frame)
@@ -478,8 +476,7 @@ function BarDB:SetTooltip(BoxNumber, TooltipName, TooltipDescription)
       -- If boxnumber is nil then the border has to be used.
       Frame = Border
     end
-    Frame.TooltipName = TooltipName
-    Frame.TooltipDesc = TooltipDescription
+    Main:SetTooltip(Frame, TooltipName, TooltipDescription)
   end)
 end
 

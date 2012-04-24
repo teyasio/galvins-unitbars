@@ -8,34 +8,47 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.HapBar = {}
 local Main = GUB.Main
-
--- shared from Main.lua
-local LSM = Main.LSM
-local PowerTypeToNumber = Main.PowerTypeToNumber
-local MouseOverDesc = Main.MouseOverDesc
+local UnitBarsF = GUB.UnitBarsF
+local LSM = GUB.LSM
+local PowerTypeToNumber = GUB.PowerTypeToNumber
+local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+
+
+local SquareBorder = {
+  bgFile   = '',
+  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+  tile = true,
+  tileSize = 16,
+  edgeSize = 12,
+  insets = {
+    left = 4 ,
+    right = 4,
+    top = 4,
+    bottom = 4
+  }
+}
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -49,8 +62,6 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --                            predicted health.
 --
 -- Border.Anchor              Reference to the anchor for moving.
--- Border.TooltipName         Tooltip text to display for mouse over when bars are unlocked.
--- Border.TooltipDesc         Description under the name for mouse over.
 -- Border.UnitBarF            Reference to unitbarF for for onsizechange.
 --
 -- StatusBar.UnitBar          Reference to unitbar data for GetStatusBarTextValue()
@@ -60,7 +71,10 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- LastPowerType              These three values keep track of any changes in the health and power bars.
 --
 -- LastPredictedValue         Hunters only.  Keeps track of predicted power change.
+--
+-- PlayerClass                The players class.
 -------------------------------------------------------------------------------
+local PlayerClass = nil
 
 -- Powertype constants
 local PowerMana = PowerTypeToNumber['MANA']
@@ -87,6 +101,28 @@ local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.
 local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local ThousandFormat = '%s%d' .. Thousands..'%03d'
+
+-------------------------------------------------------------------------------
+-- HapFunction
+--
+-- Assigns a function to all the health and power bars under one name.
+--
+-- Usage:  HapFunction(Name, function()
+--           -- do function stuff here
+--         end)
+-------------------------------------------------------------------------------
+local function HapFunction(Name, Fn)
+  for BarType, UBF in pairs(UnitBarsF) do
+    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
+      UBF[Name] = Fn
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- Statuscheck    UnitBarsF function
+-------------------------------------------------------------------------------
+HapFunction('StatusCheck', Main.StatusCheck)
 
 --*****************************************************************************
 --
@@ -291,18 +327,6 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- HapBarOnSizeChanged
---
--- Gets called when ever the border of the health and power bar changes.
--- This sets the size data for all health and power bars to the UnitBarF.
--------------------------------------------------------------------------------
-local function HapBarOnSizeChanged(self, Width, Height)
-  local UBF = self.UnitBarF
-  UBF.Width = Width
-  UBF.Height = Height
-end
-
--------------------------------------------------------------------------------
 -- HapBarStartMoving
 --
 -- If UnitBars.IsGrouped is true then the unitbar parent frame will be moved.
@@ -337,16 +361,16 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UpdateHealthBar (Update) [UnitBar assigned function]
+-- UpdateHealthBar
 --
 -- Updates the health of the current player or target
 --
--- Usage: UpdateHealthBar(Event, Unit)
+-- Usage: UpdateHealthBar(self, Event, Unit)
 --
 -- Event      'change' then the bar will only get updated if there is a change.
 -- Unit       player, target, pet, etc
 -------------------------------------------------------------------------------
-function GUB.HapBar:UpdateHealthBar(Event, Unit)
+local function UpdateHealthBar(self, Event, Unit)
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
 
@@ -400,8 +424,32 @@ function GUB.HapBar:UpdateHealthBar(Event, Unit)
   self:StatusCheck()
 end
 
+function GUB.UnitBarsF.PlayerHealth:Update(Event)
+  if self.Enabled then
+    UpdateHealthBar(self, Event, 'player')
+  end
+end
+
+function GUB.UnitBarsF.TargetHealth:Update(Event)
+  if self.Enabled then
+    UpdateHealthBar(self, Event, 'target')
+  end
+end
+
+function GUB.UnitBarsF.FocusHealth:Update(Event)
+  if self.Enabled then
+    UpdateHealthBar(self, Event, 'focus')
+  end
+end
+
+function GUB.UnitBarsF.PetHealth:Update(Event)
+  if self.Enabled then
+    UpdateHealthBar(self, Event, 'pet')
+  end
+end
+
 -------------------------------------------------------------------------------
--- UpdatePowerBar (Update) [UnitBar assigned function]
+-- UpdatePowerBar
 --
 -- Updates the power of the unit.
 --
@@ -413,7 +461,7 @@ end
 --               if nil then the Unit's powertype will be used instead.
 -- PlayerClass   Name of the class. If nil not used.
 -------------------------------------------------------------------------------
-function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
+local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
   PowerType = PowerType or UnitPowerType(Unit)
 
   local BarType = self.BarType
@@ -481,6 +529,50 @@ function GUB.HapBar:UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
   self:StatusCheck()
 end
 
+function GUB.UnitBarsF.PlayerPower:Update(Event)
+  if self.Enabled then
+    if PlayerClass == nil then
+      _, PlayerClass = UnitClass('player')
+    end
+    UpdatePowerBar(self, Event, 'player', nil, PlayerClass)
+  end
+end
+
+function GUB.UnitBarsF.TargetPower:Update(Event)
+  if self.Enabled then
+    UpdatePowerBar(self, Event, 'target')
+  end
+end
+
+function GUB.UnitBarsF.FocusPower:Update(Event)
+  if self.Enabled then
+    UpdatePowerBar(self, Event, 'focus')
+  end
+end
+
+function GUB.UnitBarsF.PetPower:Update(Event)
+  if self.Enabled then
+    UpdatePowerBar(self, Event, 'pet')
+  end
+end
+
+function GUB.UnitBarsF.MainPower:Update(Event)
+  if self.Enabled then
+    UpdatePowerBar(self, Event, 'player', PowerMana)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CancelAnimation    UnitBarsF function
+--
+-- Usage: CancelAnimation()
+--
+-- Cancels all animation playing in the combo bar.
+-------------------------------------------------------------------------------
+HapFunction('CancelAnimation', function()
+  -- do nothing.
+end)
+
 --*****************************************************************************
 --
 -- Health and Power bar creation/setting
@@ -488,20 +580,20 @@ end
 --*****************************************************************************
 
 ------------------------------------------------------------------------------
--- EnableMouseClicksHap (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicks
 --
 -- This will enable or disbale mouse clicks for the rune icons.
 -------------------------------------------------------------------------------
-function GUB.HapBar:EnableMouseClicksHap(Enable)
+HapFunction('EnableMouseClicks', function(self, Enable)
   self.Border:EnableMouse(Enable)
-end
+end)
 
 -------------------------------------------------------------------------------
--- FrameSetScriptHap (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScript
 --
 -- Set up script handlers for the unitbars.
 -------------------------------------------------------------------------------
-function GUB.HapBar:FrameSetScriptHap(Enable)
+HapFunction('FrameSetScript', function(self, Enable)
   local Border = self.Border
   if Enable then
 
@@ -516,7 +608,6 @@ function GUB.HapBar:FrameSetScriptHap(Enable)
     Border:SetScript('OnLeave', function(self)
                                   Main.UnitBarTooltip(self, true)
                                 end)
-    Border:SetScript('OnSizeChanged', HapBarOnSizeChanged)
   else
     Border:SetScript('OnMouseDown', nil)
     Border:SetScript('OnMouseUp', nil)
@@ -525,25 +616,14 @@ function GUB.HapBar:FrameSetScriptHap(Enable)
     Border:SetScript('OnLeave', nil)
     Border:SetScript('OnSizeChanged', nil)
   end
-end
+end)
 
 -------------------------------------------------------------------------------
--- EnableScreenClampHap (EnableScreenClamp) [UnitBar assigned function]
---
--- Enables or disble screen clamp for runes
--------------------------------------------------------------------------------
-function GUB.HapBar:EnableScreenClampHap(Enable)
-
-  -- Prevent the border from being moved off the screen.
-  self.Border:SetClampedToScreen(Enable)
-end
-
--------------------------------------------------------------------------------
--- SetAttrHap (SetAttr) [UnitBar assigned function]
+-- SetAttr
 --
 -- Sets different parts of the health and power bars.
 --
--- Usage: SetAttrHap(Object, Attr)
+-- Usage: SetAttr(Object, Attr)
 --
 -- Object       Object being changed:
 --               'bg' for background (Border).
@@ -569,7 +649,7 @@ end
 --       Since health bars and power bars can have multiple colors.  This function
 --       no longer sets them.
 -------------------------------------------------------------------------------
-function GUB.HapBar:SetAttrHap(Object, Attr)
+HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -639,9 +719,9 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
       PredictedBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
     end
     if Attr == nil or Attr == 'size' then
-      Border:SetWidth(Bar.HapWidth)
-      Border:SetHeight(Bar.HapHeight)
+      self:SetSize(Bar.HapWidth, Bar.HapHeight)
     end
+
   end
 
   -- Text (StatusBar.Txt).
@@ -671,47 +751,32 @@ function GUB.HapBar:SetAttrHap(Object, Attr)
       Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
     end
   end
-end
+end)
 
 -------------------------------------------------------------------------------
--- SetLayoutHap (SetLayout) [UnitBar assigned function]
+-- SetLayout
 --
 -- Sets a health and power bar with a new layout.
---
--- Usage: SetLayoutHap()
 -------------------------------------------------------------------------------
-function GUB.HapBar:SetLayoutHap()
+HapFunction('SetLayout', function(self)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
-
-  local Border = self.Border
-  Border:ClearAllPoints()
-  Border:SetPoint('TOPLEFT', 0, 0)
 
   local StatusBar = self.StatusBar
   StatusBar:SetMinMaxValues(0, 100)
   StatusBar:SetValue(0)
 
-  -- Set the predicted bar values to the same values as the StatusBar.
-  local Border = self.Border
-  Border:ClearAllPoints()
-  Border:SetPoint('TOPLEFT', 0, 0)
-
   local PredictedBar = self.PredictedBar
   PredictedBar:SetMinMaxValues(0, 100)
   PredictedBar:SetValue(0)
 
-    -- Set all attributes.
+  -- Set all attributes.
   self:SetAttr(nil, nil)
-
-  -- Save size data to self (UnitBarF).
-  self.Width = UB.Bar.HapWidth
-  self.Height = UB.Bar.HapHeight
 
   -- Save a reference of unitbar data.
   StatusBar.UnitBar = self.UnitBar
-end
+end)
 
 -------------------------------------------------------------------------------
 -- CreateBar
@@ -725,21 +790,21 @@ end
 -------------------------------------------------------------------------------
 function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local Border = CreateFrame('Frame', nil, ScaleFrame)
+
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   local PredictedBar = CreateFrame('StatusBar', nil, Border)
 
   StatusBar.Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
   StatusBar.Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
 
+  -- Set the border to always be the same size as the anchor.
+  Border:SetAllPoints(Anchor)
+
   -- The predictedbar needs to be below the health/power bar.
   StatusBar:SetFrameLevel(StatusBar:GetFrameLevel() + 1)
 
-  -- Make the border frame top when clicked.
-  Border:SetToplevel(true)
-
   -- Save the text for tooltips.
-  Border.TooltipName = UB.Name
-  Border.TooltipDesc = MouseOverDesc
+  Main:SetTooltip(Border, UB.Name, MouseOverDesc)
 
   -- Save a reference to the anchor for moving.
   Border.Anchor = Anchor

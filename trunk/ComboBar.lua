@@ -8,30 +8,27 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.ComboBar = {}
 local Main = GUB.Main
 local Bar = GUB.Bar
-
--- shared from Main.lua
-local LSM = Main.LSM
-local MouseOverDesc = Main.MouseOverDesc
+local LSM = GUB.LSM
+local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -49,6 +46,11 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 local MaxComboPoints = 5
 local ComboBarBox = 1
 local LastComboPoints = nil
+
+-------------------------------------------------------------------------------
+-- Statuscheck    UnitBarsF function
+-------------------------------------------------------------------------------
+GUB.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -86,13 +88,16 @@ local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
 end
 
 -------------------------------------------------------------------------------
--- UpdateComboBar (Update) [UnitBar assigned function]
+-- Update    UnitBarsF function
 --
--- Usage: UpdateComboBar(Event)
+-- Usage: Update(Event)
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:UpdateComboBar(Event)
+function GUB.UnitBarsF.ComboBar:Update(Event)
+  if not self.Enabled then
+    return
+  end
 
   -- Get the combo points.
   local ComboPoints = GetComboPoints('player', 'target')
@@ -115,13 +120,11 @@ function GUB.ComboBar:UpdateComboBar(Event)
 end
 
 -------------------------------------------------------------------------------
--- CancelAnimationCombo (CancelAnimation) [UnitBar assigned function]
---
--- Usage: CancelAnimationCombo()
+-- CancelAnimation    UnitBarsF function
 --
 -- Cancels all animation playing in the combo bar.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:CancelAnimationCombo()
+function GUB.UnitBarsF.ComboBar:CancelAnimation()
   UpdateComboPoints(self, 0, true)
 end
 
@@ -132,11 +135,11 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksCombo (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicks    UnitBarsF function
 --
 -- This will enable or disbale mouse clicks for the combo bar.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:EnableMouseClicksCombo(Enable)
+function GUB.UnitBarsF.ComboBar:EnableMouseClicks(Enable)
   local ComboBar = self.ComboBar
 
   -- Enable/disable bar.
@@ -144,31 +147,22 @@ function GUB.ComboBar:EnableMouseClicksCombo(Enable)
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScriptCombo (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScript    UnitBarsF function
 --
 -- Set up script handlers for the Combobar.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:FrameSetScriptCombo()
+function GUB.UnitBarsF.ComboBar:FrameSetScript()
 
   -- Enable bar.
   self.ComboBar:SetEnableMouse(0)
 end
 
 -------------------------------------------------------------------------------
--- EnableScreenClampCombo (EnableScreenClamp) [UnitBar assigned function]
---
--- Enables or disble screen clamp for the combo bar.
--------------------------------------------------------------------------------
-function GUB.ComboBar:EnableScreenClampCombo(Enable)
-  self.ComboBar:SetClamp(Enable)
-end
-
--------------------------------------------------------------------------------
--- SetAttrCombo  (SetAttr) [UnitBar assigned function]
+-- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the combobar.
 --
--- Usage: SetAttrCombo(Object, Attr)
+-- Usage: SetAttr(Object, Attr)
 --
 -- Object       Object being changed:
 --               'bg' for background (Border).
@@ -186,7 +180,7 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.ComboBar:SetAttrCombo(Object, Attr)
+function GUB.UnitBarsF.ComboBar:SetAttr(Object, Attr)
   local ComboBar = self.ComboBar
 
   -- Check scale and strata for 'frame'
@@ -250,13 +244,11 @@ function GUB.ComboBar:SetAttrCombo(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetLayoutCombo (SetLayout) [UnitBar assigned function]
+-- SetLayout    UnitBarsF function
 --
 -- Sets a combo bar with a new layout.
---
--- Usage: SetLayoutCombo()
 -------------------------------------------------------------------------------
-function GUB.ComboBar:SetLayoutCombo()
+function GUB.UnitBarsF.ComboBar:SetLayout()
   local ComboBar = self.ComboBar
 
   -- Get the unitbar data.
@@ -274,8 +266,7 @@ function GUB.ComboBar:SetLayoutCombo()
   -- Set size
   ComboBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
 
-  -- Display the combo bar.
-  self.Width, self.Height = ComboBar:Display()
+  self:SetSize(ComboBar:Display())
 end
 
 -------------------------------------------------------------------------------
@@ -313,6 +304,6 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames
 
-  -- Save the combo bar
+  -- Save the combo bar and frames.
   UnitBarF.ComboBar = ComboBar
 end

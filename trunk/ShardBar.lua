@@ -8,31 +8,28 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.ShardBar = {}
 local Main = GUB.Main
 local Bar = GUB.Bar
-
--- shared from Main.lua
-local LSM = Main.LSM
-local PowerTypeToNumber = Main.PowerTypeToNumber
-local MouseOverDesc = Main.MouseOverDesc
+local LSM = GUB.LSM
+local PowerTypeToNumber = GUB.PowerTypeToNumber
+local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -77,6 +74,11 @@ local SoulShardTexture = {
       }
 local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
 
+-------------------------------------------------------------------------------
+-- Statuscheck    UnitBarsF function
+-------------------------------------------------------------------------------
+GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
+
 --*****************************************************************************
 --
 -- Shardbar display
@@ -115,15 +117,19 @@ local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
 end
 
 -------------------------------------------------------------------------------
--- UpdateShardBar (Update) [UnitBar assigned function]
+-- Update    UnitBarsF function
 --
 -- Update the number of shards of the player
 --
--- usage: UpdateShardBar(Event)
+-- usage: Update(Event)
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:UpdateShardBar(Event)
+function GUB.UnitBarsF.ShardBar:Update(Event)
+  if not self.Enabled then
+    return
+  end
+
   local SoulShards = UnitPower('player', PowerShard)
 
   -- Return if no change.
@@ -143,13 +149,11 @@ function GUB.ShardBar:UpdateShardBar(Event)
 end
 
 -------------------------------------------------------------------------------
--- CancelAnimationShard (CancelAnimation) [UnitBar assigned function]
---
--- Usage: CancelAnimationShard()
+-- CancelAnimation    UnitBarsF function
 --
 -- Cancels all animation playing in the shard bar.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:CancelAnimationShard()
+function GUB.UnitBarsF.ShardBar:CancelAnimation()
   UpdateSoulShards(self, 0, true)
 end
 
@@ -160,11 +164,11 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksShard (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicks    UnitBarsF function
 --
 -- This will enable or disbable mouse clicks for the shard bar.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:EnableMouseClicksShard(Enable)
+function GUB.UnitBarsF.ShardBar:EnableMouseClicks(Enable)
   local ShardBar = self.ShardBar
 
   -- Enable/Disable normal mode.
@@ -175,11 +179,11 @@ function GUB.ShardBar:EnableMouseClicksShard(Enable)
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScriptShard (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScript    UnitBarsF function
 --
 -- Set up script handlers for the Shardbar.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:FrameSetScriptShard()
+function GUB.UnitBarsF.ShardBar:FrameSetScript()
   local ShardBar = self.ShardBar
 
   -- Enable normal mode. for the bar.
@@ -190,20 +194,11 @@ function GUB.ShardBar:FrameSetScriptShard()
 end
 
 -------------------------------------------------------------------------------
--- EnableScreenClampShard (EnableScreenClamp) [UnitBar assigned function]
---
--- Enables or disble screen clamp for the shard bar.
--------------------------------------------------------------------------------
-function GUB.ShardBar:EnableScreenClampShard(Enable)
-  self.ShardBar:SetClamp(Enable)
-end
-
--------------------------------------------------------------------------------
--- SetAttrShard  (SetAttr) [UnitBar assigned function]
+-- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the shardbar.
 --
--- Usage: SetAttrShard(Object, Attr)
+-- Usage: SetAttr(Object, Attr)
 --
 -- Object       Object being changed:
 --               'bg' for background (Border).
@@ -222,7 +217,7 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:SetAttrShard(Object, Attr)
+function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
   local ShardBar = self.ShardBar
 
   -- Check scale and strata for 'frame'
@@ -302,13 +297,11 @@ function GUB.ShardBar:SetAttrShard(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetLayoutShard (SetLayout) [UnitBar assigned function]
+-- SetLayout    UnitBarsF function
 --
 -- Set a shardbar to a new layout
---
--- Usage: SetLayoutShard()
 -------------------------------------------------------------------------------
-function GUB.ShardBar:SetLayoutShard()
+function GUB.UnitBarsF.ShardBar:SetLayout()
   local ShardBar = self.ShardBar
 
   -- Get the unitbar data.
@@ -361,12 +354,12 @@ function GUB.ShardBar:SetLayoutShard()
     ShardBar:ShowTextureFrame(0, SoulShardLight)
     ShardBar:HideTextureFrame(0, SoulShardBox)
 
-   --ShardBar:HideBorder(0)
+    ShardBar:HideBorder(0)
     ShardBar:ShowBorder(nil)
   end
 
   -- Display the shardbar.
-  self.Width, self.Height = ShardBar:Display()
+  self:SetSize(ShardBar:Display())
 end
 
 -------------------------------------------------------------------------------
