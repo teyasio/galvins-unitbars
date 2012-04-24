@@ -8,31 +8,28 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.HolyBar = {}
 local Main = GUB.Main
 local Bar = GUB.Bar
-
--- shared from Main.lua
-local LSM = Main.LSM
-local PowerTypeToNumber = Main.PowerTypeToNumber
-local MouseOverDesc = Main.MouseOverDesc
+local LSM = GUB.LSM
+local PowerTypeToNumber = GUB.PowerTypeToNumber
+local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -94,6 +91,11 @@ local HolyRunes = {
   }
 }
 
+-------------------------------------------------------------------------------
+-- Statuscheck    UnitBarsF function
+-------------------------------------------------------------------------------
+GUB.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
+
 --*****************************************************************************
 --
 -- Holybar display
@@ -132,15 +134,19 @@ local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
 end
 
 -------------------------------------------------------------------------------
--- UpdateHolyBar (Update) [UnitBar assigned function]
+-- Update    UnitBarsF function
 --
 -- Update the holy power level of the player
 --
--- usage: UpdateHolyBar(Event)
+-- usage: Update(Event)
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:UpdateHolyBar(Event)
+function GUB.UnitBarsF.HolyBar:Update(Event)
+  if not self.Enabled then
+    return
+  end
+
   local HolyPower = UnitPower('player', PowerHoly)
 
   -- Return if no change.
@@ -160,13 +166,11 @@ function GUB.HolyBar:UpdateHolyBar(Event)
 end
 
 -------------------------------------------------------------------------------
--- CancelAnimationHoly (CancelAnimation) [UnitBar assigned function]
---
--- Usage: CancelAnimationHoly()
+-- CancelAnimation    UnitBarsF function
 --
 -- Cancels all animation playing in the holy bar.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:CancelAnimationHoly()
+function GUB.UnitBarsF.HolyBar:CancelAnimation()
   UpdateHolyRunes(self, 0, true)
 end
 
@@ -177,11 +181,11 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksHoly (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicks    UnitBarsF function
 --
 -- This will enable or disbable mouse clicks for the holy bar.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:EnableMouseClicksHoly(Enable)
+function GUB.UnitBarsF.HolyBar:EnableMouseClicks(Enable)
   local HolyBar = self.HolyBar
 
   -- Enable/Disable normal mode.
@@ -192,11 +196,11 @@ function GUB.HolyBar:EnableMouseClicksHoly(Enable)
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScriptHoly (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScript    UnitBarsF function
 --
 -- Set up script handlers for the Holybar.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:FrameSetScriptHoly()
+function GUB.UnitBarsF.HolyBar:FrameSetScript()
   local HolyBar = self.HolyBar
 
   -- Enable normal mode. for the bar.
@@ -207,20 +211,11 @@ function GUB.HolyBar:FrameSetScriptHoly()
 end
 
 -------------------------------------------------------------------------------
--- EnableScreenClampHoly (EnableScreenClamp) [UnitBar assigned function]
---
--- Enables or disble screen clamp for the holy bar.
--------------------------------------------------------------------------------
-function GUB.HolyBar:EnableScreenClampHoly(Enable)
-  self.HolyBar:SetClamp(Enable)
-end
-
--------------------------------------------------------------------------------
--- SetAttrHoly  (SetAttr) [UnitBar assigned function]
+-- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the holybar.
 --
--- Usage: SetAttrHoly(Object, Attr)
+-- Usage: SetAttr(Object, Attr)
 --
 -- Object       Object being changed:
 --               'bg' for background (Border).
@@ -238,7 +233,7 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.HolyBar:SetAttrHoly(Object, Attr)
+function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
   local HolyBar = self.HolyBar
 
   -- Check scale and strata for 'frame'
@@ -318,13 +313,11 @@ function GUB.HolyBar:SetAttrHoly(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetLayoutHoly (SetLayout) [UnitBar assigned function]
+-- SetLayout    UnitBarsF function
 --
 -- Set a holybar to a new layout
---
--- Usage: SetLayoutHoly()
 -------------------------------------------------------------------------------
-function GUB.HolyBar:SetLayoutHoly()
+function GUB.UnitBarsF.HolyBar:SetLayout()
   local HolyBar = self.HolyBar
 
   -- Get the unitbar data.
@@ -380,7 +373,7 @@ function GUB.HolyBar:SetLayoutHoly()
   end
 
   -- Display the holybar.
-  self.Width, self.Height = HolyBar:Display()
+  self:SetSize(HolyBar:Display())
 end
 
 -------------------------------------------------------------------------------

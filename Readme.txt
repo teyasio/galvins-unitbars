@@ -69,20 +69,19 @@ First select the bar you want to copy from.  Then select the bar you want to cop
 you would like to copy.  Then click the copy button.  A warning will pop up to prevent accidental copying.
 
 * Alignment
-All bars can be aligned for perfection. Bars can be aligned either vertically or horizontally.
+All bars can be lined up for perfection. Bars can be lined either vertically or horizontally.
 
-- Align Bars with:  Here you choose the bar you want to align other bars with.
-- Bars to Align:  Pick the bars you want to align.
-- Type of Alignment:  You need specify if you want to line up the bars vertically your horizontally.
-- Alignment: This specifies if you want the top, bottom, left, or right of each bar to be lined up
-with the bar you picked in 'Align Bars With'.  If you're doing vertical then you'll have left or
-right as a choice.  If horizontal then you'll have top or bottom as a choice.
+You need to have bars unlocked.  To open the alignment tool you need to right click a bar.
+Once the alignment tool is open you'll need to select a primary bar by right clicking it.
+
+Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  Then clicking 'align' will make the changes.
+
+- Horizontal/Vertical:  This will either line up bars from left to right or top to bottom.
+If Horizontal then the vertical location of the bars is unchanged.
+If Vertical then the horizontal location of the bars is unchanged.
+- Justify: Set the justification.  Bars will then be lined up by their left, right, top, bottom sides.
 - Padding: Instead of just lining up bars you may want to have equal spacing between them as well.
 This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
-
-Once Align is clicked the tool goes into a real time mode.  What this means is if Type of Alignment,
-Alignment, or Padding gets changed.  The bars will get aligned again automatically.  But if you
-make any changes in bars to align or align bars with.  Then you'll need to click align again.
 
 * Profiles
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just

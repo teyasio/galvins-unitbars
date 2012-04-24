@@ -9,30 +9,27 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.RuneBar = {}
 local Main = GUB.Main
-
--- shared from Main.lua
-local LSM = Main.LSM
-local CheckEvent = Main.CheckEvent
-local MouseOverDesc = Main.MouseOverDesc
+local LSM = GUB.LSM
+local CheckEvent = GUB.CheckEvent
+local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub
-local pcall, pairs, ipairs, type, table, select, next, print =
-      pcall, pairs, ipairs, type, table, select, next, print
+local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort =
+      pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -46,57 +43,45 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- UnitBarF.UnitBar         Reference to the unitbar data for the runebar.
 -- UnitBarF.OffsetFrame     Offset frame for rotation. This is a parent of RuneF[].
 --                          This is used by SetLayoutRune()
--- UnitBarF.Border          Ivisible border thats surrounds the unitbar. This is used
---                          by SetScreenClamp.
 -- UnitBarF.ColorAllNames[] List of names to be used in the color all options panel.
--- UnitBarF.RuneF[]         Frame array 1 to 6 that keeps all the death knight runes.
+-- UnitBarF
+--   RuneF[]                Frame array 1 to 6 that keeps all the death knight runes.
 --                          This also contains the frame for the rune.
--- RuneF[].Anchor           Reference to the unitbar anchor for moving.
--- RuneF[].UnitBarF         Reference to the UnitBarF data for dragging/dropping and cooldown.
--- RuneF[].RuneNormalFrame  Frame to hide/show all textures/frames dealing with normal runes.
+--     Anchor               Reference to the unitbar anchor for moving.
+--     UnitBarF             Reference to the UnitBarF data for dragging/dropping and cooldown.
+--     RuneNormalFrame      Frame to hide/show all textures/frames dealing with normal runes.
 --                          Child of RuneFrame (RuneF[])
--- RuneF[].RuneCooldownBarFrame
---                          Frame to hide/show all cooldown bars dealing with cooldown bar runes.
+--     RuneCooldownBarFrame Frame to hide/show all cooldown bars dealing with cooldown bar runes.
 --                          Child of RuneFrame (RuneF[])
--- RuneF[].RuneCooldownBarEnergizeFrame
---                          Frame for the energize texture for the rune cooldown bar.
---                          Child of RuneFrame (RuneF[])
--- RuneF[].RuneCooldownBarEnergize
---                          Energize texture for the rune cooldown bar.
--- RuneF[].RuneBarTimer     Statusbar to keep track of the cooldown for the rune.  Used in cooldownbar mode.
---                          Child of RuneFrame (RuneF[])
--- RuneF[].TxtFrame         Frame for text. Child of RuneFrame (RuneF[])
--- RuneF[].Txt              Fontstring for the rune.  This is used for the timer text.
--- RuneF[].RuneIcon         The texture containing the rune.
--- RuneF[].RuneBorderFrame  The frame containing the rune border. Child of RuneNormalFrame
--- RuneF[].RuneBorder       The texture containing the rune.
--- RuneF[].RuneBorderEnergize
---                          Energize texture for the rune.
--- RuneF[].Cooldown         The cooldown frame also plays the cooldown animation.
--- RuneF[].Highlight        Rune highlight frame to highlight a rune for dragging/dropping.
--- RuneF[].CooldownBarHighlight
---                          Cooldown bar highlight frame to highlight a bar for dragging/dropping
--- RuneF[].CooldownEdgeFrame
---                          Frame that holds the spark texture in the cooldown bar.
--- RuneF[].CooldownEdge     CooldownEdge texture that is a child of CooldownEdgeFrame
--- RuneF[].Energize.RuneF   This is used by EndRuneEnergize().  For energize graphic.
--- RuneF[].RuneTrackingFrame
---                          Used for dragging/dropping.
+--     RuneCooldownBarEnergizeFrame
+--                          Frame for the energize border for the rune cooldown bar.
+--                          Child of RuneCooldownBarFrame.
+--     TxtFrame             Frame for text. Child of RuneFrame (RuneF[])
+--     Txt                  Fontstring for the rune.  This is used for the timer text.
+--     RuneIcon             The texture containing the rune.
+--     RuneBorderFrame      The frame containing the rune border. Child of RuneNormalFrame
+--     RuneBorder           The texture containing the rune.
+--     RuneBorderEnergize   Energize texture for the rune.
+--     Cooldown             The cooldown frame also plays the cooldown animation.
+--     Highlight            Rune highlight frame to highlight a rune for dragging/dropping.
+--     CooldownBarHighlight Cooldown bar highlight frame to highlight a bar for dragging/dropping
+--     CooldownEdgeFrame    Frame that holds the spark texture in the cooldown bar.
+--     CooldownEdge         CooldownEdge texture that is a child of CooldownEdgeFrame
+--     Energize.RuneF       This is used by EndRuneEnergize().  For energize graphic.
+--     RuneTrackingFrame    Used for dragging/dropping.
 --
--- RuneF[].RuneLocation     Reference to UnitBar.RuneBar.RuneLocation[Rune] table entry.
+--     RuneLocation         Reference to UnitBar.RuneBar.RuneLocation[Rune] table entry.
 --
--- RuneF[].RuneId           Number from 1 to 6. RuneId always matches the index into RuneF[].
--- RuneF[].RuneType         Type of rune based on the rune type constants.
+--     RuneId               Number from 1 to 6. RuneId always matches the index into RuneF[].
+--     RuneType             Type of rune based on the rune type constants.
 --
--- RuneF[].TooltipName      Tooltip text to display for mouse over when bars are unlocked.
--- RuneF[].TooltipDesc
--- RuneF[].TooltipDesc2     Descriptions under the name for mouse over.
+-- Runebar upvalues:
 --
 -- RuneEnter                When a rune frame is being dragged over another rune frame.  This contains
 --                          the number of that frame.  Equals nil if a dragged rune is not touching
 --                          another rune.
 --
--- MaxRunes                 Currently six.
+-- MaxRunes                 Maximum number of runes.
 -- RuneTexture              Contains the locations of the four death knight runes.
 -- RuneBorderTexture        Contains the location for the rune border.
 -- RuneHighlightTexture     Contains the highlight texture for rune dragging/dropping.
@@ -107,6 +92,29 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --                          Contains the location of the texture for energize for runes.
 -- CooldownBarEnergizeTexture
 --                          Contains the location of the texture for cooldown bars.
+-- RuneCooldownBarEnergizeBorder
+--                          Border used for RuneCooldownBarenergizeFrame.
+--
+-- Runebar frame layout: (T = texture)
+--
+-- ScaleFrame
+--   OffsetFrame
+--     RuneF
+--       TxtFrame
+--       RuneTrackingFrame
+--       RuneNormalFrame
+--         T Highlight
+--         T RuneIcon
+--         Cooldown    (clockface cooldown)
+--         RuneBorderFrame
+--           T RuneBorder
+--           T RuneBorderEnergize
+--       RuneCooldownBarFrame
+--         RuneCooldownBar
+--         RuneCooldownBarEnergizeFrame
+--         CooldownEdgeFrame
+--           T CooldownEdge
+--         CooldownBarHighlight
 -------------------------------------------------------------------------------
 local MouseOverDesc2 = 'Modifier + right mouse button to drag this rune'
 
@@ -137,6 +145,25 @@ local RuneTexture = {
   [RuneFrost]  = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Frost]],  -- 5 and 6
   [RuneDeath]  = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Death]]
 }
+
+local RuneCooldownBarEnergizeBorder = {
+  bgFile   = '',
+  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+  tile = true,
+  tileSize = 16,
+  edgeSize = 12,
+  insets = {
+    left = 4 ,
+    right = 4,
+    top = 4,
+    bottom = 4
+  }
+}
+
+-------------------------------------------------------------------------------
+-- Statuscheck    UnitBarsF function
+-------------------------------------------------------------------------------
+GUB.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -312,15 +339,16 @@ end
 -------------------------------------------------------------------------------
 local function RuneBarStartMoving(self, Button)
 
-  -- Check to see if shift/alt/control and left button are held down
-  if not IsModifierKeyDown() then
-    return
-  end
-
   -- Call the base moving function for group or anchor movement.
   if Main.UnitBarStartMoving(self.Anchor, Button) then
     self.UnitBarMoving = true
   else
+
+    -- Check to see if shift/alt/control and left button are held down
+    if not IsModifierKeyDown() then
+      return
+    end
+
     if Button == 'RightButton' then
 
       self.IsMoving = true
@@ -397,7 +425,7 @@ local function EndRuneEnergize(self, Elapsed)
   local RuneF = self.RuneF
 
   RuneF.RuneBorderEnergize:Hide()
-  RuneF.RuneCooldownBarEnergize:Hide()
+  RuneF.RuneCooldownBarEnergizeFrame:Hide()
   Main:SetTimer(self, nil)
 end
 
@@ -485,7 +513,7 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
       RuneF.RuneBorderEnergize:Show()
     end
     if EnergizeShow == 'cooldownbar' or EnergizeShow == 'runecooldownbar' then
-      RuneF.RuneCooldownBarEnergize:Show()
+      RuneF.RuneCooldownBarEnergizeFrame:Show()
     end
     Main:SetTimer(RuneF.Energize, Gen.EnergizeTime, EndRuneEnergize)
   end
@@ -506,20 +534,24 @@ local function RefreshRune(RuneF, HideCooldownFlash)
   RuneF.RuneIcon:SetTexture(RuneTexture[RuneType])
 
   -- Update tooltip name.
-  RuneF.TooltipName = GetRuneName(RuneF)
+  Main:SetTooltip(RuneF, GetRuneName(RuneF))
 end
 
 -------------------------------------------------------------------------------
--- UpdateRuneBar (Update)  [UnitBar assigned function]
+-- Update    UnitBarsF function
 --
--- Usage: UpdateRuneBar(Event, ...)
+-- Usage: Update(Event, ...)
 --
 -- Event                    Rune type event.  If this is not a rune event
 --                          function does nothing.
 -- ...        RuneId        RuneId from 1 to 6.
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
-function GUB.RuneBar:UpdateRuneBar(Event, ...)
+function GUB.UnitBarsF.RuneBar:Update(Event, ...)
+  if not self.Enabled then
+    return
+  end
+
   local EventType = CheckEvent[Event]
   if EventType == 'runepower' or EventType == 'runetype' then
 
@@ -541,7 +573,6 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
       elseif EventType == 'runepower' then
         local Energize = select(2, ...)
         local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
-
         StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
       end
     end
@@ -565,6 +596,17 @@ function GUB.RuneBar:UpdateRuneBar(Event, ...)
   end
 end
 
+-------------------------------------------------------------------------------
+-- CancelAnimation    UnitBarsF function
+--
+-- Usage: CancelAnimation()
+--
+-- Cancels all animation playing in the combo bar.
+-------------------------------------------------------------------------------
+function GUB.UnitBarsF.RuneBar:CancelAnimation()
+  -- do nothing.
+end
+
 --*****************************************************************************
 --
 -- Runebar creation/setting
@@ -572,22 +614,22 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksRune (EnableMouseClicks) [UnitBar assigned function]
+-- EnableMouseClicks    UnitBarsF function
 --
 -- This will enable or disbale mouse clicks for the rune icons.
 -------------------------------------------------------------------------------
-function GUB.RuneBar:EnableMouseClicksRune(Enable)
+function GUB.UnitBarsF.RuneBar:EnableMouseClicks(Enable)
   for _, RF in ipairs(self.RuneF) do
     RF:EnableMouse(Enable)
   end
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScriptRune (FrameSetScript) [UnitBar assigned function]
+-- FrameSetScript    UnitBarsF function
 --
 -- Set up script handlers for the Runebar.
 -------------------------------------------------------------------------------
-function GUB.RuneBar:FrameSetScriptRune(Enable)
+function GUB.UnitBarsF.RuneBar:FrameSetScript(Enable)
   for _, RF in ipairs(self.RuneF) do
     if Enable then
       RF:SetScript('OnMouseDown', RuneBarStartMoving)
@@ -610,20 +652,11 @@ function GUB.RuneBar:FrameSetScriptRune(Enable)
 end
 
 -------------------------------------------------------------------------------
--- EnableScreenClampRune (EnableScreenClamp) [UnitBar assigned function]
---
--- Enables or disble screen clamp for runes
--------------------------------------------------------------------------------
-function GUB.RuneBar:EnableScreenClampRune(Enable)
-  self.Border:SetClampedToScreen(Enable)
-end
-
--------------------------------------------------------------------------------
--- SetAttrRune  (SetAttr) [UnitBar assigned function]
+-- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the runebar.
 --
--- Usage: SetAttrRune(Object, Attr)
+-- Usage: SetAttr(Object, Attr)
 --
 -- Object       Object being changed:
 --               'bg'        for background (Border).
@@ -644,7 +677,7 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.RuneBar:SetAttrRune(Object, Attr)
+function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -736,7 +769,7 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
             -- Get color based on runetype
             EnergizeColor = Energize.Color[RuneColorIndex]
           end
-          RF.RuneCooldownBarEnergize:SetVertexColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
+          RF.RuneCooldownBarEnergizeFrame:SetBackdropBorderColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
           RF.RuneBorderEnergize:SetVertexColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
         end
       end
@@ -767,13 +800,13 @@ function GUB.RuneBar:SetAttrRune(Object, Attr)
 end
 
 -------------------------------------------------------------------------------
--- SetLayoutRune (SetLayout) [UnitBar assigned function]
+-- SetLayout    UnitBarsF function
 --
 -- Sets a runebar with a new layout.
 --
--- Usage: SetLayoutRune(UnitBarF)
+-- Usage: SetLayout(UnitBarF)
 -------------------------------------------------------------------------------
-function GUB.RuneBar:SetLayoutRune()
+function GUB.UnitBarsF.RuneBar:SetLayout()
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -942,11 +975,7 @@ function GUB.RuneBar:SetLayoutRune()
       SetCooldownSize(RF.Cooldown, RuneSize)
 
       -- Set the draw edge.
-      if DrawEdge then
-        RF.Cooldown:SetDrawEdge(1)
-      else
-        RF.Cooldown:SetDrawEdge(0)
-      end
+      RF.Cooldown:SetDrawEdge(DrawEdge and 1 or 0)
     end
 
     -- Cooldown mode with or without rune.
@@ -1005,10 +1034,6 @@ function GUB.RuneBar:SetLayoutRune()
     RefreshRune(RF)
   end
 
-  local Border = self.Border
-  Border:ClearAllPoints()
-  Border:SetPoint('TOPLEFT', 0, 0)
-
   -- Calculate the offsets for the offset frame for when not in bar mode.
   -- Also get the width/height for the border.
   -- The border gets offsetted, but then we need to shift the offset frame in the opposite direction.
@@ -1020,14 +1045,22 @@ function GUB.RuneBar:SetLayoutRune()
                                                      RuneLocation[4].x, RuneLocation[4].y, Width, Height,
                                                      RuneLocation[5].x, RuneLocation[5].y, Width, Height,
                                                      RuneLocation[6].x, RuneLocation[6].y, Width, Height)
-    OffsetFX = -x
-    OffsetFY = -y
-    Border:SetPoint('TOPLEFT', x, y)
-  end
 
-  -- Set the size of the border.
-  Border:SetWidth(BorderWidth)
-  Border:SetHeight(BorderHeight)
+    -- Shift all the runes in the opposite direction.
+    for RuneIndex, RF in ipairs(RuneF) do
+      local RL = RuneLocation[RuneIndex]
+      local x1, y1 = RL.x - x, RL.y - y
+      RF:SetPoint('TOPLEFT', x1, y1)
+      RL.x, RL.y = x1, y1
+    end
+
+    -- Set unitbar size and offset the unitbar by x, y
+    self:SetSize(BorderWidth, BorderHeight, x, y)
+  else
+
+    -- set the unibat size but don't offset.
+    self:SetSize(BorderWidth, BorderHeight)
+  end
 
   -- Set the offsets to the offset frame.
   local OffsetFrame = self.OffsetFrame
@@ -1038,10 +1071,6 @@ function GUB.RuneBar:SetLayoutRune()
 
     -- Set all attributes.
   self:SetAttr(nil, nil)
-
-  -- Save size data to self (UnitBarF).
-  self.Width = BorderWidth
-  self.Height = BorderHeight
 end
 
 -------------------------------------------------------------------------------
@@ -1058,79 +1087,84 @@ local function CreateRune(RuneType, RuneF)
 
   -- Create a RuneNormalFrame for easy hiding/showing of runes.
   local RuneNormalFrame = CreateFrame('Frame', nil, RuneF)
-  RuneNormalFrame:SetFrameLevel(RuneNormalFrame:GetFrameLevel() + 5)
 
-  -- Create the text frame so that it can work with cooldown bars or rune textures.
-  -- Set the frame level so its higher than the RuneBorderFrame.
-  local TxtFrame = CreateFrame('Frame', nil, RuneF)
-  TxtFrame:SetAllPoints(RuneF)
-  TxtFrame:SetFrameLevel(TxtFrame:GetFrameLevel() + 10)
-  local Txt = TxtFrame:CreateFontString(nil, 'OVERLAY')
+    -- Create the highlight texture.
+    local Highlight = RuneNormalFrame:CreateTexture(nil, 'OVERLAY')
+    Highlight:SetPoint('TOPLEFT', -5, 5)
+    Highlight:SetPoint('BOTTOMRIGHT', 5, -5)
 
-  -- Create the rune icon for the rune.
-  local RuneIcon = RuneNormalFrame:CreateTexture(nil, 'BACKGROUND')
-  RuneIcon:SetTexture(RuneTexture[RuneType])
-  RuneIcon:SetAllPoints(RuneNormalFrame)
+    -- Create the text frame so that it can work with cooldown bars or rune textures.
+    -- Set the frame level so its higher than the RuneBorderFrame.
+    local TxtFrame = CreateFrame('Frame', nil, RuneF)
+    TxtFrame:SetAllPoints(RuneF)
+    local Txt = TxtFrame:CreateFontString(nil, 'OVERLAY')
 
-  -- Create the cooldown frame for the rune.
-  local Cooldown = CreateFrame('Cooldown', nil, RuneNormalFrame)
-  Cooldown:SetPoint('CENTER', RuneIcon, 'CENTER', 0, 1)
+    -- Create the rune icon for the rune.
+    local RuneIcon = RuneNormalFrame:CreateTexture(nil, 'BACKGROUND')
+    RuneIcon:SetTexture(RuneTexture[RuneType])
+    RuneIcon:SetAllPoints(RuneNormalFrame)
 
-  -- Create the border frame for the border that gets drawn ontop of the cooldown frame.
-  local RuneBorderFrame = CreateFrame('Frame', nil, RuneNormalFrame)
-  RuneBorderFrame:SetFrameLevel(Cooldown:GetFrameLevel() + 1)
-  RuneBorderFrame:SetAllPoints(RuneNormalFrame)
+    -- Create the cooldown frame for the rune.
+    local Cooldown = CreateFrame('Cooldown', nil, RuneNormalFrame)
+    Cooldown:SetPoint('CENTER', RuneIcon, 'CENTER', 0, 1)
 
-  -- Create the border texture for the rune.
-  local RuneBorder = RuneBorderFrame:CreateTexture(nil, 'ARTWORK')
-  RuneBorder:SetTexture(RuneBorderTexture)
-  RuneBorder:SetAllPoints(RuneBorderFrame)
-  RuneBorder:SetVertexColor(0.6, 0.6, 0.6, 1)
+    -- Create the border frame for the border that gets drawn ontop of the cooldown frame.
+    local RuneBorderFrame = CreateFrame('Frame', nil, RuneNormalFrame)
+    RuneBorderFrame:SetAllPoints(RuneNormalFrame)
 
-  -- Create the energize border texture for the rune.
-  local RuneBorderEnergize = RuneBorderFrame:CreateTexture(nil, 'OVERLAY')
-  RuneBorderEnergize:SetTexture(RuneBorderTextureEnergize)
-  RuneBorderEnergize:SetAllPoints(RuneBorderFrame)
-  RuneBorderEnergize:SetVertexColor(1, 1, 1, 1)
-  RuneBorderEnergize:Hide()
+      -- Create the border texture for the rune.
+      local RuneBorder = RuneBorderFrame:CreateTexture(nil, 'ARTWORK')
+      RuneBorder:SetTexture(RuneBorderTexture)
+      RuneBorder:SetAllPoints(RuneBorderFrame)
+      RuneBorder:SetVertexColor(0.6, 0.6, 0.6, 1)
 
-  -- Create the highlight texture.
-  local Highlight = RuneNormalFrame:CreateTexture(nil, 'OVERLAY')
-  Highlight:SetPoint('TOPLEFT', -5, 5)
-  Highlight:SetPoint('BOTTOMRIGHT', 5, -5)
+      -- Create the energize border texture for the rune.
+      local RuneBorderEnergize = RuneBorderFrame:CreateTexture(nil, 'OVERLAY')
+      RuneBorderEnergize:SetTexture(RuneBorderTextureEnergize)
+      RuneBorderEnergize:SetAllPoints(RuneBorderFrame)
+      RuneBorderEnergize:SetVertexColor(1, 1, 1, 1)
+      RuneBorderEnergize:Hide()
 
   -- Create the RuneCooldownBarFrame for easy hiding/showing of the cooldown bars.
   local RuneCooldownBarFrame = CreateFrame('Frame', nil, RuneF)
 
-  -- Create a statusbar texture for the cooldown bar timer.
-  local RuneCooldownBar = CreateFrame('StatusBar', nil, RuneCooldownBarFrame)
-  RuneCooldownBar:SetMinMaxValues(0, 1)
-  RuneCooldownBar:SetValue(0)
+    -- Create the highlight border for the cooldown bar
+    local CooldownBarHighlight = CreateFrame('Frame', nil, RuneCooldownBarFrame)
+    CooldownBarHighlight:SetPoint('TOPLEFT', -3, 3)
+    CooldownBarHighlight:SetPoint('BOTTOMRIGHT', 3, -3)
 
-  -- Create a energize frame for cooldown bar.
-  local RuneCooldownBarEnergizeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
-  RuneCooldownBarEnergizeFrame:SetFrameLevel(RuneCooldownBarEnergizeFrame:GetFrameLevel() + 10)
-  RuneCooldownBarEnergizeFrame:SetAllPoints(RuneCooldownBarFrame)
+    -- Create a statusbar texture for the cooldown bar timer.
+    local RuneCooldownBar = CreateFrame('StatusBar', nil, RuneCooldownBarFrame)
+    RuneCooldownBar:SetMinMaxValues(0, 1)
+    RuneCooldownBar:SetValue(0)
 
-  -- Create a texture for cooldown bar energize.
-  local RuneCooldownBarEnergize = RuneCooldownBarEnergizeFrame:CreateTexture(nil, 'OVERLAY')
-  RuneCooldownBarEnergize:SetTexture(CooldownBarEnergizeTexture)
-  RuneCooldownBarEnergize:SetAllPoints(RuneCooldownBarEnergizeFrame)
-  RuneCooldownBarEnergize:Hide()
+    -- Create a energize frame for cooldown bar.
+    local RuneCooldownBarEnergizeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
+    RuneCooldownBarEnergizeFrame:SetAllPoints(RuneCooldownBarFrame)
+    RuneCooldownBarEnergizeFrame:SetBackdrop(RuneCooldownBarEnergizeBorder)
+    RuneCooldownBarEnergizeFrame:Hide()
 
   -- Create the cooldown edge frame
   local CooldownEdgeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
 
-  -- Create the cooldown edge texture
-  local CooldownEdge = CooldownEdgeFrame:CreateTexture(nil, 'OVERLAY')
-  CooldownEdge:SetTexture(CooldownBarSparkTexture.Texture)
-  CooldownEdge:SetBlendMode('ADD')
-  CooldownEdge:SetAllPoints(CooldownEdgeFrame)
+    -- Create the cooldown edge texture
+    local CooldownEdge = CooldownEdgeFrame:CreateTexture(nil, 'OVERLAY')
+    CooldownEdge:SetTexture(CooldownBarSparkTexture.Texture)
+    CooldownEdge:SetBlendMode('ADD')
+    CooldownEdge:SetAllPoints(CooldownEdgeFrame)
 
-  -- Create the highlight border for the cooldown bar
-  local CooldownBarHighlight = CreateFrame('Frame', nil, RuneCooldownBarFrame)
-  CooldownBarHighlight:SetPoint('TOPLEFT', -3, 3)
-  CooldownBarHighlight:SetPoint('BOTTOMRIGHT', 3, -3)
+  -- Set frame levels.
+
+  -- Set text to be above all.
+  TxtFrame:SetFrameLevel(RuneBorderFrame:GetFrameLevel() + 1)
+
+ -- RuneNormalFrame:SetFrameLevel(RuneNormalFrame:GetFrameLevel() + 5)
+
+  -- Make rune border appear above clockface cooldown.
+  RuneBorderFrame:SetFrameLevel(Cooldown:GetFrameLevel() + 1)
+
+  -- Make the energize texture appear on top of the cooldown bar.
+  RuneCooldownBarEnergizeFrame:SetFrameLevel(RuneCooldownBarEnergizeFrame:GetFrameLevel() + 1)
 
   -- Create a table for energize.
   RuneF.Energize = {RuneF = RuneF}
@@ -1152,7 +1186,6 @@ local function CreateRune(RuneType, RuneF)
   RuneF.RuneCooldownBarFrame = RuneCooldownBarFrame
   RuneF.RuneCooldownBar = RuneCooldownBar
   RuneF.RuneCooldownBarEnergizeFrame = RuneCooldownBarEnergizeFrame
-  RuneF.RuneCooldownBarEnergize = RuneCooldownBarEnergize
   RuneF.CooldownEdgeFrame = CooldownEdgeFrame
   RuneF.CooldownEdge = CooldownEdge
 end
@@ -1171,13 +1204,8 @@ end
 -------------------------------------------------------------------------------
 function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
-  local Border = CreateFrame('Frame', nil, ScaleFrame)
-
-  -- Make the border frame top when clicked.
-  Border:SetToplevel(true)
-
   -- Create the offset frame.
-  local OffsetFrame = CreateFrame('Frame', nil, Border)
+  local OffsetFrame = CreateFrame('Frame', nil, ScaleFrame)
 
   local RuneF = {}
   local ColorAllNames = {}
@@ -1209,9 +1237,8 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
     -- Set the text for tooltips/options.
     local Name = GetRuneName(RF)
-    RF.TooltipName = Name
-    RF.TooltipDesc = MouseOverDesc
-    RF.TooltipDesc2 = MouseOverDesc2
+    Main:SetTooltip(RF, Name, MouseOverDesc)
+    Main:SetTooltip(RF, nil, MouseOverDesc2)
     ColorAllNames[RF.RuneId] = Name
 
     RuneF[Rune] = RF
@@ -1224,8 +1251,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames
 
-  -- Save the rune frames and border.
-  UnitBarF.Border = Border
+  -- Save the rune frames.
   UnitBarF.OffsetFrame = OffsetFrame
   UnitBarF.RuneF = RuneF
 end

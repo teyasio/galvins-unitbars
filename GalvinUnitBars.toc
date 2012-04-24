@@ -2,7 +2,7 @@
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
-## Version: 102
+## Version: 104
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB
 
@@ -29,6 +29,7 @@ Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 
 Main.lua
 Bar.lua
+WoWUI.lua
 HealthPowerBar.lua
 RuneBar.lua
 ComboBar.lua

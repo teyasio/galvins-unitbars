@@ -63,15 +63,19 @@ This allows you to copy the settings of one bar to another.  Not everything can 
 
 
 |cff00ff00Align Bars|r
-All bars can be aligned for perfection. Bars can be aligned either vertically or horizontally.
+All bars can be lined up for perfection. Bars can be lined either vertically or horizontally.
 
-- Align Bars with:  Here you choose the bar you want to align other bars with.
-- Bars to Align:  Pick the bars you want to align.
-- Type of Alignment:  You need specify if you want to line up the bars vertically your horizontally.
-- Alignment: This specifies if you want the top, bottom, left, or right of each bar to be lined up with the bar you picked in 'Align Bars With'.  If you're doing vertical then you'll have left or right as a choice.  If horizontal then you'll have top or bottom as a choice.
-- Padding: Instead of just lining up bars you may want to have equal spacing between them as well.  This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
+You need to have bars unlocked.  To open the alignment tool you need to right click a bar.
+Once the alignment tool is open you'll need to select a primary bar by right clicking it.
 
-Once Align is clicked the tool goes into a real time mode.  What this means is if Type of Alignment, Alignment, or Padding gets changed.  The bars will get aligned again automatically.  But if you make any changes in bars to align or align bars with.  Then you'll need to click align again.
+Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  Then clicking 'align' will make the changes.
+
+- Horizontal/Vertical:  This will either line up bars from left to right or top to bottom.
+If Horizontal then the vertical location of the bars is unchanged.
+If Vertical then the horizontal location of the bars is unchanged.
+- Justify: Set the justification.  Bars will then be lined up by their left, right, top, bottom sides.
+- Padding: Instead of just lining up bars you may want to have equal spacing between them as well.
+This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
 
 
 |cff00ff00Profiles|r

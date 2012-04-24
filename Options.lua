@@ -8,12 +8,13 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.Options = {}
 local Main = GUB.Main
-local PowerColorType = Main.PowerColorType
-local LSM = Main.LSM
-local UnitBarsF = Main.UnitBarsF
-local Defaults = Main.Defaults
+local WoWUI = GUB.WoWUI
+local UnitBarsF = GUB.UnitBarsF
+local PowerColorType = GUB.PowerColorType
+local LSM = GUB.LSM
+
+local Defaults = GUB.Defaults
 local HelpText = GUB.Help.HelpText
 
 -- localize some globals.
@@ -35,6 +36,7 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 -- SlashOptions                  Options only used by slash commands. This is accessed
 --                               by typing '/gub'.
 -- ProfileOptions                Options for the profiles.
+-- GUB.Options.ATOFrame          Contains the alignment tool options window.
 --
 -- SetFunctions                  Table used to save and call functions thru SetFunction()
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
@@ -45,8 +47,6 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 -- ValueNameDropdownPredicted    Same as above except used for bars that support predicted value.
 -- MaxValuesDropdown             Tanle used for the dialog drop down for Health and power text type.
 -- UnitBarsSelectDropdown        Table used to pick from a list of unitbars.
--- AlignBarsDropdown             Table used for horizontal alignment dropdown.
--- AlignmentTypeDropdown         Table used to pick vertical or horizontal alignment.
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -- RuneEnergizeDropdown          Table used for changing rune energize.
@@ -162,9 +162,6 @@ local BoxBarWidthMax = 100
 local BoxBarHeightMin = 10
 local BoxBarHeightMax = 100
 
-local AlignmentPaddingMin = -10
-local AlignmentPaddingMax = 50
-
 local FontStyleDropdown = {
   NONE = 'None',
   OUTLINE = 'Outline',
@@ -245,22 +242,6 @@ local UnitBarsSelectDropdown = {
   HolyBar = Defaults.profile.HolyBar.Name,
   ShardBar = Defaults.profile.ShardBar.Name,
   EclipseBar = Defaults.profile.EclipseBar.Name
-}
-
-local AlignBarsDropdown = {
-  horizontal = {
-    top = 'Top',
-    bottom = 'Bottom',
-  },
-  vertical = {
-    left = 'Left',
-    right = 'Right',
-  }
-}
-
-local AlignmentTypeDropdown = {
-  vertical = 'Vertical Alignment',
-  horizontal = 'Horizontal Alignment'
 }
 
 local DirectionDropdown = {
@@ -1571,7 +1552,6 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
   local ABarWidthKey = format('%s%s', 'Advanced', BarWidthKey)
   local ABarHeightKey = format('%s%s', 'Advanced', BarHeightKey)
 
-
   SetFunction(FunctionLabel, function()
     local t = GetTable(BarType, 'Bar', TableName)
     BarSizeOptions.args[ABarWidthKey].min = t[BarWidthKey] - UnitBarOffset
@@ -1624,7 +1604,7 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
       Advanced = {
         type = 'toggle',
         name = 'Advanced',
-        desc = 'When checked, allows you to make fine tune adjustments easier',
+        desc = 'If checked, allows you to make fine tune adjustments easier',
         order = 1,
         get = function()
                 return GetTable(BarType, 'Bar', TableName).Advanced
@@ -1905,7 +1885,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     BarOptions.args.PowerColors = CreatePowerColorsOptions(BarType, 2, 'Power Color')
   end
 
-  -- Add bar color options if its a combobar or shardbar. And remove HapWidth and HapHeight options.
+  -- Add bar color options if its a combobar or shardbar.
   if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
     local MaxColors = 5
     if BarType == 'HolyBar' or BarType == 'ShardBar' then
@@ -3215,390 +3195,6 @@ local function CreateCopySettingsOptions(Order, Name)
 end
 
 -------------------------------------------------------------------------------
--- CreateAlignUnitBarsOptions
---
--- Create alignment options that allow you to line up bars with other bars.
---
--- Subfunction of CreateMainOptions()
---
--- Usage: AlignOptions = CreateAlignUnitBarsOptions(Order, Name)
---
--- Order            Order number for the options.
--- Name             Name for the option to appear in the tree.
---
--- AlignOptions     Options table for alignment.
---
--- NOTES:
--- BarsHidden[BarType]    If true then that bar can't be checked off.
---                        If false then then that bar can be checked off.
--- BarsChecked[BarType]   If true then that bar has been checked off.
---                        If false then thatb bar hasn't been checked off.
---
--- To build the BarsToAlign list:
--- If the bartype is not hidden then BarsToAlign[BarType] is set
--- to the true/false value found in BarsChecked.  If the bartype is hidden
--- then BarsToAlign[BarType] is set to false.
--------------------------------------------------------------------------------
-local function CreateAlignUnitBarsOptions(Order, Name)
-  local AlignmentType = 'vertical'
-  local Padding = 0
-  local PadEnabled = false
-
-  local AlignmentBar = nil
-  local AlignmentBarName = nil
-  local ARealTime = false
-
-  -- List of bars to align.
-  local BarsToAlign = {}
-
-  -- List of bars for the check boxes.
-  local BarsChecked = {}
-  local BarsHidden = {}
-
-  local Alignment = {
-    vertical = 'left',
-    horizontal = 'top'
-  }
-
-  -- Function inside of a function.  But yeah I didn't want to call this huge thing in 4 different places.
-  local function AlignBars()
-    Main:AlignUnitBars(AlignmentBar, BarsToAlign, AlignmentType, Alignment[AlignmentType], PadEnabled, Padding)
-  end
-
-  local AlignOptions = {
-    type = 'group',
-    name = Name,
-    desc = 'Align one or more bars with another',
-    order = Order,
-    args = {
-      AlignmentBar = {
-        type = 'select',
-        name = 'Align Bars with',
-        order = 1,
-        desc = 'Pick the bar to align other bars with',
-        values = UnitBarsSelectDropdown,
-        style = 'dropdown',
-        get = function()
-                return AlignmentBar
-              end,
-        set = function(Info, Value)
-                AlignmentBar = Value
-                AlignmentBarName = UnitBars[AlignmentBar].Name
-                ARealTime = false
-              end,
-      },
-      AlignBars = {
-        type = 'group',
-        name = 'Bars to Align',
-        dialogInline = true,
-        order = 2,
-        disabled = function()
-                     return AlignmentBar == nil
-                   end,
-        get = function(Info)
-                return BarsChecked[Info[#Info]]
-              end,
-        set = function(Info, Value)
-                BarsChecked[Info[#Info]] = Value
-                ARealTime = false
-              end,
-        args = {
-          PlayerHealth = {
-            type = 'toggle',
-            name = 'Player Health',
-            order = 1,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'PlayerHealth'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Player Health with %s', AlignmentBarName)
-                   end
-          },
-          PlayerPower = {
-            type = 'toggle',
-            name = 'Player Power',
-            order = 2,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'PlayerPower'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Player Power with %s', AlignmentBarName)
-                   end
-          },
-          TargetHealth = {
-            type = 'toggle',
-            name = 'Target Health',
-            order = 3,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'TargetHealth'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Target Health with %s', AlignmentBarName)
-                   end
-          },
-          TargetPower = {
-            type = 'toggle',
-            name = 'Target Power',
-            order = 4,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'TargetPower'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Target Power with %s', AlignmentBarName)
-                   end
-          },
-          FocusHealth = {
-            type = 'toggle',
-            name = 'Focus Health',
-            order = 5,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'FocusHealth'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Focus Health with %s', AlignmentBarName)
-                   end
-          },
-          FocusPower = {
-            type = 'toggle',
-            name = 'Focus Power',
-            order = 6,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'FocusPower'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Focus Power with %s', AlignmentBarName)
-                   end
-          },
-          PetHealth = {
-            type = 'toggle',
-            name = 'Pet Health',
-            order = 7,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'PetHealth'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Pet Health with %s', AlignmentBarName)
-                   end
-          },
-          PetPower = {
-            type = 'toggle',
-            name = 'Pet Power',
-            order = 8,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'PetPower'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Pet Power with %s', AlignmentBarName)
-                   end
-          },
-          MainPower = {
-            type = 'toggle',
-            name = 'Main Power',
-            order = 9,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'MainPower'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Main Power with %s', AlignmentBarName)
-                   end
-          },
-          RuneBar = {
-            type = 'toggle',
-            name = 'Rune Bar',
-            order = 10,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'RuneBar'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Rune Bar with %s', AlignmentBarName)
-                   end
-          },
-          ComboBar = {
-            type = 'toggle',
-            name = 'Combo Bar',
-            order = 11,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'ComboBar'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Combo Bar with %s', AlignmentBarName)
-                   end
-          },
-          HolyBar = {
-            type = 'toggle',
-            name = 'Holy Bar',
-            order = 12,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'HolyBar'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Combo Bar with %s', AlignmentBarName)
-                   end
-          },
-          ShardBar = {
-            type = 'toggle',
-            name = 'Shard Bar',
-            order = 13,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'ShardBar'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Shard Bar with %s', AlignmentBarName)
-                   end
-          },
-          EclipseBar = {
-            type = 'toggle',
-            name = 'Eclipse Bar',
-            order = 14,
-            hidden = function(Info)
-                       local Value = AlignmentBar == 'EclipseBar'
-                       BarsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = function()
-                     return format('Align Eclipse Bar with %s', AlignmentBarName)
-                   end
-          },
-        },
-      },
-      AlignmentSettings = {
-        type = 'group',
-        name = 'Alignment Settings',
-        dialogInline = true,
-        order = 3,
-        disabled = function()
-                     return not ListChecked(BarsChecked, BarsHidden)
-                   end,
-        args = {
-          AlignmentType = {
-            type = 'select',
-            name = 'Type of Alignment',
-            order = 1,
-            desc = 'Align bars vertically or horizontally',
-            values = AlignmentTypeDropdown,
-            get = function()
-                    return AlignmentType
-                  end,
-            set = function(Info, Value)
-                    AlignmentType = Value
-                    if ARealTime then
-                      AlignBars()
-                    end
-                  end,
-          },
-          Alignment = {
-            type = 'select',
-            name = 'Alignment',
-            order = 2,
-            desc = 'Align each bar to the left or right',
-            values = function()
-                       return AlignBarsDropdown[AlignmentType]
-                     end,
-            style = 'dropdown',
-            get = function()
-                    return Alignment[AlignmentType]
-                  end,
-            set = function(Info, Value)
-                    Alignment[AlignmentType] = Value
-                    if ARealTime then
-                      AlignBars()
-                    end
-                  end,
-          },
-          PadEnabled = {
-            type = 'toggle',
-            name = 'Enable Padding',
-            order = 3,
-            get = function()
-                    return PadEnabled
-                  end,
-            set = function(Info, Value)
-                    PadEnabled = Value
-                  end,
-          },
-          Padding = {
-            type = 'range',
-            name = 'Padding',
-            order = 4,
-            disabled = function()
-                         return not PadEnabled
-                       end,
-            desc = 'The amount of padding between bars',
-            min = AlignmentPaddingMin,
-            max = AlignmentPaddingMax,
-            step = 1,
-            get = function()
-                    return Padding
-                  end,
-            set = function(Info, Value)
-                    Padding = Value
-                    if ARealTime then
-                      AlignBars()
-                    end
-                  end,
-          },
-        },
-      },
-      Align = {
-        type = 'execute',
-        name = 'Align',
-        order = 100,
-        desc = function()
-                 if AlignmentBarName then
-                   return format('Align with %s. Once clicked Alignment Settings can be changed without having to click this button', AlignmentBarName)
-                 else
-                   return 'Align'
-                 end
-               end,
-        disabled = function()
-                     return not ListChecked(BarsChecked, BarsHidden)
-                   end,
-        func = function()
-                 for BarType, Hidden in pairs(BarsHidden) do
-                   if not Hidden then
-                     BarsToAlign[BarType] = BarsChecked[BarType]
-                   else
-                     BarsToAlign[BarType] = false
-                   end
-                 end
-                   AlignBars()
-
-                 --Allow real time ajustments for Vertical Padding and alignement
-                 ARealTime = true
-               end,
-      },
-    },
-  }
-  return AlignOptions
-end
-
--------------------------------------------------------------------------------
 -- CreateMainOptions
 --
 -- Returns the main options table.
@@ -3666,10 +3262,16 @@ local function CreateMainOptions()
             order = 5,
             desc = 'Turns off the description in mouse over tooltips when bars are not locked',
           },
+          AlignmentToolEnabled = {
+            type = 'toggle',
+            name = 'Enable Alignment Tool',
+            order = 6,
+            desc = 'If unchecked, right clicking a unitbar will not open the alignment tool',
+          },
           FadeOutTime = {
             type = 'range',
             name = 'Fadeout Time',
-            order = 6,
+            order = 7,
             desc = 'The amount of time in seconds to fade out a bar',
             min = 0,
             max = 5,
@@ -3685,7 +3287,7 @@ local function CreateMainOptions()
           HideAllBars = {
             type = 'execute',
             name = 'Hide All Bars',
-            order = 7,
+            order = 8,
             desc = 'Sets all the bars to never show',
             confirm = true,
             func = function()
@@ -3770,7 +3372,6 @@ local function CreateMainOptions()
         order = 3,
         args = {
           CopySettings = CreateCopySettingsOptions(1, 'Copy Settings'),
-          AlignBars = CreateAlignUnitBarsOptions(2, 'Align Bars'),
         },
       },
 --=============================================================================
@@ -3816,6 +3417,119 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- Alignment tool options window
+-------------------------------------------------------------------------------
+local function CreateAlignmentToolOptions()
+
+  -- Options
+  local PaddingEnabled = false
+  local Alignment = nil
+  local Justify = nil
+  local Padding = nil
+
+  local HorizontalRadio = nil
+  local VerticalRadio = nil
+  local AlignRadio1 = nil
+  local AlignRadio2 = nil
+  local PaddingSlider = nil
+
+  local function HRadioSet(self)
+    if self.Checked then
+      VerticalRadio:SetValue(false)
+      AlignRadio1:SetLabel('Justify Top')
+      AlignRadio2:SetLabel('Justify Bottom')
+      Alignment = 'horizontal'
+    end
+  end
+
+  local function VRadioSet(self)
+    if self.Checked then
+      HorizontalRadio:SetValue(false)
+      AlignRadio1:SetLabel('Justify Left')
+      AlignRadio2:SetLabel('Justify Right')
+      Alignment = 'vertical'
+    end
+  end
+
+  local function ARadioSet1(self)
+    if self.Checked then
+      AlignRadio2:SetValue(false)
+      Justify = 1
+    end
+  end
+
+  local function ARadioSet2(self)
+    if self.Checked then
+      AlignRadio1:SetValue(false)
+      Justify = 2
+    end
+  end
+
+  local function EnablePaddingSet(self)
+    PaddingEnabled = self.Checked
+    PaddingSlider:SetEnabled(PaddingEnabled)
+  end
+
+  local function AButtonSet(self)
+    Main:AlignUnitBars(Alignment, Justify, PaddingEnabled, Padding)
+  end
+
+  local function PaddingSet(self)
+    Padding = self:GetValue()
+    AButtonSet()
+  end
+
+  local function WindowFrame(self, Event)
+    if Event == 'close' then
+      Main:EnableSelectMode(false)
+    elseif Event == 'show' then
+
+      -- If the tool is enabled then open.
+      if UnitBars.AlignmentToolEnabled then
+        Main:EnableSelectMode(true)
+      else
+        self:Hide()
+      end
+    end
+  end
+
+
+  -- Create Alignment Control frame.
+  local ATOFrame = WoWUI:CreateControlWindow('CENTER', 150, 0, 0, 360, WindowFrame)
+  ATOFrame:Hide()
+
+  HorizontalRadio = WoWUI:CreateSelectButton(ATOFrame.ControlPaneFrame, 'radio', 'Horizontal', 'TOPLEFT', '', 5, -5, HRadioSet)
+  VerticalRadio = WoWUI:CreateSelectButton(HorizontalRadio, 'radio', 'Vertical', 'TOPLEFT', 'BOTTOMLEFT', 0, 5, VRadioSet)
+
+  AlignRadio1 = WoWUI:CreateSelectButton(HorizontalRadio, 'radio', '', 'LEFT', 'RIGHT', 10, 0, ARadioSet1)
+  AlignRadio2 = WoWUI:CreateSelectButton(AlignRadio1, 'radio', '', 'TOPLEFT', 'BOTTOMLEFT', 0, 5, ARadioSet2)
+
+  local EnablePaddingCheck = WoWUI:CreateSelectButton(VerticalRadio, 'check', 'Padding', 'TOPLEFT', 'BOTTOMLEFT', 0, 0, EnablePaddingSet)
+  PaddingSlider = WoWUI:CreateSlider(EnablePaddingCheck, 'Padding', 'LEFT', 'RIGHT', 30, -10, 220, -10 , 50, PaddingSet)
+
+  local AlignButton = WoWUI:CreatePanelButton(EnablePaddingCheck, 'Align', 'TOPLEFT', 'BOTTOMLEFT', 0, -5, 90, AButtonSet)
+  local HelpButton = WoWUI:CreatePanelButton(ATOFrame.ControlPaneFrame, 'Help', 'TOPRIGHT', '', -10, -7, 60, function() end)
+
+  -- Set values
+  VerticalRadio:SetValue(true)
+  AlignRadio1:SetValue(true)
+  EnablePaddingCheck:SetValue(false)
+  PaddingSlider:SetValue(-10)
+
+  -- Set help tooltip text
+  HelpButton:SetTooltip('Alignment Help')
+  HelpButton:SetTooltip(nil, '|cff00ff00Horizontal|r  Line up from left to right')
+  HelpButton:SetTooltip(nil, '|cff00ff00Vertical|r  Line up from top to bottom')
+  HelpButton:SetTooltip(nil, '|cff00ff00Justify|r  Bars are line up by a side')
+  HelpButton:SetTooltip(nil, '|cff00ff00Padding|r  This sets the amount of space between bars')
+  HelpButton:SetTooltip(nil, '|cff00ff00Align|r  Click this to set the alignment')
+  HelpButton:SetTooltip(nil, ' ')
+  HelpButton:SetTooltip(nil, 'Right click to select a primary bar to line bars up with')
+  HelpButton:SetTooltip(nil, 'Left click bars to line up with the primary bar')
+  GUB.Options.ATOFrame = ATOFrame
+end
+
+-------------------------------------------------------------------------------
 -- OnInitialize()
 --
 -- Initializes the options panel and slash options
@@ -3838,4 +3552,7 @@ function GUB.Options:OnInitialize()
   -- Add the Profiles UI as a subcategory below the main options.
   LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonProfileName, ProfileOptions)
   -- ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)
+
+  -- Create the alignment tool options
+  CreateAlignmentToolOptions()
 end
