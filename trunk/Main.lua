@@ -2306,10 +2306,6 @@ function GUB.Main:EnableSelectMode(Action)
     end
   end
   SelectMode = Action
-  -- Call any functions that use select mode.
-  if not Action then
-    Options.ATOFrame:Hide()
-  end
 end
 
 -------------------------------------------------------------------------------
@@ -3666,13 +3662,9 @@ end
 function GUB.Main:UnitBarsSetAllOptions()
   local ATOFrame = Options.ATOFrame
 
-  -- Update selected unitbars status and alignment tool.
-  if UnitBars.IsLocked then
-    Main:EnableSelectMode(false)
-  else
-    if not UnitBars.AlignmentToolEnabled then
-      Main:EnableSelectMode(false)
-    end
+  -- Update alignment tool status.
+  if UnitBars.IsLocked or not UnitBars.AlignmentToolEnabled then
+    Options.ATOFrame:Hide()
   end
 
   -- Apply the settings.

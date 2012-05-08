@@ -639,6 +639,9 @@ function GUB.WoWUI:CreateControlWindow(Point, Height, OffsetX, OffsetY, Width, W
   ControlWindowFrame:SetScript('OnShow', function(self)
                                          WindowFn(ControlWindowFrame, 'show')
                                        end)
+  ControlWindowFrame:SetScript('OnHide', function(self)
+                                         WindowFn(ControlWindowFrame, 'hide')
+                                       end)
 
   ControlWindowFrame.ControlPaneFrame = ControlPaneFrame
 
