@@ -38,6 +38,10 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 -- ProfileOptions                Options for the profiles.
 -- GUB.Options.ATOFrame          Contains the alignment tool options window.
 --
+-- CapCopyUB                     Used for copy/paste. Contains the UnitBar data being copied.
+-- CapCopyName                   Used for copy/paste. Contains the bars name of the data being copied.
+-- CapCopyKey                    Used for copy/paste. Contains the unitbar key for copying.
+--
 -- SetFunctions                  Table used to save and call functions thru SetFunction()
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
 -- PositionDropdown              Table used for the diaglog drop down for fonts and runes.
@@ -73,6 +77,10 @@ local ProfileOptions = nil
 local UnitBars = nil
 local PlayerClass = nil
 local PlayerPowerType = nil
+
+local CapCopyUB = nil
+local CapCopyName = nil
+local CapCopyKey = nil
 
 local FontOffsetXMin = -150
 local FontOffsetXMax = 150
@@ -2715,6 +2723,128 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateCopyPasteOptions
+--
+-- Creates options for to copy and paste bars.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: CopyPasteOptions = CreateCopyPasteOptions(BarType, Order)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+--
+-- EclipseBarOptions     Options table for the copy paste options.
+-------------------------------------------------------------------------------
+local function CreateCopyPasteOptions(BarType, Order)
+  local UBF = UnitBarsF[BarType]
+
+  local CopyPasteOptions = nil
+  CopyPasteOptions = {
+    type = 'group',
+    name = function()
+             if CapCopyName and CapCopyKey then
+               return format('Copy and Paste ( %s -> %s )', CapCopyName, CapCopyKey)
+             else
+               return 'Copy and Paste'
+             end
+           end,
+    dialogInline = true,
+    order = Order,
+    confirm = function(Info)
+                if Info[#Info] == 'Paste' then
+                  return format('Copy %s from %s to %s', CapCopyKey, CapCopyName, UBF.UnitBar.Name)
+                end
+              end,
+    func = function(Info, Value)
+             local Name = Info[#Info]
+             if Name ~= 'Paste' and Name ~= 'Clear' then
+
+               -- Store the data to the clipboard.
+               CapCopyUB = UBF.UnitBar
+               CapCopyName = UBF.UnitBar.Name
+               CapCopyKey = Name
+             else
+               if Name == 'Paste' then
+
+                 -- Save name and locaton.
+                 local UB = UBF.UnitBar
+                 local Name = UB.Name
+                 local x, y = UB.x, UB.y
+
+                 if CapCopyKey == 'All' then
+                   Main:CopyTableValues(CapCopyUB, UBF.UnitBar)
+                 else
+                   Main:CopyTableValues(CapCopyUB[CapCopyKey], UBF.UnitBar[CapCopyKey])
+                 end
+
+                 -- Restore name and location.
+                 UB.Name = Name
+                 UB.x, UB.y = x, y
+
+                 -- Update the bar.
+                 UBF:SetAttr(nil, nil)
+                 UBF:Update()
+
+               end
+               CapCopyUB = nil
+               CapCopyName = nil
+               CapCopyKey = nil
+             end
+           end,
+    args = {
+      All = 1,
+      Status = 2,
+      Other = 3,
+      Background = 4,
+      Bar = 5,
+      Text = 6,
+      Text2 = 7,
+      Spacer = 10,
+      Paste = 11,
+      Clear = 12,
+    },
+  }
+
+  -- Create buttons
+  local Order = 0
+  local Args = CopyPasteOptions.args
+  for Key, Order in pairs(Args) do
+    if strfind(Key, 'Spacer') == nil then
+      local t = {}
+
+      t.type = 'execute'
+      t.name = Key == 'Backgrnd' and 'Background' or Key
+      t.order = Order
+      t.width = 'half'
+      if Key == 'Paste' then
+
+        -- Disable paste if nothing to paste.
+        t.disabled = function()
+                       return CapCopyUB == nil or CapCopyKey ~= 'All' and
+                              ( UBF.UnitBar[CapCopyKey] == nil or CapCopyUB[CapCopyKey] == UBF.UnitBar[CapCopyKey] )
+                     end
+      elseif Key == 'Clear' then
+
+        -- Disable clear if theres nothing to paste.
+        t.disabled = function()
+                       return CapCopyUB == nil
+                     end
+      else
+
+        -- Disable the button if the source doesn't exist.
+        t.disabled = Key ~= 'All' and UBF.UnitBar[Key] == nil
+      end
+      Args[Key] = t
+    else
+      Args[Key] = CreateSpacer(Order)
+    end
+  end
+
+  return CopyPasteOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateUnitBarOptions
 --
 -- Creates an options table for a UnitBar.
@@ -2913,6 +3043,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
     },
   }
 
+  UnitBarOptions.args.CopyPaste = CreateCopyPasteOptions(BarType, 4)
+
   -- Add bar options for eclipse bar
   if BarType == 'EclipseBar' then
     UBOA.Background = {
@@ -2959,239 +3091,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   return UnitBarOptions
-end
-
--------------------------------------------------------------------------------
--- CreateCopySettingsOptions
---
--- Creates an options table for copying options from other bars.
---
--- Subfunction of CreateMainOptions()
---
--- Usage: CopyOptions = CreateCopySettingsOptions(Order, Name)
---
--- Order            Order number for the options.
--- Name             Name for the option to appear in the tree.
---
--- CopyOptions      Options table for a specific unitbar.
--------------------------------------------------------------------------------
-local function CreateCopySettingsOptions(Order, Name)
-  local CopySettingsFrom = nil
-  local CopySettingsTo = nil
-
-  local CopySettingsHidden = {}
-  local CopySettings = {
-    All = false,
-    Status = false,
-    General = false,
-    Background = false,
-    Bar = false,
-    Text = false,
-    Text2 = false,
-  }
-
-  local CopySettingsOptions = {
-    type = 'group',
-    name = Name,
-    desc = 'Copy settings from one bar to another',
-    order = Order,
-    args = {
-      CopyFrom = {
-        type = 'select',
-        name = 'Copy Settings from',
-        order = 1,
-        desc = 'Pick the bar to copy the settings from',
-        values = UnitBarsSelectDropdown,
-        style = 'dropdown',
-        get = function()
-                return CopySettingsFrom
-              end,
-        set = function(Info, Value)
-                CopySettingsFrom = Value
-              end,
-      },
-      CopyTo = {
-        type = 'select',
-        name = 'To',
-        order = 2,
-        disabled = function()
-                     return CopySettingsFrom == nil
-                   end,
-        desc = 'Pick the bar to copy the settings to',
-        values = UnitBarsSelectDropdown,
-        style = 'dropdown',
-        get = function()
-                return CopySettingsTo
-              end,
-        set = function(Info, Value)
-                CopySettingsTo = Value
-              end,
-      },
-      Settings = {
-        type = 'group',
-        name = 'Settings to copy',
-        dialogInline = true,
-        order = 3,
-        disabled = function()
-                     return CopySettingsFrom == nil or CopySettingsTo == nil or
-                            CopySettingsFrom == CopySettingsTo
-                   end,
-        get = function(Info)
-                return CopySettings[Info[#Info]]
-              end,
-        set = function(Info, Value)
-                CopySettings[Info[#Info]] = Value
-                return
-              end,
-        args = {
-          All = {
-            type = 'toggle',
-            name = 'All',
-            order = 1,
-            desc = 'Copy all the settings. Uncheck to pick certain settings',
-          },
-          Status = {
-            type = 'toggle',
-            name = 'Status',
-            order = 2,
-            hidden = function(Info)
-                       CopySettingsHidden[Info[#Info]] = CopySettings.All
-                       return CopySettings.All
-                     end,
-            desc = 'Copy the status settings',
-          },
-          General = {
-            type = 'toggle',
-            name = 'General',
-            order = 3,
-            hidden = function(Info)
-
-                       -- General no longers needs to be copied.
-                       return true
-                     end,
-            desc = 'Copy the general settings',
-          },
-          Other = {
-            type = 'toggle',
-            name = 'Other',
-            order = 4,
-            hidden = function(Info)
-                       local Value = CopySettings.All
-                       CopySettingsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = 'Copy the other settings',
-          },
-          Background = {
-            type = 'toggle',
-            name = 'Background',
-            order = 5,
-            hidden = function(Info)
-                       local Value = CopySettings.All or
-                         CopySettingsFrom == 'EclipseBar' or CopySettingsTo == 'EclipseBar'
-                       CopySettingsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = 'Copy the background settings',
-          },
-          Bar = {
-            type = 'toggle',
-            name = 'Bar',
-            order = 6,
-            hidden = function(Info)
-                       local Value = CopySettings.All or
-                               CopySettingsFrom == 'EclipseBar' or CopySettingsTo == 'EclipseBar'
-                       CopySettingsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = 'Copy the bar settings'
-          },
-          Text = {
-            type = 'toggle',
-            name = 'Text',
-            order = 7,
-            hidden = function(Info)
-                       local Value = CopySettings.All or
-                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'ShardBar' or
-                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'ShardBar'
-                       CopySettingsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = 'Copy the text settings',
-          },
-          Text2 = {
-            type = 'toggle',
-            name = 'Text2',
-            order = 7,
-            hidden = function(Info)
-                       local Value = CopySettings.All or
-                               CopySettingsFrom == 'ComboBar' or CopySettingsFrom == 'HolyBar' or CopySettingsFrom == 'RuneBar' or CopySettingsFrom == 'ShardBar' or CopySettingsFrom == 'EclipseBar' or
-                               CopySettingsTo == 'ComboBar' or CopySettingsTo == 'HolyBar' or CopySettingsTo == 'RuneBar' or CopySettingsTo == 'ShardBar' or CopySettingsTo == 'EclipseBar'
-                       CopySettingsHidden[Info[#Info]] = Value
-                       return Value
-                     end,
-            desc = 'Copy the text2 settings',
-          },
-        },
-      },
-      Copy = {
-        type = 'execute',
-        name = 'Copy Settings',
-        order = 100,
-        disabled = function()
-                     return CopySettingsFrom == nil or CopySettingsTo == nil or
-                            CopySettingsFrom == CopySettingsTo or
-                            not ListChecked(CopySettings, CopySettingsHidden)
-                   end,
-        confirm = function()
-                    return format('Copy settings from %s to %s ?', UnitBars[CopySettingsFrom].Name, UnitBars[CopySettingsTo].Name)
-                  end,
-        func = function()
-                 local Source = UnitBars[CopySettingsFrom]
-                 local Dest = UnitBars[CopySettingsTo]
-
-                 -- Preserve name and location.
-                 local Name = Dest.Name
-                 local x, y = Dest.x, Dest.y
-
-                 if CopySettings.All then
-                   Main:CopyTableValues(Source, Dest)
-                 else
-                   if CopySettings.Status and not CopySettingsHidden.Status then
-                     Main:CopyTableValues(Source.Status, Dest.Status)
-                   end
-                   if CopySettings.General and not CopySettingsHidden.General then
-                     Main:CopyTableValues(Source.General, Dest.General)
-                   end
-                   if CopySettings.Other and not CopySettingsHidden.Other then
-                     Main:CopyTableValues(Source.Other, Dest.Other)
-                   end
-                   if CopySettings.Background and not CopySettingsHidden.Background then
-                     Main:CopyTableValues(Source.Background, Dest.Background)
-                   end
-                   if CopySettings.Bar and not CopySettingsHidden.Bar then
-                     Main:CopyTableValues(Source.Bar, Dest.Bar)
-                   end
-                   if CopySettings.Text and not CopySettingsHidden.Text then
-                     Main:CopyTableValues(Source.Text, Dest.Text)
-                   end
-                   if CopySettings.Text2 and not CopySettingsHidden.Text2 then
-                     Main:CopyTableValues(Source.Text2, Dest.Text2)
-                   end
-                 end
-
-                 -- Restore name and location.
-                 Dest.Name = Name
-                 Dest.x, Dest.y = x, y
-
-                 -- Update unitbar with the new values.
-                 UnitBarsF[CopySettingsTo]:SetAttr(nil, nil)
-                 UnitBarsF[CopySettingsTo]:Update()
-               end,
-      },
-    },
-  }
-  return CopySettingsOptions
 end
 
 -------------------------------------------------------------------------------
@@ -3361,7 +3260,7 @@ local function CreateMainOptions()
           EclipseBar = CreateUnitBarOptions('EclipseBar', 14, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
         },
       },
---=============================================================================
+--[[ --=============================================================================
 -------------------------------------------------------------------------------
 --    TOOLS group.
 -------------------------------------------------------------------------------
@@ -3371,9 +3270,9 @@ local function CreateMainOptions()
         name = 'Tools',
         order = 3,
         args = {
-          CopySettings = CreateCopySettingsOptions(1, 'Copy Settings'),
         },
       },
+]]
 --=============================================================================
 -------------------------------------------------------------------------------
 --    PROFILES group.
@@ -3429,59 +3328,75 @@ local function CreateAlignmentToolOptions()
 
   local HorizontalRadio = nil
   local VerticalRadio = nil
-  local AlignRadio1 = nil
-  local AlignRadio2 = nil
+  local JustifyRadio1 = nil
+  local JustifyRadio2 = nil
   local PaddingSlider = nil
 
+  -- Horizontal radio button.
   local function HRadioSet(self)
     if self.Checked then
       VerticalRadio:SetValue(false)
-      AlignRadio1:SetLabel('Justify Top')
-      AlignRadio2:SetLabel('Justify Bottom')
+      JustifyRadio1:SetLabel('Justify Top')
+      JustifyRadio2:SetLabel('Justify Bottom')
       Alignment = 'horizontal'
     end
   end
 
+  -- Vertical radio button.
   local function VRadioSet(self)
     if self.Checked then
       HorizontalRadio:SetValue(false)
-      AlignRadio1:SetLabel('Justify Left')
-      AlignRadio2:SetLabel('Justify Right')
+      JustifyRadio1:SetLabel('Justify Left')
+      JustifyRadio2:SetLabel('Justify Right')
       Alignment = 'vertical'
     end
   end
 
-  local function ARadioSet1(self)
+  -- Justify radio button 1
+  local function JustifyRadioSet1(self)
     if self.Checked then
-      AlignRadio2:SetValue(false)
+      JustifyRadio2:SetValue(false)
       Justify = 1
     end
   end
 
-  local function ARadioSet2(self)
+  -- Justify radio button 2.
+  local function JustifyRadioSet2(self)
     if self.Checked then
-      AlignRadio1:SetValue(false)
+      JustifyRadio1:SetValue(false)
       Justify = 2
     end
   end
 
+  -- Enable padding slider checkbox.
   local function EnablePaddingSet(self)
     PaddingEnabled = self.Checked
     PaddingSlider:SetEnabled(PaddingEnabled)
   end
 
+  -- Align button.
   local function AButtonSet(self)
     Main:AlignUnitBars(Alignment, Justify, PaddingEnabled, Padding)
   end
 
+  -- Padding slider.
   local function PaddingSet(self)
     Padding = self:GetValue()
     AButtonSet()
   end
 
+  -- Gets called when the ATOFrame is shown, hidden, or closed.
   local function WindowFrame(self, Event)
+
+    -- If the alignment tool window button was clicked then hide.
     if Event == 'close' then
+      self:Hide()
+
+    -- if the window is hidden then disable select mode.
+    elseif Event == 'hide' then
       Main:EnableSelectMode(false)
+
+    -- if the window is shown then enable select mode.
     elseif Event == 'show' then
 
       -- If the tool is enabled then open.
@@ -3498,11 +3413,11 @@ local function CreateAlignmentToolOptions()
   local ATOFrame = WoWUI:CreateControlWindow('CENTER', 150, 0, 0, 360, WindowFrame)
   ATOFrame:Hide()
 
-  HorizontalRadio = WoWUI:CreateSelectButton(ATOFrame.ControlPaneFrame, 'radio', 'Horizontal', 'TOPLEFT', '', 5, -5, HRadioSet)
-  VerticalRadio = WoWUI:CreateSelectButton(HorizontalRadio, 'radio', 'Vertical', 'TOPLEFT', 'BOTTOMLEFT', 0, 5, VRadioSet)
+  HorizontalRadio = WoWUI:CreateSelectButton(ATOFrame.ControlPaneFrame, 'radio', 'Left to Right', 'TOPLEFT', '', 5, -5, HRadioSet)
+  VerticalRadio = WoWUI:CreateSelectButton(HorizontalRadio, 'radio', 'Top to Bottom', 'TOPLEFT', 'BOTTOMLEFT', 0, 5, VRadioSet)
 
-  AlignRadio1 = WoWUI:CreateSelectButton(HorizontalRadio, 'radio', '', 'LEFT', 'RIGHT', 10, 0, ARadioSet1)
-  AlignRadio2 = WoWUI:CreateSelectButton(AlignRadio1, 'radio', '', 'TOPLEFT', 'BOTTOMLEFT', 0, 5, ARadioSet2)
+  JustifyRadio1 = WoWUI:CreateSelectButton(HorizontalRadio, 'radio', '', 'LEFT', 'RIGHT', 20, 0, JustifyRadioSet1)
+  JustifyRadio2 = WoWUI:CreateSelectButton(JustifyRadio1, 'radio', '', 'TOPLEFT', 'BOTTOMLEFT', 0, 5, JustifyRadioSet2)
 
   local EnablePaddingCheck = WoWUI:CreateSelectButton(VerticalRadio, 'check', 'Padding', 'TOPLEFT', 'BOTTOMLEFT', 0, 0, EnablePaddingSet)
   PaddingSlider = WoWUI:CreateSlider(EnablePaddingCheck, 'Padding', 'LEFT', 'RIGHT', 30, -10, 220, -10 , 50, PaddingSet)
@@ -3512,20 +3427,20 @@ local function CreateAlignmentToolOptions()
 
   -- Set values
   VerticalRadio:SetValue(true)
-  AlignRadio1:SetValue(true)
+  JustifyRadio1:SetValue(true)
   EnablePaddingCheck:SetValue(false)
   PaddingSlider:SetValue(-10)
 
   -- Set help tooltip text
   HelpButton:SetTooltip('Alignment Help')
-  HelpButton:SetTooltip(nil, '|cff00ff00Horizontal|r  Line up from left to right')
-  HelpButton:SetTooltip(nil, '|cff00ff00Vertical|r  Line up from top to bottom')
-  HelpButton:SetTooltip(nil, '|cff00ff00Justify|r  Bars are line up by a side')
+  HelpButton:SetTooltip(nil, '|cff00ff00Left to Right|r  Bars will be lined up horizontally')
+  HelpButton:SetTooltip(nil, '|cff00ff00Top to Bottom|r  Bars will be lined up vertically')
+  HelpButton:SetTooltip(nil, '|cff00ff00Justify|r  Bars are lined up by a side')
   HelpButton:SetTooltip(nil, '|cff00ff00Padding|r  This sets the amount of space between bars')
   HelpButton:SetTooltip(nil, '|cff00ff00Align|r  Click this to set the alignment')
   HelpButton:SetTooltip(nil, ' ')
-  HelpButton:SetTooltip(nil, 'Right click to select a primary bar to line bars up with')
-  HelpButton:SetTooltip(nil, 'Left click bars to line up with the primary bar')
+  HelpButton:SetTooltip(nil, '|cff00ff00Right click|r to select a primary bar (green) to line bars up with')
+  HelpButton:SetTooltip(nil, '|cff00ff00Left click|r a bar (white) to line up with the primary bar')
   GUB.Options.ATOFrame = ATOFrame
 end
 

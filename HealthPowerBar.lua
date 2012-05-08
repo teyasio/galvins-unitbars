@@ -614,7 +614,6 @@ HapFunction('FrameSetScript', function(self, Enable)
     Border:SetScript('OnHide', nil)
     Border:SetScript('OnEnter', nil)
     Border:SetScript('OnLeave', nil)
-    Border:SetScript('OnSizeChanged', nil)
   end
 end)
 
