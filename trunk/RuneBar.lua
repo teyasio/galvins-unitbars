@@ -975,7 +975,7 @@ function GUB.UnitBarsF.RuneBar:SetLayout()
       SetCooldownSize(RF.Cooldown, RuneSize)
 
       -- Set the draw edge.
-      RF.Cooldown:SetDrawEdge(DrawEdge and 1 or 0)
+  --    RF.Cooldown:SetDrawEdge(DrawEdge and 1 or 0)
     end
 
     -- Cooldown mode with or without rune.
