@@ -1,8 +1,8 @@
-## Interface: 40300
+## Interface: 50001
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
-## Version: 107
+## Version: 108
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB
 

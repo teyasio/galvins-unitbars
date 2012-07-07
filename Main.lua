@@ -53,8 +53,8 @@ local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, 
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -169,7 +169,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The main power type for the player.
 -- PlayerStance           - The current stance the player is in.
--- PrimaryTalentTree      - The players primary talent tree.
+-- Specialization         - The current specialization.
 -- Initialized            - True of false. Flag for OnInitializeOnce().
 -- PSelectedUnitBarF      - Contains a reference to UnitBarF.  Contains the primary selected UnitBar.
 --                          Alignment tool currently uses this.
@@ -597,7 +597,7 @@ local HasPet = false
 local PlayerPowerType = nil
 local PlayerClass = nil
 local PlayerStance = nil
-local PrimaryTalentTree = nil
+local Specialization = nil
 local PlayerGUID = nil
 local MoonkinForm = 31
 local Initialized = false
@@ -1771,7 +1771,7 @@ local Defaults = {
 -- EclipseBar
     EclipseBar = {
       Name = 'Eclipse Bar',
-      EnableBar = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) and PrimaryTalentTree == 1 end,
+      EnableBar = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) and Specialization == 1 end,
       x = 0,
       y = -250,
       Status = {
@@ -2073,6 +2073,10 @@ local function RegisterEvents(Action, EventType)
     GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
+
+    -- Register health and power events.
+    GUB:RegisterEvent('UNIT_HEALTH_FREQUENT', 'UnitBarsUpdateHealth')
+    GUB:RegisterEvent('UNIT_POWER_FREQUENT', 'UnitBarsUpdatePower')
 
     -- Register rune power events.
     GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdate')
@@ -3493,6 +3497,35 @@ function GUB:UnitBarsUpdate(Event, ...)
 end
 
 -------------------------------------------------------------------------------
+-- UnitBarsUpdateHealth
+-- UnitBarsUpdatePower
+--
+-- Event handlers that use the frequent events to update health and power in real time.
+-------------------------------------------------------------------------------
+function GUB:UnitBarsUpdateHealth(Event, Unit)
+  local UBF = UnitBarsF[format('%sHealth', gsub(Unit, '%a', strupper, 1))]
+  if UBF and UBF.Enabled then
+    UBF:Update('change')
+  end
+end
+
+function GUB:UnitBarsUpdatePower(Event, Unit, PowerType)
+  print(Event, Unit, PowerType)
+  local UBF = UnitBarsF[format('%sPower', gsub(Unit, '%a', strupper, 1))]
+  if UBF and UBF.Enabled then
+    UBF:Update('change')
+  end
+
+  -- Update the mainpower bar for druid.
+  if PowerType == 'MANA' and PlayerClass == 'DRUID' then
+    UBF = UnitBarsF.MainPower
+    if UBF.Enabled then
+      UBF:Update('change')
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- UnitBarsUpdateStatus
 --
 -- Event handler that hides/shows the unitbars based on their current settings.
@@ -3513,7 +3546,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   HasFocus = UnitExists('focus') == 1
   HasPet = select(1, HasPetUI()) ~= nil
   PlayerStance = GetShapeshiftFormID()
-  PrimaryTalentTree = GetPrimaryTalentTree()
+  Specialization = GetSpecialization()
 
   for _, UBF in pairs(UnitBarsF) do
     UBF:StatusCheck()
@@ -3863,7 +3896,12 @@ local function CreateUnitBarTimers()
 
     -- Update health and power bars if there is change.
     for i = 1, HapBarsCount do
-      HapBarsF[i]:Update('change')
+      local UBF = HapBarsF[i]
+
+      -- Check enabled here for speed.
+      if UBF.Enabled then
+        UBF:Update('change')
+      end
     end
 
     -- Update other bars at 4 times per second.
@@ -3871,7 +3909,12 @@ local function CreateUnitBarTimers()
     if OtherBarsTime == 3 then
       OtherBarsTime = 0
       for i = 1, OtherBarsCount do
-        OtherBarsF[i]:Update('change')
+        local UBF = OtherBarsF[i]
+
+        -- Check enabled here for speed.
+        if UBF.Enabled then
+          UBF:Update('change')
+        end
       end
     end
   end
@@ -3879,10 +3922,7 @@ local function CreateUnitBarTimers()
   -- For speed store reference of bars into an indexed array.
   local Index = 0
   for BarType, UBF in pairs(UnitBarsF) do
-    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
-      HapBarsCount = HapBarsCount + 1
-      HapBarsF[HapBarsCount] = UBF
-    else
+    if strfind(BarType, 'Health') == nil and strfind(BarType, 'Power') == nil then
       OtherBarsCount = OtherBarsCount + 1
       OtherBarsF[OtherBarsCount] = UBF
     end
