@@ -92,8 +92,8 @@ local SpellCobraShot  = 77767
 
 local PredictedSpellValue = {
   [0]               = 0,
-  [SpellSteadyShot] = 9,
-  [SpellCobraShot]  = 9,
+  [SpellSteadyShot] = 14,
+  [SpellCobraShot]  = 14,
 }
 
 -- Constants used in NumberToDigitGroups
@@ -132,9 +132,10 @@ HapFunction('StatusCheck', Main.StatusCheck)
 
 -------------------------------------------------------------------------------
 -- Set Steady shot and cobra shot for predicted power.
+-- Set a callback that will update the power bar when ever either of these spells are casting.
 -------------------------------------------------------------------------------
-Main:SetPredictedSpells(SpellSteadyShot, false)
-Main:SetPredictedSpells(SpellCobraShot,  false)
+Main:SetPredictedSpells(SpellSteadyShot, 'casting', function(SpellID, Message) UnitBarsF.PlayerPower:Update('change') end)
+Main:SetPredictedSpells(SpellCobraShot,  'casting', function(SpellID, Message) UnitBarsF.PlayerPower:Update('change') end)
 
 --*****************************************************************************
 --
@@ -472,7 +473,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
 
   -- Get predicted power for hunters only.
   local PredictedPower = Gen and Gen.PredictedPower and Unit == 'player' and PlayerClass == 'HUNTER' and
-                         PredictedSpellValue[Main:GetPredictedSpell(1)] or 0
+                         PredictedSpellValue[Main:GetPredictedSpell()] or 0
 
   -- Return if there is no change.
   if Event == 'change' and
