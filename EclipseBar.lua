@@ -8,44 +8,6 @@
 -- Predicted power is calculated by taking any spell thats casting and any spells that are flying and totals them
 -- up.  Flying spells on a 5sec timeout, if they take longer than 5secs to reach their target, they'll be removed
 -- from the stack.  Spells that generate damage, energize, or miss the target are removed from the stack right away.
---
---
--- Wrath prediction explained:
---
--- When the player first logs in, the wrath sequence will be in sync with the server.  Since the wrath sequence
--- gets reset as well.  This is only true as long as the player has the eclipse bar turned on before casting
--- any spells.
---
--- As long as the player doesn't cast a wrath that will not move the energy bar, it will always be in sync.
--- Euphoria can't be predicted but the wrath sequence will still stay in sync.
---
---
--- Technical explanation of wrath prediction:
---
--- The wrath sequence is calculated by adding a constant value to a floating point number.
--- Wrath without 4pc bonus is 13.333333
--- Wrath with bonus is        16.666667
---
--- The wrath values are calculated by rounding the wrath sequence down.  But if the fractional part
--- is greater than 0.90 then its rounded up. Using positive values in this example.
---
--- Wrath Value   Sequence Value   Rounded       Current Wrath Value
---
--- 13.333333     13.333333        13            13 - 0    = 13
--- 13.333333     26.666666        26            26 - 13   = 13
--- 13.333333     39.999999        40            40 - 26   = 14
--- 13.333333     53.333332        53            53 - 40   = 13
--- Player gaines 4pc bonus
--- 16.666667     69.999999        70            70 - 53   = 17
--- 16.666667     86.666666        86            86 - 70   = 16
--- 16.666667     103.333333       103           103 - 86  = 17
--- 16.666667     120.0            120           120 - 103 = 17
--- Player loses 4pc bonus
--- 13.333333     133.333333       133           133 - 120 = 13
--- 13.333333     146.666666       146           146 - 133 = 13
--- Player gains 4pc bonus
--- 16.666667     163.333333       163           163 - 146 = 17
--- 16.666667     180.0            180           180 - 163 = 17
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -150,16 +112,6 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- LastEclipsePower
 -- LastPredictedSpells               These four values keep track if there is a change in the eclipse bar.
 --
--- WrathSequence                     A positive floating point number that keeps track of the wrath sequence.
--- SequenceRounded                   Rounded off value of WrathSequence used to calculate the next wrath value.
--- WrathNormalValue                  Floating point normal wrath to advance the sequence.
--- WrathFourPcValue                  Four pc tier 12 set bonus wrath value to advance the sequence.
--- SavedWrathSequence                Used to save the current value of WrathSequence.
--- SavedSequenceRounded              Used to save the current value of SequenceRounded.
--- LastWrathServerValue              Used to by SyncWrathSequence().  Helps to detect if the sequence is in sync with
---                                   the server. This contains the last wrath value from the server.
--- WrathSync                         If true then in sync otherwise false.
---
 -- Eclipse bar frame layout:
 --
 -- ScaleFrame
@@ -193,29 +145,20 @@ local LastEclipseDirection = nil
 local LastEclipse = nil
 local LastPredictedSpells = nil
 
-local WrathSequence = 0
-local SequenceRounded = 0
-local SavedWrathSequence = 0
-local SavedSequenceRounded = 0
-local LastWrathServerValue = 0
-local WrathSync = false
-local WrathNormalValue = 13.333333
-local WrathFourPcValue = 16.666667
-
-local SolarBuff = 48517;
-local LunarBuff = 48518;
+local SolarBuff = 48517
+local LunarBuff = 48518
+local CABuff = 112071    -- Celestial Alignment
 
 -- Predicted spell ID constants.
-local SpellWrath      = 5176
-local SpellStarfire   = 2912
-local SpellStarsurge  = 78674
-local SpellEnergizeWS = 89265 -- Energize for Wrath and Starfire
-local SpellEnergizeSS = 86605 -- Energize for Starsurge
+local SpellWrath     = 5176
+local SpellStarfire  = 2912
+local SpellStarsurge = 78674
+local SpellEnergize  = 89265 -- Wrath, Starfire, Starsurge
 
 local PredictedSpellValue = {
-  [SpellWrath] = 13,
+  [SpellWrath] = 15,
   [SpellStarfire] = 20,
-  [SpellStarsurge] = 15,
+  [SpellStarsurge] = 20
 }
 
 local RotateBar = {
@@ -269,206 +212,41 @@ GUB.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- ResetWrathSequence
+-- This checks to see if the spell should be tracked for casting by predictedspells.
+-- If Celestial Alignment is active at the end of the cast then the spell
+-- will generate no energy and cause no energize event.
 --
--- Resets the wrath sequence.
+-- So the function checks to see if the spell will finish without a CA buff.  If
+-- so then it gets added to be tracked by predictedspell otherwise it tells
+-- predictedspell system not to track it.
 --
--- Usage: ResetWrathSequence()
+-- Setting SpellID to -1 tells it not to add the spell to be tracked.
 -------------------------------------------------------------------------------
-local function ResetWrathSequence()
-  SequenceRounded = 0
-  WrathSequence = 0
-end
+local function CheckSpell(SpellID, CastTime, Message)
+  if SpellID < 0 and Message == 'start' then
+    SpellID = abs(SpellID)
 
--------------------------------------------------------------------------------
--- AdvanceWrathSequence
---
--- Advanced the wrath sequence to the next value.
---
--- Usage: WrathValue = AdvanceWrathSequence(Bonus)
---
--- Bonus        If true then the sequence gets advanced based on the set bonus.
---
--- WrathValue   Next value in the sequence.
---
--- NOTES:  The server uses the same math.  As long as the sequence matches the
---         server it will always return the correct value.
--------------------------------------------------------------------------------
-local function AdvanceWrathSequence(Bonus)
-  local Value = WrathNormalValue
-
-  -- Get 4pc bonus value.
-  if Bonus then
-    Value = WrathFourPcValue
-  end
-
-  local LastSequenceRounded = SequenceRounded
-  WrathSequence = WrathSequence + Value
-  SequenceRounded = WrathSequence
-
-  -- To return the correct value the WrathSequence has to be rounded.
-  if SequenceRounded - floor(SequenceRounded) > 0.90 then
-    SequenceRounded = floor(SequenceRounded) + 1
-  else
-    SequenceRounded = floor(SequenceRounded)
-  end
-
-  -- Return the wrath value.
-  return SequenceRounded - LastSequenceRounded
-end
-
--------------------------------------------------------------------------------
--- SyncWrathSequence
---
--- Sync the wrath sequence. Matches the wrath sequence with the server.  Takes 1 to 2 tries.
---
--- usage: SyncWrathSequence(Value)
---
--- Value       Value to sync to.
---
--- NOTES:      Matches the wrath sequence value.  If it doesn't then it
---             forwards the sequence till a match is found.
---             If its an euphoria value.  Then it advances the sequence till the sum
---             of two values equals the euphoria.
--------------------------------------------------------------------------------
-local function SyncWrathSequence(Value)
-  local LastWrathValue = 0
-  local WrathValue = 0
-  local WrathCount = 0
-  local Found = false
-  local Bonus = false
-
-  Value = abs(Value)
-
-  -- 4pc tier 12 bonus value. set bonus to true.
-  if Value == 16 or Value == 17 or Value == 33 or Value == 34 then
-    Bonus = true
-  end
-
-  -- Help sync faster.
-  if not WrathSync and (LastWrathServerValue == 13 and Value == 13 or LastWrathServerValue == 17 and Value == 17) then
-    Value = LastWrathServerValue + Value
-  end
-
-  -- Forward the sequence to the next matching value.
-  while not Found and WrathCount < 10 do
-    WrathCount = WrathCount + 1
-    LastWrathValue = WrathValue
-    WrathValue = AdvanceWrathSequence(Bonus)
-    if Value == WrathValue or Value == LastWrathValue + WrathValue then
-      Found = true
-    end
-  end
-
-  -- Check to see if in sync.
-  if Found then
-    if WrathValue == 14 or WrathValue == 16 or Value == 26 or
-       LastWrathServerValue == 13 and Value == 13 or LastWrathServerValue == 17 and Value == 17 then
-      WrathSync = true
-    end
-    LastWrathServerValue = Value
-  else
-    print('Unable to find ', -Value, ' in the wrath sequence')
-  end
-end
-
--------------------------------------------------------------------------------
--- SaveRestoreWrathSequence
---
--- Saves/restores the current sequence.
---
--- Usage: SaveRestoreWrathSequence(Action)
---
--- Action     'save' saves the current wrath sequence.
---            'restore' restores the last saved wrath sequence.
---
--- NOTE: Since the prediction code needs to look ahead in the wrath sequence.
---       The sequence needs to be restored so that the prediction code
---       doesn't advance it.
--------------------------------------------------------------------------------
-local function SaveRestoreWrathSequence(Action)
-  if Action == 'save' then
-    SavedWrathSequence = WrathSequence
-    SavedSequenceRounded = SequenceRounded
-  elseif Action == 'restore' then
-    WrathSequence = SavedWrathSequence
-    SequenceRounded = SavedSequenceRounded
-  end
-end
-
--------------------------------------------------------------------------------
--- CheckSpell [User defined function for predicted power] Only called by SetPredictedSpell()
---
--- This function gets called when a damage spell or energize spell hits the target.
---
--- If an energize spell comes in it checks to see what spellID triggered it.
--- then tells SetPredictedSpell() to remove that spellID.  If a damage spell
--- comes in it removes it from the spell stack if it doesn't produce an energize event.
---
--- The wrath sequence only gets updated on damage when a wrath energize event happens.
---
--- NOTE: See SetPredictedSpell() in Main.lua for details on how this function is called.
--------------------------------------------------------------------------------
-local function CheckSpell(SpellID, Value)
-
-  -- Remove spell from stack that will not generate an energize event.
-  if SpellID == SpellWrath or SpellID == SpellStarfire  or SpellID == SpellStarsurge then
-    local RemoveSpell = false
-    if SpellID == SpellWrath and EclipseDirection == 'sun' then
-      RemoveSpell = true
-    elseif SpellID == SpellStarfire and EclipseDirection == 'moon' then
-      RemoveSpell = true
-    else
-
-      -- Spell has an energize event, dont remove the spell from the stack.
-      RemoveSpell = false
-    end
-
-    return RemoveSpell
-  else
-
-    -- Check for energize spell and convert it to spellID damage.
-    -- Also a spell damage will happen or happened since energize happened.
-    if SpellID == SpellEnergizeWS then
-
-      -- Ignore energize if its from moonfire/sunfire.
-      if abs(Value) ~= 8 then
-        if Value < 0 then
-
-          -- Update the sequence based on Value.
-          SyncWrathSequence(Value)
-
-          -- Spell is wrath from energize.
-          SpellID = SpellWrath
-        else
-
-          -- Spell is starfire from energize.
-          SpellID = SpellStarfire
-        end
-      else
+    -- Check for Celestial Alignment buff.  Will the buff drop off before spell
+    -- is done casting?
+    local Spell, TimeLeft = Main:CheckAura('o', CABuff)
+    if Spell then
+      if CastTime < TimeLeft then
         SpellID = -1
       end
-    else
-
-      -- Spell is starsurge from energize.
-      SpellID = SpellStarsurge
     end
-
-    -- pass back the SpellID to be removed.
-    return SpellID
   end
+
+  return SpellID
 end
 
 -------------------------------------------------------------------------------
--- Set Wrath, Starfire, Starsurge to need a flight time. Also CheckSpell will be
--- called when either of the spells hit the target.
--- Set Energize to call CheckSpell as well.
+-- Set Wrath, Starfire, Starsurge. Since 'energize' is being used the energize
+-- spell has to be added as well.
 -------------------------------------------------------------------------------
-Main:SetPredictedSpells(SpellWrath,      true,  CheckSpell)
-Main:SetPredictedSpells(SpellStarfire,   true,  CheckSpell)
-Main:SetPredictedSpells(SpellStarsurge,  true,  CheckSpell)
-Main:SetPredictedSpells(SpellEnergizeWS, false, CheckSpell)
-Main:SetPredictedSpells(SpellEnergizeSS, false, CheckSpell)
+Main:SetPredictedSpells(SpellWrath,     'energize', CheckSpell)
+Main:SetPredictedSpells(SpellStarfire,  'energize', CheckSpell)
+Main:SetPredictedSpells(SpellStarsurge, 'energize', CheckSpell)
+Main:SetPredictedSpells(SpellEnergize,  'energize', CheckSpell)
 
 --*****************************************************************************
 --
@@ -765,7 +543,9 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
     EclipseDirection = ED
   end
 
-  local PredictedSpells = PredictedPower and Main:GetPredictedSpell(1) > 0 and 1 or 0
+ -- print('PS ', Main:GetPredictedSpell(1))
+
+  local PredictedSpells = PredictedPower and Main:GetPredictedSpell() > 0 and 1 or 0
 
   -- Return if there is no change.
   if Event == 'change' and EclipsePower == LastEclipsePower and EclipseDirection == LastEclipseDirection and
@@ -821,44 +601,26 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
 
   -- Calculate predicted power.
   if PredictedPower then
-    local Index = 1
     local PowerChange = false
     PEclipseDirection = EclipseDirection
     PEclipsePower = EclipsePower
     PEclipsePowerType = EclipsePowerType
     PEclipse = Eclipse
 
-    -- Save the wrath sequence so that it can be looked ahead.
-    SaveRestoreWrathSequence('save')
-    repeat
-      SpellID = Main:GetPredictedSpell(Index)
+    SpellID = Main:GetPredictedSpell()
 
-      if SpellID ~= 0 then
-        Value = PredictedSpellValue[SpellID]
-        Bonus = Main:GetSetBonus(12) == 4 and PEclipse == 0
+    if SpellID ~= 0 then
+      Value = PredictedSpellValue[SpellID]
+      Bonus = Main:GetSetBonus(12) == 4 and PEclipse == 0
 
-        -- Get the next wrath value in the sequence. 4pc bonus is only active if predicted solar eclipse is 1.
-        if SpellID == SpellWrath then
-          Value = AdvanceWrathSequence(Bonus)
+      PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
+        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
 
-        -- Add 5 to starfire if predicted bonus is active.
-        elseif SpellID == SpellStarfire and Bonus then
-          Value = Value + 5
-        end
-
-        PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
-          GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
-
-        -- Set power change flag.
-        if PowerChange then
-          PC = true
-        end
+      -- Set power change flag.
+      if PowerChange then
+        PC = true
       end
-      Index = Index + 1
-    until SpellID == 0
-
-    -- Restore the wrath sequence.
-    SaveRestoreWrathSequence('restore')
+    end
 
     -- Display indicator based on predicted power options.
     if PC and IndicatorHideShow ~= 'hidealways' or IndicatorHideShow == 'showalways' then

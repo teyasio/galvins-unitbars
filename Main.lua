@@ -494,37 +494,38 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -------------------------------------------------------------------------------
 -- Predicted Power
 --
--- Keeps track of spells flying and casting.
+-- Keeps track of spells casting.
 --
 -- PredictedSpellEvent  Used by SetPredictedSpell().
 -- PredictedSpellMessage
 --                      Used with EventSpellFailed.  If the Message is not found in the table.
 --                      then the spell is considered failed.
--- PredictedSpellStackTimeout
---                      Amount of time in seconds before removing a spell from the stack.
---                      This is used by GetPredictedSpell().  This way SetPredictedSpell()
---                      doesn't haev to check for every event.
+-- PredictedSpellTimeout
+--                      Amount of time before clearing the casting spell.  If for some reason the spell
+--                      wasn't cleared this will clear it.
 --
 -- PredictedSpellCasting
 --   SpellID            Spell that is casting
 --   LineID             LineID of Spell
---
--- PredictedSpellStack  Used by SetPredictedSpell() and GetPredictedSpell()
---   SpellID            Spell in flight.
---   Time               Starting time when spell started to fly.
---
--- PredictedSpellCount  Keeps count of how many spells are on the stack.
+--   Time               Current time the spell was started to cast.
+--   CastTime           Amount of time for the spell to finish casting in seconds.
 --
 -- PredictedSpells[SpellID]  Used by SetPredictedSpells() and SetPredictedSpell()
 --   SpellID            SpellID to search for.
---   Flight             If true the spell must fly to the target before its considered done.
---   Fn                 User defined function to override a spell being removed from the stack
---                      or not.  See SetPredictedSpell() on how it's used.
---                      Fn() is only called when the spell damages or generates an energize event.
+--   EndOn              'energize' the spell will be cleared on an energize event.
+--                      'casting'  the spell will be cleared when the spell ends due to success, failed, etc.
+--   Fn                 This gets called when a spell starts casting, then end, and on energize.
+--                        Fn(SpellID, CastTime, Message)
+--                          Message = 'start'  Gets called on spell cast start.
+--                            on 'start' you can return -1 to not add the spell to be tracked.
+--                            see EclipseBar.lua on how this is done.
+--                          Message = 'end'    Gets called on spell success.
+--                          Message = 'failed' Gets called if the spell didn't complete.
+--                          CastTime  The amount of time to cast the spell in seconds.
+
 --
 -- EventSpellStart
 -- EventSpellSucceeded
--- EventSpellDamage
 -- EventSpellEnergize
 -- EventSpellMissed
 -- EventSpellFailed    These constants are used to track the spell events in SetPredictedSpell()
@@ -606,23 +607,18 @@ local EquipmentSetRegisterEvent = false
 local PSelectedUnitBarF = nil
 local SelectMode = false
 
-
-local PredictedPowerID = -1
-local PredictedSpellCount = 0
-local PredictedSpellStackTimeout = 5
+local PredictedSpellTimeout = 7
+local PredictedSpellsTime = 0
+local PredictedSpellsWaitTime = 5 -- 5 secs
 
 local EventSpellStart       = 1
 local EventSpellSucceeded   = 2
-local EventSpellDamage      = 3
-local EventSpellEnergize    = 4
-local EventSpellMissed      = 5
-local EventSpellFailed      = 6
+local EventSpellEnergize    = 3
+local EventSpellMissed      = 4
+local EventSpellFailed      = 5
 
 local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
-local UnitBarDelay = 1 / 12   -- 12 times per second.
-
-local PredictedSpellsTime = 0
-local PredictedSpellsWaitTime = 5 -- 5 secs
+local UnitBarDelay = 1 / 10   -- 10 times per second.
 
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -1983,7 +1979,6 @@ local EquipmentSetBonus = {}
 local PredictedSpellEvent = {
   UNIT_SPELLCAST_START       = EventSpellStart,
   UNIT_SPELLCAST_SUCCEEDED   = EventSpellSucceeded,
-  SPELL_DAMAGE               = EventSpellDamage,
   SPELL_ENERGIZE             = EventSpellEnergize,
   SPELL_MISSED               = EventSpellMissed,
   SPELL_CAST_FAILED          = EventSpellFailed,
@@ -1996,12 +1991,13 @@ local PredictedSpellMessage = {         -- These variables are blizzard globals.
 
 local PredictedSpells = {}
 
+
 local PredictedSpellCasting = {
   SpellID = 0,
   LineID = -1,
+  Time = 0,
+  CastTime = 0,
 }
-
-local PredictedSpellStack = {}
 
 local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
 local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3,
@@ -2075,6 +2071,7 @@ local function RegisterEvents(Action, EventType)
     GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
 
     -- Register health and power events.
+    GUB:RegisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdateHealth')
     GUB:RegisterEvent('UNIT_HEALTH_FREQUENT', 'UnitBarsUpdateHealth')
     GUB:RegisterEvent('UNIT_POWER_FREQUENT', 'UnitBarsUpdatePower')
 
@@ -2085,11 +2082,13 @@ local function RegisterEvents(Action, EventType)
   elseif EventType == 'predictedspells' then
     if Action == 'register' then
 
+      print('on')
       -- register events for predicted spells.
       GUB:RegisterEvent('COMBAT_LOG_EVENT_UNFILTERED', 'CombatLogUnfiltered')
       GUB:RegisterEvent('UNIT_SPELLCAST_START', 'SpellCasting')
       GUB:RegisterEvent('UNIT_SPELLCAST_SUCCEEDED', 'SpellCasting')
     else
+      print('off')
       GUB:UnregisterEvent('COMBAT_LOG_EVENT_UNFILTERED')
       GUB:UnregisterEvent('UNIT_SPELLCAST_START')
       GUB:UnregisterEvent('UNIT_SPELLCAST_SUCCEEDED')
@@ -2649,7 +2648,7 @@ end
 --
 -- Checks to see if one or more auras are active
 --
--- Usage: Found = CheckAura(Condition, ...)
+-- Usage: Found, [TimeLeft] = CheckAura(Condition, ...)
 --
 -- Condition    'a' for 'and' or 'o' for 'or'.  If 'a' is specified then all
 --              auras have to be active.  If 'o' then only one of the auras needs
@@ -2658,6 +2657,8 @@ end
 --
 -- Found        Returns true if condition 'a' is used and all auras were found.
 --              Returns the SpellID of the aura found if condition 'o' is used.
+-- TimeLeft     If 'o' was used then the amount of time the buff has left is
+--              returned along for the SpellID.  See EclipseBar.lua how this is done.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckAura(Condition, ...)
   local Name = nil
@@ -2666,7 +2667,7 @@ function GUB.Main:CheckAura(Condition, ...)
   local Found = 0
   local i = 1
   repeat
-    Name, _, _, _, _, _, _, _, _, _, SpellID = UnitBuff('player', i)
+    Name, _, _, _, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', i)
     if Name then
       for i = 1, MaxSpellID do
         if SpellID == select(i, ...) then
@@ -2675,7 +2676,7 @@ function GUB.Main:CheckAura(Condition, ...)
         end
       end
       if Condition == 'o' and Found > 0 then
-        return SpellID
+        return SpellID, ExpiresIn - GetTime()
       end
     end
     i = i + 1
@@ -2684,118 +2685,85 @@ function GUB.Main:CheckAura(Condition, ...)
 end
 
 -------------------------------------------------------------------------------
--- ModifyPredictedSpellStack
+-- ModifyCastingSpell
 --
--- Adds/removes spells from the spell stack. Or checks for timeouts on the stack.
-
--- usage: ModifyPredictedSpellStack(Action, SpellID)
+-- Adds or Remove a spell that is casting.
 --
--- Action          'add'     Will add a spell.
---                 'remove   will remove spell.
---                 'timeout' will remove all spells that have timed out.
--- SpellID         Used for 'add' or 'remove'.
+-- usage ModifyCastingSpell(Action, SpellID, LineID, Time, CastTime)
+--
+-- Action   'remove' or 'add'
+--            'add'    will add the current spell to casting.
+--            'remove' will remove the current casting spell.
+--
+-- SpellID     The spell to add.
+-- LineID      LineID to add.
+-- Time      Time the spell was added.
+-- CastTime  Amount of time it takes to cast the spell.
 -------------------------------------------------------------------------------
-local function RemovePredictedSpellStack(Index)
-  local PST = nil
-  for Index2 = Index, PredictedSpellCount - 1 do
-    PST = PredictedSpellStack[Index2]
-    PST.SpellID = PredictedSpellStack[Index2 + 1].SpellID
-    PST.Time = PredictedSpellStack[Index2 + 1].Time
-  end
-  PST = PredictedSpellStack[PredictedSpellCount]
-  PST.SpellID = 0
-  PST.Time = 0
-  PredictedSpellCount = PredictedSpellCount - 1
-end
-
-local function ModifyPredictedSpellStack(Action, SpellID)
+local function ModifyCastingSpell(Action, SpellID, LineID, Time, CastTime)
   if Action == 'add' then
-    PredictedSpellCount = PredictedSpellCount + 1
-    local PST = PredictedSpellStack[PredictedSpellCount]
-    if PST then
-      PST.SpellID = SpellID
-      PST.Time = GetTime()
-    else
+    PredictedSpellCasting.SpellID = SpellID
+    PredictedSpellCasting.LineID = LineID
+    PredictedSpellCasting.Time = Time
+    PredictedSpellCasting.CastTime = CastTime
 
-      -- Create an entry if one doesn't exist.
-      PredictedSpellStack[PredictedSpellCount] = {SpellID = SpellID, Time = GetTime()}
-    end
-  elseif Action == 'remove' and SpellID > 0 then
-    local Index = 0
-    local Found = false
-    local SpellID2 = 0
-
-    while not Found and Index < PredictedSpellCount do
-      Index = Index + 1
-      Found = PredictedSpellStack[Index].SpellID == SpellID
-    end
-    if Found then
-      RemovePredictedSpellStack(Index)
-    end
-  elseif Action == 'timeout' and PredictedSpellCount > 0 then
-    local Time = 0
-    repeat
-      Time = GetTime() - PredictedSpellStack[1].Time
-      if Time > PredictedSpellStackTimeout then
-        RemovePredictedSpellStack(1)
-      end
-    until Time < PredictedSpellStackTimeout or PredictedSpellCount == 0
+  elseif Action == 'remove' then
+    PredictedSpellCasting.SpellID = 0
+    PredictedSpellCasting.LineID = -1
+    PredictedSpellCasting.Time = 0
+    PredictedSpellCasting.CastTime = 0
   end
 end
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- GetPredictedSpell
 --
 -- Returns a predicted powerID.
 --
--- usage: SpellID = GetPredictedSpell(Index)
---
--- Index        Ranged from 1 onward.  1 would return the first ID of a spell in flight or being cast.
+-- usage: SpellID = GetPredictedSpell()
 --
 -- SpellID      Returns the spell ID or 0 for no spell.
---
--- NOTE:  So if there was 2 spells in flight and one casting.  Then using an index of 4 would
---        return 0.  See eclipsebar.lua on how this is used.
---        Spells that been flying too long are removed here.  This way SetPredictedSpell() doesn't have
---        to check for every event.
 -------------------------------------------------------------------------------
-function GUB.Main:GetPredictedSpell(Index)
+function GUB.Main:GetPredictedSpell()
 
   -- Register events if the wait time expired.
   if PredictedSpellsTime == 0 then
     RegisterEvents('register', 'predictedspells')
 
     -- Remove any casting spell left over.
-    PredictedSpellCasting.SpellID = 0
-    PredictedSpellCasting.LineID = -1
+    ModifyCastingSpell('remove')
   end
   PredictedSpellsTime = PredictedSpellsWaitTime
 
-  ModifyPredictedSpellStack('timeout')
-  if Index > PredictedSpellCount then
-    if Index == PredictedSpellCount + 1 then
-      return PredictedSpellCasting.SpellID
-    else
-      return 0
-    end
-  else
-    return PredictedSpellStack[Index].SpellID
+  -- Check for time out
+  if PredictedSpellCasting.SpellID > 0 and
+     GetTime() - PredictedSpellCasting.Time > PredictedSpellTimeout then
+    print('TIMEOUT', GetTime(),'-', PredictedSpellCasting.Time, PredictedSpellTimeout)
+    ModifyCastingSpell('remove')
   end
+
+  return PredictedSpellCasting.SpellID
 end
 
 -------------------------------------------------------------------------------
 -- SetPredictedSpells
 --
 -- Adds a spellID to the list for predicted spells.
+-- Can also turn off or on predicted spells.
 --
--- usage: SetPredictedSpells(SpellID, Flight, Energized, Fn)
+-- usage: SetPredictedSpells(SpellID, EndOn, Fn)
 --
 -- SpellID       ID of the spell to track.
--- Flight        if true the spell can be tracked till it reaches its target.
+-- EndOn         Tells how the spell will end.
+--               'casting' means the spell will be cleared when the spell was stopped, cancled, succedded, etc.
+--               'energize' means the spell will end on energize event.
 -- Fn            See SetPredictedSpell() and Eclipse.lua on how Fn() is used.
+--
+-- NOTE:   When using endon 'energize' you must add the energize spellID as well otherwise
+--         the predictedspell system will not see the energize event.  See EclipseBar.lua how this is set up.
 -------------------------------------------------------------------------------
-function GUB.Main:SetPredictedSpells(SpellID, Flight, Fn)
-  local PS = {Flight = Flight, Fn = Fn}
+function GUB.Main:SetPredictedSpells(SpellID, EndOn, Fn)
+  local PS = {EndOn = EndOn, Fn = Fn}
   PredictedSpells[SpellID] = PS
 end
 
@@ -3345,32 +3313,23 @@ end
 -- LineID       Only valid for start, success, an events.
 -- Message      Message from combatlog.
 --
--- NOTES:  Spells with cast times, flight times, and instant cast spells are tracked.
---         When a spell has a cast time, it's set to PredictedSpellCasting.
---         When a spell is done casting or was an instant. It's then added to the PredictedSpellStack.
---         And removed from the PredictedSpellCasting if it wasn't instant otherwise it was never
---         added to PredictedSpellCasting.
---
---         When a spell is flagged as not requiring a flight time.  Then its never added to the stack.
---         Each time a spell is retrieved thru GetPredictedSpell().  A timeout check is done.  Any spells
---         on the stack will be removed if they've been on the stack longer than PredictedSpellStackTimeout.
---
+-- NOTES:
 --         Timeouts are used so only events SPELL_DAMAGE, SPELL_MISS, and SPELL_ENERGIZE needs to be tracked.
 --         If one of those events didn't happen, then the timeout will remove the spell.
 --
 --         See the notes at the top of the file about Predicted Spells.
 --
---         Fn() will only get called on SPELL_ENERGIZE or SPELL_DAMAGE.  If Fn() gets called on
---         an energize event.  Then Fn() needs to return a spellID to remove the spell from the stack
---         otherwise 0 to leave it.
---         If its a SPELL_DAMAGE event then Fn() needs to return true to remove the spell from
---         the stack.  Otherwise false to leave it. See Eclipse.lua on how this is used.
+--         Fn() can get called 3 times.
+--         Fn(SpellID, CastTime, Message)
+--           Message = 'start'  Gets called on spell cast start.
+--                        on 'start' you can return -1 to not add the spell to be tracked.
+--                        see EclipseBar.lua on how this is done.
+--           Message = 'gubend'    Gets called on spell success.
+--           Message = 'gubfailed' Gets called if the spell didn't complete.
+--           CastTime  The amount of time to cast the spell in seconds.
 --
---         The only thing I couldn't account for is when you already cast a spell and then cast
---         a second spell that has no travel time.  Theres no way to figure out ahead of time if that
---         new spell will hit the target before the previous one.
---
---         Hopefully blizzard will add a way to get predicted spells from the server.
+--           if its energize then the message comes from the server.
+--           if the SpellID is negative then its either 'gubstart' or 'gubend'
 -------------------------------------------------------------------------------
 local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
   local PSE = PredictedSpellEvent[Event]
@@ -3381,49 +3340,63 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
     -- Check for valid spellID.
     if PS ~= nil then
       local Flight = PS.Flight
+      local Fn = PS.Fn
+      local CastTime = 0
 
       -- Detect start cast.
       if PSE == EventSpellStart then
 
-        -- Set casting spell.
-        PredictedSpellCasting.SpellID = SpellID
-        PredictedSpellCasting.LineID = LineID
-      end
+        -- Get cast time for spell.
+        local _, _, _, _, _, _, CastTime, _, _ = GetSpellInfo(SpellID)
 
-      -- Detect instant spell or finished casting.
-      if PSE == EventSpellSucceeded then
+        -- Turn CastTime info seconds.
+        CastTime = CastTime / 1000
 
-        -- Convert spell into a flying spell if the flight flag is true.
-        if Flight then
-          ModifyPredictedSpellStack('add', SpellID)
+        print('casting ', CastTime)
+
+        -- Call Fn if Fn returns -1 then don't add the spell.
+        if Fn then
+          SpellID = Fn(-SpellID, CastTime, 'start')
         end
+        if SpellID > -1 then
+
+          -- Set casting spell.
+          ModifyCastingSpell('add', SpellID, LineID, GetTime(), CastTime)
+        end
+      else
+        CastTime = PredictedSpellCasting.CastTime
       end
 
       -- Remove casting spell or a failed casting spell.
       if PSE == EventSpellSucceeded and LineID == PredictedSpellCasting.LineID or
          PSE == EventSpellFailed and PredictedSpellMessage[Message] == nil then
-        PredictedSpellCasting.SpellID = 0
-        PredictedSpellCasting.LineID = -1
+
+        if PS.EndOn == 'casting' or PSE == EventSpellFailed then
+          ModifyCastingSpell('remove')
+        end
+
+        -- Call Fn if one was set
+        if Fn then
+          if PSE == EventSpellFailed then
+            Fn(-SpellID, CastTime, 'failed')
+          else
+            Fn(-SpellID, CastTime, 'end')
+          end
+        end
       end
 
-      if PSE == EventSpellDamage or PSE == EventSpellEnergize or PSE == EventSpellMissed then
-        local Fn = PS.Fn
+      if PSE == EventSpellEnergize or PSE == EventSpellMissed then
 
-        -- Call user defined function to see which spell to remove from stack.
-        -- This is only gets called for energize event.
-        -- Fn() must return a SpellID or -1 if no spell is to be removed.
+        -- call Fn on energize.
         if PSE == EventSpellEnergize and Fn then
-          SpellID = Fn(SpellID, Message)
+          print('Energize')
+          Fn(SpellID, CastTime, Message)
         end
 
-        -- Call user defined function for a spell damage event.
-        -- Fn() must return true or false.
-        if PSE == EventSpellDamage and Fn and not Fn(SpellID, Message) then
-          return
+        -- Remove casting spell if SpellID > 0
+        if PS.EndOn == 'energize' or PSE == EventSpellMissed then
+          ModifyCastingSpell('remove')
         end
-
-        -- Search for a flying spell to remove.
-        ModifyPredictedSpellStack('remove', SpellID)
       end
     end
   end
@@ -3450,6 +3423,7 @@ function GUB:CombatLogUnfiltered(Event, TimeStamp, CombatEvent, HideCaster, Sour
 
   -- Predicted spell for player only.
   if SourceGUID == PlayerGUID then
+
     -- Pass spellID and Message.
     SetPredictedSpell(CombatEvent, TimeStamp, select(3, ...), nil, select(6, ...))
   end
@@ -3510,7 +3484,6 @@ function GUB:UnitBarsUpdateHealth(Event, Unit)
 end
 
 function GUB:UnitBarsUpdatePower(Event, Unit, PowerType)
-  print(Event, Unit, PowerType)
   local UBF = UnitBarsF[format('%sPower', gsub(Unit, '%a', strupper, 1))]
   if UBF and UBF.Enabled then
     UBF:Update('change')
@@ -3875,8 +3848,9 @@ local function CreateUnitBarTimers()
   local HapBarsF = {}
   local OtherBarsF = {}
   local OtherBarsTime = 0
-  local HapBarsCount = 0
   local OtherBarsCount = 0
+  local HapBarsCount = 0
+  local HapBarsTime = 0
 
   -- Timer for updating health and power bars and keeping track of predicted spells.
   local function UnitBarsTimer(self, Elapsed)
@@ -3894,13 +3868,18 @@ local function CreateUnitBarTimers()
       PredictedSpellsTime = 0
     end
 
-    -- Update health and power bars if there is change.
-    for i = 1, HapBarsCount do
-      local UBF = HapBarsF[i]
+    -- Update health and power bars once a second.
+    -- This is only done incase a bar used predicted power.
+    HapBarsTime = HapBarsTime + 1
+    if HapBarsTime == 10 then
+      HapBarsTime = 0
+      for i = 1, HapBarsCount do
+        local UBF = HapBarsF[i]
 
-      -- Check enabled here for speed.
-      if UBF.Enabled then
-        UBF:Update('change')
+        -- Check enabled here for speed.
+        if UBF.Enabled then
+          UBF:Update('change')
+        end
       end
     end
 
@@ -3922,7 +3901,10 @@ local function CreateUnitBarTimers()
   -- For speed store reference of bars into an indexed array.
   local Index = 0
   for BarType, UBF in pairs(UnitBarsF) do
-    if strfind(BarType, 'Health') == nil and strfind(BarType, 'Power') == nil then
+    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
+      HapBarsCount = HapBarsCount + 1
+      HapBarsF[HapBarsCount] = UBF
+    else
       OtherBarsCount = OtherBarsCount + 1
       OtherBarsF[OtherBarsCount] = UBF
     end
