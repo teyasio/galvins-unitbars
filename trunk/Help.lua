@@ -23,15 +23,15 @@ To drag any bar around the screen use the left mouse button while pressing any m
 
 
 |cff00ff00Status|r
-All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flag it can't override is never show.
+All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flags it can't override is never show and hide not usable.
 
-   Never Show           Disables and hides the bar.
-   Hide when Dead       Hide the bar when the player is dead.
-   Hide in Vehicle      Hide the bar when in a vehicle.
-   Show Always          The bar will be shown all the time.
-   Hide not Active      Hide the bar when it's not active.
-   Hide no Combat       Don't hide the bar when not in combat.
-
+   Never Show         Disables and hides the bar.
+   Hide not usable    Disable and hides the bar if it's not usable by the class, spec, and form or stance if there is one.
+   Hide when Dead     Hide the bar when the player is dead.
+   Hide in Vehicle    Hide the bar if a vehicle.
+   Show Always        The bar will be shown all the time.
+   Hide not Active    Hide the bar when it's not active.
+   Hide no Combat     Don't hide the bar when not in combat.
 
 |cff00ff00Text Type|r
 All health and Power bars have a text type.  This lets you control how the health or power values are to be displayed.  If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.  In this box you can enter any layout you want.

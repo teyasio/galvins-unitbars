@@ -347,28 +347,16 @@ local function SetFunction(Label, Fn)
 end
 
 -------------------------------------------------------------------------------
--- SendOptionsData
+-- ShareData
 --
--- Sends data to options.lua
+-- Main.lua calls this when values change.
 --
--- Usage: SendOptionsData(UB, PC, PPT)
---
--- UB       UnitBar from Main.lua
--- PC       PlayerClass from main.lua
--- PPT      PlayerPowerType from main.lua
---
--- NOTE: Setting any of these to nil will not change that value.
+-- NOTE: See Main.lua on how this is called.
 -------------------------------------------------------------------------------
-function GUB.Options:SendOptionsData(UB, PC, PPT)
-  if UB then
-    UnitBars = UB
-  end
-  if PC then
-    PlayerClass = PC
-  end
-  if PPT then
-    PlayerPowerType = PPT
-  end
+function GUB.Options:ShareData(UB, PC, PCID, PPT)
+  UnitBars = UB
+  PlayerClass = PC
+  PlayerPowerType = PPT
 
   -- Set all min/max
   SetFunction()
@@ -2890,42 +2878,52 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             order = 1,
             desc = 'Disables and hides the bar',
           },
-          HideWhenDead = {
-            type = 'toggle',
-            name = 'Hide when Dead',
-            order = 2,
-            desc = "Hides the bar when you're dead",
-          },
-          HideInVehicle = {
-            type = 'toggle',
-            name = 'Hide in Vehicle',
-            order = 3,
-            desc = "Hides the bar when your're in a vehicle",
-          },
-          ShowAlways = {
-            type = 'toggle',
-            name = 'Show Always',
-            order = 4,
-            desc = 'Bar will always be shown',
-          },
         },
       },
-    },
+    }
   }
+
   local UBOSA = UnitBarOptions.args.Status.args
 
+  if UBF.UnitBar.Status.HideNotUsable then
+    UBOSA.HideNotUsable = {
+      type = 'toggle',
+      name = 'Hide not Usable',
+      order = 2,
+      desc = 'Disables and hides the bar if it can not be used by your class, spec, stance, or form, etc',
+    }
+  end
+
+  UBOSA.HideWhenDead = {
+    type = 'toggle',
+    name = 'Hide when Dead',
+    order = 3,
+    desc = "Hides the bar when you're dead",
+  }
+  UBOSA.HideInVehicle = {
+    type = 'toggle',
+    name = 'Hide in Vehicle',
+    order = 4,
+    desc = "Hides the bar when your're in a vehicle",
+  }
+  UBOSA.ShowAlways = {
+    type = 'toggle',
+    name = 'Show Always',
+    order = 5,
+    desc = 'Bar will always be shown',
+  }
   if BarType ~= 'EclipseBar' then
     UBOSA.HideNotActive = {
       type = 'toggle',
       name = 'Hide not Active',
-      order = 5,
+      order = 6,
       desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
     }
   end
   UBOSA.HideNoCombat = {
     type = 'toggle',
     name = 'Hide no Combat',
-    order = 6,
+    order = 7,
     desc = 'When not in combat the bar will be hidden',
   }
 

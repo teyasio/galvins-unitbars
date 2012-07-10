@@ -166,6 +166,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- HasPet                 - True or false. If true then the player has a pet.
 
 -- PlayerClass            - Name of the class for the player in english.
+-- PlayerClassID          - Each class has a number.  See http://www.wowpedia.org/ClassId for a list.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The main power type for the player.
 -- PlayerStance           - The current stance the player is in.
@@ -201,13 +202,30 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- Fields found in all unitbars:
 --
 --   Name                 - Name of the bar.
---   EnableBar()          - Returns true or false.  This gets referenced by UnitBarsF.
+--   EnableBar()          - Returns true or false.  This gets referenced by UnitBarsF. Not all bars has this.
+--   UsedByClass          - Contains the data for HideNotUsable flag.  Not all unitbars has this.
+--                          Example: {DRUID = {1, 2, 3, 4, -1, 255}
+--                            First the class needs to match 'DRUID' then it searches
+--                            to see if specialization matches 1, 2, 3, or 4.  Once
+--                            the specialization is found then it searches for possible
+--                            stances or forms.  -1 becomes a 1 which would be catform for druid.
+--                            255 means nil if the class has no stance or for some other reason.
+--                            Placing a 0 for stance means don't search for any stances and
+--                            consider the unitbar usable.
+--
+--                            There can be more than one classname with a table and no limit to
+--                            how many specialization and stance/form numbers.
+--
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
 --   Status               - Table that contains a list of flags marked as true or false.
 --                          If a flag is found true then a statuscheck will be done to see what the
 --                          bar should do. Flags with a higher priority override flags with a lower.
 --                          Flags from highest priority to lowest.
 --                            ShowNever        Disables and hides the unitbar.
+--                            HideNotUsable    Disables and hides the unitbar if the bar is not usable
+--                                             by class, specialization, stance or form, etc.
+--                                             Not everybar has this flag.  If one is present then
+--                                             the bar has a UsedByClass table.
 --                            HideWhenDead     Hide the unitbar when the player is dead.
 --                            HideInVehicle    Hide the unitbar if in a vehicle.
 --                            ShowAlways       The unitbar will be shown all the time.
@@ -587,6 +605,16 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- Options.ATOFrame:Hide()    Hides the alignment tool.
 -- Options.ATOFrame:Show()    Shows the alignment tool.
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- ShareData()
+--
+-- Other parts of the mod if needed can have a BarType:SendData() function.
+-- If this function exists it'll be called.  Then the function can pull data from
+-- GUB table to set local variables values.  SendData gets called during runtime
+-- and when things change.  Check bottom of this file on hows it used.
+-- Options:ShareData() is included as well.
+-------------------------------------------------------------------------------
 local AlignmentTooltipDesc = 'Right mouse button to align'
 
 local InCombat = false
@@ -597,10 +625,13 @@ local HasFocus = false
 local HasPet = false
 local PlayerPowerType = nil
 local PlayerClass = nil
+local PlayerClassID = nil
 local PlayerStance = nil
 local Specialization = nil
 local PlayerGUID = nil
-local MoonkinForm = 31
+local MoonkinForm = -31
+local CatForm = -1
+local StanceIsNil = -255
 local Initialized = false
 
 local EquipmentSetRegisterEvent = false
@@ -676,7 +707,7 @@ local Defaults = {
     Px = 0,
     Py = 0,
     IsGrouped = false,
-    IsLocked = false,
+    IsLocked = true,
     IsClamped = true,
     HideTooltips = false,
     HideTooltipsDesc = false,
@@ -1587,15 +1618,17 @@ local Defaults = {
     ComboBar = {
       Name = 'Combo Bar',
       EnableBar = function() return HasTarget end,
+      UsedByClass = {ROGUE = {1, 2, 3, 0}, DRUID = {1, 2, 3, 4, CatForm}},
       x = 0,
       y = -150,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = false,
         HideNotActive = true,
-        HideNoCombat  = false
+        HideNoCombat  = false,
       },
       General = {
         ComboAngle = 90,
@@ -1767,11 +1800,12 @@ local Defaults = {
 -- EclipseBar
     EclipseBar = {
       Name = 'Eclipse Bar',
-      EnableBar = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) and Specialization == 1 end,
+      UsedByClass = {DRUID = {1, MoonkinForm, StanceIsNil}},
       x = 0,
       y = -250,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = false,
@@ -2068,6 +2102,7 @@ local function RegisterEvents(Action, EventType)
     GUB:RegisterEvent('PLAYER_ALIVE', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PLAYER_SPECIALIZATION_CHANGED', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
 
     -- Register health and power events.
@@ -2145,6 +2180,23 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- CheckTalent
+--
+-- Checks to see if the talent on the player is active or not.
+--
+-- Usage: Status = CheckTalent(Unit, Index)
+--
+-- Unit   player, target, pet, focus, etc
+-- Index  Talent index from 1 to 18.  Talents are index from left to right then down one.
+--
+-- Status   If true then the talent is active, otherwise false.
+-------------------------------------------------------------------------------
+function GUB.Main:CheckTalent(Index, Unit)
+  local _, _, _, _, Active, _ = GetTalentInfo(Index, nil, nil, Unit, PlayerClassID)
+  return Active
+end
 
 -------------------------------------------------------------------------------
 -- SetTooltip
@@ -3230,20 +3282,54 @@ end
 -- Checks the status on the unitbar frame to see if it should be shown/hidden/enabled
 -------------------------------------------------------------------------------
 function GUB.Main:StatusCheck()
-  local Enabled = not self.UnitBar.Status.ShowNever
+  local UB = self.UnitBar
+  local Status = UB.Status
+  local Enabled = not Status.ShowNever
 
-  -- Check to see if the bar has an enable function and call it.
   if Enabled then
-    local Fn = self.EnableBar
-    if Fn then
-      Enabled = Fn()
+
+    -- Check to see if the bar has a HideNotUsable flag.
+    if Status.HideNotUsable then
+      print('hide not usable' , self.BarType)
+      Enabled = false
+      local FindSpec = false
+
+      for Class, Value in pairs(UB.UsedByClass) do
+
+        -- Find the class.
+        if PlayerClass == Class then
+          for _, Value2 in ipairs(Value) do
+            print('Value2', Value2)
+            if not FindSpec then
+              if Specialization == Value2 then
+                print('found spec' , Value2)
+                FindSpec = true
+              end
+            end
+
+            -- Check for any stance after specialization was found
+            if FindSpec and Value2 < 0 then
+              print('searching stance' , Value2)
+              if PlayerStance == nil and Value2 == -255 or PlayerStance == abs(Value2) or Value2 == 0 then
+                Enabled = true
+              end
+            end
+          end
+        end
+      end
+    end
+
+    -- Check to see if the bar has an enable function and call it.
+    if Enabled then
+      local Fn = self.EnableBar
+      if Fn then
+        Enabled = Fn()
+      end
     end
   end
 
   self.Enabled = Enabled
   local ShowUnitBar = Enabled
-  local UB = self.UnitBar
-  local Status = UB.Status
 
   if ShowUnitBar then
 
@@ -3269,8 +3355,8 @@ function GUB.Main:StatusCheck()
     end
   end
 
-  -- Make all unitbars visible when they are not locked. Can't override ShowNever.
-  if not UnitBars.IsLocked and not Status.ShowNever then
+  -- Make all unitbars visible when they are not locked. Can't override ShowNever and HideNotUsable.
+  if not UnitBars.IsLocked and not (Status.ShowNever or Status.HideNotUsable) then
     ShowUnitBar = true
   end
 
@@ -3923,6 +4009,24 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- ShareData
+--
+-- Any bar that needs to share variable from main.lua that can change during
+-- runtime can do it thru this ShareData()
+--
+-- Currently shares  UnitBars, PlayerClass, PlayerPowerType, PlayerClassID
+-------------------------------------------------------------------------------
+local function ShareData()
+  for BarType, UBF in pairs(UnitBarsF) do
+    local Fn = UBF.ShareData
+    if Fn then
+      Fn(UnitBars, PlayerClass, PlayerClassID, PlayerPowerType)
+    end
+  end
+  Options:ShareData(UnitBars, PlayerClass, PlayerClassID, PlayerPowerType)
+end
+
+-------------------------------------------------------------------------------
 -- Profile management
 -------------------------------------------------------------------------------
 function GUB:ProfileChanged(Event, Database, NewProfileKey)
@@ -3930,8 +4034,8 @@ function GUB:ProfileChanged(Event, Database, NewProfileKey)
   -- set Unitbars to the new database.
   UnitBars = Database.profile
 
-  -- Set unitbars to the new profile in options.lua.
-  Options:SendOptionsData(UnitBars, nil, nil)
+  -- Share the values with other parts of the addon.
+  ShareData()
 
   GUB:OnEnable()
 end
@@ -3958,7 +4062,7 @@ local function OnInitializeOnce()
   if not Initialized then
 
     -- Get the player class.
-    _, PlayerClass = UnitClass('player')
+    _, PlayerClass, PlayerClassID = UnitClass('player')
 
     -- Get the main power type for the player.
     PlayerPowerType = ClassToPowerType[PlayerClass]
@@ -3966,8 +4070,8 @@ local function OnInitializeOnce()
     -- Get the globally unique identifier for the player.
     PlayerGUID = UnitGUID('player')
 
-    -- Set PlayerClass and PlayerPowerType in options.lua
-    Options:SendOptionsData(nil, PlayerClass, PlayerPowerType)
+    -- Share the values with other parts of the addon.
+    ShareData()
 
     -- Initialize the options panel.
     -- Delaying Options init to make sure PlayerClass is accessible first.
@@ -3997,8 +4101,8 @@ function GUB:OnInitialize()
   -- Save the unitbars data from the current profile.
   UnitBars = GUB.MainDB.profile
 
-  -- Set unitbars to the new profile in options.lua.
-  Options:SendOptionsData(UnitBars, nil, nil)
+  -- Share the values with other parts of the addon.
+  ShareData()
 
   -- Create the unitbars.
   CreateUnitBars()
