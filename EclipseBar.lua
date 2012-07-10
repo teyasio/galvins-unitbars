@@ -5,9 +5,9 @@
 --
 -- Predicted power:
 --
--- Predicted power is calculated by taking any spell thats casting and any spells that are flying and totals them
--- up.  Flying spells on a 5sec timeout, if they take longer than 5secs to reach their target, they'll be removed
--- from the stack.  Spells that generate damage, energize, or miss the target are removed from the stack right away.
+-- Predicted power is calculated by taking the current spell being cast.  And figuring out what
+-- the state of the eclipse bar will be in after that spell is finished.
+-- The predicted power accounts for Soul of the Forest and Celestial Alignment.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -114,6 +114,20 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --
 -- Eclipse bar frame layout:
 --
+-- SolarBuff                         SpellID for the solar buff.
+-- LunarBuff                         SpellID for the lunar buff.
+-- CABuff                            SpellID for Celestial Alignment buff.
+-- SoTF                              Soul of the forest talent number. Used to check to see if the player has this
+--                                   talent active.
+-- SoTFPower                         Amount of power soul of the forest gives.
+-- SpellWrath                        SpellID for wrath.
+-- SpellStarfire                     SpellID for starefire.
+-- SpellStarsurge                    SpellID for starsurge.
+-- SpellEnergize                     SpellID for energize that come back from the server when
+--                                   Wrath, Starfire, or Starsurge is cast.
+-- PredictedSpellValue               Table containing the power that each of the spells gives.  Used for prediction.
+--
+--
 -- ScaleFrame
 --   Border
 --     OffsetFrame
@@ -148,6 +162,8 @@ local LastPredictedSpells = nil
 local SolarBuff = 48517
 local LunarBuff = 48518
 local CABuff = 112071    -- Celestial Alignment
+local SoTF = 10  -- Soul of the forest talent number.
+local SoTFPower = 20 -- Amount of power soul of the forest gives.
 
 -- Predicted spell ID constants.
 local SpellWrath     = 5176
@@ -259,16 +275,21 @@ Main:SetPredictedSpells(SpellEnergize,  'energize', CheckSpell)
 --
 -- Returns -1 for lunar or 1 for solar or 0 for nuetral.
 --
--- usage: EclipsePowerType = GetEclipsePowerType(EclipsePower)
+-- usage: EclipsePowerType = GetEclipsePowerType(EclipsePower, Direction)
 --
 -- EclipsePower          Eclipse Power
+-- Direction             Direction the power is moving in.
 --
 -- EclipsePowerType      -1 = lunar, 1 = solar, 0 = neutral
 -------------------------------------------------------------------------------
-local function GetEclipsePowerType(Power)
+local function GetEclipsePowerType(Power, Direction)
   if Power < 0 then
     return -1
   elseif Power > 0 then
+    return 1
+  elseif Direction == 'moon' then
+    return -1
+  elseif Direction == 'sun' then
     return 1
   else
     return 0
@@ -281,7 +302,7 @@ end
 -- Calculates different parts of the eclipse bar for prediction.
 --
 -- usage: PPower, PEclipse, PPowerType, PDirection , PowerChange =
---          GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType)
+--          GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, SoTFActive)
 --
 -- SpellID         ID of the value being added.  See GetPredictedSpell()
 -- Value           Positive value to add to Power.
@@ -289,6 +310,7 @@ end
 -- MaxPower        Maximum eclipse power (constant)
 -- Direction       Current direction the power is going in 'sun', 'moon', or 'none'.
 -- PowerType       Type of power -1 lunar, 1 solar
+-- SoTFActive      If true then soul of the forest is active, otherwise false
 --
 -- The returned values are based on the Value passed being added to Power.
 --
@@ -298,9 +320,10 @@ end
 -- PDirection      'moon' = lunar, 'sun' = solar, or 'none'.
 -- PowerChange     If true then the SpellID actually caused a power change.
 -------------------------------------------------------------------------------
-local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType)
+local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, SoTFActive)
   local PowerChange = false
   local Eclipse = 0
+  local OldPower = Power
 
   -- Add value based on eclipse direction.
   if Direction == 'moon' then
@@ -333,11 +356,11 @@ local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Directi
     Power = MaxPower * PowerType
   end
 
-  -- Calc direction.
+  -- Calc direction. Check to see if power went out of bounds.
   if PowerChange then
-    if Power <= -MaxPower then
+    if Power == -MaxPower then
       Direction = 'sun'
-    elseif Power >= MaxPower then
+    elseif Power == MaxPower then
       Direction = 'moon'
     end
   end
@@ -347,7 +370,20 @@ local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Directi
     Eclipse = PowerType
   end
 
-  return Power, Eclipse, GetEclipsePowerType(Power), Direction, PowerChange
+  -- Check for soul of the forest and add the correct power.
+  if SoTFActive then
+
+    -- Lost solar eclipse.
+    if OldPower > 0 and Power <= 0 then
+      Power = Power - SoTFPower
+
+    -- Lost lunar eclipse.
+    elseif OldPower < 0 and Power >= 0 then
+      Power = Power + SoTFPower
+    end
+  end
+
+  return Power, Eclipse, GetEclipsePowerType(Power, Direction), Direction, PowerChange
 end
 
 --*****************************************************************************
@@ -535,13 +571,13 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
   local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
   local SpellID = Main:CheckAura('o', SolarBuff, LunarBuff)
   local Eclipse = SpellID == SolarBuff and 1 or SpellID == LunarBuff and -1 or 0
-  local EclipsePowerType = GetEclipsePowerType(EclipsePower)
+  local ED = GetEclipseDirection()
 
   -- Update EclipseDirection on maxpower or nil or none.
-  local ED = GetEclipseDirection()
   if abs(EclipsePower) == EclipseMaxPower or EclipsePower == 0 or EclipseDirection == nil then
     EclipseDirection = ED
   end
+  local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
 
  -- print('PS ', Main:GetPredictedSpell(1))
 
@@ -601,6 +637,10 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
 
   -- Calculate predicted power.
   if PredictedPower then
+
+    -- Check to see if soul of the forest talent is active.
+    local SoTFActive = Main:CheckTalent(SoTF, 'player')
+
     local PowerChange = false
     PEclipseDirection = EclipseDirection
     PEclipsePower = EclipsePower
@@ -614,7 +654,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
       Bonus = Main:GetSetBonus(12) == 4 and PEclipse == 0
 
       PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
-        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
+        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, SoTFActive)
 
       -- Set power change flag.
       if PowerChange then

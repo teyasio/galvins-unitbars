@@ -103,6 +103,17 @@ local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local ThousandFormat = '%s%d' .. Thousands..'%03d'
 
 -------------------------------------------------------------------------------
+-- ShareData
+--
+-- Main.lua calls this when values change.
+--
+-- NOTE: See Main.lua on how this is called.
+-------------------------------------------------------------------------------
+function GUB.Options:ShareData(UB, PC, PCID, PPT)
+  PlayerClass = PC
+end
+
+-------------------------------------------------------------------------------
 -- HapFunction
 --
 -- Assigns a function to all the health and power bars under one name.
@@ -532,9 +543,6 @@ end
 
 function GUB.UnitBarsF.PlayerPower:Update(Event)
   if self.Enabled then
-    if PlayerClass == nil then
-      _, PlayerClass = UnitClass('player')
-    end
     UpdatePowerBar(self, Event, 'player', nil, PlayerClass)
   end
 end
