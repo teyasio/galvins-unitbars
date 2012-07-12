@@ -98,6 +98,8 @@ GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
 --                  will be stopped.
 --                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
+local CountSize = 0.00
+
 local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
   local ShardBar = ShardBarF.ShardBar
   local Action = nil
@@ -133,9 +135,9 @@ function GUB.UnitBarsF.ShardBar:Update(Event)
   local SoulShards = UnitPower('player', PowerShard)
 
   -- Return if no change.
-  if Event == 'change' and SoulShards == LastSoulShards then
-    return
-  end
+--  if Event == 'change' and SoulShards == LastSoulShards then
+--    return
+ -- end
 
   LastSoulShards = SoulShards
 
@@ -386,8 +388,8 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     ShardBar:CreateBoxTexture(ShardIndex, SoulShardLight, 'texture', 'OVERLAY')
 
     -- Set the textures
-    ShardBar:SetTexture(ShardIndex, SoulShardDark, SoulShardTexture.Texture)
-    ShardBar:SetTexture(ShardIndex, SoulShardLight, SoulShardTexture.Texture)
+    ShardBar:SetTexture(ShardIndex, SoulShardDark, SoulShardTexture.Texture, 64, 128)
+    ShardBar:SetTexture(ShardIndex, SoulShardLight, SoulShardTexture.Texture, 64, 128)
 
     -- Set the soulshard dark texture
     ShardBar:SetTexCoord(ShardIndex, SoulShardDark, SoulShardTexture.Left, SoulShardTexture.Right, SoulShardTexture.Top, SoulShardTexture.Bottom)

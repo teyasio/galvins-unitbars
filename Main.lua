@@ -204,14 +204,16 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   Name                 - Name of the bar.
 --   EnableBar()          - Returns true or false.  This gets referenced by UnitBarsF. Not all bars has this.
 --   UsedByClass          - Contains the data for HideNotUsable flag.  Not all unitbars has this.
---                          Example: {DRUID = {1, 2, 3, 4, -1, 255}
---                            First the class needs to match 'DRUID' then it searches
---                            to see if specialization matches 1, 2, 3, or 4.  Once
---                            the specialization is found then it searches for possible
---                            stances or forms.  -1 becomes a 1 which would be catform for druid.
---                            255 means nil if the class has no stance or for some other reason.
---                            Placing a 0 for stance means don't search for any stances and
---                            consider the unitbar usable.
+--                          Example1: {DRUID = {'1234', 1, 31}}
+--                          Example2: {DRUID = {'12'}, DEATHKNIGHT = {}}
+--                          spec: in Example1 means any of the 4 specs can be used.
+--                          stance:  Check for stance/form for the class.  There can be more than one
+--                                   stance.
+--
+--                            stance = -1 means that the specialization returned nil.  Some classes may not
+--                            return a number and nil instead.  So use this to check for a nil value.
+--                            If there is no stance or spec then just the class has to match. if there is just
+--                            stance or spec the spec or stance needs to match.
 --
 --                            There can be more than one classname with a table and no limit to
 --                            how many specialization and stance/form numbers.
@@ -629,9 +631,10 @@ local PlayerClassID = nil
 local PlayerStance = nil
 local Specialization = nil
 local PlayerGUID = nil
-local MoonkinForm = -31
-local CatForm = -1
-local StanceIsNil = -255
+local MoonkinForm = MOONKIN_FORM
+local CatForm = CAT_FORM
+local BearForm = BEAR_FORM
+local StanceIsNil = -1
 local Initialized = false
 
 local EquipmentSetRegisterEvent = false
@@ -707,7 +710,7 @@ local Defaults = {
     Px = 0,
     Py = 0,
     IsGrouped = false,
-    IsLocked = true,
+    IsLocked = false,
     IsClamped = true,
     HideTooltips = false,
     HideTooltipsDesc = false,
@@ -1239,10 +1242,12 @@ local Defaults = {
     PetHealth = {
       Name = 'Pet Health',
       EnableBar = function() return HasPet end,
+      UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
       x = 0,
       y = -30,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
@@ -1323,10 +1328,12 @@ local Defaults = {
     PetPower = {
       Name = 'Pet Power',
       EnableBar = function() return HasPet end,
+      UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
       x = 0,
       y = -60,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
@@ -1405,11 +1412,12 @@ local Defaults = {
 -- Main Power
     MainPower = {
       Name = 'Main Power',
-      EnableBar = function() return PlayerPowerType ~= select(2, UnitPowerType('player')) end,
+      UsedByClass = {DRUID = {CatForm, BearForm}},
       x = 0,
       y = -90,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
@@ -1488,10 +1496,12 @@ local Defaults = {
 -- RuneBar
     RuneBar = {
       Name = 'Rune Bar',
+      UsedByClass = {DEATHKNIGHT = {}},
       x = 0,
       y = -120,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = true,
@@ -1618,7 +1628,7 @@ local Defaults = {
     ComboBar = {
       Name = 'Combo Bar',
       EnableBar = function() return HasTarget end,
-      UsedByClass = {ROGUE = {1, 2, 3, 0}, DRUID = {1, 2, 3, 4, CatForm}},
+      UsedByClass = {ROGUE = {}, DRUID = {'1234', CatForm}},
       x = 0,
       y = -150,
       Status = {
@@ -1682,10 +1692,12 @@ local Defaults = {
 -- HolyBar
     HolyBar = {
       Name = 'Holy Bar',
+      UsedByClass = {PALADIN = {}},
       x = 0,
       y = -180,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = false,
@@ -1741,10 +1753,12 @@ local Defaults = {
 -- ShardBar
     ShardBar = {
       Name = 'Shard Bar',
+      UsedByClass = {WARLOCK = {'1'}},
       x = 0,
       y = -215,
       Status = {
         ShowNever     = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
         ShowAlways    = false,
@@ -1800,7 +1814,7 @@ local Defaults = {
 -- EclipseBar
     EclipseBar = {
       Name = 'Eclipse Bar',
-      UsedByClass = {DRUID = {1, MoonkinForm, StanceIsNil}},
+      UsedByClass = {DRUID = {'1', MoonkinForm, StanceIsNil}},
       x = 0,
       y = -250,
       Status = {
@@ -2790,7 +2804,6 @@ function GUB.Main:GetPredictedSpell()
   -- Check for time out
   if PredictedSpellCasting.SpellID > 0 and
      GetTime() - PredictedSpellCasting.Time > PredictedSpellTimeout then
-    print('TIMEOUT', GetTime(),'-', PredictedSpellCasting.Time, PredictedSpellTimeout)
     ModifyCastingSpell('remove')
   end
 
@@ -3290,32 +3303,41 @@ function GUB.Main:StatusCheck()
 
     -- Check to see if the bar has a HideNotUsable flag.
     if Status.HideNotUsable then
-      print('hide not usable' , self.BarType)
       Enabled = false
-      local FindSpec = false
+      local Count = 0
+      local FoundSpec = 0
+      local FoundStance = 0
 
       for Class, Value in pairs(UB.UsedByClass) do
 
         -- Find the class.
         if PlayerClass == Class then
-          for _, Value2 in ipairs(Value) do
-            print('Value2', Value2)
-            if not FindSpec then
-              if Specialization == Value2 then
-                print('found spec' , Value2)
-                FindSpec = true
-              end
-            end
+          FoundSpec = -1
+          FoundStance = -1
+          for _, Value2 in pairs(Value) do
+            Count = Count + 1
 
-            -- Check for any stance after specialization was found
-            if FindSpec and Value2 < 0 then
-              print('searching stance' , Value2)
-              if PlayerStance == nil and Value2 == -255 or PlayerStance == abs(Value2) or Value2 == 0 then
-                Enabled = true
+            -- if spec found check against it.
+            if type(Value2) == 'string' then
+              FoundSpec = 0
+              if Specialization and strfind(Value2, Specialization) ~= nil then
+                FoundSpec = 1
+              end
+            else
+
+              -- if stance found then check against it.
+              FoundStance = FoundStance == -1 and 0 or FoundStance
+              if PlayerStance == nil and Value2 == -1 or PlayerStance and PlayerStance == Value2 then
+                FoundStance = 1
               end
             end
           end
         end
+      end
+
+      -- Was anything found.
+      if FoundSpec ~= 0 and FoundStance ~= 0 then
+        Enabled = true
       end
     end
 
@@ -3340,7 +3362,6 @@ function GUB.Main:StatusCheck()
     -- Hide if in a vehicle if the HideInVehicle status is set
     elseif InVehicle and Status.HideInVehicle then
       ShowUnitBar = false
-
     -- Show the unitbar if ShowAlways status is set.
     elseif Status.ShowAlways then
       ShowUnitBar = true
@@ -3438,8 +3459,6 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
         -- Turn CastTime info seconds.
         CastTime = CastTime / 1000
 
-        print('casting ', CastTime)
-
         -- Call Fn if Fn returns -1 then don't add the spell.
         if Fn then
           SpellID = Fn(-SpellID, CastTime, 'start')
@@ -3475,7 +3494,6 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
 
         -- call Fn on energize.
         if PSE == EventSpellEnergize and Fn then
-          print('Energize')
           Fn(SpellID, CastTime, Message)
         end
 
