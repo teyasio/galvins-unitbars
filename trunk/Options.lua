@@ -2878,55 +2878,66 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             order = 1,
             desc = 'Disables and hides the bar',
           },
+          HideNotUsable = {
+            type = 'toggle',
+            name = 'Hide not Usable',
+            disabled = function()
+                         return UBF.UnitBar.Status.HideNotUsable == nil
+                       end,
+            order = 2,
+            desc = 'Disables and hides the bar if it can not be used by your class, spec, stance, or form, etc',
+          },
+          HideWhenDead = {
+            type = 'toggle',
+            name = 'Hide when Dead',
+            order = 3,
+            desc = "Hides the bar when you're dead",
+          },
+          HideInVehicle = {
+            type = 'toggle',
+            name = 'Hide in Vehicle',
+            order = 4,
+            desc = "Hides the bar when your're in a vehicle",
+          },
+          ShowAlways = {
+            type = 'toggle',
+            name = 'Show Always',
+            order = 5,
+            desc = 'Bar will always be shown',
+          },
+          HideNotActive = {
+            type = 'toggle',
+            name = 'Hide not Active',
+            disabled = function()
+                         return BarType == 'EclipseBar'
+                       end,
+            order = 6,
+            desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
+          },
+          HideNoCombat = {
+            type = 'toggle',
+            name = 'Hide no Combat',
+            order = 7,
+            desc = 'When not in combat the bar will be hidden',
+          },
         },
       },
-    }
+    },
   }
 
-  local UBOSA = UnitBarOptions.args.Status.args
+--  local UBOSA = UnitBarOptions.args.Status.args
 
-  if UBF.UnitBar.Status.HideNotUsable then
-    UBOSA.HideNotUsable = {
-      type = 'toggle',
-      name = 'Hide not Usable',
-      order = 2,
-      desc = 'Disables and hides the bar if it can not be used by your class, spec, stance, or form, etc',
-    }
+  --[[if UBF.UnitBar.Status.HideNotUsable then
   end
 
-  UBOSA.HideWhenDead = {
-    type = 'toggle',
-    name = 'Hide when Dead',
-    order = 3,
-    desc = "Hides the bar when you're dead",
-  }
-  UBOSA.HideInVehicle = {
-    type = 'toggle',
-    name = 'Hide in Vehicle',
-    order = 4,
-    desc = "Hides the bar when your're in a vehicle",
-  }
-  UBOSA.ShowAlways = {
-    type = 'toggle',
-    name = 'Show Always',
-    order = 5,
-    desc = 'Bar will always be shown',
-  }
+  UBOSA.
+  UBOSA.
+  UBOSA.
   if BarType ~= 'EclipseBar' then
-    UBOSA.HideNotActive = {
-      type = 'toggle',
-      name = 'Hide not Active',
-      order = 6,
-      desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
-    }
+    UBOSA.
   end
-  UBOSA.HideNoCombat = {
-    type = 'toggle',
-    name = 'Hide no Combat',
-    order = 7,
-    desc = 'When not in combat the bar will be hidden',
-  }
-
+  UBOSA.
+--]]
   local UBOA = UnitBarOptions.args
 
   -- Add general options for each bar.

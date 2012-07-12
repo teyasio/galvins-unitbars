@@ -503,7 +503,11 @@ local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, 
     Power = Power * PowerType
   end
 
-  local SliderPos = Power / MaxPower
+  -- Check for devision by zero.  Only happens when bar is displayed by a class/spec that can't use the bar.
+  local SliderPos = 0
+  if MaxPower > 0 then
+    SliderPos = Power / MaxPower
+  end
   local BdSize = Background.Bar.BackdropSettings.BdSize / 2
   local BarSize = 0
   local SliderSize = 0
