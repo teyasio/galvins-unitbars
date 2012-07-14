@@ -86,6 +86,28 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --         Texture (frame or texture)
 --     Border
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Creating a bar
+--
+-- Functions list in order to create a bar.
+--
+-- CreateBar()
+-- CreateBoxTexture()
+--
+-- If you have textures then you need to call these.
+--   SetTexture()
+--   SetTexCoord()    If the texture has multiple textures.
+--   SetTexureSize()
+--   SetBoxSize()     Without this nothing will show.
+--
+-- Once you've done that then to make the bar display on screen.
+--   ShowTextureFrame()
+--   ShowTexture()
+--   Display()
+--
+-- There are more functions to use depending on what you're doing.
+-------------------------------------------------------------------------------
 local BarDB = {}
 
 --*****************************************************************************
@@ -546,6 +568,7 @@ end
 --           true   The box o bar can be dragged/dropped and tooltips enabled.
 --
 -- NOTE:  This function should be used after SetTooltip
+--        If BoxNumber is nil then the whole bar is enabled/disabled.
 -------------------------------------------------------------------------------
 function BarDB:SetEnableMouse(BoxNumber, Action)
   DoBar(self, BoxNumber, nil, function(Border, Frame)
@@ -730,17 +753,19 @@ function BarDB:SetFillDirection(BoxNumber, TextureNumber, Action)
 end
 
 -------------------------------------------------------------------------------
--- SetBoxFill
+-- SetTextureFill
 --
--- Fills a box up with all of part of a texture or statusbar.
+-- Shows more of the texture instead of stretching.
 --
--- Usage: SetBoxFill(BoxNumber, TextureNumber, Amount)
+-- Usage: SetTextureFill(BoxNumber, TextureNumber, Amount)
 --
 -- Amount    A number between 0 and 1.
 --
 -- NOTE: SetFillDirection will control the fill that this function will use.
+--       Cant set texture width to 0 so use 0.001 this will make the texture not be
+--       visible.  Setting texture size to 0 doesn't hide the texture.
 -------------------------------------------------------------------------------
-function BarDB:SetBoxFill(BoxNumber, TextureNumber, Amount)
+function BarDB:SetTextureFill(BoxNumber, TextureNumber, Amount)
   DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
     if Type == 'texture' then
       local TexLeft, TexRight, TexTop, TexBottom = TextureFrame.TexLeft, TextureFrame.TexRight, TextureFrame.TexTop, TextureFrame.TexBottom
@@ -752,13 +777,13 @@ function BarDB:SetBoxFill(BoxNumber, TextureNumber, Amount)
 
         -- Calc the position betwen left and right
         TexRight = TexLeft + Amount * (TexRight - TexLeft)
-        Texture:SetWidth(TextureWidth)
+        Texture:SetWidth(TextureWidth > 0 and TextureWidth or 0.001)
       else
         local TextureHeight = Amount * Height
 
         -- Calc the position between top and bottom.
         TexTop = TexBottom - Amount * (TexBottom - TexTop)
-        Texture:SetHeight(TextureHeight)
+        Texture:SetHeight(TextureHeight > 0 and TextureHeight or 0.001)
       end
       Texture:SetTexCoord(TexLeft, TexRight, TexTop, TexBottom)
     else
@@ -834,18 +859,22 @@ end
 --
 -- Creates a frame to hold a texture for the bar.
 --
--- Usage: CreateBoxTexture(BoxNumber, TextureNumber, TextureType, [Layer])
+-- Usage: CreateBoxTexture(BoxNumber, TextureNumber, TextureType, [Layer], [OffsetX, OffsetY])
+
 --
 -- BoxNumber          Box to be modified.
 -- TextureNumber      Numerical value to reference the texture.
 -- TextureType        'statusbar' statusbar texture.
 --                    'texture'   standard texture.
+-- OffsetX            Amount in pixels to offset. Positive goes right, negative goes left.
+-- OffsetY            Amount in pixels to offset. Positive goes up, negative goes down.
+--                    If OffsetX and OffsetY are not specified then zero is used.
 -- Layer              Used for 'texture' only.  Sets the layer for texture.
 --
 -- Note: Statusbars get stretched to the box edges.  Textures are centered in the box.
 --       Textures and Statusbars are hidden by default.
 -------------------------------------------------------------------------------
-function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Layer)
+function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Value1, Value2, Value3)
   local BoxFrame = self.BoxFrame[BoxNumber]
   local Texture = nil
 
@@ -863,7 +892,7 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Layer)
   if TextureType == 'statusbar' then
     Texture = CreateFrame('StatusBar', nil, TextureFrame)
     Texture:SetPoint('TOPLEFT', 0, 0)
-    Texture:SetPoint('BOTTOMRIGHT' ,0, 0)
+    Texture:SetPoint('BOTTOMRIGHT' ,Value1 or 0, Value2 or 0)
     Texture:SetMinMaxValues(0, 1)
     Texture:SetValue(1)
 
@@ -874,10 +903,10 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Layer)
     TextureFrame.RotateTexture = false
     TextureFrame.Type = 'statusbar'
   else
-    Texture = TextureFrame:CreateTexture(nil, Layer)
+    Texture = TextureFrame:CreateTexture(nil, Value1)
     Texture:SetWidth(1)
     Texture:SetHeight(1)
-    Texture:SetPoint('BOTTOMLEFT', 0, 0)
+    Texture:SetPoint('BOTTOMLEFT', Value2, Value3)
     TextureFrame.Type = 'texture'
 
     -- Texture Frame is centered in the boxframe.

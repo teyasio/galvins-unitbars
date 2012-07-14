@@ -50,7 +50,6 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 -- ValueNameDropdown             Table used for the dialog drop down for health and power text type.
 -- ValueNameDropdownPredicted    Same as above except used for bars that support predicted value.
 -- MaxValuesDropdown             Tanle used for the dialog drop down for Health and power text type.
--- UnitBarsSelectDropdown        Table used to pick from a list of unitbars.
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -- RuneEnergizeDropdown          Table used for changing rune energize.
@@ -233,23 +232,6 @@ local TextTypeLayout = {
   thousands = '%.fk',
   millions = '%.1fm',
   short = '%s',
-}
-
-local UnitBarsSelectDropdown = {
-  PlayerHealth = Defaults.profile.PlayerHealth.Name,
-  PlayerPower = Defaults.profile.PlayerPower.Name,
-  TargetHealth = Defaults.profile.TargetHealth.Name,
-  TargetPower = Defaults.profile.TargetPower.Name,
-  FocusHealth = Defaults.profile.FocusHealth.Name,
-  FocusPower = Defaults.profile.FocusPower.Name,
-  PetHealth = Defaults.profile.PetHealth.Name,
-  PetPower = Defaults.profile.PetPower.Name,
-  MainPower = Defaults.profile.MainPower.Name,
-  RuneBar = Defaults.profile.RuneBar.Name,
-  ComboBar = Defaults.profile.ComboBar.Name,
-  HolyBar = Defaults.profile.HolyBar.Name,
-  ShardBar = Defaults.profile.ShardBar.Name,
-  EclipseBar = Defaults.profile.EclipseBar.Name
 }
 
 local DirectionDropdown = {
@@ -739,7 +721,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
     name = Name,
     order = Order,
     hidden = function()
-               return BarType == 'RuneBar' and UBF.UnitBar.General.RuneMode == 'rune'
+               return BarType == 'RuneBar' and UBF.UnitBar.General.RuneMode == 'rune' or
+                      BarType == 'DemonicBar' and not UBF.UnitBar.General.BoxMode
              end,
     args = {
       General = {
@@ -1583,15 +1566,18 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
             SetFunction(FunctionLabel)
 
             -- Update combobar, holybar, or shardbar layout.
-            if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+            if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' then
               UBF:SetLayout()
             else
               if TableName then
                 UBF:SetLayout()
 
+                -- This section for eclipse bar mostly.
                 -- Update the bar to recalculate the slider pos.
                 UBF:Update()
               else
+
+                -- This part usually used for health and power bars
                 UBF:SetAttr('bar', 'size')
               end
             end
@@ -1696,7 +1682,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     order = Order,
     hidden = function()
                return BarType == 'RuneBar' and UBF.UnitBar.General.RuneMode == 'rune' or
-                      ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and not UBF.UnitBar.General.BoxMode
+                      ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar') and
+                      not UBF.UnitBar.General.BoxMode
              end,
     args = {
       General = {
@@ -1717,9 +1704,12 @@ local function CreateBarOptions(BarType, Object, Order, Name)
                   if Object then
                     UBF:SetLayout()
 
+                    -- This section mostly for eclipse bar.
                     -- Update the bar to recalculate the slider pos.
                     UBF:Update()
                   else
+
+                    -- This section usually for health and power bars.
                     UBF:SetAttr('bar', Info.arg)
                   end
                 end
@@ -1797,7 +1787,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
   if BarType == 'RuneBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'RuneWidth', 'RuneHeight')
-  elseif BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+  elseif BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'BoxWidth', 'BoxHeight')
   elseif BarType == 'EclipseBar' then
     local o = gsub(Object, '%a', strupper, 1)
@@ -1827,12 +1817,10 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         hasAlpha = true,
         get = function()
                 local c = UBF.UnitBar.Bar.Bar.ColorSolar
---                local c = GetTable(BarType, 'Bar', TableName).ColorSolar
                 return c.r, c.g, c.b, c.a
               end,
         set = function(Info, r, g, b, a)
                 local c = UBF.UnitBar.Bar.Bar.ColorSolar
---                local c = GetTable(BarType, 'Bar', TableName).ColorSolar
                 c.r, c.g, c.b, c.a = r, g, b, a
                 UBF:SetAttr('bar', 'color', 'bar')
               end,
@@ -1890,6 +1878,39 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       MaxColors = 8
     end
     BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
+  end
+
+  -- Add color options for demonicbar
+  if BarType == 'DemonicBar' then
+    BarOptions.args.DemonicBarColor = {
+      type = 'group',
+      name = 'Color',
+      dialogInline = true,
+      order = 2,
+      get = function(Info)
+              local c = UBF.UnitBar.Bar[Info[#Info]]
+              return c.r, c.g, c.b, c.a
+            end,
+      set = function(Info, r, g, b, a)
+              local c = UBF.UnitBar.Bar[Info[#Info]]
+              c.r, c.g, c.b, c.a = r, g, b, a
+              UBF:SetAttr('bar', 'color')
+            end,
+      args = {
+        Color = {
+          type = 'color',
+          name = 'Normal',
+          order = 1,
+          hasAlpha = true,
+        },
+        ColorMeta = {
+          type = 'color',
+          name = 'Metamorphosis',
+          order = 2,
+          hasAlpha = true,
+        },
+      },
+    }
   end
 
   -- Add slider and indicator for eclipsebar
@@ -2711,6 +2732,54 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateDemonicBarOptions
+--
+-- Creates options for a demonic bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: DemonicBarOptions = CreateDemonicBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- DemonicBarOptions     Options table for the eclipse bar.
+-------------------------------------------------------------------------------
+local function CreateDemonicBarOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+
+  local DemonicBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UBF.UnitBar.General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            UBF:SetLayout()
+
+            -- Update the bar
+            UBF:Update()
+          end,
+    args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked, this bar will show boxes instead of textures',
+      },
+    },
+  }
+
+  return DemonicBarOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateCopyPasteOptions
 --
 -- Creates options for to copy and paste bars.
@@ -2927,17 +2996,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
 --  local UBOSA = UnitBarOptions.args.Status.args
 
-  --[[if UBF.UnitBar.Status.HideNotUsable then
-  end
-
-  UBOSA.
-  UBOSA.
-  UBOSA.
-  if BarType ~= 'EclipseBar' then
-    UBOSA.
-  end
-  UBOSA.
---]]
   local UBOA = UnitBarOptions.args
 
   -- Add general options for each bar.
@@ -2956,6 +3014,9 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   -- Add shardbar options
   elseif BarType == 'ShardBar' then
     UBOA.ShardBar = CreateShardBarOptions(BarType, 2, 'General')
+
+  elseif BarType == 'DemonicBar' then
+    UBOA.DemonicBar = CreateDemonicBarOptions(BarType, 2, 'General')
 
   -- Add eclipsebar options
   elseif BarType == 'EclipseBar' then
@@ -3024,6 +3085,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
                  -- Update the layout.
                  UBF:SetLayout()
+                 UBF:StatusCheck()
                  UBF:Update()
                end,
       },
@@ -3092,7 +3154,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add text options
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and BarType ~= 'DemonicBar' then
     UBOA.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
     if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
       UBOA.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
@@ -3262,11 +3324,14 @@ local function CreateMainOptions()
           -- Holybar group.
           HolyBar = CreateUnitBarOptions('HolyBar', 12, 'Holy Bar'),
 
-          -- Holybar group.
-          ShardBar = CreateUnitBarOptions('ShardBar', 13, 'Shard Bar'),
+          -- Shardbar group.
+          ShardBar = CreateUnitBarOptions('ShardBar', 13, 'Shard Bar', 'Affliction Warlocks only'),
+
+          -- Demonicbar group.
+          DemonicBar = CreateUnitBarOptions('DemonicBar', 14, 'Demonic Bar', 'Demonology Warlocks only'),
 
           -- Eclipsebar group.
-          EclipseBar = CreateUnitBarOptions('EclipseBar', 14, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
+          EclipseBar = CreateUnitBarOptions('EclipseBar', 15, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
         },
       },
 --[[ --=============================================================================

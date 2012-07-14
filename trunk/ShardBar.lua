@@ -10,8 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local LSM = GUB.LSM
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -58,7 +57,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 local MaxSoulShards = 3
 
 -- Powertype constants
-local PowerShard = PowerTypeToNumber['SOUL_SHARDS']
+local PowerShard = ConvertPowerType['SOUL_SHARDS']
 
 -- Soulshard Texture constants
 local SoulShardBox = 1
@@ -98,8 +97,6 @@ GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
 --                  will be stopped.
 --                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local CountSize = 0.00
-
 local function UpdateSoulShards(ShardBarF, SoulShards, FinishFadeOut)
   local ShardBar = ShardBarF.ShardBar
   local Action = nil
@@ -135,9 +132,9 @@ function GUB.UnitBarsF.ShardBar:Update(Event)
   local SoulShards = UnitPower('player', PowerShard)
 
   -- Return if no change.
---  if Event == 'change' and SoulShards == LastSoulShards then
---    return
- -- end
+  if Event == 'change' and SoulShards == LastSoulShards then
+    return
+  end
 
   LastSoulShards = SoulShards
 
@@ -210,7 +207,6 @@ end
 --               'color'     Color being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
 --               'scale'     Scale settings being set to the object.
---               'size'    Size being set to the object.
 --               'padding' Amount of padding set to the object.
 --               'texture' One or more textures set to the object.
 --               'strata'    Frame strata for the object.
@@ -388,8 +384,8 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     ShardBar:CreateBoxTexture(ShardIndex, SoulShardLight, 'texture', 'OVERLAY')
 
     -- Set the textures
-    ShardBar:SetTexture(ShardIndex, SoulShardDark, SoulShardTexture.Texture, 64, 128)
-    ShardBar:SetTexture(ShardIndex, SoulShardLight, SoulShardTexture.Texture, 64, 128)
+    ShardBar:SetTexture(ShardIndex, SoulShardDark, SoulShardTexture.Texture)
+    ShardBar:SetTexture(ShardIndex, SoulShardLight, SoulShardTexture.Texture)
 
     -- Set the soulshard dark texture
     ShardBar:SetTexCoord(ShardIndex, SoulShardDark, SoulShardTexture.Left, SoulShardTexture.Right, SoulShardTexture.Top, SoulShardTexture.Bottom)

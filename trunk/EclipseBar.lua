@@ -17,7 +17,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local LSM = GUB.LSM
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -151,7 +151,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -------------------------------------------------------------------------------
 
 -- Powertype constants
-local PowerEclipse = PowerTypeToNumber['ECLIPSE']
+local PowerEclipse = ConvertPowerType['ECLIPSE']
 
 local EclipseDirection = nil
 local LastEclipsePower = nil
@@ -624,7 +624,6 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
   local PredictedBarHalfLit = Gen.PredictedBarHalfLit
 
   local Value = 0
-  local Bonus = false
   local PC = false
   local PEclipseDirection = nil
   local PEclipsePower = nil
@@ -655,7 +654,6 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
 
     if SpellID ~= 0 then
       Value = PredictedSpellValue[SpellID]
-      Bonus = Main:GetSetBonus(12) == 4 and PEclipse == 0
 
       PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
         GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, SoTFActive)

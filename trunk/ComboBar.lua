@@ -10,7 +10,6 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local LSM = GUB.LSM
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.

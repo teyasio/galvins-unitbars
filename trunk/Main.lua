@@ -11,6 +11,7 @@ local MyAddon, GUB = ...
 local Main = {}
 local UnitBarsF = {}
 local UnitBarsFI = {}
+local UnitBarsFPT = {}
 local HapBar = {}
 local Options = {}
 
@@ -23,6 +24,7 @@ GUB.RuneBar = {}
 GUB.ComboBar = {}
 GUB.HolyBar = {}
 GUB.ShardBar = {}
+GUB.DemonicBar = {}
 GUB.EclipseBar = {}
 GUB.Options = Options
 
@@ -77,6 +79,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 --
 -- UnitBarF structure       NOTE: To access UnitBarsF by index use UnitBarsFI[Index].
+--                                To access UnitBarsF by Unit + PowerType use UnitBarsFPT[ Unit + PowerType ]
+--                                Example: UnitBarsFPT['playerMANA'] would be the same as UnitBarsF.PlayerPower.
 --
 -- UnitBarsParent         - Child of UIParent.  The perpose of this is so all bars can be moved as a group.
 -- UnitBarsF[]            - This table contains all the bars.  And all data for each bar.
@@ -128,7 +132,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   IsActive             - True or false.  If true the bar is considered to be doing something, otherwise doing nothing.
 --                          If the bar doesn't have an active state, then this value defaults to true.
 --   ScaleWidth           - Contains the scaled width of the Anchor.
---   Scaleeight           - Contains the scaled height of the Anchor.
+--   ScaleHeight          - Contains the scaled height of the Anchor.
 --   Width                - Contains the unscaled width of the Anchor.  ScaleWidth * scale.
 --   Height               - Contains the unscaled height of the Anchor.  ScaleHeight * scale.
 --   Selected             - True of false.  If true then the bar has a select rectangle around it.
@@ -139,17 +143,17 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          the current profile.
 --
 --
--- UnitBar upvalues.
+-- UnitBar upvalues/tables.
 --
 -- Defaults               - The default unitbar table.  Used for first time initialization.
 -- CooldownBarTimerDelay  - Delay for the cooldown timer bar measured in times per second.
 -- UnitBarDelay           - Delay for health and power bars measured in times per second.  Any bar thats not a health
 --                          power bar gets updated in a slower frequency.
 -- PowerColorType           Table used by InitializeColors()
--- PowerTypeToNumber      - Table to convert a string powertype into a number.
+-- ConvertPowerType       - Table to convert a string powertype into a number or a numerical power type into a string.
+-- PowerBarType           - PowerType in all the power bars is set to this.
 -- CheckEvent             - Table to check to see if an event is correct.  Converts an event into one of the following:
 --                          'runepower', 'runetype' for a rune event.
--- ClassToPowerType       - Table to convert a class string to the primary power type for that class.
 -- Backdrop                 This contains a Backdrop table that has texture path names.  Since this addon uses
 --                          shared media.  Texture names need to be converted into path names.  So ConvertBackdrop()
 --                          needs to be called.  ConvertBackdrop then sets this table to a real backdrop table that
@@ -217,6 +221,10 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 --                            There can be more than one classname with a table and no limit to
 --                            how many specialization and stance/form numbers.
+--
+--   PowerType            - Used to help construct the UnitBarsF so that a bar can be called by event info directly.
+--                          This can be a string or table.  If a bar doesn't have this, then its not updated by
+--                          UNIT_POWER_FREQUENT or UNIT_HEALTH_FREQUENT.
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
 --   Status               - Table that contains a list of flags marked as true or false.
@@ -663,6 +671,8 @@ local StatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
 local UBFontType = 'Friz Quadrata TT'
 
+local PowerBarType = {'MANA', 'RAGE', 'FOCUS', 'ENERGY', 'RUNIC_POWER'}
+
 local Backdrop = {
   bgFile   = LSM:Fetch('background', BgTexture), -- background texture
   edgeFile = LSM:Fetch('border', BdTexture),     -- border texture
@@ -719,6 +729,7 @@ local Defaults = {
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
+      PowerType = 'HEALTH',
       x = 0,
       y = 150,
       Status = {
@@ -808,6 +819,7 @@ local Defaults = {
 -- Player Power
     PlayerPower = {
       Name = 'Player Power',
+      PowerType = PowerBarType,
       x = 0,
       y = 120,
       Status = {
@@ -896,6 +908,7 @@ local Defaults = {
     TargetHealth = {
       Name = 'Target Health',
       EnableBar = function() return HasTarget end,
+      PowerType = 'HEALTH',
       x = 0,
       y = 90,
       Status = {
@@ -986,6 +999,7 @@ local Defaults = {
     TargetPower = {
       Name = 'Target Power',
       EnableBar = function() return HasTarget end,
+      PowerType = PowerBarType,
       x = 0,
       y = 60,
       Status = {
@@ -1069,6 +1083,7 @@ local Defaults = {
     FocusHealth = {
       Name = 'Focus Health',
       EnableBar = function() return HasFocus end,
+      PowerType = 'HEALTH',
       x = 0,
       y = 30,
       Status = {
@@ -1159,6 +1174,7 @@ local Defaults = {
     FocusPower = {
       Name = 'Focus Power',
       EnableBar = function() return HasFocus end,
+      PowerType = PowerBarType,
       x = 0,
       y = 0,
       Status = {
@@ -1243,6 +1259,7 @@ local Defaults = {
       Name = 'Pet Health',
       EnableBar = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
+      PowerType = 'HEALTH',
       x = 0,
       y = -30,
       Status = {
@@ -1329,6 +1346,7 @@ local Defaults = {
       Name = 'Pet Power',
       EnableBar = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
+      PowerType = PowerBarType,
       x = 0,
       y = -60,
       Status = {
@@ -1693,6 +1711,7 @@ local Defaults = {
     HolyBar = {
       Name = 'Holy Bar',
       UsedByClass = {PALADIN = {}},
+      PowerType = 'HOLY_POWER',
       x = 0,
       y = -180,
       Status = {
@@ -1754,6 +1773,7 @@ local Defaults = {
     ShardBar = {
       Name = 'Shard Bar',
       UsedByClass = {WARLOCK = {'1'}},
+      PowerType = 'SOUL_SHARDS',
       x = 0,
       y = -215,
       Status = {
@@ -1809,6 +1829,52 @@ local Defaults = {
           [2] = {r = 0.980, g = 0.517, b = 1, a = 1},
           [3] = {r = 0.980, g = 0.517, b = 1, a = 1},
         },
+      },
+    },
+-- DemonicBar
+    DemonicBar = {
+      Name = 'Demonic Fury Bar',
+      UsedByClass = {WARLOCK = {'2'}},
+      PowerType = 'DEMONIC_FURY',
+      x = -200,
+      y = -215,
+      Status = {
+        ShowNever     = false,
+        HideNotUsable = false,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        ShowAlways    = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        BoxMode = false,
+      },
+      Other = {
+        Scale = 1,
+        FrameStrata = 'MEDIUM',
+      },
+      Background = {
+        PaddingAll = true,
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {r = 0.082, g = 0.219, b = 0.019, a = 1},
+      },
+      Bar = {
+        Advanced = false,
+        BoxWidth = 150,
+        BoxHeight = 24,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {r = 0.627, g = 0.298, b = 827, a = 1},
+        ColorMeta = {r = 0.752, g = 0.439, b = 0.909, a = 1},
       },
     },
 -- EclipseBar
@@ -2047,14 +2113,14 @@ local PredictedSpellCasting = {
   CastTime = 0,
 }
 
-local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
-local PowerTypeToNumber = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3,
-                           RUNIC_POWER = 6, SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9}
+local ConvertPowerType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3,
+                          RUNIC_POWER = 6, SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9,
+                          DEMONIC_FURY = 15,
+                          [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY',
+                          [6] = 'RUNIC_POWER',[7] = 'SOUL_SHARDS', [8] = 'ECLIPSE', [9] = 'HOLY_POWER',
+                          [15] = 'DEMONIC_FURY'}
 
-local ClassToPowerType = {
-  MAGE = 'MANA', PALADIN = 'MANA', PRIEST = 'MANA', DRUID = 'MANA', SHAMAN = 'MANA', WARLOCK = 'MANA',
-  HUNTER = 'FOCUS', ROGUE = 'ENERGY', WARRIOR = 'RAGE', DEATHKNIGHT = 'RUNIC_POWER'
-}
+local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
 
 local CheckEvent = {
   RUNE_POWER_UPDATE = 'runepower', RUNE_TYPE_UPDATE = 'runetype',
@@ -2064,7 +2130,7 @@ local CheckEvent = {
 GUB.LSM = LSM
 GUB.Defaults = Defaults
 GUB.PowerColorType = PowerColorType
-GUB.PowerTypeToNumber = PowerTypeToNumber
+GUB.ConvertPowerType = ConvertPowerType
 GUB.CheckEvent = CheckEvent
 GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 
@@ -2083,6 +2149,20 @@ do
       UnitBarsF[BarType] = UBFTable
       UnitBarsFI[Index] = UBFTable
       UnitBarsF[BarType].UnitBar = UB
+
+      -- Add keys to access bars with Unit + PowerType.
+      local Unit = strfind(BarType, 'Player') and 'player' or strfind(BarType, 'Target') and 'target' or
+                   strfind(BarType, 'Focus') and 'focus' or strfind(BarType, 'Pet') and 'pet' or 'player'
+      local PowerType = UB.PowerType
+      if PowerType then
+        if type(PowerType) == 'table' then
+          for _, PT in pairs(PowerType) do
+            UnitBarsFPT[format('%s%s', Unit, PT)] = UBFTable
+          end
+        else
+          UnitBarsFPT[format('%s%s', Unit, PowerType)] = UBFTable
+        end
+      end
     end
   end
 end
@@ -3581,14 +3661,16 @@ end
 -- Event handlers that use the frequent events to update health and power in real time.
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdateHealth(Event, Unit)
-  local UBF = UnitBarsF[format('%sHealth', gsub(Unit, '%a', strupper, 1))]
+  print(Event, Unit)
+  local UBF = UnitBarsFPT[format('%sHEALTH', Unit)]
   if UBF and UBF.Enabled then
     UBF:Update('change')
   end
 end
 
 function GUB:UnitBarsUpdatePower(Event, Unit, PowerType)
-  local UBF = UnitBarsF[format('%sPower', gsub(Unit, '%a', strupper, 1))]
+ -- print(Event, Unit, PowerType)
+  local UBF = UnitBarsFPT[format('%s%s', Unit, PowerType)]
   if UBF and UBF.Enabled then
     UBF:Update('change')
   end
@@ -3996,7 +4078,7 @@ local function CreateUnitBarTimers()
 
         -- Check enabled here for speed.
         if UBF.Enabled then
-          UBF:Update('change')
+        --  UBF:Update('change')
         end
       end
     end
@@ -4083,7 +4165,7 @@ local function OnInitializeOnce()
     _, PlayerClass, PlayerClassID = UnitClass('player')
 
     -- Get the main power type for the player.
-    PlayerPowerType = ClassToPowerType[PlayerClass]
+    PlayerPowerType = UnitPowerType('player')
 
     -- Get the globally unique identifier for the player.
     PlayerGUID = UnitGUID('player')
