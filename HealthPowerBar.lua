@@ -11,7 +11,7 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 local UnitBarsF = GUB.UnitBarsF
 local LSM = GUB.LSM
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -77,9 +77,9 @@ local SquareBorder = {
 local PlayerClass = nil
 
 -- Powertype constants
-local PowerMana = PowerTypeToNumber['MANA']
-local PowerEnergy = PowerTypeToNumber['ENERGY']
-local PowerFocus = PowerTypeToNumber['FOCUS']
+local PowerMana = ConvertPowerType['MANA']
+local PowerEnergy = ConvertPowerType['ENERGY']
+local PowerFocus = ConvertPowerType['FOCUS']
 
 local LastCurrValue = {}
 local LastMaxValue = {}

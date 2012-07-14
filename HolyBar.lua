@@ -10,8 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local LSM = GUB.LSM
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -65,7 +64,7 @@ local HolyRuneHeight = 31
 local BAR = nil
 
 -- Powertype constants
-local PowerHoly = PowerTypeToNumber['HOLY_POWER']
+local PowerHoly = ConvertPowerType['HOLY_POWER']
 
 -- Holyrune Texture constants
 local HolyRuneBox = 1
