@@ -10,7 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local ConvertPowerType = GUB.ConvertPowerType
+local PowerTypeToNumber = GUB.PowerTypeToNumber
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -27,10 +27,10 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -70,7 +70,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -------------------------------------------------------------------------------
 
 -- Powertype constants
-local PowerDemonicFury = ConvertPowerType['DEMONIC_FURY']
+local PowerDemonicFury = PowerTypeToNumber['DEMONIC_FURY']
 
 local DemonicFuryBox = 1
 local DemonicFuryBg = 2
@@ -83,6 +83,9 @@ local DemonicFuryNotchMeta = 8
 local BarOffsetX = 2
 local BarOffsetY = 0
 
+local LastDemonicFury = nil
+local LastMaxDemonicFury = nil
+
 local MetaBuff = 103958 -- Warlock metamorphosis spell ID buff.
 local MetaActive = false
 
@@ -90,44 +93,44 @@ local DemonicFuryTexture = {
   Texture = [[Interface\PlayerFrame\Warlock-DemonologyUI]],
   Width = 145, Height = 35,
   [DemonicFuryBg] = {
-    OffsetX = -2 + BarOffsetX, OffsetY = -1 + BarOffsetY,
-    Level = 'BACKGROUND',
+    OffsetX = -2 + BarOffsetX, OffsetY = -1 - BarOffsetY,
+    Level = 0, -- 'BACKGROUND'
     Width = 132, Height= 24,
     Left = 0.03906250, Right = 0.55468750, Top = 0.20703125, Bottom = 0.30078125
   },
   [DemonicFuryBar] = {
-    OffsetX = -2 + BarOffsetX, OffsetY = -1 + BarOffsetY,
-    Level = 'BORDER',
+    OffsetX = -2 + BarOffsetX, OffsetY = -1 - BarOffsetY,
+    Level = 1, --'BORDER'
     Width = 132, Height = 24,
     Left = 0.03906250, Right= 0.55468750, Top= 0.10546875, Bottom = 0.19921875
   },
   [DemonicFuryBarMeta] = {
-    OffsetX = -2 + BarOffsetX, OffsetY = -1 + BarOffsetY,
-    Level = 'BORDER',
+    OffsetX = -2 + BarOffsetX, OffsetY = -1 - BarOffsetY,
+    Level = 1, --'BORDER'
     Width = 132, Height = 24,
     Left = 0.03906250, Right = 0.55468750, Top = 0.00390625, Bottom = 0.09765625
   },
   [DemonicFuryBorder] = {
-    OffsetX = 0 + BarOffsetX, OffsetY = 0 + BarOffsetY,
-    Level = 'ARTWORK',
+    OffsetX = 0 + BarOffsetX, OffsetY = 0 - BarOffsetY,
+    Level = 2, --'ARTWORK'
     Width = 169, Height = 52,
     Left = 0.03906250, Right = 0.69921875, Top = 0.51953125, Bottom = 0.72265625
   },
   [DemonicFuryBorderMeta] = {
-    OffsetX = 0 + BarOffsetX, OffsetY = 0 + BarOffsetY,
-    Level = 'ARTWORK',
+    OffsetX = 0 + BarOffsetX, OffsetY = 0 - BarOffsetY,
+    Level = 2, --'ARTWORK'
     Width = 169, Height = 52,
     Left = 0.03906250, Right = 0.69921875, Top = 0.30859375, Bottom = 0.51171875
   },
   [DemonicFuryNotch] = {
-    OffsetX = -42 + BarOffsetX, OffsetY = -1 + BarOffsetY,
-    Level = 'OVERLAY',
+    OffsetX = -42 + BarOffsetX, OffsetY = -1 - BarOffsetY,
+    Level = 3, --'OVERLAY',
     Width = 7, Height = 22,
     Left = 0.00390625, Right = 0.03125000, Top = 0.09765625, Bottom = 0.18359375
   },
   [DemonicFuryNotchMeta] = {
-    OffsetX = -42 + BarOffsetX, OffsetY = -1 + BarOffsetY,
-    Level = 'OVERLAY',
+    OffsetX = -42 + BarOffsetX, OffsetY = -1 - BarOffsetY,
+    Level = 3, --'OVERLAY',
     Width = 7, Height = 22,
     Left = 0.00390625, Right = 0.03125000, Top = 0.00390625, Bottom = 0.08984375
   }
@@ -154,12 +157,30 @@ GUB.UnitBarsF.DemonicBar.StatusCheck = GUB.Main.StatusCheck
 -- DemonicBarF      Demonic fury bar to be updated.
 -- DemonicFury      Shows the amount of demonic fury to be displayed.
 -------------------------------------------------------------------------------
-local function UpdateDemonicFury(DemonicBarF, DemonicFury)
+local SetTextValues = Main.SetTextValues
+
+-- Used by SetTextValues to calculate percentage.
+local function PercentFn(Value, MaxValue)
+  return abs(Value / MaxValue * 100)
+end
+
+local function UpdateDemonicFury(DemonicBarF, DemonicFury, CurrValue, MaxValue)
   local DemonicBar = DemonicBarF.DemonicBar
 
   DemonicBar:SetTextureFill(1, DemonicFuryBox, DemonicFury)
   DemonicBar:SetTextureFill(1, DemonicFuryBar, DemonicFury)
   DemonicBar:SetTextureFill(1, DemonicFuryBarMeta, DemonicFury)
+
+    -- Update display values.
+  local returnOK, msg = SetTextValues(nil, DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, CurrValue, MaxValue, PercentFn)
+  if not returnOK then
+    DemonicBarF.Txt:SetText('Layout Err Text')
+  end
+
+  returnOK, msg = SetTextValues(nil, DemonicBarF.UnitBar.Text2.TextType, DemonicBarF.Txt2, CurrValue, MaxValue, PercentFn)
+  if not returnOK then
+    DemonicBarF.Txt2:SetText('Layout Err Text2')
+  end
 end
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
@@ -174,6 +195,9 @@ function GUB.UnitBarsF.DemonicBar:Update(Event)
   if not self.Enabled then
     return
   end
+
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
 
   local DemonicFury = UnitPower('player', PowerDemonicFury)
   local MaxDemonicFury = UnitPowerMax('player', PowerDemonicFury)
@@ -221,7 +245,7 @@ function GUB.UnitBarsF.DemonicBar:Update(Event)
   if MaxDemonicFury > 0 then
     Value = DemonicFury / MaxDemonicFury
   end
-  UpdateDemonicFury(self, Value)
+  UpdateDemonicFury(self, Value, DemonicFury, MaxDemonicFury)
 
     -- Set this IsActive flag
   self.IsActive = Value ~= 0.20
@@ -275,6 +299,8 @@ end
 -- Object       Object being changed:
 --               'bg' for background (Border).
 --               'bar' for forground (StatusBar).
+--               'text' for text.
+--               'text2' for text2.
 --               'frame' for the frame.
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
@@ -307,7 +333,7 @@ function GUB.UnitBarsF.DemonicBar:SetAttr(Object, Attr)
 
     -- Background (Border).
     if Object == nil or Object == 'bg' then
-      BgColor = Background.Color
+      local BgColor = Background.Color
       if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
         DemonicBar:SetBackdrop(1, BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
@@ -321,6 +347,7 @@ function GUB.UnitBarsF.DemonicBar:SetAttr(Object, Attr)
         DemonicBar:SetRotateTexture(1, DemonicFuryBox, Bar.RotateTexture)
       end
       if Attr == nil or Attr == 'color' then
+        local BarColor = nil
         if not MetaActive then
           BarColor = Bar.Color
         else
@@ -331,6 +358,34 @@ function GUB.UnitBarsF.DemonicBar:SetAttr(Object, Attr)
       if Attr == nil or Attr == 'padding' then
         DemonicBar:SetTexturePadding(1, DemonicFuryBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
+    end
+  end
+
+  -- Text (self.Txt).
+  if Object == nil or Object == 'text' then
+    local Txt = self.Txt
+
+    local TextColor = UB.Text.Color
+
+    if Attr == nil or Attr == 'font' then
+      Main:SetFontString(Txt, UB.Text.FontSettings)
+    end
+    if Attr == nil or Attr == 'color' then
+      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+    end
+  end
+
+  -- Text2 (self.Txt2).
+  if Object == nil or Object == 'text2' then
+    local Txt = self.Txt2
+
+    local TextColor = UB.Text2.Color
+
+    if Attr == nil or Attr == 'font' then
+      Main:SetFontString(Txt, UB.Text2.FontSettings)
+    end
+    if Attr == nil or Attr == 'color' then
+      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
     end
   end
 end
@@ -422,6 +477,10 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
       DemonicBar:SetTextureSize(1, TextureNumber, TextureData.Width, TextureData.Height)
     end
   end
+
+  -- Create Txt and Txt2
+  UnitBarF.Txt = DemonicBar:CreateFontString('OVERLAY')
+  UnitBarF.Txt2 = DemonicBar:CreateFontString('OVERLAY')
 
   -- Show textures.
   DemonicBar:ShowTexture(1, DemonicFuryBox)

@@ -1368,8 +1368,9 @@ end
 local function CreateClassColorsOptions(BarType, Order, Name)
   local UBF = UnitBarsF[BarType]
   local ClassColorsMenu = {
-    [1] = 'DEATHKNIGHT', [2] = 'DRUID',  [3] = 'HUNTER', [4] = 'MAGE',     [5] = 'PALADIN', [6] = 'PRIEST',
-    [7] = 'PRIEST',      [8] = 'ROGUE',  [9] = 'SHAMAN', [10] = 'WARLOCK', [11] = 'WARRIOR'
+    [1]  = 'DEATHKNIGHT', [2]  = 'DRUID',  [3] = 'HUNTER', [4] = 'MAGE',  [5]  = 'MONK',
+    [6]  = 'PALADIN',     [7]  = 'PRIEST', [8] = 'PRIEST', [9] = 'ROGUE', [10] = 'SHAMAN',
+    [11] = 'WARLOCK',     [12] = 'WARRIOR'
   }
 
   local ClassColorsOptions = {
@@ -2801,7 +2802,7 @@ local function CreateCopyPasteOptions(BarType, Order)
     type = 'group',
     name = function()
              if CapCopyName and CapCopyKey then
-               return format('Copy and Paste ( %s -> %s )', CapCopyName, CapCopyKey)
+               return format('Copy and Paste ( %s . %s )', CapCopyName, CapCopyKey)
              else
                return 'Copy and Paste'
              end
@@ -2876,10 +2877,11 @@ local function CreateCopyPasteOptions(BarType, Order)
       t.width = 'half'
       if Key == 'Paste' then
 
-        -- Disable paste if nothing to paste.
+        -- Disable paste if nothing to paste or trying to paste to the source.
         t.disabled = function()
                        return CapCopyUB == nil or CapCopyKey ~= 'All' and
-                              ( UBF.UnitBar[CapCopyKey] == nil or CapCopyUB[CapCopyKey] == UBF.UnitBar[CapCopyKey] )
+                              ( UBF.UnitBar[CapCopyKey] == nil or CapCopyUB[CapCopyKey] == UBF.UnitBar[CapCopyKey] ) or
+                              CapCopyName == UBF.UnitBar.Name
                      end
       elseif Key == 'Clear' then
 
@@ -3154,7 +3156,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add text options
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and BarType ~= 'DemonicBar' then
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
     UBOA.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
     if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
       UBOA.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
@@ -3254,27 +3256,6 @@ local function CreateMainOptions()
                     Main:UnitBarsSetAllOptions()
                   end,
           },
-          HideAllBars = {
-            type = 'execute',
-            name = 'Hide All Bars',
-            order = 8,
-            desc = 'Sets all the bars to never show',
-            confirm = true,
-            func = function()
-
-                     -- Hide all bars.
-                     for BarType, v in pairs(UnitBars) do
-                       if type(v) == 'table' then
-
-                         -- Set the show never flag to true.
-                         UnitBars[BarType].Status.ShowNever = true
-
-                         -- Must do a status check/update.
-                         GUB:UnitBarsUpdateStatus()
-                       end
-                     end
-                   end,
-          },
         },
       },
 --=============================================================================
@@ -3312,8 +3293,8 @@ local function CreateMainOptions()
           -- Pet Power group.
           PetPower = CreateUnitBarOptions('PetPower', 8, 'Pet Power', 'Classes with pets only'),
 
-          -- Main Power group.
-          MainPower = CreateUnitBarOptions('MainPower', 9, 'Main Power', 'Druids only: Shown when in cat or bear form'),
+          -- Main Power group. (druid mana)
+          MainPower = CreateUnitBarOptions('MainPower', 9, 'Druid Mana', 'Druids only: Shown when in cat or bear form'),
 
           -- Runebar group.
           RuneBar = CreateUnitBarOptions('RuneBar', 10, 'Rune Bar'),

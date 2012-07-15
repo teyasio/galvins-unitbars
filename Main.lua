@@ -53,8 +53,8 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -79,8 +79,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 --
 -- UnitBarF structure       NOTE: To access UnitBarsF by index use UnitBarsFI[Index].
---                                To access UnitBarsF by Unit + PowerType use UnitBarsFPT[ Unit + PowerType ]
---                                Example: UnitBarsFPT['playerMANA'] would be the same as UnitBarsF.PlayerPower.
 --
 -- UnitBarsParent         - Child of UIParent.  The perpose of this is so all bars can be moved as a group.
 -- UnitBarsF[]            - This table contains all the bars.  And all data for each bar.
@@ -129,6 +127,10 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 --   Enabled              - True or false.  If true then the bar is enabled otherwise disabled.
 --   Hidden               - True or false.  If true then the bar is hidden otherwise shown.
+--   WaitTime             - Amount of time to wait before updating the bar again. Used by CreateUnitBarTimers().
+--   LastTime             - Last time the bars Update() function was called. Used by CreateUnitBarTimers().
+--                          This was created so when a bar gets updated thru an event, it wont get updated right away
+--                          in CreateUnitBarsTimers() unless the WaitTime has elapsed.
 --   IsActive             - True or false.  If true the bar is considered to be doing something, otherwise doing nothing.
 --                          If the bar doesn't have an active state, then this value defaults to true.
 --   ScaleWidth           - Contains the scaled width of the Anchor.
@@ -150,15 +152,14 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- UnitBarDelay           - Delay for health and power bars measured in times per second.  Any bar thats not a health
 --                          power bar gets updated in a slower frequency.
 -- PowerColorType           Table used by InitializeColors()
--- ConvertPowerType       - Table to convert a string powertype into a number or a numerical power type into a string.
+-- PowerTypeToNumber      - Table to convert a string powertype into a number.
 -- PowerBarType           - PowerType in all the power bars is set to this.
--- CheckEvent             - Table to check to see if an event is correct.  Converts an event into one of the following:
---                          'runepower', 'runetype' for a rune event.
 -- Backdrop                 This contains a Backdrop table that has texture path names.  Since this addon uses
 --                          shared media.  Texture names need to be converted into path names.  So ConvertBackdrop()
 --                          needs to be called.  ConvertBackdrop then sets this table to a real backdrop table that
 --                          can be used in SetBackdrop().  This table should never be reference to another table
 --                          since convertbackdrop passes back a reference to this table.
+-- PowerTypeToUnitBarsF     Used to convert a power type into a UnitBarsF bartype.  Usedby UnitBarsUpdatePower().
 --
 -- AlignmentTooltipDesc     Tooltip to be shown when the alignment tool is active.
 --
@@ -174,7 +175,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The main power type for the player.
 -- PlayerStance           - The current stance the player is in.
--- Specialization         - The current specialization.
+-- PlayerSpecialization   - The current specialization for the player
 -- Initialized            - True of false. Flag for OnInitializeOnce().
 -- PSelectedUnitBarF      - Contains a reference to UnitBarF.  Contains the primary selected UnitBar.
 --                          Alignment tool currently uses this.
@@ -188,6 +189,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- UnitBarsFList          - Reusable table used by the alignment tool.
 -- PointCalc              - Table used by CalcSetPoint() to return a location inside a parent frame.
 --
+-- GetTextValuePercentFn  - Contains the function to do percent calculations. Gets set by
+--                          GetTextValues() and called by SetTextValue().
 --
 -- UnitBar table data structure.
 -- This data is used in the root of the unitbar data table and applies to all bars.  Accessed by UnitBar.Key.
@@ -221,10 +224,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 --                            There can be more than one classname with a table and no limit to
 --                            how many specialization and stance/form numbers.
---
---   PowerType            - Used to help construct the UnitBarsF so that a bar can be called by event info directly.
---                          This can be a string or table.  If a bar doesn't have this, then its not updated by
---                          UNIT_POWER_FREQUENT or UNIT_HEALTH_FREQUENT.
+--  WaitTime              - Used for UnitBarsF. See UnitBarsF values.
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
 --   Status               - Table that contains a list of flags marked as true or false.
@@ -637,13 +637,14 @@ local PlayerPowerType = nil
 local PlayerClass = nil
 local PlayerClassID = nil
 local PlayerStance = nil
-local Specialization = nil
+local PlayerSpecialization = nil
 local PlayerGUID = nil
 local MoonkinForm = MOONKIN_FORM
 local CatForm = CAT_FORM
 local BearForm = BEAR_FORM
 local StanceIsNil = -1
 local Initialized = false
+local GetTextValuePercentFn = nil
 
 local EquipmentSetRegisterEvent = false
 local PSelectedUnitBarF = nil
@@ -660,7 +661,7 @@ local EventSpellMissed      = 4
 local EventSpellFailed      = 5
 
 local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
-local UnitBarDelay = 1 / 10   -- 10 times per second.
+local UnitBarDelay = 1 / 4   -- 4 times per second.
 
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -670,8 +671,6 @@ local BdTexture = 'Blizzard Tooltip'
 local StatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
 local UBFontType = 'Friz Quadrata TT'
-
-local PowerBarType = {'MANA', 'RAGE', 'FOCUS', 'ENERGY', 'RUNIC_POWER'}
 
 local Backdrop = {
   bgFile   = LSM:Fetch('background', BgTexture), -- background texture
@@ -729,7 +728,7 @@ local Defaults = {
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
-      PowerType = 'HEALTH',
+      WaitTime = 1.0,
       x = 0,
       y = 150,
       Status = {
@@ -819,7 +818,7 @@ local Defaults = {
 -- Player Power
     PlayerPower = {
       Name = 'Player Power',
-      PowerType = PowerBarType,
+      WaitTime = 1.0,
       x = 0,
       y = 120,
       Status = {
@@ -908,7 +907,7 @@ local Defaults = {
     TargetHealth = {
       Name = 'Target Health',
       EnableBar = function() return HasTarget end,
-      PowerType = 'HEALTH',
+      WaitTime = 1.0,
       x = 0,
       y = 90,
       Status = {
@@ -999,7 +998,7 @@ local Defaults = {
     TargetPower = {
       Name = 'Target Power',
       EnableBar = function() return HasTarget end,
-      PowerType = PowerBarType,
+      WaitTime = 1.0,
       x = 0,
       y = 60,
       Status = {
@@ -1083,7 +1082,7 @@ local Defaults = {
     FocusHealth = {
       Name = 'Focus Health',
       EnableBar = function() return HasFocus end,
-      PowerType = 'HEALTH',
+      WaitTime = 1.0,
       x = 0,
       y = 30,
       Status = {
@@ -1174,7 +1173,7 @@ local Defaults = {
     FocusPower = {
       Name = 'Focus Power',
       EnableBar = function() return HasFocus end,
-      PowerType = PowerBarType,
+      WaitTime = 1.0,
       x = 0,
       y = 0,
       Status = {
@@ -1259,7 +1258,7 @@ local Defaults = {
       Name = 'Pet Health',
       EnableBar = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
-      PowerType = 'HEALTH',
+      WaitTime = 1.0,
       x = 0,
       y = -30,
       Status = {
@@ -1346,7 +1345,6 @@ local Defaults = {
       Name = 'Pet Power',
       EnableBar = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
-      PowerType = PowerBarType,
       x = 0,
       y = -60,
       Status = {
@@ -1429,8 +1427,9 @@ local Defaults = {
     },
 -- Main Power
     MainPower = {
-      Name = 'Main Power',
+      Name = 'Druid Mana',
       UsedByClass = {DRUID = {CatForm, BearForm}},
+      WaitTime = 1.0,
       x = 0,
       y = -90,
       Status = {
@@ -1515,6 +1514,7 @@ local Defaults = {
     RuneBar = {
       Name = 'Rune Bar',
       UsedByClass = {DEATHKNIGHT = {}},
+      WaitTime = 1.0,
       x = 0,
       y = -120,
       Status = {
@@ -1647,6 +1647,7 @@ local Defaults = {
       Name = 'Combo Bar',
       EnableBar = function() return HasTarget end,
       UsedByClass = {ROGUE = {}, DRUID = {'1234', CatForm}},
+      WaitTime = 0.333,
       x = 0,
       y = -150,
       Status = {
@@ -1711,7 +1712,7 @@ local Defaults = {
     HolyBar = {
       Name = 'Holy Bar',
       UsedByClass = {PALADIN = {}},
-      PowerType = 'HOLY_POWER',
+      WaitTime = 0.333,
       x = 0,
       y = -180,
       Status = {
@@ -1773,7 +1774,7 @@ local Defaults = {
     ShardBar = {
       Name = 'Shard Bar',
       UsedByClass = {WARLOCK = {'1'}},
-      PowerType = 'SOUL_SHARDS',
+      WaitTime = 0.333,
       x = 0,
       y = -215,
       Status = {
@@ -1833,9 +1834,9 @@ local Defaults = {
     },
 -- DemonicBar
     DemonicBar = {
-      Name = 'Demonic Fury Bar',
+      Name = 'Demonic Fury',
       UsedByClass = {WARLOCK = {'2'}},
-      PowerType = 'DEMONIC_FURY',
+      WaitTime = 1.0,
       x = -200,
       y = -215,
       Status = {
@@ -1876,11 +1877,54 @@ local Defaults = {
         Color = {r = 0.627, g = 0.298, b = 827, a = 1},
         ColorMeta = {r = 0.752, g = 0.439, b = 0.909, a = 1},
       },
+      Text = {
+        TextType = {
+          Custom = false,
+          Layout = '%d%%',
+          MaxValues = 1,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 11,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'CENTER',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = -1,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text2 = {
+        TextType = {
+          Custom = false,
+          Layout = '',
+          MaxValues = 0,
+          ValueName = {'current', 'maximum', 'current'},
+          ValueType = {'percent', 'whole',   'none'},
+        },
+        FontSettings = {
+          FontType = UBFontType,
+          FontSize = 11,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          Position = 'RIGHT',
+          Width = 200,
+          OffsetX = 0,
+          OffsetY = -1,
+          ShadowOffset = 0,
+        },
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
     },
 -- EclipseBar
     EclipseBar = {
       Name = 'Eclipse Bar',
       UsedByClass = {DRUID = {'1', MoonkinForm, StanceIsNil}},
+      WaitTime = 0.333,
       x = 0,
       y = -250,
       Status = {
@@ -2113,25 +2157,39 @@ local PredictedSpellCasting = {
   CastTime = 0,
 }
 
-local ConvertPowerType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3,
-                          RUNIC_POWER = 6, SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9,
-                          DEMONIC_FURY = 15,
-                          [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY',
-                          [6] = 'RUNIC_POWER',[7] = 'SOUL_SHARDS', [8] = 'ECLIPSE', [9] = 'HOLY_POWER',
-                          [15] = 'DEMONIC_FURY'}
-
-local PowerColorType = {MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6}
-
-local CheckEvent = {
-  RUNE_POWER_UPDATE = 'runepower', RUNE_TYPE_UPDATE = 'runetype',
+local PowerColorType = {
+  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6
 }
+
+local PowerTypeToUnitBarsF = {
+  MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power',
+  SOUL_SHARDS = 'ShardBar', DEMONIC_FURY = 'DemonicBar', HOLY_POWER = 'HOLYBAR',
+
+  -- Event names
+  RUNE_POWER_UPDATE = 'RuneBar', RUNE_TYPE_UPDATE = 'RuneBar'
+}
+
+local PowerTypeToNumber = {
+  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
+  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, DEMONIC_FURY = 15
+}
+
+local PowerColorType = {
+  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6
+}
+
+-- Constants used in NumberToDigitGroups
+local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.'
+local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
+local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
+local ThousandFormat = '%s%d' .. Thousands..'%03d'
 
 -- Share with the whole addon.
 GUB.LSM = LSM
 GUB.Defaults = Defaults
 GUB.PowerColorType = PowerColorType
-GUB.ConvertPowerType = ConvertPowerType
-GUB.CheckEvent = CheckEvent
+GUB.PowerTypeToNumber = PowerTypeToNumber
+GUB.PowerTypeToUnitBarsF = PowerTypeToUnitBarsF
 GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 
 -------------------------------------------------------------------------------
@@ -2141,7 +2199,6 @@ GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 -------------------------------------------------------------------------------
 do
   local Index = 0
-
   for BarType, UB in pairs(Defaults.profile) do
     if type(UB) == 'table' then
       Index = Index + 1
@@ -2149,20 +2206,6 @@ do
       UnitBarsF[BarType] = UBFTable
       UnitBarsFI[Index] = UBFTable
       UnitBarsF[BarType].UnitBar = UB
-
-      -- Add keys to access bars with Unit + PowerType.
-      local Unit = strfind(BarType, 'Player') and 'player' or strfind(BarType, 'Target') and 'target' or
-                   strfind(BarType, 'Focus') and 'focus' or strfind(BarType, 'Pet') and 'pet' or 'player'
-      local PowerType = UB.PowerType
-      if PowerType then
-        if type(PowerType) == 'table' then
-          for _, PT in pairs(PowerType) do
-            UnitBarsFPT[format('%s%s', Unit, PT)] = UBFTable
-          end
-        else
-          UnitBarsFPT[format('%s%s', Unit, PowerType)] = UBFTable
-        end
-      end
     end
   end
 end
@@ -2205,19 +2248,17 @@ local function RegisterEvents(Action, EventType)
     GUB:RegisterEvent('UNIT_POWER_FREQUENT', 'UnitBarsUpdatePower')
 
     -- Register rune power events.
-    GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdate')
-    GUB:RegisterEvent('RUNE_TYPE_UPDATE', 'UnitBarsUpdate')
+    GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdatePower')
+    GUB:RegisterEvent('RUNE_TYPE_UPDATE', 'UnitBarsUpdatePower')
 
   elseif EventType == 'predictedspells' then
     if Action == 'register' then
 
-      print('on')
       -- register events for predicted spells.
       GUB:RegisterEvent('COMBAT_LOG_EVENT_UNFILTERED', 'CombatLogUnfiltered')
       GUB:RegisterEvent('UNIT_SPELLCAST_START', 'SpellCasting')
       GUB:RegisterEvent('UNIT_SPELLCAST_SUCCEEDED', 'SpellCasting')
     else
-      print('off')
       GUB:UnregisterEvent('COMBAT_LOG_EVENT_UNFILTERED')
       GUB:UnregisterEvent('UNIT_SPELLCAST_START')
       GUB:UnregisterEvent('UNIT_SPELLCAST_SUCCEEDED')
@@ -2276,6 +2317,155 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- NumberToDigitGroups
+--
+-- Takes a number and returns it in groups of three. 999,999,999
+--
+-- Usage: String = NumberToDigitGroups(Value)
+--
+-- Value       Number to convert to a digit group.
+--
+-- String      String containing Value in digit groups.
+-------------------------------------------------------------------------------
+local function NumberToDigitGroups(Value)
+  local Sign = ''
+  if Value < 0 then
+    Sign = '-'
+    Value = abs(Value)
+  end
+
+  if Value >= 1000000000 then
+    return format(BillionFormat, Sign, Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
+  elseif Value >= 1000000 then
+    return format(MillionFormat, Sign, Value / 1000000, (Value / 1000) % 1000, Value % 1000)
+  elseif Value >= 1000 then
+    return format(ThousandFormat, Sign, Value / 1000, Value % 1000)
+  else
+    return format('%s', Value)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetShortTextValue
+--
+-- Takes a number and returns it in a shorter format for formatted text.
+--
+-- Usage: Value2 = GetShortTextValue(Value)
+--
+-- Value       Number to convert for formatted text.
+--
+-- Value2      Formatted text made from Value.
+-------------------------------------------------------------------------------
+local function GetShortTextValue(Value)
+  if Value < 1000 then
+    return format('%s', Value)
+  elseif Value < 1000000 then
+    return format('%.fk', Value / 1000)
+  else
+    return format('%.1fm', Value / 1000000)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetTextValue
+--
+-- Returns either CurrValue or MaxValue based on the ValueName and ValueType
+--
+-- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
+--
+-- ValueName        Must be 'current', 'maximum', or 'predicted'.
+-- ValueType        The type of value, see texttype in main.lua for a list.
+-- CurrValue        Values to be used.
+-- MaxValue         Values to be used.
+-- PredictedValue   Predicted health or power value.  If nil won't be used.
+--
+-- Value            The value returned based on the ValueName and ValueType.
+--                  Can be a string or number.
+-------------------------------------------------------------------------------
+local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
+  local Value = nil
+
+  -- Get the value based on ValueName
+  if ValueName == 'current' then
+    Value = CurrValue
+  elseif ValueName == 'maximum' then
+    Value = MaxValue
+  elseif ValueName == 'predicted' then
+    Value = PredictedValue or 0
+  end
+
+  if ValueType == 'whole' then
+    return Value
+  elseif ValueType == 'whole_dgroups' then
+    return NumberToDigitGroups(Value)
+  elseif ValueType == 'percent' and Value > 0 then
+    if MaxValue == 0 then
+      return 0
+    else
+      return GetTextValuePercentFn(Value, MaxValue)
+    end
+  elseif ValueType == 'thousands' then
+    return Value / 1000
+  elseif ValueType == 'millions' then
+    return Value / 1000000
+  elseif ValueType == 'short' then
+    return GetShortTextValue(Value)
+  else
+    return 0
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetTextValues
+--
+-- Sets one or more values on a fontstring based on the text type settings
+--
+-- Usage: returnOK, msg = SetTextValues(TextType, FontString, CurrValue, MaxValue, PercentFn, PredictedValue)
+--
+-- TextType         Contains the data from UB.Text.TextType
+-- FontString       Contains the font string to display data on.
+-- CurrValue        Current value.  Used for percentage.
+-- MaxValue         Maximum value.  Used for percentage.
+-- PercentFn        Function containing the percentage formula.  The function gets passed the min/max values.
+--                  and must return the result.
+-- PredictedValue   Predicted health or power value.  Set value to nil if you have no predicted value to set.
+--
+-- returnOK         If any errors happend then this flag will not be nill
+-- msg              Error message returned.
+-------------------------------------------------------------------------------
+
+-- Use recursion to build a parameter list to pass back to setformat.
+local function GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position, ...)
+  if Position > 0 then
+    local Type = ValueType[Position]
+    if Type ~= 'none' then
+      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1,
+                           GetTextValue(ValueName[Position], Type, CurrValue, MaxValue, PredictedValue), ...)
+    else
+      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1, ...)
+    end
+  else
+    return ...
+  end
+end
+
+local function SetTextValues2(TextType, FontString, CurrValue, MaxValue, PredictedValue)
+  local MaxValues = TextType.MaxValues
+
+  if MaxValues > 0 then
+    FontString:SetFormattedText(TextType.Layout,
+      GetTextValues(TextType.ValueName, TextType.ValueType, CurrValue, MaxValue, PredictedValue, MaxValues))
+  else
+    FontString:SetText('')
+  end
+end
+
+function GUB.Main:SetTextValues(TextType, FontString, CurrValue, MaxValue, PercentFn, PredictedValue)
+  GetTextValuePercentFn = PercentFn
+  return pcall(SetTextValues2, TextType, FontString, CurrValue, MaxValue, PredictedValue)
+end
+
+-------------------------------------------------------------------------------
 -- CheckTalent
 --
 -- Checks to see if the talent on the player is active or not.
@@ -2288,7 +2478,7 @@ end
 -- Status   If true then the talent is active, otherwise false.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckTalent(Index, Unit)
-  local _, _, _, _, Active, _ = GetTalentInfo(Index, nil, nil, Unit, PlayerClassID)
+  local _, _, _, _, Active, _ = GetTalentInfo(Index, true, nil, Unit, PlayerClassID)
   return Active
 end
 
@@ -2813,7 +3003,7 @@ function GUB.Main:CheckAura(Condition, ...)
   local Found = 0
   local i = 1
   repeat
-    Name, _, _, _, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', i)
+    local Name, _, _, _, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', i)
     if Name then
       for i = 1, MaxSpellID do
         if SpellID == select(i, ...) then
@@ -3400,7 +3590,7 @@ function GUB.Main:StatusCheck()
             -- if spec found check against it.
             if type(Value2) == 'string' then
               FoundSpec = 0
-              if Specialization and strfind(Value2, Specialization) ~= nil then
+              if PlayerSpecialization and strfind(Value2, PlayerSpecialization) ~= nil then
                 FoundSpec = 1
               end
             else
@@ -3627,59 +3817,60 @@ function GUB:SpellCasting(Event, Unit, Name, Rank, LineID, SpellID)
 end
 
 -------------------------------------------------------------------------------
--- UpdateUnitBars
---
--- Displays all the unitbars unless Event, Unit are specified.
--------------------------------------------------------------------------------
-local function UpdateUnitBars(Event, ...)
-  for _, UBF in pairs(UnitBarsF) do
-    UBF:Update(Event, ...)
-  end
-end
-
--------------------------------------------------------------------------------
--- UnitBarsUpdate
---
--- Event handler for updating the unitbars. Also can be used to update all bars.
---
--- Usage: UnitBarsUpdate()
---
---   Updates all unitbars.
---
--- Usage: UnitBarsUpdate(Event, ...)
---
---   Update the unitbars that match Event and ...
--------------------------------------------------------------------------------
-function GUB:UnitBarsUpdate(Event, ...)
-  UpdateUnitBars(Event, ...)
-end
-
--------------------------------------------------------------------------------
 -- UnitBarsUpdateHealth
 -- UnitBarsUpdatePower
 --
--- Event handlers that use the frequent events to update health and power in real time.
+-- Event handlers that use the frequent events or normal events to update unitbars.
+--
+-- NOTES:
+--   Some bars don't get called by this and require bar timer update code to update them instead.
+--   This will check event first, convert it into a UBF.  Then it will convert the power type
+--   into an UBF.  Then do an UBF:Update()
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdateHealth(Event, Unit)
-  print(Event, Unit)
-  local UBF = UnitBarsFPT[format('%sHEALTH', Unit)]
+  local UBF = UnitBarsF[format('%sHealth', gsub(Unit, '%a', strupper, 1))]
   if UBF and UBF.Enabled then
     UBF:Update('change')
   end
 end
 
-function GUB:UnitBarsUpdatePower(Event, Unit, PowerType)
- -- print(Event, Unit, PowerType)
-  local UBF = UnitBarsFPT[format('%s%s', Unit, PowerType)]
-  if UBF and UBF.Enabled then
-    UBF:Update('change')
-  end
+function GUB:UnitBarsUpdatePower(Event, ...)
+  local UBF = nil
 
-  -- Update the mainpower bar for druid.
-  if PowerType == 'MANA' and PlayerClass == 'DRUID' then
-    UBF = UnitBarsF.MainPower
-    if UBF.Enabled then
+  -- Convert event into power
+  local Power = PowerTypeToUnitBarsF[Event]
+  if Power ~= nil then
+    UBF = UnitBarsF[Power]
+
+    if UBF and UBF.Enabled then
+      UBF:Update(Event, ...)
+    end
+  else
+
+    -- Convert power type into power.
+    local Unit = select(1, ...)
+    local PowerType = select(2, ...)
+
+    -- Convert power type into UBF
+    Power = PowerTypeToUnitBarsF[PowerType]
+
+    -- Get UnitBarsF from power.
+    if Power == 'power' then
+      UBF = UnitBarsF[format('%sPower', gsub(Unit, '%a', strupper, 1))]
+    else
+      UBF = UnitBarsF[Power]
+    end
+
+    if UBF and UBF.Enabled then
       UBF:Update('change')
+    end
+
+    -- Update the mainpower bar for druid.
+    if PowerType == 'MANA' and PlayerClass == 'DRUID' then
+      UBF = UnitBarsF.MainPower
+      if UBF.Enabled then
+        UBF:Update('change')
+      end
     end
   end
 end
@@ -3705,7 +3896,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   HasFocus = UnitExists('focus') == 1
   HasPet = select(1, HasPetUI()) ~= nil
   PlayerStance = GetShapeshiftFormID()
-  Specialization = GetSpecialization()
+  PlayerSpecialization = GetSpecialization()
 
   for _, UBF in pairs(UnitBarsF) do
     UBF:StatusCheck()
@@ -3731,7 +3922,8 @@ function GUB.Main:UnitBarStartMoving(Button)
     local UBF = self.UnitBarF
 
     -- Left click select bar if alignment tool is open.
-    if Button == 'LeftButton' and SelectMode then
+    -- Must have selected a bar (green) first.
+    if Button == 'LeftButton' and SelectMode and PSelectedUnitBarF then
       if UBF ~= PSelectedUnitBarF then
         if UBF.Selected then
           SelectUnitBar(UBF, 'clear')
@@ -4020,8 +4212,13 @@ local function CreateUnitBars(UnitBarDB)
     -- Save the enable bar function.
     UnitBarF.EnableBar = UB.EnableBar
 
-    -- Add a SetSize function
+    -- Add a SetSize function.
     UnitBarF.SetSize = SetUnitBarSize
+
+    -- Add time fields.
+    UnitBarF.WaitTime = UB.WaitTime
+    UnitBarF.LastTime = 0
+
   end
 end
 
@@ -4031,12 +4228,6 @@ end
 -- All unitbars are controlled thru SetTimer()
 -------------------------------------------------------------------------------
 local function CreateUnitBarTimers()
-  local HapBarsF = {}
-  local OtherBarsF = {}
-  local OtherBarsTime = 0
-  local OtherBarsCount = 0
-  local HapBarsCount = 0
-  local HapBarsTime = 0
 
   -- Timer for updating health and power bars and keeping track of predicted spells.
   local function UnitBarsTimer(self, Elapsed)
@@ -4054,45 +4245,15 @@ local function CreateUnitBarTimers()
       PredictedSpellsTime = 0
     end
 
-    -- Update health and power bars once a second.
-    -- This is only done incase a bar used predicted power.
-    HapBarsTime = HapBarsTime + 1
-    if HapBarsTime == 10 then
-      HapBarsTime = 0
-      for i = 1, HapBarsCount do
-        local UBF = HapBarsF[i]
+    -- Update all bars based on their time.
+    for _, UBF in ipairs(UnitBarsFI) do
+      if UBF.Enabled then
 
-        -- Check enabled here for speed.
-        if UBF.Enabled then
+        -- Check LastTime against WaitTime.
+        if GetTime() - UBF.LastTime > UBF.WaitTime then
           UBF:Update('change')
         end
       end
-    end
-
-    -- Update other bars at 4 times per second.
-    OtherBarsTime = OtherBarsTime + 1
-    if OtherBarsTime == 3 then
-      OtherBarsTime = 0
-      for i = 1, OtherBarsCount do
-        local UBF = OtherBarsF[i]
-
-        -- Check enabled here for speed.
-        if UBF.Enabled then
-        --  UBF:Update('change')
-        end
-      end
-    end
-  end
-
-  -- For speed store reference of bars into an indexed array.
-  local Index = 0
-  for BarType, UBF in pairs(UnitBarsF) do
-    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
-      HapBarsCount = HapBarsCount + 1
-      HapBarsF[HapBarsCount] = UBF
-    else
-      OtherBarsCount = OtherBarsCount + 1
-      OtherBarsF[OtherBarsCount] = UBF
     end
   end
 
@@ -4165,7 +4326,7 @@ local function OnInitializeOnce()
     _, PlayerClass, PlayerClassID = UnitClass('player')
 
     -- Get the main power type for the player.
-    PlayerPowerType = UnitPowerType('player')
+    _, PlayerPowerType = UnitPowerType('player')
 
     -- Get the globally unique identifier for the player.
     PlayerGUID = UnitGUID('player')
