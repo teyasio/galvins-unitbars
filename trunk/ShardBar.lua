@@ -10,7 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local ConvertPowerType = GUB.ConvertPowerType
+local PowerTypeToNumber = GUB.PowerTypeToNumber
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -27,10 +27,10 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -51,13 +51,18 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --
 -- LastSoulShards                    Keeps track of change in the soulshard bar.
 --
+-- SoulShardBox                      Soul shard in box mode.  Statusbar
+-- SoulShardDark                     Dark soul shard when not lit.
+-- SoulShardLight                    Light sould shard used for lighting a dark soul shard.
+--
+--
 -- NOTE: SoulShard bar has two modes.  In BoxMode the soulshard bar is broken into 3 statusbars.
 --       This works just like the combobar.  When not normal mode.  The bar uses textures instead.
 -------------------------------------------------------------------------------
 local MaxSoulShards = 3
 
 -- Powertype constants
-local PowerShard = ConvertPowerType['SOUL_SHARDS']
+local PowerShard = PowerTypeToNumber['SOUL_SHARDS']
 
 -- Soulshard Texture constants
 local SoulShardBox = 1
@@ -128,6 +133,9 @@ function GUB.UnitBarsF.ShardBar:Update(Event)
   if not self.Enabled then
     return
   end
+
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
 
   local SoulShards = UnitPower('player', PowerShard)
 
@@ -380,8 +388,8 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
       -- Create the textures for box and runes.
     ShardBar:CreateBoxTexture(ShardIndex, SoulShardBox, 'statusbar')
-    ShardBar:CreateBoxTexture(ShardIndex, SoulShardDark, 'texture', 'ARTWORK')
-    ShardBar:CreateBoxTexture(ShardIndex, SoulShardLight, 'texture', 'OVERLAY')
+    ShardBar:CreateBoxTexture(ShardIndex, SoulShardDark, 'texture', 0)
+    ShardBar:CreateBoxTexture(ShardIndex, SoulShardLight, 'texture', 1)
 
     -- Set the textures
     ShardBar:SetTexture(ShardIndex, SoulShardDark, SoulShardTexture.Texture)

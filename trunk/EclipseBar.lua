@@ -17,7 +17,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local LSM = GUB.LSM
-local ConvertPowerType = GUB.ConvertPowerType
+local PowerTypeToNumber = GUB.PowerTypeToNumber
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -34,10 +34,10 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -151,7 +151,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -------------------------------------------------------------------------------
 
 -- Powertype constants
-local PowerEclipse = ConvertPowerType['ECLIPSE']
+local PowerEclipse = PowerTypeToNumber['ECLIPSE']
 
 local EclipseDirection = nil
 local LastEclipsePower = nil
@@ -566,6 +566,9 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
   if not self.Enabled then
     return
   end
+
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
 
   local UB = self.UnitBar
   local Gen = UB.General

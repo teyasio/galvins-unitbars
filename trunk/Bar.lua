@@ -25,10 +25,10 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -47,6 +47,11 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- BarDB.BoxScale                    Change the scale of all the boxes in the bar.
 -- BarDB.BoxWidth                    Width of all the boxes.
 -- BarDB.BoxHeight                   Height of all the boxes.
+-- BarDB.TextFrame                   TextFrame for one or more fontstrings.  Only exists after CreateFontString()
+--                                   The TextFrame is always set one higher than the highest frame level.
+--                                   Also the TextFrame will always be the same size as the BarDB.Border.
+-- BarDB.TopFrameLevel               Contains the highest frame level in use by the bar.
+--
 -- BarDB.BoxFrame[]                  An array of frames containing textures or statusbars or both.
 --
 -- BoxFrame[]                        Invisible frame containing the textures/statusbars.
@@ -97,14 +102,34 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --
 -- If you have textures then you need to call these.
 --   SetTexture()
---   SetTexCoord()    If the texture has multiple textures.
+--   SetTexCoord()    If the texture file has multiple textures.
 --   SetTexureSize()
 --   SetBoxSize()     Without this nothing will show.
+--
+-- After adding all your textures.  Then you can do CreateFontString if you need one.  The fontstring
+-- will always be on top unless you do another CreateBoxTexture.  So this should always be done when
+-- you're sure no more
+-- textures wil be added
 --
 -- Once you've done that then to make the bar display on screen.
 --   ShowTextureFrame()
 --   ShowTexture()
 --   Display()
+--
+-- For enable/disable of the bar.
+--   SetEnableMouse(nil or BoxNumber)   A bar always has a border even if no backdrop was set to
+--      it.  This function will allow the bar to be dragged/dropped by clicking on the border. if
+--      a box number is used then that box has to be clicked on to drag/drop the whole bar.
+--
+--   SetEnableMouseClicks(nil or BoxNumber)  If set to nil then the bar's border won't respond
+--      to mouse clicks or mousing over for tooltips.  If a box number is used then that box
+--      wont respond to mouse clicks or mousing over for tooltips.
+--
+-- Hiding and showing of the border.
+--   HideBorder/ShowBorder(nil or BoxNumber)  So in this mod. Most bars have two modes, box mode and texture mode.
+--      Sometimes we want a visible border in bar mode then hide it in box mode.  Nil means hide the border
+--      surrounding the whole bar.  If not nil then it hides or shows the border for that box instead.
+--      One a border/box is hidden it can't interact with mouse or be dragged/dropped.
 --
 -- There are more functions to use depending on what you're doing.
 -------------------------------------------------------------------------------
@@ -412,6 +437,40 @@ function BarDB:SetDesaturated(BoxNumber, TextureNumber, Action)
   end)
 end
 
+-------------------------------------------------------------------------------
+-- CreateFontString
+--
+-- Usage FontString = CreateFontString(Layer, [Inherits])
+--
+-- Layer          Graphic layer on which to create the font string
+-- Inherits       Name of a template from which the new front string should inherit (string)
+--
+-- FontString     Font string that can be used to display text on the bar.
+--
+-- NOTES:    The FontString gets made for the whole bar and not any of the boxes in the bar.
+-------------------------------------------------------------------------------
+function BarDB:CreateFontString(Layer, Inherits)
+  local FS = nil
+  DoBar(self, nil, nil, function(Border)
+    local TextFrame = self.TextFrame
+
+    -- Frame hasn't been created yet.
+    if TextFrame == nil then
+      TextFrame = CreateFrame('Frame', nil, Border)
+
+      -- Set all points to border
+      TextFrame:SetAllPoints(Border)
+
+      -- Set frame to be above all else. So text shows up.
+      TextFrame:SetFrameLevel(self.TopFrameLevel + 1)
+      self.TextFrame = TextFrame
+
+    end
+    FS = TextFrame:CreateFontString(nil, Layer, Inherits)
+  end)
+  return FS
+end
+
 --=============================================================================
 -- Set Functions that can be used at any time.
 --=============================================================================
@@ -545,6 +604,9 @@ end
 --
 -- Action    false   Disables mouse interaction with frame.
 --           true    Enables mouse interaction with frame.
+--
+-- NOTE:  If BoxNumber is nil then it will use the box's border to enable
+--        mouse clicks.  Otherwise it will use the box's frame instead.
 -------------------------------------------------------------------------------
 function BarDB:SetEnableMouseClicks(BoxNumber, Action)
   DoBar(self, BoxNumber, nil, function(Border, Frame)
@@ -565,10 +627,11 @@ end
 -- Usage: SetEnableMouse(BoxNumber, Action)
 --
 -- Action    false  The box or bar can not be dragged/dropped and tooltips disabled
---           true   The box o bar can be dragged/dropped and tooltips enabled.
+--           true   The box or bar can be dragged/dropped and tooltips enabled.
 --
 -- NOTE:  This function should be used after SetTooltip
---        If BoxNumber is nil then the whole bar is enabled/disabled.
+--        If BoxNumber is nil then the bar's border is allowed to be dragged/dropped.
+--        Otherwise the box's frame is used instead to drag/drop the bar.
 -------------------------------------------------------------------------------
 function BarDB:SetEnableMouse(BoxNumber, Action)
   DoBar(self, BoxNumber, nil, function(Border, Frame)
@@ -859,7 +922,7 @@ end
 --
 -- Creates a frame to hold a texture for the bar.
 --
--- Usage: CreateBoxTexture(BoxNumber, TextureNumber, TextureType, [Layer], [OffsetX, OffsetY])
+-- Usage: CreateBoxTexture(BoxNumber, TextureNumber, TextureType, [Layer or Frame Level], [OffsetX, OffsetY])
 
 --
 -- BoxNumber          Box to be modified.
@@ -869,7 +932,12 @@ end
 -- OffsetX            Amount in pixels to offset. Positive goes right, negative goes left.
 -- OffsetY            Amount in pixels to offset. Positive goes up, negative goes down.
 --                    If OffsetX and OffsetY are not specified then zero is used.
--- Layer              Used for 'texture' only.  Sets the layer for texture.
+-- Layer or Level     Used for 'texture' only.
+--                    If layer is used then the texture's layer is set.
+--                    If level is used then the texureframe level is set.
+--                    If layer or level is nill then nothing is set.
+--                    Level is counted from its current level and up.  So setting 2 would
+--                    be current level frame level + 2.
 --
 -- Note: Statusbars get stretched to the box edges.  Textures are centered in the box.
 --       Textures and Statusbars are hidden by default.
@@ -903,15 +971,27 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Value1, V
     TextureFrame.RotateTexture = false
     TextureFrame.Type = 'statusbar'
   else
-    Texture = TextureFrame:CreateTexture(nil, Value1)
+    if type(Value1) == 'string' then
+      Texture = TextureFrame:CreateTexture(nil, Value1)
+    else
+      Texture = TextureFrame:CreateTexture(nil)
+      if Value1 then
+        TextureFrame:SetFrameLevel(TextureFrame:GetFrameLevel() + Value1 - 1)
+      end
+    end
     Texture:SetWidth(1)
     Texture:SetHeight(1)
-    Texture:SetPoint('BOTTOMLEFT', Value2, Value3)
+    Texture:SetPoint('BOTTOMLEFT', Value2 or 0, Value3 or 0)
     TextureFrame.Type = 'texture'
 
     -- Texture Frame is centered in the boxframe.
     TextureFrame:SetPoint('CENTER', 0, 0)
   end
+
+  -- Update TopFrameLevel counter
+  local TopFrameLevel = self.TopFrameLevel or 0
+  local CurrentFrameLevel = TextureFrame:GetFrameLevel()
+  self.TopFrameLevel = TopFrameLevel < CurrentFrameLevel and CurrentFrameLevel or TopFrameLevel
 
   -- Create an animation for fade out for the Texture.
   Texture.FadeOut, Texture.FadeOutA = Main:CreateFadeOut(Texture)

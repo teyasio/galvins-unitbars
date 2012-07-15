@@ -11,7 +11,7 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 local UnitBarsF = GUB.UnitBarsF
 local LSM = GUB.LSM
-local ConvertPowerType = GUB.ConvertPowerType
+local PowerTypeToNumber = GUB.PowerTypeToNumber
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -28,27 +28,12 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-
-
-local SquareBorder = {
-  bgFile   = '',
-  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
-  tile = true,
-  tileSize = 16,
-  edgeSize = 12,
-  insets = {
-    left = 4 ,
-    right = 4,
-    top = 4,
-    bottom = 4
-  }
-}
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -77,9 +62,9 @@ local SquareBorder = {
 local PlayerClass = nil
 
 -- Powertype constants
-local PowerMana = ConvertPowerType['MANA']
-local PowerEnergy = ConvertPowerType['ENERGY']
-local PowerFocus = ConvertPowerType['FOCUS']
+local PowerMana = PowerTypeToNumber['MANA']
+local PowerEnergy = PowerTypeToNumber['ENERGY']
+local PowerFocus = PowerTypeToNumber['FOCUS']
 
 local LastCurrValue = {}
 local LastMaxValue = {}
@@ -95,12 +80,6 @@ local PredictedSpellValue = {
   [SpellSteadyShot] = 14,
   [SpellCobraShot]  = 14,
 }
-
--- Constants used in NumberToDigitGroups
-local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.'
-local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local ThousandFormat = '%s%d' .. Thousands..'%03d'
 
 -------------------------------------------------------------------------------
 -- ShareData
@@ -155,152 +134,6 @@ Main:SetPredictedSpells(SpellCobraShot,  'casting', function(SpellID, Message) U
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- NumberToDigitGroups
---
--- Takes a number and returns it in groups of three. 999,999,999
---
--- Usage: String = NumberToDigitGroups(Value)
---
--- Value       Number to convert to a digit group.
---
--- String      String containing Value in digit groups.
--------------------------------------------------------------------------------
-local function NumberToDigitGroups(Value)
-  local Sign = ''
-  if Value < 0 then
-    Sign = '-'
-    Value = abs(Value)
-  end
-
-  if Value >= 1000000000 then
-    return format(BillionFormat, Sign, Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
-  elseif Value >= 1000000 then
-    return format(MillionFormat, Sign, Value / 1000000, (Value / 1000) % 1000, Value % 1000)
-  elseif Value >= 1000 then
-    return format(ThousandFormat, Sign, Value / 1000, Value % 1000)
-  else
-    return format('%s', Value)
-  end
-end
-
--------------------------------------------------------------------------------
--- GetShortTextValue
---
--- Takes a number and returns it in a shorter format for formatted text.
---
--- Usage: Value2 = GetShortTextValue(Value)
---
--- Value       Number to convert for formatted text.
---
--- Value2      Formatted text made from Value.
--------------------------------------------------------------------------------
-local function GetShortTextValue(Value)
-  if Value < 1000 then
-    return format('%s', Value)
-  elseif Value < 1000000 then
-    return format('%.fk', Value / 1000)
-  else
-    return format('%.1fm', Value / 1000000)
-  end
-end
-
--------------------------------------------------------------------------------
--- GetTextValue
---
--- Returns either CurrValue or MaxValue based on the ValueName and ValueType
---
--- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
---
--- ValueName        Must be 'current', 'maximum', or 'predicted'.
--- ValueType        The type of value, see texttype in main.lua for a list.
--- CurrValue        Values to be used.
--- MaxValue         Values to be used.
--- PredictedValue   Predicted health or power value.  If nil won't be used.
---
--- Value            The value returned based on the ValueName and ValueType.
---                  Can be a string or number.
--------------------------------------------------------------------------------
-local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
-  local Value = nil
-
-  -- Get the value based on ValueName
-  if ValueName == 'current' then
-    Value = CurrValue
-  elseif ValueName == 'maximum' then
-    Value = MaxValue
-  elseif ValueName == 'predicted' then
-    Value = PredictedValue or 0
-  end
-
-  if ValueType == 'whole' then
-    return Value
-  elseif ValueType == 'whole_dgroups' then
-    return NumberToDigitGroups(Value)
-  elseif ValueType == 'percent' and Value > 0 then
-    if MaxValue == 0 then
-      return 0
-    else
-      return ceil(Value / MaxValue * 100)
-    end
-  elseif ValueType == 'thousands' then
-    return Value / 1000
-  elseif ValueType == 'millions' then
-    return Value / 1000000
-  elseif ValueType == 'short' then
-    return GetShortTextValue(Value)
-  else
-    return 0
-  end
-end
-
--------------------------------------------------------------------------------
--- SetStatusBarTextValues
---
--- Sets one or more values on a bar based on the text type settings
---
--- Usage: SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue, PredictedValue)
---
--- StatusBar        The bar to set the values to.
--- TextFrame        Must be 'Txt' or 'Txt2' this is the text frame.
--- CurrValue        Current value.  Used for percentage.
--- MaxValue         Maximum value.  Used for percentage.
--- PredictedValue   Predicted health or power value.
--------------------------------------------------------------------------------
-
--- Use recursion to build a parameter list to pass back to setformat.
-local function GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position, ...)
-  if Position > 0 then
-    local Type = ValueType[Position]
-    if Type ~= 'none' then
-      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1,
-                           GetTextValue(ValueName[Position], Type, CurrValue, MaxValue, PredictedValue), ...)
-    else
-      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1, ...)
-    end
-  else
-    return ...
-  end
-end
-
-local function SetStatusBarTextValues(StatusBar, TextFrame, CurrValue, MaxValue, PredictedValue)
-  local TextTable = 'Text'
-
-  if TextFrame == 'Txt2' then
-    TextTable = 'Text2'
-  end
-
-  local TextType = StatusBar.UnitBar[TextTable].TextType
-  local MaxValues = TextType.MaxValues
-
-  if MaxValues > 0 then
-    StatusBar[TextFrame]:SetFormattedText(TextType.Layout,
-      GetTextValues(TextType.ValueName, TextType.ValueType, CurrValue, MaxValue, PredictedValue, MaxValues))
-  else
-    StatusBar[TextFrame]:SetText('')
-  end
-end
-
--------------------------------------------------------------------------------
 -- SetStatusBarValue
 --
 -- Sets the minimum, maximum, and text value to the StatusBar.
@@ -315,18 +148,23 @@ end
 -- Note: If there's an error in setting the text value then an error message will
 --       be set instead.
 -------------------------------------------------------------------------------
+local SetTextValues = Main.SetTextValues
+
+-- Used by SetTextValues to calculate percentage.
+local function PercentFn(Value, MaxValue)
+  return ceil(Value / MaxValue * 100)
+end
+
 local function SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
-
-  local returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt', CurrValue, MaxValue, PredictedValue)
+  local returnOK, msg = SetTextValues(nil, StatusBar.UnitBar.Text.TextType, StatusBar.Txt, CurrValue, MaxValue, PercentFn, PredictedValue)
   if not returnOK then
     StatusBar.Txt:SetText('Layout Err Text')
   end
 
-
-  returnOK, msg = pcall(SetStatusBarTextValues, StatusBar, 'Txt2', CurrValue, MaxValue, PredictedValue)
+  returnOK, msg = SetTextValues(nil, StatusBar.UnitBar.Text2.TextType, StatusBar.Txt2, CurrValue, MaxValue, PercentFn, PredictedValue)
   if not returnOK then
     StatusBar.Txt2:SetText('Layout Err Text2')
   end
@@ -383,6 +221,10 @@ end
 -- Unit       player, target, pet, etc
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
+
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
+
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
 
@@ -474,6 +316,10 @@ end
 -- PlayerClass   Name of the class. If nil not used.
 -------------------------------------------------------------------------------
 local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
+
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
+
   PowerType = PowerType or UnitPowerType(Unit)
 
   local BarType = self.BarType

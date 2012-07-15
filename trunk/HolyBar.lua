@@ -10,7 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local ConvertPowerType = GUB.ConvertPowerType
+local PowerTypeToNumber = GUB.PowerTypeToNumber
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -27,10 +27,10 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -64,7 +64,7 @@ local HolyRuneHeight = 31
 local BAR = nil
 
 -- Powertype constants
-local PowerHoly = ConvertPowerType['HOLY_POWER']
+local PowerHoly = PowerTypeToNumber['HOLY_POWER']
 
 -- Holyrune Texture constants
 local HolyRuneBox = 1
@@ -145,6 +145,9 @@ function GUB.UnitBarsF.HolyBar:Update(Event)
   if not self.Enabled then
     return
   end
+
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
 
   local HolyPower = UnitPower('player', PowerHoly)
 
@@ -396,8 +399,8 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
       -- Create the textures for box and runes.
     HolyBar:CreateBoxTexture(RuneIndex, HolyRuneBox, 'statusbar')
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneDark, 'texture', 'ARTWORK')
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneLight, 'texture', 'OVERLAY')
+    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneDark, 'texture', 0)
+    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneLight, 'texture', 1)
 
     -- Set the textures
     HolyBar:SetTexture(RuneIndex, HolyRuneDark, HolyPowerTexture)

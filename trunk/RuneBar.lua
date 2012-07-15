@@ -11,7 +11,6 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local LSM = GUB.LSM
-local CheckEvent = GUB.CheckEvent
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
@@ -28,10 +27,10 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, PlaySound
-local GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetPrimaryTalentTree, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 
@@ -94,6 +93,11 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --                          Contains the location of the texture for cooldown bars.
 -- RuneCooldownBarEnergizeBorder
 --                          Border used for RuneCooldownBarenergizeFrame.
+--
+-- RuneBlood
+-- RuneUnholy
+-- RuneFrost
+-- RuneDeath                These 4 values are used for rune id's.
 --
 -- Runebar frame layout: (T = texture)
 --
@@ -552,29 +556,28 @@ function GUB.UnitBarsF.RuneBar:Update(Event, ...)
     return
   end
 
-  local EventType = CheckEvent[Event]
-  if EventType == 'runepower' or EventType == 'runetype' then
+  -- Set the time the bar was updated.
+  self.LastTime = GetTime()
 
-    -- Get the rune frame.
-    local RuneId = select(1, ...)
-    local RuneF = self.RuneF[RuneId]
+  -- Get the rune frame.
+  local RuneId = select(1, ...)
+  local RuneF = self.RuneF[RuneId]
 
-    if RuneF then
-      if EventType == 'runetype' then
+  if RuneF then
+    if Event == 'RUNE_TYPE_UPDATE' then
 
-        -- Flip between default and death rune textures.
-        RefreshRune(RuneF)
+      -- Flip between default and death rune textures.
+      RefreshRune(RuneF)
 
-        -- Update the bar color for blood/death runes for cooldownbar mode.
-        -- Also updates the color for energize (empowerment)
-        self:SetAttr(nil, 'color')
+      -- Update the bar color for blood/death runes for cooldownbar mode.
+      -- Also updates the color for energize (empowerment)
+      self:SetAttr(nil, 'color')
 
-      -- Update the rune cooldown.
-      elseif EventType == 'runepower' then
-        local Energize = select(2, ...)
-        local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
-        StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
-      end
+    -- Update the rune cooldown.
+    else  -- RUNE_POWER_UPDATE
+      local Energize = select(2, ...)
+      local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
+      StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
     end
   end
 
@@ -1158,7 +1161,7 @@ local function CreateRune(RuneType, RuneF)
   -- Set text to be above all.
   TxtFrame:SetFrameLevel(RuneBorderFrame:GetFrameLevel() + 1)
 
- -- RuneNormalFrame:SetFrameLevel(RuneNormalFrame:GetFrameLevel() + 5)
+  RuneNormalFrame:SetFrameLevel(RuneNormalFrame:GetFrameLevel() + 5)
 
   -- Make rune border appear above clockface cooldown.
   RuneBorderFrame:SetFrameLevel(Cooldown:GetFrameLevel() + 1)
