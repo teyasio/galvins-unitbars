@@ -150,6 +150,15 @@ local ShardBarFadeOutMax = 5
 local ShardBarAngleMin = 45
 local ShardBarAngleMax = 360
 
+local EmberBarSizeMin = 0.01
+local EmberBarSizeMax = 3
+local EmberBarScaleMin = 0.1
+local EmberBarScaleMax = 2
+local EmberBarPaddingMin = -50
+local EmberBarPaddingMax = 50
+local EmberBarAngleMin = 45
+local EmberBarAngleMax = 360
+
 local EclipseBarFadeOutMin = 0
 local EclipseBarFadeOutMax = 5
 local EclipseAngleMin = 90
@@ -419,6 +428,26 @@ end
 --Galvin's Slash Options Group.
 --=============================================================================
 --=============================================================================
+local ConfigOptions = {
+  type = 'execute',
+  name = 'config',
+  order = 2,
+  desc = 'Opens a movable options frame',
+  func = function()
+
+           -- Hide blizz blizz options if it's opened.
+           if InterfaceOptionsFrame:IsVisible() then
+             InterfaceOptionsFrame:Hide()
+
+             -- Hide the UI panel behind blizz options.
+             HideUIPanel(GameMenuFrame)
+           end
+
+           -- Open a movable options frame.
+           LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
+         end,
+}
+
 local function CreateSlashOptions()
   local SlashOptions = {
     type = 'group',
@@ -433,25 +462,8 @@ local function CreateSlashOptions()
                 print(AddonName, 'Version ', AddonVersion)
                end,
       },
-      config = {
-        type = 'execute',
-        name = 'config',
-        order = 2,
-        desc = 'Opens a movable options frame',
-        func = function()
-
-                 -- Hide blizz blizz options if it's opened.
-                 if InterfaceOptionsFrame:IsVisible() then
-                   InterfaceOptionsFrame:Hide()
-
-                   -- Hide the UI panel behind blizz options.
-                   HideUIPanel(GameMenuFrame)
-                 end
-
-                 -- Open a movable options frame.
-                 LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
-               end,
-      },
+      config = ConfigOptions,
+      c = ConfigOptions,
     },
   }
   return SlashOptions
@@ -797,7 +809,7 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
       name = 'Background Color',
       order = 22,
       hidden = function()
-                 return ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
+                 return ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' ) and
                         UBF.UnitBar.General.BoxMode
                end,
       hasAlpha = true,
@@ -818,10 +830,12 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
   end
 
   -- Add color all options.
-  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' then
     local MaxColors = 5
-    if BarType == 'HolyBar' or BarType == 'ShardBar' then
+    if BarType == 'HolyBar' then
       MaxColors = 3
+    elseif BarType == 'ShardBar' or BarType == 'EmberBar' then
+      MaxColors = 4
     elseif BarType == 'RuneBar' then
       MaxColors = 8
     end
@@ -1566,8 +1580,9 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
             -- Call the function that was saved from the above SetFunction call.
             SetFunction(FunctionLabel)
 
-            -- Update combobar, holybar, or shardbar layout.
-            if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' then
+            -- Update layout.
+            if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
+               BarType == 'ShardBar' or BarType == 'DemonicBar' or BarType == 'EmberBar' then
               UBF:SetLayout()
             else
               if TableName then
@@ -1683,7 +1698,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     order = Order,
     hidden = function()
                return BarType == 'RuneBar' and UBF.UnitBar.General.RuneMode == 'rune' or
-                      ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar') and
+                      ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' or BarType == 'EmberBar') and
                       not UBF.UnitBar.General.BoxMode
              end,
     args = {
@@ -1699,7 +1714,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
                 GetTable(BarType, 'Bar', TableName)[Info[#Info]] = Value
 
                 -- Update combobar, holybar, or shardbar layout.
-                if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+                if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
+                   BarType == 'ShardBar' or BarType == 'EmberBar' then
                   UBF:SetLayout()
                 else
                   if Object then
@@ -1788,7 +1804,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
   if BarType == 'RuneBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'RuneWidth', 'RuneHeight')
-  elseif BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' then
+  elseif BarType == 'ComboBar' or BarType == 'HolyBar' or
+         BarType == 'ShardBar' or BarType == 'DemonicBar' or BarType == 'EmberBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'BoxWidth', 'BoxHeight')
   elseif BarType == 'EclipseBar' then
     local o = gsub(Object, '%a', strupper, 1)
@@ -1871,10 +1888,13 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   end
 
   -- Add bar color options if its a combobar or shardbar.
-  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' then
+  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
+     BarType == 'ShardBar' or BarType == 'EmberBar' then
     local MaxColors = 5
-    if BarType == 'HolyBar' or BarType == 'ShardBar' then
+    if BarType == 'HolyBar' then
       MaxColors = 3
+    elseif BarType == 'ShardBar' or BarType == 'EmberBar' then
+      MaxColors = 4
     elseif BarType == 'RuneBar' then
       MaxColors = 8
     end
@@ -2559,6 +2579,142 @@ local function CreateShardBarOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateDemonicBarOptions
+--
+-- Creates options for a demonic bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: DemonicBarOptions = CreateDemonicBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- DemonicBarOptions     Options table for the eclipse bar.
+-------------------------------------------------------------------------------
+local function CreateDemonicBarOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+
+  local DemonicBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UBF.UnitBar.General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            UBF:SetLayout()
+
+            -- Update the bar
+            UBF:Update()
+          end,
+    args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked, this bar will show boxes instead of textures',
+      },
+    },
+  }
+
+  return DemonicBarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateEmberBarOptions
+--
+-- Creates options for a soul ember bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: EmberBarOptions = CreateEmberBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- EmberBarOptions       Options table for the ember bar.
+-------------------------------------------------------------------------------
+local function CreateEmberBarOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+
+  local EmberBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UBF.UnitBar.General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            UBF:SetLayout()
+          end,
+    args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked, this bar will show boxes instead of textures',
+      },
+      EmberPadding = {
+        type = 'range',
+        name = 'Ember Padding',
+        order = 2,
+        desc = 'Set the Amount of space between each burning ember',
+        min = EmberBarPaddingMin,
+        max = EmberBarPaddingMax,
+        step = 1,
+      },
+      EmberAngle = {
+        type = 'range',
+        name = 'Ember Rotation',
+        order = 3,
+        desc = 'Rotates the ember bar',
+        min = EmberBarAngleMin,
+        max = EmberBarAngleMax,
+        step = 45,
+      },
+      EmberSize = {
+        type = 'range',
+        name = 'Ember Size',
+        order = 4,
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        desc = 'Sets the size of all the burning embers',
+        min = EmberBarSizeMin,
+        max = EmberBarSizeMax,
+        step = 0.01,
+        isPercent = true
+      },
+      EmberScale = {
+        type = 'range',
+        name = 'Ember Scale',
+        order = 5,
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        desc = 'Sets the scale of all the burning embers',
+        min = EmberBarScaleMin,
+        max = EmberBarScaleMax,
+        step = 0.01,
+        isPercent = true,
+      },
+    },
+  }
+  return EmberBarOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateEclipseBarOptions
 --
 -- Creates options for a eclipse bar.
@@ -2730,54 +2886,6 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
     },
   }
   return EclipseBarOptions
-end
-
--------------------------------------------------------------------------------
--- CreateDemonicBarOptions
---
--- Creates options for a demonic bar.
---
--- Subfunction of CreateUnitBarOptions()
---
--- Usage: DemonicBarOptions = CreateDemonicBarOptions(BarType, Order, Name)
---
--- BarType               Type of options being created.
--- Order                 Order number.
--- Name                  Name text
---
--- DemonicBarOptions     Options table for the eclipse bar.
--------------------------------------------------------------------------------
-local function CreateDemonicBarOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-
-  local DemonicBarOptions = {
-    type = 'group',
-    name = Name,
-    dialogInline = true,
-    order = Order,
-    get = function(Info)
-            return UBF.UnitBar.General[Info[#Info]]
-          end,
-    set = function(Info, Value)
-            UBF.UnitBar.General[Info[#Info]] = Value
-
-            -- Update the layout to show changes.
-            UBF:SetLayout()
-
-            -- Update the bar
-            UBF:Update()
-          end,
-    args = {
-      BoxMode = {
-        type = 'toggle',
-        name = 'Box Mode',
-        order = 1,
-        desc = 'If checked, this bar will show boxes instead of textures',
-      },
-    },
-  }
-
-  return DemonicBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -2970,12 +3078,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             order = 4,
             desc = "Hides the bar when your're in a vehicle",
           },
-          ShowAlways = {
-            type = 'toggle',
-            name = 'Show Always',
-            order = 5,
-            desc = 'Bar will always be shown',
-          },
           HideNotActive = {
             type = 'toggle',
             name = 'Hide not Active',
@@ -3019,6 +3121,10 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   elseif BarType == 'DemonicBar' then
     UBOA.DemonicBar = CreateDemonicBarOptions(BarType, 2, 'General')
+
+  -- Add emberbar options
+  elseif BarType == 'EmberBar' then
+    UBOA.ShardBar = CreateEmberBarOptions(BarType, 2, 'General')
 
   -- Add eclipsebar options
   elseif BarType == 'EclipseBar' then
@@ -3156,7 +3262,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add text options
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' then
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and BarType ~= 'EmberBar' then
     UBOA.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
     if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
       UBOA.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
@@ -3311,8 +3417,11 @@ local function CreateMainOptions()
           -- Demonicbar group.
           DemonicBar = CreateUnitBarOptions('DemonicBar', 14, 'Demonic Bar', 'Demonology Warlocks only'),
 
+          -- Shardbar group.
+          EmberBar = CreateUnitBarOptions('EmberBar', 15, 'Ember Bar', 'Destruction Warlocks only'),
+
           -- Eclipsebar group.
-          EclipseBar = CreateUnitBarOptions('EclipseBar', 15, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
+          EclipseBar = CreateUnitBarOptions('EclipseBar', 16, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
         },
       },
 --[[ --=============================================================================
