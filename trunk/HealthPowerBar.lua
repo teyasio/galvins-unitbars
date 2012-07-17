@@ -148,7 +148,6 @@ Main:SetPredictedSpells(SpellCobraShot,  'casting', function(SpellID, Message) U
 -- Note: If there's an error in setting the text value then an error message will
 --       be set instead.
 -------------------------------------------------------------------------------
-local SetTextValues = Main.SetTextValues
 
 -- Used by SetTextValues to calculate percentage.
 local function PercentFn(Value, MaxValue)
@@ -159,12 +158,12 @@ local function SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
-  local returnOK, msg = SetTextValues(nil, StatusBar.UnitBar.Text.TextType, StatusBar.Txt, CurrValue, MaxValue, PercentFn, PredictedValue)
+  local returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text.TextType, StatusBar.Txt, CurrValue, MaxValue, PercentFn, PredictedValue)
   if not returnOK then
     StatusBar.Txt:SetText('Layout Err Text')
   end
 
-  returnOK, msg = SetTextValues(nil, StatusBar.UnitBar.Text2.TextType, StatusBar.Txt2, CurrValue, MaxValue, PercentFn, PredictedValue)
+  returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text2.TextType, StatusBar.Txt2, CurrValue, MaxValue, PercentFn, PredictedValue)
   if not returnOK then
     StatusBar.Txt2:SetText('Layout Err Text2')
   end
@@ -228,20 +227,19 @@ local function UpdateHealthBar(self, Event, Unit)
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
 
-  local BarType = self.BarType
   local Gen = self.UnitBar.General
   local PredictedHealing = Gen and Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
 
   -- Return if there is no change.
   if Event == 'change' and
-     CurrValue == LastCurrValue[BarType] and MaxValue == LastMaxValue[BarType] and
-     PredictedHealing == LastPredictedValue[BarType] then
+     CurrValue == LastCurrValue[self] and MaxValue == LastMaxValue[self] and
+     PredictedHealing == LastPredictedValue[self] then
     return
   end
 
-  LastCurrValue[BarType] = CurrValue
-  LastMaxValue[BarType] = MaxValue
-  LastPredictedValue[BarType] = PredictedHealing
+  LastCurrValue[self] = CurrValue
+  LastMaxValue[self] = MaxValue
+  LastPredictedValue[self] = PredictedHealing
 
   local Bar = self.UnitBar.Bar
   local PredictedBar = self.PredictedBar
@@ -322,7 +320,6 @@ local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
 
   PowerType = PowerType or UnitPowerType(Unit)
 
-  local BarType = self.BarType
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
 
@@ -334,8 +331,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
 
   -- Return if there is no change.
   if Event == 'change' and
-     CurrValue == LastCurrValue[BarType] and MaxValue == LastMaxValue[BarType] and
-     PowerType == LastPowerType[BarType] and PredictedPower == 0 and LastPredictedValue[BarType] == 0 then
+     CurrValue == LastCurrValue[self] and MaxValue == LastMaxValue[self] and
+     PowerType == LastPowerType[self] and PredictedPower == 0 and LastPredictedValue[self] == 0 then
     return
   end
 
@@ -344,10 +341,10 @@ local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
     PredictedPower = PredictedPower * 2
   end
 
-  LastCurrValue[BarType] = CurrValue
-  LastMaxValue[BarType] = MaxValue
-  LastPowerType[BarType] = PowerType
-  LastPredictedValue[BarType] = PredictedPower
+  LastCurrValue[self] = CurrValue
+  LastMaxValue[self] = MaxValue
+  LastPowerType[self] = PowerType
+  LastPredictedValue[self] = PredictedPower
 
   local Bar = self.UnitBar.Bar
   local Color = Bar.Color[PowerType]

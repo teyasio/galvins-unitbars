@@ -55,16 +55,18 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- LastDemonicFury                   Keeps track of change in demonic fury.
 -- MaxDemonicFury                    Keeps track if max demonic fury changes.
 --
--- BarOffsetX, BarOffsetY            Offsets to offset the whole bar within the border.
+-- BarOffsetX, BarOffsetY            Offset the whole bar within the border.
 --
 -- MetaBuff                          SpellID for the metamorphosis buff.
 -- MetaActive                        True then you have the metamorphosis buff, otherwise no.
--- DemonicFuryTexture                Table containing all the data to build the demonic fury bar.
+-- DemonicData                Table containing all the data to build the demonic fury bar.
 --   Texture                         Path to the texture file.
---   Width, Height                   Width and Height of the bars border for texture mode.
+--   BoxWidth, BoxHeight             Width and Height of the bars border for texture mode.
+--   TextureWidth, TextureHeight     Size of all the TextureFrames in the bar.
 --   [TextureType]                   Texture Number containing the type of texture to use.
---      OffsetX, OffsetY             Offset from the point location of where the texture is placed.
+--      Point                        Setpoint() position.
 --      Level                        Texture level that the texture is displayed on.
+--      OffsetX, OffsetY             Offset from the point location of where the texture is placed.
 --      Width, Height                Width and Height of the texture.
 --      Left, Right, Top, Bottom     Texcoordinates of the texture.
 -------------------------------------------------------------------------------
@@ -72,16 +74,14 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- Powertype constants
 local PowerDemonicFury = PowerTypeToNumber['DEMONIC_FURY']
 
-local DemonicFuryBox = 1
-local DemonicFuryBg = 2
-local DemonicFuryBar = 3
-local DemonicFuryBarMeta = 4
-local DemonicFuryBorder = 5
-local DemonicFuryBorderMeta = 6
-local DemonicFuryNotch = 7
-local DemonicFuryNotchMeta = 8
-local BarOffsetX = 2
-local BarOffsetY = 0
+local DemonicFuryBox = 10
+local DemonicFuryBg = 1
+local DemonicFuryBar = 2
+local DemonicFuryBarMeta = 3
+local DemonicFuryBorder = 4
+local DemonicFuryBorderMeta = 5
+local DemonicFuryNotch = 6
+local DemonicFuryNotchMeta = 7
 
 local LastDemonicFury = nil
 local LastMaxDemonicFury = nil
@@ -89,48 +89,61 @@ local LastMaxDemonicFury = nil
 local MetaBuff = 103958 -- Warlock metamorphosis spell ID buff.
 local MetaActive = false
 
-local DemonicFuryTexture = {
+local BarOffsetX = 2
+local BarOffsetY = 0
+
+local DemonicData = {
   Texture = [[Interface\PlayerFrame\Warlock-DemonologyUI]],
-  Width = 145, Height = 35,
+  BoxWidth = 145, BoxHeight = 35,
+
+  -- TextureFrame size
+  TextureWidth = 169, TextureHeight = 52,
   [DemonicFuryBg] = {
-    OffsetX = -2 + BarOffsetX, OffsetY = -1 - BarOffsetY,
-    Level = 0, -- 'BACKGROUND'
+    Level = 0,
+    Point = 'CENTER',
+    OffsetX = -2 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 132, Height= 24,
     Left = 0.03906250, Right = 0.55468750, Top = 0.20703125, Bottom = 0.30078125
   },
   [DemonicFuryBar] = {
-    OffsetX = -2 + BarOffsetX, OffsetY = -1 - BarOffsetY,
-    Level = 1, --'BORDER'
+    Level = 1,
+    Point = 'LEFT',
+    OffsetX = 17 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 132, Height = 24,
     Left = 0.03906250, Right= 0.55468750, Top= 0.10546875, Bottom = 0.19921875
   },
   [DemonicFuryBarMeta] = {
-    OffsetX = -2 + BarOffsetX, OffsetY = -1 - BarOffsetY,
-    Level = 1, --'BORDER'
+    Level = 1,
+    Point = 'LEFT',
+    OffsetX = 17 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 132, Height = 24,
     Left = 0.03906250, Right = 0.55468750, Top = 0.00390625, Bottom = 0.09765625
   },
   [DemonicFuryBorder] = {
-    OffsetX = 0 + BarOffsetX, OffsetY = 0 - BarOffsetY,
-    Level = 2, --'ARTWORK'
+    Level = 2,
+    Point = 'LEFT',
+    OffsetX = 0 + BarOffsetX, OffsetY = 0 + BarOffsetY,
     Width = 169, Height = 52,
     Left = 0.03906250, Right = 0.69921875, Top = 0.51953125, Bottom = 0.72265625
   },
   [DemonicFuryBorderMeta] = {
-    OffsetX = 0 + BarOffsetX, OffsetY = 0 - BarOffsetY,
-    Level = 2, --'ARTWORK'
+    Level = 2,
+    Point = 'LEFT',
+    OffsetX = 0 + BarOffsetX, OffsetY = 0 + BarOffsetY,
     Width = 169, Height = 52,
     Left = 0.03906250, Right = 0.69921875, Top = 0.30859375, Bottom = 0.51171875
   },
   [DemonicFuryNotch] = {
-    OffsetX = -42 + BarOffsetX, OffsetY = -1 - BarOffsetY,
-    Level = 3, --'OVERLAY',
+    Level = 3,
+    Point = 'LEFT',
+    OffsetX = 40 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 7, Height = 22,
     Left = 0.00390625, Right = 0.03125000, Top = 0.09765625, Bottom = 0.18359375
   },
   [DemonicFuryNotchMeta] = {
-    OffsetX = -42 + BarOffsetX, OffsetY = -1 - BarOffsetY,
-    Level = 3, --'OVERLAY',
+    Level = 3,
+    Point = 'LEFT',
+    OffsetX = 40 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 7, Height = 22,
     Left = 0.00390625, Right = 0.03125000, Top = 0.00390625, Bottom = 0.08984375
   }
@@ -157,11 +170,10 @@ GUB.UnitBarsF.DemonicBar.StatusCheck = GUB.Main.StatusCheck
 -- DemonicBarF      Demonic fury bar to be updated.
 -- DemonicFury      Shows the amount of demonic fury to be displayed.
 -------------------------------------------------------------------------------
-local SetTextValues = Main.SetTextValues
 
 -- Used by SetTextValues to calculate percentage.
 local function PercentFn(Value, MaxValue)
-  return abs(Value / MaxValue * 100)
+  return floor(abs(Value / MaxValue * 100))
 end
 
 local function UpdateDemonicFury(DemonicBarF, DemonicFury, CurrValue, MaxValue)
@@ -172,12 +184,12 @@ local function UpdateDemonicFury(DemonicBarF, DemonicFury, CurrValue, MaxValue)
   DemonicBar:SetTextureFill(1, DemonicFuryBarMeta, DemonicFury)
 
     -- Update display values.
-  local returnOK, msg = SetTextValues(nil, DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, CurrValue, MaxValue, PercentFn)
+  local returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, CurrValue, MaxValue, PercentFn)
   if not returnOK then
     DemonicBarF.Txt:SetText('Layout Err Text')
   end
 
-  returnOK, msg = SetTextValues(nil, DemonicBarF.UnitBar.Text2.TextType, DemonicBarF.Txt2, CurrValue, MaxValue, PercentFn)
+  returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text2.TextType, DemonicBarF.Txt2, CurrValue, MaxValue, PercentFn)
   if not returnOK then
     DemonicBarF.Txt2:SetText('Layout Err Text2')
   end
@@ -201,6 +213,8 @@ function GUB.UnitBarsF.DemonicBar:Update(Event)
 
   local DemonicFury = UnitPower('player', PowerDemonicFury)
   local MaxDemonicFury = UnitPowerMax('player', PowerDemonicFury)
+
+  -- Check for metamorphosis.
   local Meta = Main:CheckAura('o', MetaBuff)
 
   -- Return if no change.
@@ -247,8 +261,8 @@ function GUB.UnitBarsF.DemonicBar:Update(Event)
   end
   UpdateDemonicFury(self, Value, DemonicFury, MaxDemonicFury)
 
-    -- Set this IsActive flag
-  self.IsActive = Value ~= 0.20
+    -- Set this IsActive flag when not 20% or in metamorphosis.
+  self.IsActive = Value ~= 0.20 or MetaActive
 
   -- Do a status check for active status.
   self:StatusCheck()
@@ -420,11 +434,11 @@ function GUB.UnitBarsF.DemonicBar:SetLayout()
     DemonicBar:HideTextureFrame(1, DemonicFuryNotch)
     DemonicBar:HideTextureFrame(1, DemonicFuryNotchMeta)
     DemonicBar:ShowTextureFrame(1, DemonicFuryBox)
-    DemonicBar:ShowBorder(DemonicFuryBox)
+    DemonicBar:ShowBorder(1)
   else
 
     -- Set size
-    DemonicBar:SetBoxSize(DemonicFuryTexture.Width, DemonicFuryTexture.Height)
+    DemonicBar:SetBoxSize(DemonicData.BoxWidth, DemonicData.BoxHeight)
 
     -- Hide/show Texture mode.
     DemonicBar:ShowTextureFrame(1, DemonicFuryBg)
@@ -435,7 +449,7 @@ function GUB.UnitBarsF.DemonicBar:SetLayout()
     DemonicBar:ShowTextureFrame(1, DemonicFuryNotch)
     DemonicBar:ShowTextureFrame(1, DemonicFuryNotchMeta)
     DemonicBar:HideTextureFrame(1, DemonicFuryBox)
-    DemonicBar:HideBorder(DemonicFuryBox)
+    DemonicBar:HideBorder(1)
   end
 
   -- Display the demonic bar.
@@ -461,26 +475,25 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   DemonicBar:CreateBoxTexture(1, DemonicFuryBox, 'statusbar')
 
   -- Create the demonic bar for texture mode.
-  for TextureNumber, TextureData in pairs(DemonicFuryTexture) do
-    if type(TextureData) == 'table' then
+  for TextureNumber, DD in ipairs(DemonicData) do
 
-      -- Create the textures for the demonic bar.
-      DemonicBar:CreateBoxTexture(1, TextureNumber, 'texture', TextureData.Level, TextureData.OffsetX, TextureData.OffsetY)
+    -- Create the textures for the demonic bar.
+    DemonicBar:CreateBoxTexture(1, TextureNumber, 'texture', DD.Level, DemonicData.TextureWidth, DemonicData.TextureHeight)
 
-      -- Set the texture.
-      DemonicBar:SetTexture(1, TextureNumber, DemonicFuryTexture.Texture)
+    -- Set the texture.
+    DemonicBar:SetTexture(1, TextureNumber, DemonicData.Texture)
 
-      -- Set the texcoords for each texture
-      DemonicBar:SetTexCoord(1, TextureNumber, TextureData.Left, TextureData.Right, TextureData.Top, TextureData.Bottom)
+    -- Set the texcoords for each texture
+    DemonicBar:SetTexCoord(1, TextureNumber, DD.Left, DD.Right, DD.Top, DD.Bottom)
 
-      -- Set texture size.
-      DemonicBar:SetTextureSize(1, TextureNumber, TextureData.Width, TextureData.Height)
-    end
+    -- Set texture size.
+    DemonicBar:SetTextureSize(1, TextureNumber, DD.Width, DD.Height,
+                              DD.Point, DD.OffsetX, DD.OffsetY)
   end
 
-  -- Create Txt and Txt2
-  UnitBarF.Txt = DemonicBar:CreateFontString('OVERLAY')
-  UnitBarF.Txt2 = DemonicBar:CreateFontString('OVERLAY')
+  -- Create Txt and Txt2 for displaying power.
+  UnitBarF.Txt = DemonicBar:CreateFontString()
+  UnitBarF.Txt2 = DemonicBar:CreateFontString()
 
   -- Show textures.
   DemonicBar:ShowTexture(1, DemonicFuryBox)

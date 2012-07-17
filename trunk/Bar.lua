@@ -37,7 +37,8 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --
 -- BarDB                             Bar Database. All functions are called thru this except for CreateBar().
 -- BarDB.ParentFrame                 The whole bar will be a child of this frame.
--- BarDB.NumBoxes                    Total number of boxes in the bar.
+-- BarDB.TotalBoxes                  Total number of boxes the bar was created with.
+-- BarDB.NumBoxes                    Current number of boxes in the bar.
 -- BarDB.Border                      Visible or invisible border around the bar. Child of ParentFrame.
 --                                   This is also used for handling mouse events for the whole bar.
 -- BarDB.OffsetFrame                 Child of ParentFrame.  This is used to help with rotation
@@ -57,7 +58,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- BoxFrame[]                        Invisible frame containing the textures/statusbars.
 --                                   Child of OffsetFrame. This is also used to scale the box.
 -- BoxFrame[].Padding                Amount of distance from the current box and next one.
--- BoxFrame[].Border                 Visible border surrounding the box.  Child of OffsetFrame. Border changes size
+-- BoxFrame[].Border                 Visible border surrounding the box.  Child of BoxFrame. Border changes size
 --                                   based on BoxFrame.
 -- BoxFrame[].TextureFrame[]         An array of frames holding the textures/statusbar for the box.
 -- TextureFrame[]                    Invisible frame containing the textures/statusbars.  Child of BoxFrame.
@@ -65,8 +66,6 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- TextureFrame[].FillDirection      'HORIZONTAL' or 'VERTICAL'
 -- TextureFrame[].RotateTexture      Statusbar only.  If true then texture is rotated 90 degrees.
 --                                   If false no rotation takes place.
--- TextureFrame[].Width              Texture only. Width of the texture frame and texture.
--- TextureFrame[].Height             Texture only. Height of the texture frame and texture.
 -- TextureFrame[].TexLeft
 -- TextureFrame[].TexRight
 -- TextureFrame[].TexTop
@@ -76,6 +75,8 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --                                   'statusbar'  then its a statusbar.
 --                                   'texture'    contains a texture.
 -- TextureFrame[].Texture            Statusbar or texture.  Child of TextureFrame.
+-- Texture.Width                     Texture only. Width of the texture frame and texture.
+-- Texture.Height                    Texture only. Height of the texture frame and texture.
 -- Texture.FadeOutTime               Time in seconds to fade out a texture.  If 0 then this frame doesn't have a fadeout.
 -- Texture.FadeOut                   Fadeout animation group for TextureFrame
 -- Texture.FadeOutA                  Fadeout animation
@@ -87,9 +88,9 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --   Border
 --   OffsetFrame
 --     BoxFrame
+--       Border
 --       TextureFrame
 --         Texture (frame or texture)
---     Border
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -257,13 +258,13 @@ function BarDB:Display()
   Border:ClearAllPoints()
   Border:SetPoint('TOPLEFT', 0, 0)
 
-  -- Scale the width and height of the border.
-  BorderWidth = BorderWidth * BoxScale
-  BorderHeight = BorderHeight * BoxScale
+  -- Scale the width and height of the border and add padding.
+  BorderWidth = BorderWidth * BoxScale + Padding * 2
+  BorderHeight = BorderHeight * BoxScale + Padding * 2
 
-  -- Set the size of the border including padding.
-  Border:SetWidth(BorderWidth + Padding * 2)
-  Border:SetHeight(BorderHeight + Padding * 2)
+  -- Set the size of the border.
+  Border:SetWidth(BorderWidth)
+  Border:SetHeight(BorderHeight)
 
   -- Set the x, y location off the offset frame. Padding included.
   local OffsetFrame = self.OffsetFrame
@@ -757,19 +758,25 @@ end
 -------------------------------------------------------------------------------
 -- SetTextureSize
 --
--- Usage: SetTextureSize(BoxNumber, TextureNumber, Width, Height)
+-- Usage: SetTextureSize(BoxNumber, TextureNumber, Width, Height, Point, OffsetX, OffsetY)
+--
+-- Width              Width of the texture
+-- Height             Height of the texture.
+-- Point              Texture position within the frame.
+-- OffsetX            Amount in pixels to offset. Positive goes right, negative goes left.
+-- OffsetY            Amount in pixels to offset. Positive goes up, negative goes down.
+--                    If OffsetX and OffsetY are not specified then zero is used.
 --
 -- NOTES: Works with textures only.
 -------------------------------------------------------------------------------
-function BarDB:SetTextureSize(BoxNumber, TextureNumber, Width, Height)
+function BarDB:SetTextureSize(BoxNumber, TextureNumber, Width, Height, Point, OffsetX, OffsetY)
   DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
     if Type == 'texture' then
       Texture:SetWidth(Width)
       Texture:SetHeight(Height)
-      TextureFrame:SetWidth(Width)
-      TextureFrame:SetHeight(Height)
-      TextureFrame.Width = Width
-      TextureFrame.Height = Height
+      Texture:SetPoint(Point, OffsetX or 0, OffsetY or 0)
+      Texture.Width = Width
+      Texture.Height = Height
     end
   end)
 end
@@ -809,8 +816,10 @@ end
 --           'VERTICAL'     Fill from bottom to top.
 -------------------------------------------------------------------------------
 function BarDB:SetFillDirection(BoxNumber, TextureNumber, Action)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    Texture:SetOrientation(Action)
+  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+    if Type == 'statusbar' then
+      Texture:SetOrientation(Action)
+    end
     TextureFrame.FillDirection = Action
   end)
 end
@@ -822,7 +831,8 @@ end
 --
 -- Usage: SetTextureFill(BoxNumber, TextureNumber, Amount)
 --
--- Amount    A number between 0 and 1.
+-- Amount    A number between 0 and 1.  If Amount > 1 then its set to 1.
+--             If Amount < 0 then its set to 0.
 --
 -- NOTE: SetFillDirection will control the fill that this function will use.
 --       Cant set texture width to 0 so use 0.001 this will make the texture not be
@@ -832,7 +842,10 @@ function BarDB:SetTextureFill(BoxNumber, TextureNumber, Amount)
   DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
     if Type == 'texture' then
       local TexLeft, TexRight, TexTop, TexBottom = TextureFrame.TexLeft, TextureFrame.TexRight, TextureFrame.TexTop, TextureFrame.TexBottom
-      local Width, Height =  TextureFrame.Width, TextureFrame.Height
+      local Width, Height =  Texture.Width, Texture.Height
+
+      -- Clip amount if not equal to 1
+      Amount = Amount > 1 and 1 or Amount < 0 and 0 or Amount
 
       -- Calculate the texture width
       if TextureFrame.FillDirection == 'HORIZONTAL' then
@@ -857,6 +870,31 @@ function BarDB:SetTextureFill(BoxNumber, TextureNumber, Amount)
   end)
 end
 
+-------------------------------------------------------------------------------
+-- SetNumBoxes
+--
+-- Changes the number of boxes to be displayed in the bar
+--
+-- Usage: SetNumBoxes(NumBoxes)
+--
+-- NumBoxes    Number of boxes to show.
+--
+-- NOTES: The bars Display() function will need to be called to reflect the change.
+-------------------------------------------------------------------------------
+function BarDB:SetNumBoxes(NumBoxes)
+  local BoxFrame = self.BoxFrame
+
+  for BoxFrameIndex = 1, self.TotalBoxes do
+    local BF = BoxFrame[BoxFrameIndex]
+
+    if BoxFrameIndex <= NumBoxes then
+      BF:Show()
+    else
+      BF:Hide()
+    end
+  end
+  self.NumBoxes = NumBoxes
+end
 
 -------------------------------------------------------------------------------
 -- CreateBar
@@ -877,6 +915,7 @@ function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
 
   -- initialize the bar database.
   BDB.ParentFrame = ParentFrame
+  BDB.TotalBoxes = NumBoxes
   BDB.NumBoxes = NumBoxes
   BDB.Angle = 90
   BDB.Padding = 0
@@ -900,9 +939,9 @@ function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
   -- Create the boxes for the bar.
   for BoxFrameIndex = 1, NumBoxes do
 
-    -- Create the border, Frame, and SetScriptFrame.  These are child of OffsetFrame.
+    -- Create the BoxFrame and Border.
     local BoxFrame = CreateFrame('Frame', nil, OffsetFrame)
-    local Border = CreateFrame('Frame', nil, OffsetFrame)
+    local Border = CreateFrame('Frame', nil, BoxFrame)
 
     -- Set the SetScriptFrame and border to always be the size of the boxframe.
     Border:SetAllPoints(BoxFrame)
@@ -922,27 +961,24 @@ end
 --
 -- Creates a frame to hold a texture for the bar.
 --
--- Usage: CreateBoxTexture(BoxNumber, TextureNumber, TextureType, [Layer or Frame Level], [OffsetX, OffsetY])
+-- Usage: CreateBoxTexture(BoxNumber, TextureNumber, 'statusbar (TextureType)')
+--        CreateBoxTexture(BoxNumber, TextureNumber, 'texture (TextureType)', FrameLevel, Width, Height)
 
 --
 -- BoxNumber          Box to be modified.
 -- TextureNumber      Numerical value to reference the texture.
 -- TextureType        'statusbar' statusbar texture.
 --                    'texture'   standard texture.
--- OffsetX            Amount in pixels to offset. Positive goes right, negative goes left.
--- OffsetY            Amount in pixels to offset. Positive goes up, negative goes down.
---                    If OffsetX and OffsetY are not specified then zero is used.
--- Layer or Level     Used for 'texture' only.
---                    If layer is used then the texture's layer is set.
---                    If level is used then the texureframe level is set.
---                    If layer or level is nill then nothing is set.
+-- FrameLevel         Used for 'texture' only.
+--                    If level is used then the TexureFrame level is set.
 --                    Level is counted from its current level and up.  So setting 2 would
 --                    be current level frame level + 2.
 --
--- Note: Statusbars get stretched to the box edges.  Textures are centered in the box.
---       Textures and Statusbars are hidden by default.
+-- Width, Height      Used for 'texture' only. Width and Height of the TextureFrame.
+--
+-- Note: Statusbars get stretched to the box edges.
 -------------------------------------------------------------------------------
-function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Value1, Value2, Value3)
+function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLevel, Width, Height)
   local BoxFrame = self.BoxFrame[BoxNumber]
   local Texture = nil
 
@@ -971,21 +1007,20 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, Value1, V
     TextureFrame.RotateTexture = false
     TextureFrame.Type = 'statusbar'
   else
-    if type(Value1) == 'string' then
-      Texture = TextureFrame:CreateTexture(nil, Value1)
-    else
-      Texture = TextureFrame:CreateTexture(nil)
-      if Value1 then
-        TextureFrame:SetFrameLevel(TextureFrame:GetFrameLevel() + Value1 - 1)
-      end
-    end
-    Texture:SetWidth(1)
-    Texture:SetHeight(1)
-    Texture:SetPoint('BOTTOMLEFT', Value2 or 0, Value3 or 0)
-    TextureFrame.Type = 'texture'
+    Texture = TextureFrame:CreateTexture(nil)
+
+    -- Add 1 to account for the border in the boxframe being the same frame level.
+    TextureFrame:SetFrameLevel(TextureFrame:GetFrameLevel() + FrameLevel + 1)
+    TextureFrame:SetWidth(Width)
+    TextureFrame:SetHeight(Height)
+
+    -- Save width and height
+    TextureFrame.Width = Width
+    TextureFrame.Height = Height
 
     -- Texture Frame is centered in the boxframe.
     TextureFrame:SetPoint('CENTER', 0, 0)
+    TextureFrame.Type = 'texture'
   end
 
   -- Update TopFrameLevel counter

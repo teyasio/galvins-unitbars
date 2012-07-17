@@ -71,7 +71,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --
 --     RuneLocation         Reference to UnitBar.RuneBar.RuneLocation[Rune] table entry.
 --
---     RuneId               Number from 1 to 6. RuneId always matches the index into RuneF[].
+--     RuneID               Number from 1 to 6. RuneID always matches the index into RuneF[].
 --     RuneType             Type of rune based on the rune type constants.
 --
 -- Runebar upvalues:
@@ -192,7 +192,7 @@ end
 --
 -- Returns a text name of the rune
 --
--- Usage: Name = GetRuneName(RuneF, RuneId)
+-- Usage: Name = GetRuneName(RuneF, RuneID)
 --
 -- RuneF               The rune you want to save the name to in its Name field.
 --
@@ -201,10 +201,10 @@ end
 local function GetRuneName(RuneF)
   local RuneName = nil
   local RuneNumber = nil
-  local RuneId = RuneF.RuneId
+  local RuneID = RuneF.RuneID
   local RuneType = RuneF.RuneType
 
-  if mod(RuneF.RuneId, 2) == 0 then
+  if mod(RuneF.RuneID, 2) == 0 then
     RuneNumber = '2'
   else
     RuneNumber = '1'
@@ -239,17 +239,17 @@ local function SwapRunes(UnitBarF, Rune1, Rune2)
 
   local RuneIndex1 = nil
   local RuneIndex2 = nil
-  local RuneId1 = Rune1.RuneId
-  local RuneId2 = Rune2.RuneId
+  local RuneID1 = Rune1.RuneID
+  local RuneID2 = Rune2.RuneID
 
   -- Only swap the rune order in barmode.
   if UnitBarF.UnitBar.General.BarMode then
 
     -- Find the runes first.
     for RuneIndex, Rune in ipairs(RuneBarOrder) do
-      if RuneIndex1 == nil and RuneId1 == Rune then
+      if RuneIndex1 == nil and RuneID1 == Rune then
         RuneIndex1 = RuneIndex
-      elseif RuneIndex2 == nil and RuneId2 == Rune then
+      elseif RuneIndex2 == nil and RuneID2 == Rune then
         RuneIndex2 = RuneIndex
       end
     end
@@ -312,9 +312,9 @@ local function RuneTrackerOnResize(self, Width, Height)
   end
   local RuneF = DragRune.UnitBarF.RuneF
   local RuneTouch = nil
-  local RuneId = DragRune.RuneId
+  local RuneID = DragRune.RuneID
   for RuneIndex, RF in ipairs(RuneF) do
-    if RuneTouch == nil and RuneId ~= RF.RuneId and MouseIsOver(RF) then
+    if RuneTouch == nil and RuneID ~= RF.RuneID and MouseIsOver(RF) then
       RuneTouch = RuneIndex
     end
   end
@@ -469,7 +469,7 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
   local CooldownAnimation = Gen.CooldownAnimation
   local EnergizeShow = Gen.EnergizeShow
   Txt = RuneF.Txt
-  local RuneId = RuneF.RuneId
+  local RuneID = RuneF.RuneID
 
   if not RuneReady and not Energize then
 
@@ -533,7 +533,7 @@ end
 -- RuneF   Rune frame that is to be refreshed.
 -------------------------------------------------------------------------------
 local function RefreshRune(RuneF, HideCooldownFlash)
-  local RuneType = GetRuneType(RuneF.RuneId)
+  local RuneType = GetRuneType(RuneF.RuneID)
   RuneF.RuneType = RuneType
   RuneF.RuneIcon:SetTexture(RuneTexture[RuneType])
 
@@ -548,7 +548,7 @@ end
 --
 -- Event                    Rune type event.  If this is not a rune event
 --                          function does nothing.
--- ...        RuneId        RuneId from 1 to 6.
+-- ...        RuneID        RuneId from 1 to 6.
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.RuneBar:Update(Event, ...)
@@ -560,8 +560,8 @@ function GUB.UnitBarsF.RuneBar:Update(Event, ...)
   self.LastTime = GetTime()
 
   -- Get the rune frame.
-  local RuneId = select(1, ...)
-  local RuneF = self.RuneF[RuneId]
+  local RuneID = select(1, ...)
+  local RuneF = self.RuneF[RuneID]
 
   if RuneF then
     if Event == 'RUNE_TYPE_UPDATE' then
@@ -576,7 +576,7 @@ function GUB.UnitBarsF.RuneBar:Update(Event, ...)
     -- Update the rune cooldown.
     else  -- RUNE_POWER_UPDATE
       local Energize = select(2, ...)
-      local Start, Duration, RuneReady = GetRuneCooldown(RuneId)
+      local Start, Duration, RuneReady = GetRuneCooldown(RuneID)
       StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
     end
   end
@@ -592,11 +592,8 @@ function GUB.UnitBarsF.RuneBar:Update(Event, ...)
   end
   self.IsActive = Active
 
-  if Event ~= 'change' then
-
-    -- Do a status check for active status.
-    self:StatusCheck()
-  end
+  -- Do a status check for active status.
+  self:StatusCheck()
 end
 
 -------------------------------------------------------------------------------
@@ -1218,7 +1215,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     local RF = CreateFrame('Frame', nil, OffsetFrame)
 
     -- Save the rune number as a runeId
-    RF.RuneId = Rune
+    RF.RuneID = Rune
 
     -- Create the tracking frame.
     local RuneTrackingFrame =  CreateFrame('Frame', nil, RF)
@@ -1242,7 +1239,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     local Name = GetRuneName(RF)
     Main:SetTooltip(RF, Name, MouseOverDesc)
     Main:SetTooltip(RF, nil, MouseOverDesc2)
-    ColorAllNames[RF.RuneId] = Name
+    ColorAllNames[RF.RuneID] = Name
 
     RuneF[Rune] = RF
   end

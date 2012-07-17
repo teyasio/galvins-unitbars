@@ -645,7 +645,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
   if PredictedPower then
 
     -- Check to see if soul of the forest talent is active.
-    local SoTFActive = Main:CheckTalent(SoTF, 'player')
+    local SoTFActive = Main:CheckTalent(SoTF)
 
     local PowerChange = false
     PEclipseDirection = EclipseDirection

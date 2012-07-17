@@ -41,27 +41,20 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 --
 -- UnitBarF.UnitBar                  Reference to the unitbar data for the holybar.
 -- UnitBarF.HolyBar                  Contains the holy bar displayed on screen.
--- HolyPowerTexture                  Texture file containing all the holy power textures.
--- HolyRunes[]                       Contains the texture layout data for the holyrunes.
--- HolyRunes[Rune].Width             Width of the rune texture.
--- HolyRunes[Rune].Height            Height of the rune texture.
--- Holyrunes[Rune]
---   Left, Right, Top, Bottom        Texture coordinates inside of the HolyPowerTexture
+--
+-- HolyData                         Contains the data to create the holy bar.
+--   Texture                         Texture that contains the holy runes.
+--   BoxWidth, BoxHeight             Size of the boxes in texture mode.
+--   Runes[Rune].Width               Width of the rune texture.
+--   [TextureType]
+--     Point                         Texture point inside the texture frame.
+--     Width, Height                 Width and Height of the rune texture and the texture frame.
+--     Left, Right, Top, Bottom      Texture coordinates inside of the HolyPowerTexture
 --                                   containing the holy rune.
--- HolyRunes.Padding
---   Left, Right, Top, Bottom        Amount of padding within each HolyRuneFrame.
---                                   This makes it so each holy rune texture doesn't
---                                   touch the border.  Makes it look nicer.
 --
 -- LastHolyPower                     Keeps track if there is a change in the holy bar.
---
--- NOTE: holy bar has two modes.  In BoxMode the holy bar is broken into 3 statusbars.
---       This works just like the combobar.  When not normal mode.  The bar uses textures instead.
 -------------------------------------------------------------------------------
 local MaxHolyRunes = 3
-local HolyRuneWidth = 42
-local HolyRuneHeight = 31
-local BAR = nil
 
 -- Powertype constants
 local PowerHoly = PowerTypeToNumber['HOLY_POWER']
@@ -73,20 +66,26 @@ local HolyRuneLight = 3
 
 local LastHolyPower = nil
 
-local HolyPowerTexture = [[Interface\PlayerFrame\PaladinPowerTextures]]
-local HolyRunes = {
+local HolyData = {
+  Texture = [[Interface\PlayerFrame\PaladinPowerTextures]],
+
+  -- TextureFrame size.
+  BoxWidth = 42, BoxHeight = 31,
   DarkColor = {r = 0.15, g = 0.15, b = 0.15, a = 1},
-  [1] = {
+  [HolyRuneBox] = {
+    Point = 'CENTER',
     Width = 36 + 5, Height = 22 + 5,
-    Left = 0.00390625, Right = 0.14453125, Top = 0.64843750, Bottom = 0.82031250
+    Left = 0.00390625, Right = 0.14453125, Top = 0.78906250, Bottom = 0.96093750
   },
-  [2] = {
+  [HolyRuneDark] = {
+    Point = 'CENTER',
     Width = 31 + 12, Height = 17 + 12,
-    Left = 0.00390625, Right = 0.12500000, Top = 0.83593750, Bottom = 0.96875000
+    Left = 0.15234375, Right = 0.27343750, Top = 0.78906250, Bottom = 0.92187500
   },
-  [3] = {
+  [HolyRuneLight] = {
+    Point = 'CENTER',
     Width = 27 + 10 , Height = 21 + 10,
-    Left = 0.15234375, Right = 0.25781250, Top = 0.64843750, Bottom = 0.81250000
+    Left = 0.28125000, Right = 0.38671875, Top = 0.64843750, Bottom = 0.81250000
   }
 }
 
@@ -357,10 +356,12 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
     HolyBar:HideBorder(nil)
     HolyBar:ShowBorder(0)
   else
+
+    -- Texture mode.
     local HolyScale = Gen.HolyScale
 
     -- Set Size
-    HolyBar:SetBoxSize(HolyRuneWidth, HolyRuneHeight)
+    HolyBar:SetBoxSize(HolyData.BoxWidth, HolyData.BoxHeight)
     HolyBar:SetBoxScale(Gen.HolySize)
     HolyBar:SetTextureScale(0, HolyRuneDark, HolyScale)
     HolyBar:SetTextureScale(0, HolyRuneLight, HolyScale)
@@ -390,32 +391,32 @@ end
 -------------------------------------------------------------------------------
 function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
-  local DarkColor = HolyRunes.DarkColor
+  local DarkColor = HolyData.DarkColor
 
   -- Create the holybar.
   local HolyBar = Bar:CreateBar(ScaleFrame, Anchor, MaxHolyRunes)
 
-  for RuneIndex, HR in ipairs(HolyRunes) do
+  for RuneIndex, HD in ipairs(HolyData) do
 
       -- Create the textures for box and runes.
     HolyBar:CreateBoxTexture(RuneIndex, HolyRuneBox, 'statusbar')
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneDark, 'texture', 0)
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneLight, 'texture', 1)
+    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneDark, 'texture', 0, HD.Width, HD.Height)
+    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneLight, 'texture', 1, HD.Width, HD.Height)
 
     -- Set the textures
-    HolyBar:SetTexture(RuneIndex, HolyRuneDark, HolyPowerTexture)
-    HolyBar:SetTexture(RuneIndex, HolyRuneLight, HolyPowerTexture)
+    HolyBar:SetTexture(RuneIndex, HolyRuneDark, HolyData.Texture)
+    HolyBar:SetTexture(RuneIndex, HolyRuneLight, HolyData.Texture)
 
     -- Set the holy rune dark texture
-    HolyBar:SetTexCoord(RuneIndex, HolyRuneDark, HR.Left, HR.Right, HR.Top, HR.Bottom)
+    HolyBar:SetTexCoord(RuneIndex, HolyRuneDark, HD.Left, HD.Right, HD.Top, HD.Bottom)
 
-    HolyBar:SetTextureSize(RuneIndex, HolyRuneDark, HR.Width, HR.Height)
+    HolyBar:SetTextureSize(RuneIndex, HolyRuneDark, HD.Width, HD.Height, HD.Point)
     HolyBar:SetDesaturated(RuneIndex, HolyRuneDark, true)
     HolyBar:SetColor(RuneIndex, HolyRuneDark, DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
 
     -- Set the holy rune light texture
-    HolyBar:SetTexCoord(RuneIndex, HolyRuneLight, HR.Left, HR.Right, HR.Top, HR.Bottom)
-    HolyBar:SetTextureSize(RuneIndex, HolyRuneLight, HR.Width, HR.Height)
+    HolyBar:SetTexCoord(RuneIndex, HolyRuneLight, HD.Left, HD.Right, HD.Top, HD.Bottom)
+    HolyBar:SetTextureSize(RuneIndex, HolyRuneLight, HD.Width, HD.Height, HD.Point)
 
      -- Set and save the name for tooltips for box mode.
     local Name = 'Holy Rune ' .. RuneIndex

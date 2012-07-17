@@ -11,7 +11,6 @@ local MyAddon, GUB = ...
 local Main = {}
 local UnitBarsF = {}
 local UnitBarsFI = {}
-local UnitBarsFPT = {}
 local HapBar = {}
 local Options = {}
 
@@ -25,6 +24,7 @@ GUB.ComboBar = {}
 GUB.HolyBar = {}
 GUB.ShardBar = {}
 GUB.DemonicBar = {}
+GUB.EmberBar = {}
 GUB.EclipseBar = {}
 GUB.Options = Options
 
@@ -37,7 +37,7 @@ LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 -- Setup shared media
 -------------------------------------------------------------------------------
 local LSM = LibStub('LibSharedMedia-3.0')
-local CataVersion = select(4,GetBuildInfo()) >= 40000
+local MistsVersion = select(4, GetBuildInfo()) >= 50000
 
 -- localize some globals.
 local _
@@ -108,7 +108,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          in the wow ui.  The work around is when a bar is to be hidden which would trigger a fadeout.
 --                          The code calls this method to cancel any fadeout animations currently in play.  Then fadeout the
 --                          bar.
---   Update()             - This is how information from the server gets to the bar/
+--   Update()             - This is how information from the server gets to the bar.
 --   StatusCheck()        - All bars have flags that determin if a bar should be visible in combat or never shown.
 --                          When this gets called the bar checks the flags to see if the bar should change its state.
 --   EnableMouseClicks()  - Enable or disable mouse interaction with the bar.
@@ -128,7 +128,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   Enabled              - True or false.  If true then the bar is enabled otherwise disabled.
 --   Hidden               - True or false.  If true then the bar is hidden otherwise shown.
 --   WaitTime             - Amount of time to wait before updating the bar again. Used by CreateUnitBarTimers().
---   LastTime             - Last time the bars Update() function was called. Used by CreateUnitBarTimers().
+--   LastTime             - Last time the bars Update() function was called. Updated by the bars Update() function.
+--                          Used by CreateUnitBarTimers().
 --                          This was created so when a bar gets updated thru an event, it wont get updated right away
 --                          in CreateUnitBarsTimers() unless the WaitTime has elapsed.
 --   IsActive             - True or false.  If true the bar is considered to be doing something, otherwise doing nothing.
@@ -145,21 +146,19 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          the current profile.
 --
 --
--- UnitBar upvalues/tables.
+-- UnitBar mod upvalues/tables.
 --
 -- Defaults               - The default unitbar table.  Used for first time initialization.
 -- CooldownBarTimerDelay  - Delay for the cooldown timer bar measured in times per second.
--- UnitBarDelay           - Delay for health and power bars measured in times per second.  Any bar thats not a health
---                          power bar gets updated in a slower frequency.
+-- UnitBarDelay           - Used by CreateUnitBarTimers(). Tells the timer how often to call the function to update each bar.
 -- PowerColorType           Table used by InitializeColors()
 -- PowerTypeToNumber      - Table to convert a string powertype into a number.
--- PowerBarType           - PowerType in all the power bars is set to this.
 -- Backdrop                 This contains a Backdrop table that has texture path names.  Since this addon uses
 --                          shared media.  Texture names need to be converted into path names.  So ConvertBackdrop()
 --                          needs to be called.  ConvertBackdrop then sets this table to a real backdrop table that
 --                          can be used in SetBackdrop().  This table should never be reference to another table
 --                          since convertbackdrop passes back a reference to this table.
--- PowerTypeToUnitBarsF     Used to convert a power type into a UnitBarsF bartype.  Usedby UnitBarsUpdatePower().
+-- EventOrPowerToUBF        Used to an event or power type into an UnitBarsF bartype.  Usedby UnitBarsUpdatePower().
 --
 -- AlignmentTooltipDesc     Tooltip to be shown when the alignment tool is active.
 --
@@ -238,7 +237,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                                             the bar has a UsedByClass table.
 --                            HideWhenDead     Hide the unitbar when the player is dead.
 --                            HideInVehicle    Hide the unitbar if in a vehicle.
---                            ShowAlways       The unitbar will be shown all the time.
 --                            HideNotActive    Hide the unitbar if its not active.
 --                            HideNoCombat     Don't hide the unitbar when not in combat.
 -- Other                  - For anything not related mostly this will be for scale and maybe alpha
@@ -456,7 +454,36 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     Color[1 to 3]      - Contains the bar colors of all the holy rune boxes.
 --
 --
--- Shardbar fields        Same as Holybar fields just uses shards instead.
+-- Shardbar fields        Same as Holybar fields except for the following:
+--                          Uses 4 colors.
+-- EmberBar fields        Same as ShardBar fields except for the following:
+--                          no fadeout time.
+--
+-- DemonicBar fields
+--   General
+--     BoxMode            - True or false.  If true the bar uses boxes instead of textures.
+--
+--   Background
+--     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
+--     BackdropSettings   - Contains the settings for background, border, and padding for each holy rune box.
+--                          When in box mode each holy box uses this setting.
+--     Color              - Background color for the demonic bar in box and texture mode.
+--
+--   Bar
+--     Advanced           - True or false.  If true then you change the size of the bar in small steps.
+--     BoxWidth           - Width of the bar in box mode.
+--     BoxHeight          - Height of the bar in box mode.
+--     FillDirection      - Direction of fill in box mode.
+--     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
+--                                          If false no rotation takes place.
+--     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
+--     Padding            - Amount of padding on the forground of the bar in box mode.
+--     StatusbarTexture   - Texture used for the forground in box mode.
+--     Color              - Color of the bar in box mode.
+--     ColorMeta          - Color of the bar when in metamorphosis for box mode.
+--
+--   Text
+--   Text2                - Same as the ones for health and power bars.
 --
 --
 -- Eclipsebar fields
@@ -735,7 +762,6 @@ local Defaults = {
         ShowNever     = false,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -825,7 +851,6 @@ local Defaults = {
         ShowNever     = false,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -914,7 +939,6 @@ local Defaults = {
         ShowNever     = false,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1005,7 +1029,6 @@ local Defaults = {
         ShowNever     = false,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1089,7 +1112,6 @@ local Defaults = {
         ShowNever     = false,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1180,7 +1202,6 @@ local Defaults = {
         ShowNever     = false,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1266,7 +1287,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1352,7 +1372,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1437,7 +1456,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1522,7 +1540,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1655,7 +1672,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = false,
         HideNotActive = true,
         HideNoCombat  = false,
       },
@@ -1720,7 +1736,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = false,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1782,7 +1797,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = false,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1812,6 +1826,7 @@ local Defaults = {
           [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
           [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
           [3] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          [4] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
         },
       },
       Bar = {
@@ -1829,22 +1844,22 @@ local Defaults = {
           [1] = {r = 0.980, g = 0.517, b = 1, a = 1},
           [2] = {r = 0.980, g = 0.517, b = 1, a = 1},
           [3] = {r = 0.980, g = 0.517, b = 1, a = 1},
+          [4] = {r = 0.980, g = 0.517, b = 1, a = 1},
         },
       },
     },
 -- DemonicBar
     DemonicBar = {
-      Name = 'Demonic Fury',
+      Name = 'Demonic Bar',
       UsedByClass = {WARLOCK = {'2'}},
       WaitTime = 1.0,
       x = -200,
       y = -215,
       Status = {
         ShowNever     = false,
-        HideNotUsable = false,
+        HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = true,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -1888,7 +1903,7 @@ local Defaults = {
         FontSettings = {
           FontType = UBFontType,
           FontSize = 11,
-          FontStyle = 'NONE',
+          FontStyle = 'OUTLINE',
           FontHAlign = 'CENTER',
           Position = 'CENTER',
           Width = 200,
@@ -1920,6 +1935,68 @@ local Defaults = {
         Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
+-- EmberBar
+    EmberBar = {
+      Name = 'Ember Bar',
+      UsedByClass = {WARLOCK = {'3'}},
+      WaitTime = 0.333,
+      x = -200,
+      y = -215,
+      Status = {
+        ShowNever     = false,
+        HideNotUsable = true,
+        HideWhenDead  = true,
+        HideInVehicle = true,
+        HideNotActive = false,
+        HideNoCombat  = false
+      },
+      General = {
+        BoxMode = false,
+        EmberSize = 1,
+        EmberPadding = 5,
+        EmberScale = 1,
+        EmberAngle = 90,
+      },
+      Other = {
+        Scale = 1,
+        FrameStrata = 'MEDIUM',
+      },
+      Background = {
+        ColorAll = false,
+        PaddingAll = true,
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {
+          r = 0.180, g = 0.047, b = 0.031, a = 1,
+          [1] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
+          [2] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
+          [3] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
+          [4] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
+        },
+      },
+      Bar = {
+        Advanced = false,
+        ColorAll = false,
+        BoxWidth = 25,
+        BoxHeight = 34,
+        FillDirection = 'VERTICAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {
+          r = 1, g = 0.325, b = 0/255 , a = 1,
+          [1] = {r = 1, g = 0.325, b = 0/255 , a = 1},
+          [2] = {r = 1, g = 0.325, b = 0/255 , a = 1},
+          [3] = {r = 1, g = 0.325, b = 0/255 , a = 1},
+          [4] = {r = 1, g = 0.325, b = 0/255 , a = 1},
+        },
+      },
+    },
 -- EclipseBar
     EclipseBar = {
       Name = 'Eclipse Bar',
@@ -1932,7 +2009,6 @@ local Defaults = {
         HideNotUsable = true,
         HideWhenDead  = true,
         HideInVehicle = true,
-        ShowAlways    = false,
         HideNotActive = false,
         HideNoCombat  = false
       },
@@ -2161,9 +2237,11 @@ local PowerColorType = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6
 }
 
-local PowerTypeToUnitBarsF = {
+local EventOrPowerToUBF = {
+
+  -- Power names
   MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power',
-  SOUL_SHARDS = 'ShardBar', DEMONIC_FURY = 'DemonicBar', HOLY_POWER = 'HOLYBAR',
+  SOUL_SHARDS = 'ShardBar', DEMONIC_FURY = 'DemonicBar', BURNING_EMBERS = 'EmberBar', HOLY_POWER = 'HolyBar',
 
   -- Event names
   RUNE_POWER_UPDATE = 'RuneBar', RUNE_TYPE_UPDATE = 'RuneBar'
@@ -2171,7 +2249,7 @@ local PowerTypeToUnitBarsF = {
 
 local PowerTypeToNumber = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
-  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, DEMONIC_FURY = 15
+  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, BURNING_EMBERS = 14, DEMONIC_FURY = 15
 }
 
 local PowerColorType = {
@@ -2189,7 +2267,6 @@ GUB.LSM = LSM
 GUB.Defaults = Defaults
 GUB.PowerColorType = PowerColorType
 GUB.PowerTypeToNumber = PowerTypeToNumber
-GUB.PowerTypeToUnitBarsF = PowerTypeToUnitBarsF
 GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 
 -------------------------------------------------------------------------------
@@ -2468,17 +2545,17 @@ end
 -------------------------------------------------------------------------------
 -- CheckTalent
 --
--- Checks to see if the talent on the player is active or not.
+-- Checks to see if the talent is chosen or not.
 --
--- Usage: Status = CheckTalent(Unit, Index)
+-- Usage: Status = CheckTalent(Index)
 --
 -- Unit   player, target, pet, focus, etc
 -- Index  Talent index from 1 to 18.  Talents are index from left to right then down one.
 --
--- Status   If true then the talent is active, otherwise false.
+-- Status   If true then the talent is chosen, otherwise false.
 -------------------------------------------------------------------------------
-function GUB.Main:CheckTalent(Index, Unit)
-  local _, _, _, _, Active, _ = GetTalentInfo(Index, true, nil, Unit, PlayerClassID)
+function GUB.Main:CheckTalent(Index)
+  local _, _, _, _, Active, _ = GetTalentInfo(Index, nil, nil)
   return Active
 end
 
@@ -3632,9 +3709,6 @@ function GUB.Main:StatusCheck()
     -- Hide if in a vehicle if the HideInVehicle status is set
     elseif InVehicle and Status.HideInVehicle then
       ShowUnitBar = false
-    -- Show the unitbar if ShowAlways status is set.
-    elseif Status.ShowAlways then
-      ShowUnitBar = true
 
     -- Get the idle status based on HideNotActive when not in combat.
     elseif not InCombat and Status.HideNotActive then
@@ -3838,7 +3912,7 @@ function GUB:UnitBarsUpdatePower(Event, ...)
   local UBF = nil
 
   -- Convert event into power
-  local Power = PowerTypeToUnitBarsF[Event]
+  local Power = EventOrPowerToUBF[Event]
   if Power ~= nil then
     UBF = UnitBarsF[Power]
 
@@ -3846,13 +3920,11 @@ function GUB:UnitBarsUpdatePower(Event, ...)
       UBF:Update(Event, ...)
     end
   else
-
-    -- Convert power type into power.
     local Unit = select(1, ...)
     local PowerType = select(2, ...)
 
     -- Convert power type into UBF
-    Power = PowerTypeToUnitBarsF[PowerType]
+    Power = EventOrPowerToUBF[PowerType]
 
     -- Get UnitBarsF from power.
     if Power == 'power' then

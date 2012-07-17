@@ -24,7 +24,6 @@ bars, The only flag it can't override is never show.
    Never Show         Disables and hides the bar.
    Hide when Dead     Hide the bar when the player is dead.
    Hide in Vehicle    Hide the bar if a vehicle.
-   Show Always        The bar will be shown all the time.
    Hide not Active    Hide the bar when it's not active.
    Hide no Combat     Don't hide the bar when not in combat.
 

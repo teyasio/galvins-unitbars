@@ -29,7 +29,6 @@ All bars have status flags.  This tells a bar what to do based on a certain cond
    Hide not usable    Disable and hides the bar if it's not usable by the class, spec, and form or stance if there is one.
    Hide when Dead     Hide the bar when the player is dead.
    Hide in Vehicle    Hide the bar if a vehicle.
-   Show Always        The bar will be shown all the time.
    Hide not Active    Hide the bar when it's not active.
    Hide no Combat     Don't hide the bar when not in combat.
 
