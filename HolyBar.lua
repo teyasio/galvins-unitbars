@@ -42,27 +42,32 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- UnitBarF.UnitBar                  Reference to the unitbar data for the holybar.
 -- UnitBarF.HolyBar                  Contains the holy bar displayed on screen.
 --
--- HolyData                         Contains the data to create the holy bar.
+-- RuneBox                           Holy rune for box mode.
+-- RuneDark                          Dark holy rune texture for texture mode.
+-- RuneLight                         Lit holy rune texture for texture mode.
+--
+-- HolyData                          Contains the data to create the holy bar.
 --   Texture                         Texture that contains the holy runes.
 --   BoxWidth, BoxHeight             Size of the boxes in texture mode.
 --   Runes[Rune].Width               Width of the rune texture.
---   [TextureType]
+--   [Rune Number]
 --     Point                         Texture point inside the texture frame.
+--     OffsetX, OffsetY              Offset the texture inside the texture frame.
 --     Width, Height                 Width and Height of the rune texture and the texture frame.
 --     Left, Right, Top, Bottom      Texture coordinates inside of the HolyPowerTexture
 --                                   containing the holy rune.
 --
 -- LastHolyPower                     Keeps track if there is a change in the holy bar.
 -------------------------------------------------------------------------------
-local MaxHolyRunes = 3
+local MaxHolyRunes = 5
 
 -- Powertype constants
 local PowerHoly = PowerTypeToNumber['HOLY_POWER']
 
 -- Holyrune Texture constants
-local HolyRuneBox = 1
-local HolyRuneDark = 2
-local HolyRuneLight = 3
+local RuneBox = 1
+local RuneDark = 2
+local RuneLight = 3
 
 local LastHolyPower = nil
 
@@ -70,23 +75,38 @@ local HolyData = {
   Texture = [[Interface\PlayerFrame\PaladinPowerTextures]],
 
   -- TextureFrame size.
-  BoxWidth = 42, BoxHeight = 31,
+  BoxWidth = 42 + 8, BoxHeight = 31,
   DarkColor = {r = 0.15, g = 0.15, b = 0.15, a = 1},
-  [HolyRuneBox] = {
+  [1] = {
     Point = 'CENTER',
+    OffsetX = 1, OffsetY = 0,
     Width = 36 + 5, Height = 22 + 5,
     Left = 0.00390625, Right = 0.14453125, Top = 0.78906250, Bottom = 0.96093750
   },
-  [HolyRuneDark] = {
+  [2] = {
     Point = 'CENTER',
-    Width = 31 + 12, Height = 17 + 12,
+    OffsetX = 1, OffsetY = 0,
+    Width = 31 + 14, Height = 17 + 14,
     Left = 0.15234375, Right = 0.27343750, Top = 0.78906250, Bottom = 0.92187500
   },
-  [HolyRuneLight] = {
+  [3] = {
     Point = 'CENTER',
+    OffsetX = 0, OffsetY = 0,
     Width = 27 + 10 , Height = 21 + 10,
     Left = 0.28125000, Right = 0.38671875, Top = 0.64843750, Bottom = 0.81250000
-  }
+  },
+  [4] = {  -- Rune1 texture that's rotated.
+    Point = 'CENTER',
+    OffsetX = -1, OffsetY = 0,
+    Width = 36 + 5, Height = 17 + 12,
+    Left = 0.14453125, Right = 0.00390625, Top = 0.78906250, Bottom = 0.96093750
+  },
+  [5] = {  -- Rune2 texture that's rotated.
+    Point = 'CENTER',
+    OffsetX = -1, OffsetY = 0,
+    Width = 31 + 14, Height = 17 + 14,
+    Left = 0.27343750, Right = 0.15234375, Top = 0.78906250, Bottom = 0.92187500
+  },
 }
 
 -------------------------------------------------------------------------------
@@ -122,11 +142,11 @@ local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
 
   for RuneIndex = 1, MaxHolyRunes do
     if RuneIndex <= HolyPower then
-      HolyBar:ShowTexture(RuneIndex, HolyRuneBox)
-      HolyBar:ShowTexture(RuneIndex, HolyRuneLight)
+      HolyBar:ShowTexture(RuneIndex, RuneBox)
+      HolyBar:ShowTexture(RuneIndex, RuneLight)
     else
-      HolyBar:HideTexture(RuneIndex, HolyRuneBox, Action)
-      HolyBar:HideTexture(RuneIndex, HolyRuneLight, Action)
+      HolyBar:HideTexture(RuneIndex, RuneBox, Action)
+      HolyBar:HideTexture(RuneIndex, RuneLight, Action)
     end
   end
 end
@@ -272,9 +292,9 @@ function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
       -- Forground (Statusbar).
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
-          HolyBar:SetTexture(RuneIndex, HolyRuneBox, Bar.StatusBarTexture)
-          HolyBar:SetFillDirection(RuneIndex, HolyRuneBox, Bar.FillDirection)
-          HolyBar:SetRotateTexture(RuneIndex, HolyRuneBox, Bar.RotateTexture)
+          HolyBar:SetTexture(RuneIndex, RuneBox, Bar.StatusBarTexture)
+          HolyBar:SetFillDirection(RuneIndex, RuneBox, Bar.FillDirection)
+          HolyBar:SetRotateTexture(RuneIndex, RuneBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
           local BarColor = nil
@@ -285,7 +305,7 @@ function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
           else
             BarColor = Bar.Color[RuneIndex]
           end
-          HolyBar:SetColor(RuneIndex, HolyRuneBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+          HolyBar:SetColor(RuneIndex, RuneBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
         end
       end
     end
@@ -293,7 +313,7 @@ function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        HolyBar:SetTexturePadding(0, HolyRuneBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        HolyBar:SetTexturePadding(0, RuneBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -336,8 +356,8 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
   -- Set padding and rotation and fadeout
   HolyBar:SetPadding(0, Gen.HolyPadding)
   HolyBar:SetAngle(Gen.HolyAngle)
-  HolyBar:SetFadeOutTime(0, HolyRuneBox, Gen.HolyFadeOutTime)
-  HolyBar:SetFadeOutTime(0, HolyRuneLight, Gen.HolyFadeOutTime)
+  HolyBar:SetFadeOutTime(0, RuneBox, Gen.HolyFadeOutTime)
+  HolyBar:SetFadeOutTime(0, RuneLight, Gen.HolyFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -345,13 +365,13 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
     -- Set size
     HolyBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
     HolyBar:SetBoxScale(1)
-    HolyBar:SetTextureScale(0, HolyRuneDark, 1)
-    HolyBar:SetTextureScale(0, HolyRuneLight, 1)
+    HolyBar:SetTextureScale(0, RuneDark, 1)
+    HolyBar:SetTextureScale(0, RuneLight, 1)
 
     -- Hide/show Box mode.
-    HolyBar:HideTextureFrame(0, HolyRuneDark)
-    HolyBar:HideTextureFrame(0, HolyRuneLight)
-    HolyBar:ShowTextureFrame(0, HolyRuneBox)
+    HolyBar:HideTextureFrame(0, RuneDark)
+    HolyBar:HideTextureFrame(0, RuneLight)
+    HolyBar:ShowTextureFrame(0, RuneBox)
 
     HolyBar:HideBorder(nil)
     HolyBar:ShowBorder(0)
@@ -363,13 +383,13 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
     -- Set Size
     HolyBar:SetBoxSize(HolyData.BoxWidth, HolyData.BoxHeight)
     HolyBar:SetBoxScale(Gen.HolySize)
-    HolyBar:SetTextureScale(0, HolyRuneDark, HolyScale)
-    HolyBar:SetTextureScale(0, HolyRuneLight, HolyScale)
+    HolyBar:SetTextureScale(0, RuneDark, HolyScale)
+    HolyBar:SetTextureScale(0, RuneLight, HolyScale)
 
     -- Hide/show Texture mode.
-    HolyBar:ShowTextureFrame(0, HolyRuneDark)
-    HolyBar:ShowTextureFrame(0, HolyRuneLight)
-    HolyBar:HideTextureFrame(0, HolyRuneBox)
+    HolyBar:ShowTextureFrame(0, RuneDark)
+    HolyBar:ShowTextureFrame(0, RuneLight)
+    HolyBar:HideTextureFrame(0, RuneBox)
 
     HolyBar:HideBorder(0)
     HolyBar:ShowBorder(nil)
@@ -396,27 +416,28 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Create the holybar.
   local HolyBar = Bar:CreateBar(ScaleFrame, Anchor, MaxHolyRunes)
 
+
   for RuneIndex, HD in ipairs(HolyData) do
 
       -- Create the textures for box and runes.
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneBox, 'statusbar')
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneDark, 'texture', 0, HD.Width, HD.Height)
-    HolyBar:CreateBoxTexture(RuneIndex, HolyRuneLight, 'texture', 1, HD.Width, HD.Height)
+    HolyBar:CreateBoxTexture(RuneIndex, RuneBox, 'statusbar')
+    HolyBar:CreateBoxTexture(RuneIndex, RuneDark, 'texture', 0, HD.Width, HD.Height)
+    HolyBar:CreateBoxTexture(RuneIndex, RuneLight, 'texture', 1, HD.Width, HD.Height)
 
     -- Set the textures
-    HolyBar:SetTexture(RuneIndex, HolyRuneDark, HolyData.Texture)
-    HolyBar:SetTexture(RuneIndex, HolyRuneLight, HolyData.Texture)
+    HolyBar:SetTexture(RuneIndex, RuneDark, HolyData.Texture)
+    HolyBar:SetTexture(RuneIndex, RuneLight, HolyData.Texture)
 
     -- Set the holy rune dark texture
-    HolyBar:SetTexCoord(RuneIndex, HolyRuneDark, HD.Left, HD.Right, HD.Top, HD.Bottom)
+    HolyBar:SetTexCoord(RuneIndex, RuneDark, HD.Left, HD.Right, HD.Top, HD.Bottom)
 
-    HolyBar:SetTextureSize(RuneIndex, HolyRuneDark, HD.Width, HD.Height, HD.Point)
-    HolyBar:SetDesaturated(RuneIndex, HolyRuneDark, true)
-    HolyBar:SetColor(RuneIndex, HolyRuneDark, DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
+    HolyBar:SetTextureSize(RuneIndex, RuneDark, HD.Width, HD.Height, HD.Point, HD.OffsetX, HD.OffsetY)
+    HolyBar:SetDesaturated(RuneIndex, RuneDark, true)
+    HolyBar:SetColor(RuneIndex, RuneDark, DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
 
     -- Set the holy rune light texture
-    HolyBar:SetTexCoord(RuneIndex, HolyRuneLight, HD.Left, HD.Right, HD.Top, HD.Bottom)
-    HolyBar:SetTextureSize(RuneIndex, HolyRuneLight, HD.Width, HD.Height, HD.Point)
+    HolyBar:SetTexCoord(RuneIndex, RuneLight, HD.Left, HD.Right, HD.Top, HD.Bottom)
+    HolyBar:SetTextureSize(RuneIndex, RuneLight, HD.Width, HD.Height, HD.Point, HD.OffsetX, HD.OffsetY)
 
      -- Set and save the name for tooltips for box mode.
     local Name = 'Holy Rune ' .. RuneIndex
@@ -427,7 +448,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   end
 
   -- Show the dark textures.
-  HolyBar:ShowTexture(0 , HolyRuneDark)
+  HolyBar:ShowTexture(0 , RuneDark)
 
   -- Save the name for tooltips for normal mode.
   HolyBar:SetTooltip(nil, UB.Name, MouseOverDesc)

@@ -53,9 +53,9 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- LastSoulShards                    Keeps track of change in the soulshard bar.
 -- CurrentNumShards                  Total number of shards the player currently has.
 --
--- SoulShardBox                      Soul shard in box mode.  Statusbar
--- SoulShardDark                     Dark soul shard when not lit.
--- SoulShardLight                    Light sould shard used for lighting a dark soul shard.
+-- ShardBox                          Soul shard in box mode.  Statusbar
+-- ShardDark                         Dark soul shard when not lit.
+-- ShardLight                        Light sould shard used for lighting a dark soul shard.
 -------------------------------------------------------------------------------
 local MaxSoulShards = 4
 
@@ -63,9 +63,9 @@ local MaxSoulShards = 4
 local PowerShard = PowerTypeToNumber['SOUL_SHARDS']
 
 -- Soulshard Texture constants
-local SoulShardBox = 1
-local SoulShardDark = 2
-local SoulShardLight = 3
+local ShardBox = 1
+local ShardDark = 2
+local ShardLight = 3
 
 local LastSoulShards = nil
 local CurrentNumShards = nil
@@ -114,13 +114,13 @@ local function UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFadeOut)
 
     -- Light the shard.
     if ShardIndex <= SoulShards then
-      ShardBar:ShowTexture(ShardIndex, SoulShardBox)
-      ShardBar:ShowTexture(ShardIndex, SoulShardLight)
+      ShardBar:ShowTexture(ShardIndex, ShardBox)
+      ShardBar:ShowTexture(ShardIndex, ShardLight)
     else
 
       -- Darken the shard.
-      ShardBar:HideTexture(ShardIndex, SoulShardBox, Action)
-      ShardBar:HideTexture(ShardIndex, SoulShardLight, Action)
+      ShardBar:HideTexture(ShardIndex, ShardBox, Action)
+      ShardBar:HideTexture(ShardIndex, ShardLight, Action)
     end
   end
 end
@@ -281,9 +281,9 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
       -- Forground (Statusbar).
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
-          ShardBar:SetTexture(ShardIndex, SoulShardBox, Bar.StatusBarTexture)
-          ShardBar:SetFillDirection(ShardIndex, SoulShardBox, Bar.FillDirection)
-          ShardBar:SetRotateTexture(ShardIndex, SoulShardBox, Bar.RotateTexture)
+          ShardBar:SetTexture(ShardIndex, ShardBox, Bar.StatusBarTexture)
+          ShardBar:SetFillDirection(ShardIndex, ShardBox, Bar.FillDirection)
+          ShardBar:SetRotateTexture(ShardIndex, ShardBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
           local BarColor = nil
@@ -294,7 +294,7 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
           else
             BarColor = Bar.Color[ShardIndex]
           end
-          ShardBar:SetColor(ShardIndex, SoulShardBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+          ShardBar:SetColor(ShardIndex, ShardBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
         end
       end
     end
@@ -302,7 +302,7 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        ShardBar:SetTexturePadding(0, SoulShardBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        ShardBar:SetTexturePadding(0, ShardBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -345,8 +345,8 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
   -- Set padding and rotation and fadeout
   ShardBar:SetPadding(0, Gen.ShardPadding)
   ShardBar:SetAngle(Gen.ShardAngle)
-  ShardBar:SetFadeOutTime(0, SoulShardBox, Gen.ShardFadeOutTime)
-  ShardBar:SetFadeOutTime(0, SoulShardLight, Gen.ShardFadeOutTime)
+  ShardBar:SetFadeOutTime(0, ShardBox, Gen.ShardFadeOutTime)
+  ShardBar:SetFadeOutTime(0, ShardLight, Gen.ShardFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -356,9 +356,9 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
     ShardBar:SetBoxScale(1)
 
     -- Hide/show Box mode.
-    ShardBar:HideTextureFrame(0, SoulShardDark)
-    ShardBar:HideTextureFrame(0, SoulShardLight)
-    ShardBar:ShowTextureFrame(0, SoulShardBox)
+    ShardBar:HideTextureFrame(0, ShardDark)
+    ShardBar:HideTextureFrame(0, ShardLight)
+    ShardBar:ShowTextureFrame(0, ShardBox)
 
     ShardBar:HideBorder(nil)
     ShardBar:ShowBorder(0)
@@ -370,13 +370,13 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
     -- Set Size
     ShardBar:SetBoxSize(ShardData.Width, ShardData.Height)
     ShardBar:SetBoxScale(Gen.ShardSize)
-    ShardBar:SetTextureScale(0, SoulShardDark, ShardScale)
-    ShardBar:SetTextureScale(0, SoulShardLight, ShardScale)
+    ShardBar:SetTextureScale(0, ShardDark, ShardScale)
+    ShardBar:SetTextureScale(0, ShardLight, ShardScale)
 
     -- Hide/show Texture mode.
-    ShardBar:ShowTextureFrame(0, SoulShardDark)
-    ShardBar:ShowTextureFrame(0, SoulShardLight)
-    ShardBar:HideTextureFrame(0, SoulShardBox)
+    ShardBar:ShowTextureFrame(0, ShardDark)
+    ShardBar:ShowTextureFrame(0, ShardLight)
+    ShardBar:HideTextureFrame(0, ShardBox)
 
     ShardBar:HideBorder(0)
     ShardBar:ShowBorder(nil)
@@ -405,24 +405,24 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for ShardIndex = 1, MaxSoulShards do
 
       -- Create the textures for box and runes.
-    ShardBar:CreateBoxTexture(ShardIndex, SoulShardBox, 'statusbar')
-    ShardBar:CreateBoxTexture(ShardIndex, SoulShardDark, 'texture', 0, ShardData.Width, ShardData.Height)
-    ShardBar:CreateBoxTexture(ShardIndex, SoulShardLight, 'texture', 1, ShardData.Width, ShardData.Height)
+    ShardBar:CreateBoxTexture(ShardIndex, ShardBox, 'statusbar')
+    ShardBar:CreateBoxTexture(ShardIndex, ShardDark, 'texture', 0, ShardData.Width, ShardData.Height)
+    ShardBar:CreateBoxTexture(ShardIndex, ShardLight, 'texture', 1, ShardData.Width, ShardData.Height)
 
     -- Set the textures
-    ShardBar:SetTexture(ShardIndex, SoulShardDark, ShardData.Texture)
-    ShardBar:SetTexture(ShardIndex, SoulShardLight, ShardData.Texture)
+    ShardBar:SetTexture(ShardIndex, ShardDark, ShardData.Texture)
+    ShardBar:SetTexture(ShardIndex, ShardLight, ShardData.Texture)
 
     -- Set the soulshard dark texture
-    ShardBar:SetTexCoord(ShardIndex, SoulShardDark, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
+    ShardBar:SetTexCoord(ShardIndex, ShardDark, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
 
-    ShardBar:SetTextureSize(ShardIndex, SoulShardDark, ShardData.Width, ShardData.Height, ShardData.Point)
-    ShardBar:SetDesaturated(ShardIndex, SoulShardDark, true)
-    ShardBar:SetColor(ShardIndex, SoulShardDark, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
+    ShardBar:SetTextureSize(ShardIndex, ShardDark, ShardData.Width, ShardData.Height, ShardData.Point)
+    ShardBar:SetDesaturated(ShardIndex, ShardDark, true)
+    ShardBar:SetColor(ShardIndex, ShardDark, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
 
     -- Set the soulshard light texture
-    ShardBar:SetTexCoord(ShardIndex, SoulShardLight, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
-    ShardBar:SetTextureSize(ShardIndex, SoulShardLight, ShardData.Width, ShardData.Height, ShardData.Point)
+    ShardBar:SetTexCoord(ShardIndex, ShardLight, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
+    ShardBar:SetTextureSize(ShardIndex, ShardLight, ShardData.Width, ShardData.Height, ShardData.Point)
 
      -- Set and save the name for tooltips for each shard.
     local Name = strconcat('Shard ', ShardIndex)
@@ -433,7 +433,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   end
 
   -- Show the dark textures.
-  ShardBar:ShowTexture(0 , SoulShardDark)
+  ShardBar:ShowTexture(0 , ShardDark)
 
   -- Save the name for tooltips for normal mode.
   ShardBar:SetTooltip(nil, UB.Name, MouseOverDesc)

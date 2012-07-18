@@ -172,6 +172,17 @@ local EclipseMoonOffsetXMax = 50
 local EclipseMoonOffsetYMin = -50
 local EclipseMoonOffsetYMax = 50
 
+local ShadowBarSizeMin = 0.01
+local ShadowBarSizeMax = 3
+local ShadowBarScaleMin = 0.1
+local ShadowBarScaleMax = 2
+local ShadowBarPaddingMin = -50
+local ShadowBarPaddingMax = 50
+local ShadowBarFadeOutMin = 0
+local ShadowBarFadeOutMax = 5
+local ShadowBarAngleMin = 45
+local ShadowBarAngleMax = 360
+
 -- Size variables for combo, holy, and shard bars.
 local BoxBarWidthMin = 10
 local BoxBarWidthMax = 100
@@ -549,7 +560,7 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
     name = Name,
     order = Order,
     hidden = function()
-               return Object == 'bg' and ( BarType == 'HolyBar' or BarType == 'ShardBar' ) and
+               return Object == 'bg' and ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'ShadowBar' ) and
                       not UBF.UnitBar.General.BoxMode
              end,
     dialogInline = true,
@@ -809,7 +820,7 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
       name = 'Background Color',
       order = 22,
       hidden = function()
-                 return ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' ) and
+                 return ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar') and
                         UBF.UnitBar.General.BoxMode
                end,
       hasAlpha = true,
@@ -830,9 +841,10 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
   end
 
   -- Add color all options.
-  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' then
+  if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
+     BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
     local MaxColors = 5
-    if BarType == 'HolyBar' then
+    if BarType == 'ShadowBar' then
       MaxColors = 3
     elseif BarType == 'ShardBar' or BarType == 'EmberBar' then
       MaxColors = 4
@@ -1581,8 +1593,8 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
             SetFunction(FunctionLabel)
 
             -- Update layout.
-            if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
-               BarType == 'ShardBar' or BarType == 'DemonicBar' or BarType == 'EmberBar' then
+            if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or
+               BarType == 'DemonicBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
               UBF:SetLayout()
             else
               if TableName then
@@ -1698,8 +1710,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     order = Order,
     hidden = function()
                return BarType == 'RuneBar' and UBF.UnitBar.General.RuneMode == 'rune' or
-                      ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' or BarType == 'EmberBar') and
-                      not UBF.UnitBar.General.BoxMode
+                      ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' or
+                        BarType == 'EmberBar' or BarType == 'ShadowBar') and not UBF.UnitBar.General.BoxMode
              end,
     args = {
       General = {
@@ -1713,16 +1725,16 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         set = function(Info, Value)
                 GetTable(BarType, 'Bar', TableName)[Info[#Info]] = Value
 
-                -- Update combobar, holybar, or shardbar layout.
+                -- Update layout.
                 if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
-                   BarType == 'ShardBar' or BarType == 'EmberBar' then
+                   BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
                   UBF:SetLayout()
                 else
                   if Object then
-                    UBF:SetLayout()
 
                     -- This section mostly for eclipse bar.
                     -- Update the bar to recalculate the slider pos.
+                    UBF:SetLayout()
                     UBF:Update()
                   else
 
@@ -1782,8 +1794,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   end
   GA.Spacer10 = CreateSpacer(10)
 
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and
-     BarType ~= 'ShardBar' and BarType ~= 'EclipseBar' then
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and
+     BarType ~= 'EclipseBar' and BarType ~= 'ShadowBar' then
 
     GA.FillDirection = {
       type = 'select',
@@ -1804,8 +1816,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
   if BarType == 'RuneBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'RuneWidth', 'RuneHeight')
-  elseif BarType == 'ComboBar' or BarType == 'HolyBar' or
-         BarType == 'ShardBar' or BarType == 'DemonicBar' or BarType == 'EmberBar' then
+  elseif BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or
+         BarType == 'DemonicBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'BoxWidth', 'BoxHeight')
   elseif BarType == 'EclipseBar' then
     local o = gsub(Object, '%a', strupper, 1)
@@ -1889,9 +1901,9 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
   -- Add bar color options if its a combobar or shardbar.
   if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
-     BarType == 'ShardBar' or BarType == 'EmberBar' then
+     BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
     local MaxColors = 5
-    if BarType == 'HolyBar' then
+    if BarType == 'ShadowBar' then
       MaxColors = 3
     elseif BarType == 'ShardBar' or BarType == 'EmberBar' then
       MaxColors = 4
@@ -2889,6 +2901,103 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateShadowBarOptions
+--
+-- Creates options for a soul shadow bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: ShadowBarOptions = CreateShadowBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- ShadowBarOptions       Options table for the shadow bar.
+-------------------------------------------------------------------------------
+local function CreateShadowBarOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+
+  local ShadowBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UBF.UnitBar.General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            UBF:SetLayout()
+          end,
+    args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked, this bar will show boxes instead of textures',
+      },
+      ShadowPadding = {
+        type = 'range',
+        name = 'Shadow Padding',
+        order = 2,
+        desc = 'Set the Amount of space between each shadow orb',
+        min = ShadowBarPaddingMin,
+        max = ShadowBarPaddingMax,
+        step = 1,
+      },
+      ShadowAngle = {
+        type = 'range',
+        name = 'Shadow Rotation',
+        order = 3,
+        desc = 'Rotates the shadow bar',
+        min = ShadowBarAngleMin,
+        max = ShadowBarAngleMax,
+        step = 45,
+      },
+      ShadowSize = {
+        type = 'range',
+        name = 'Shadow Size',
+        order = 4,
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        desc = 'Sets the size of all the shadow orbs',
+        min = ShadowBarSizeMin,
+        max = ShadowBarSizeMax,
+        step = 0.01,
+        isPercent = true
+      },
+      ShadowScale = {
+        type = 'range',
+        name = 'Shadow Scale',
+        order = 5,
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        desc = 'Sets the scale of all the shadow orbs',
+        min = ShadowBarScaleMin,
+        max = ShadowBarScaleMax,
+        step = 0.01,
+        isPercent = true,
+      },
+      ShadowFadeOutTime = {
+        type = 'range',
+        name = 'Shadow Fadeout Time',
+        order = 6,
+        desc = 'The amount of time in seconds to fade out a shadow orb',
+        min = ShadowBarFadeOutMin,
+        max = ShadowBarFadeOutMax,
+        step = 1,
+      },
+    },
+  }
+  return ShadowBarOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateCopyPasteOptions
 --
 -- Creates options for to copy and paste bars.
@@ -3076,7 +3185,13 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             type = 'toggle',
             name = 'Hide in Vehicle',
             order = 4,
-            desc = "Hides the bar when your're in a vehicle",
+            desc = "Hides the bar when you're in a vehicle",
+          },
+          HideInPetBattle = {
+            type = 'toggle',
+            name = 'Hide in Pet Battle',
+            order = 5,
+            desc = "Hides the bar when you're in a pet battle",
           },
           HideNotActive = {
             type = 'toggle',
@@ -3129,6 +3244,10 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   -- Add eclipsebar options
   elseif BarType == 'EclipseBar' then
     UBOA.EclipseBar = CreateEclipseBarOptions(BarType, 2, 'General')
+
+  -- Add shardbar options
+  elseif BarType == 'ShadowBar' then
+    UBOA.ShardBar = CreateShadowBarOptions(BarType, 2, 'General')
 
   -- Add health and power bar options
   elseif BarType == 'PlayerPower' and PlayerClass == 'HUNTER' or strfind(BarType, 'Power') == nil and BarType ~= 'PetHealth' then
@@ -3262,7 +3381,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add text options
-  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and BarType ~= 'EmberBar' then
+  if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and
+     BarType ~= 'EmberBar' and BarType ~= 'ShadowBar' then
     UBOA.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
     if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
       UBOA.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
@@ -3400,7 +3520,7 @@ local function CreateMainOptions()
           PetPower = CreateUnitBarOptions('PetPower', 8, 'Pet Power', 'Classes with pets only'),
 
           -- Main Power group. (druid mana)
-          MainPower = CreateUnitBarOptions('MainPower', 9, 'Druid Mana', 'Druids only: Shown when in cat or bear form'),
+          MainPower = CreateUnitBarOptions('MainPower', 9, 'Druid|Monk Mana', 'Druids or Monks only: Shown when in cat or bear form'),
 
           -- Runebar group.
           RuneBar = CreateUnitBarOptions('RuneBar', 10, 'Rune Bar'),
@@ -3422,6 +3542,9 @@ local function CreateMainOptions()
 
           -- Eclipsebar group.
           EclipseBar = CreateUnitBarOptions('EclipseBar', 16, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
+
+          -- Shadowbar group.
+          ShadowBar = CreateUnitBarOptions('ShadowBar', 17, 'Shadow Bar'),
         },
       },
 --[[ --=============================================================================
@@ -3629,8 +3752,8 @@ function GUB.Options:OnInitialize()
   MainOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonOptionsName, AddonName)
 
   -- Add the Profiles UI as a subcategory below the main options.
-  LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonProfileName, ProfileOptions)
-  -- ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)
+  --LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonProfileName, ProfileOptions)
+  --ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)
 
   -- Create the alignment tool options
   CreateAlignmentToolOptions()

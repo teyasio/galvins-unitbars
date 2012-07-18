@@ -21,11 +21,13 @@ flags active at the same time.  A flag with a higher priority will always overri
 below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the
 bars, The only flag it can't override is never show.
 
-   Never Show         Disables and hides the bar.
-   Hide when Dead     Hide the bar when the player is dead.
-   Hide in Vehicle    Hide the bar if a vehicle.
-   Hide not Active    Hide the bar when it's not active.
-   Hide no Combat     Don't hide the bar when not in combat.
+   Never Show           Disables and hides the bar.
+   Hide not usable      Disable and hides the bar if it's not usable by the class, spec, form, stance etc.
+   Hide when Dead       Hide the bar when the player is dead.
+   Hide in Vehicle      Hide the bar if a vehicle.
+   Hide in Pet Battle   Hide the bar if in a pet battle.
+   Hide not Active      Hide the bar when it's not active.
+   Hide no Combat       Don't hide the bar when not in combat.
 
 * Text Type
 All health and Power bars have a text type.  This lets you control how the health or power values are to be displayed.
