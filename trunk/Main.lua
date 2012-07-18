@@ -26,6 +26,7 @@ GUB.ShardBar = {}
 GUB.DemonicBar = {}
 GUB.EmberBar = {}
 GUB.EclipseBar = {}
+GUB.ShadowBar = {}
 GUB.Options = Options
 
 -------------------------------------------------------------------------------
@@ -164,6 +165,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- InCombat               - True or false. If true then the player is in combat.
 -- InVehicle              - True or false. If true then the player is in a vehicle.
+-- InPetBattle            - True or false. If true then the player is in a pet battle.
 -- IsDead                 - True or false. If true then the player is dead.
 -- HasTarget              - True or false. If true then the player has a target.
 -- HasFocus               - True or false. If true then the player has a focus.
@@ -237,6 +239,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                                             the bar has a UsedByClass table.
 --                            HideWhenDead     Hide the unitbar when the player is dead.
 --                            HideInVehicle    Hide the unitbar if in a vehicle.
+--                            HideInPetBattle  Hide the unitbar if in a pet battle.
 --                            HideNotActive    Hide the unitbar if its not active.
 --                            HideNoCombat     Don't hide the unitbar when not in combat.
 -- Other                  - For anything not related mostly this will be for scale and maybe alpha
@@ -656,6 +659,7 @@ local AlignmentTooltipDesc = 'Right mouse button to align'
 
 local InCombat = false
 local InVehicle = false
+local InPetBattle = false
 local IsDead = false
 local HasTarget = false
 local HasFocus = false
@@ -759,11 +763,12 @@ local Defaults = {
       x = 0,
       y = 150,
       Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         PredictedHealth = true,
@@ -848,11 +853,12 @@ local Defaults = {
       x = 0,
       y = 120,
       Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         PredictedPower = true,
@@ -936,11 +942,12 @@ local Defaults = {
       x = 0,
       y = 90,
       Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         PredictedHealth = true,
@@ -1026,11 +1033,12 @@ local Defaults = {
       x = 0,
       y = 60,
       Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       Other = {
         Scale = 1,
@@ -1109,11 +1117,12 @@ local Defaults = {
       x = 0,
       y = 30,
       Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         PredictedHealth = true,
@@ -1199,11 +1208,12 @@ local Defaults = {
       x = 0,
       y = 0,
       Status = {
-        ShowNever     = false,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       Other = {
         Scale = 1,
@@ -1283,12 +1293,13 @@ local Defaults = {
       x = 0,
       y = -30,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       Other = {
         Scale = 1,
@@ -1368,12 +1379,13 @@ local Defaults = {
       x = 0,
       y = -60,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       Other = {
         Scale = 1,
@@ -1446,18 +1458,19 @@ local Defaults = {
     },
 -- Main Power
     MainPower = {
-      Name = 'Druid Mana',
+      Name = 'Druid or Monk Mana',
       UsedByClass = {DRUID = {CatForm, BearForm}},
       WaitTime = 1.0,
       x = 0,
       y = -90,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       Other = {
         Scale = 1,
@@ -1536,12 +1549,13 @@ local Defaults = {
       x = 0,
       y = -120,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         BarModeAngle = 90,
@@ -1668,12 +1682,13 @@ local Defaults = {
       x = 0,
       y = -150,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = true,
-        HideNoCombat  = false,
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = true,
+        HideNoCombat    = false,
       },
       General = {
         ComboAngle = 90,
@@ -1732,12 +1747,13 @@ local Defaults = {
       x = 0,
       y = -180,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         BoxMode = false,
@@ -1765,6 +1781,8 @@ local Defaults = {
           [1] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
           [2] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
           [3] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+          [4] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+          [5] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
         },
       },
       Bar = {
@@ -1782,6 +1800,8 @@ local Defaults = {
           [1] = {r = 1, g = 0.705, b = 0, a = 1},
           [2] = {r = 1, g = 0.705, b = 0, a = 1},
           [3] = {r = 1, g = 0.705, b = 0, a = 1},
+          [4] = {r = 1, g = 0.705, b = 0, a = 1},
+          [5] = {r = 1, g = 0.705, b = 0, a = 1},
         },
       },
     },
@@ -1793,12 +1813,13 @@ local Defaults = {
       x = 0,
       y = -215,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         BoxMode = false,
@@ -1856,12 +1877,13 @@ local Defaults = {
       x = -200,
       y = -215,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         BoxMode = false,
@@ -1943,12 +1965,13 @@ local Defaults = {
       x = -200,
       y = -215,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         BoxMode = false,
@@ -1989,11 +2012,11 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
-          r = 1, g = 0.325, b = 0/255 , a = 1,
-          [1] = {r = 1, g = 0.325, b = 0/255 , a = 1},
-          [2] = {r = 1, g = 0.325, b = 0/255 , a = 1},
-          [3] = {r = 1, g = 0.325, b = 0/255 , a = 1},
-          [4] = {r = 1, g = 0.325, b = 0/255 , a = 1},
+          r = 1, g = 0.325, b = 0 , a = 1,
+          [1] = {r = 1, g = 0.325, b = 0 , a = 1},
+          [2] = {r = 1, g = 0.325, b = 0 , a = 1},
+          [3] = {r = 1, g = 0.325, b = 0 , a = 1},
+          [4] = {r = 1, g = 0.325, b = 0 , a = 1},
         },
       },
     },
@@ -2005,12 +2028,13 @@ local Defaults = {
       x = 0,
       y = -250,
       Status = {
-        ShowNever     = false,
-        HideNotUsable = true,
-        HideWhenDead  = true,
-        HideInVehicle = true,
-        HideNotActive = false,
-        HideNoCombat  = false
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       General = {
         SliderInside = true,
@@ -2172,6 +2196,68 @@ local Defaults = {
         Color = {r = 1, g = 1, b = 1, a = 1}
       },
     },
+-- ShadowBar
+    ShadowBar = {
+      Name = 'Shadow Bar',
+      UsedByClass = {PRIEST = {'3'}},
+      WaitTime = 1,
+      x = -200,
+      y = -215,
+      Status = {
+        ShowNever       = false,
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
+      },
+      General = {
+        BoxMode = false,
+        ShadowSize = 1,
+        ShadowPadding = 1,
+        ShadowScale = 1,
+        ShadowFadeOutTime = 1,
+        ShadowAngle = 90
+      },
+      Other = {
+        Scale = 1,
+        FrameStrata = 'MEDIUM',
+      },
+      Background = {
+        ColorAll = false,
+        PaddingAll = true,
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {
+          r = 0.329, g = 0.172, b = 0.337, a = 1,
+          [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          [3] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+        },
+      },
+      Bar = {
+        Advanced = false,
+        ColorAll = false,
+        BoxWidth = 38,
+        BoxHeight = 37,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {
+          r = 0.729, g = 0.466, b = 1, a = 1,
+          [1] = {r = 0.729, g = 0.466, b = 1, a = 1},
+          [2] = {r = 0.729, g = 0.466, b = 1, a = 1},
+          [3] = {r = 0.729, g = 0.466, b = 1, a = 1},
+        },
+      },
+    },
   },
 }
 
@@ -2242,6 +2328,7 @@ local EventOrPowerToUBF = {
   -- Power names
   MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power',
   SOUL_SHARDS = 'ShardBar', DEMONIC_FURY = 'DemonicBar', BURNING_EMBERS = 'EmberBar', HOLY_POWER = 'HolyBar',
+  SHADOW_ORBS = 'ShadowBar',
 
   -- Event names
   RUNE_POWER_UPDATE = 'RuneBar', RUNE_TYPE_UPDATE = 'RuneBar'
@@ -2249,7 +2336,7 @@ local EventOrPowerToUBF = {
 
 local PowerTypeToNumber = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
-  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, BURNING_EMBERS = 14, DEMONIC_FURY = 15
+  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, SHADOW_ORBS = 13, BURNING_EMBERS = 14, DEMONIC_FURY = 15
 }
 
 local PowerColorType = {
@@ -2318,6 +2405,8 @@ local function RegisterEvents(Action, EventType)
     GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('PLAYER_SPECIALIZATION_CHANGED', 'UnitBarsUpdateStatus')
     GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PET_BATTLE_OPENING_START', 'UnitBarsUpdateStatus')
+    GUB:RegisterEvent('PET_BATTLE_CLOSE', 'UnitBarsUpdateStatus')
 
     -- Register health and power events.
     GUB:RegisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdateHealth')
@@ -3710,6 +3799,10 @@ function GUB.Main:StatusCheck()
     elseif InVehicle and Status.HideInVehicle then
       ShowUnitBar = false
 
+    -- Hide if in a pet battle and the HideInPetBattle status is set.
+    elseif InPetBattle and Status.HideInPetBattle then
+      ShowUnitBar = false
+
     -- Get the idle status based on HideNotActive when not in combat.
     elseif not InCombat and Status.HideNotActive then
       ShowUnitBar = self.IsActive
@@ -3960,9 +4053,9 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
     return
   end
 
-  -- Set the vehicle and combat flags
   InCombat = UnitAffectingCombat('player') == 1
   InVehicle = UnitHasVehicleUI('player')
+  InPetBattle = C_PetBattles.IsInBattle()
   IsDead = UnitIsDeadOrGhost('player') == 1
   HasTarget = UnitExists('target') == 1
   HasFocus = UnitExists('focus') == 1

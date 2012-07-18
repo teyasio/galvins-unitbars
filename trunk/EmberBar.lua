@@ -72,10 +72,10 @@ local CurrentNumEmbers = nil
 local LastEmberPower = nil
 
 -- Ember Texture constants
-local EmberBox = 1
-local EmberBg = 2
-local EmberFill = 3
-local EmberFire = 4
+local EmberBox = 10
+local EmberBg = 1
+local EmberFill = 2
+local EmberFire = 3
 
 local BarOffsetX = 0
 local BarOffsetY = 2
@@ -84,7 +84,7 @@ local EmberData = {
   Texture = [[Interface\PlayerFrame\Warlock-DestructionUI]],
 
   -- TextureFrame size.
-  TextureWidth = 36, TextureHeight = 39 + BarOffsetY,
+  TextureWidth = 36, TextureHeight = 39 + 3,
   [EmberBg] = {
     Level = 0,
     Point = 'BOTTOM',
@@ -421,25 +421,24 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   for EmberIndex = 1, MaxEmbers do
 
+    -- Create burning ember for box mode.
     EmberBar:CreateBoxTexture(EmberIndex, EmberBox, 'statusbar')
 
-    for TextureNumber, TD in pairs(EmberData) do
-      if type(TD) == 'table' then
+    for TextureNumber, ED in ipairs(EmberData) do
 
-        -- Create the textures for the ember bar.
-        EmberBar:CreateBoxTexture(EmberIndex, TextureNumber, 'texture', TD.Level,
-                                  EmberData.TextureWidth, EmberData.TextureHeight)
+      -- Create the textures for the ember bar.
+      EmberBar:CreateBoxTexture(EmberIndex, TextureNumber, 'texture', ED.Level,
+                                EmberData.TextureWidth, EmberData.TextureHeight)
 
-        -- Set the texture.
-        EmberBar:SetTexture(EmberIndex, TextureNumber, EmberData.Texture)
+      -- Set the texture.
+      EmberBar:SetTexture(EmberIndex, TextureNumber, EmberData.Texture)
 
-        -- Set the texcoords for each texture
-        EmberBar:SetTexCoord(EmberIndex, TextureNumber, TD.Left, TD.Right, TD.Top, TD.Bottom)
+      -- Set the texcoords for each texture
+      EmberBar:SetTexCoord(EmberIndex, TextureNumber, ED.Left, ED.Right, ED.Top, ED.Bottom)
 
-        -- Set texture size.
-        EmberBar:SetTextureSize(EmberIndex, TextureNumber, TD.Width, TD.Height,
-                                TD.Point, TD.OffsetX, TD.OffsetY)
-      end
+      -- Set texture size.
+      EmberBar:SetTextureSize(EmberIndex, TextureNumber, ED.Width, ED.Height,
+                              ED.Point, ED.OffsetX, ED.OffsetY)
     end
 
     -- Show the ember background and fill

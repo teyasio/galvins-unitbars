@@ -43,7 +43,7 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- LastComboPoints                     Keeps track of change in the combo bar.
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
-local ComboBarBox = 1
+local ComboBox = 1
 local LastComboPoints = nil
 
 -------------------------------------------------------------------------------
@@ -79,9 +79,9 @@ local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
 
   for ComboIndex = 1, MaxComboPoints do
     if ComboIndex <= ComboPoints then
-      ComboBar:ShowTexture(ComboIndex, ComboBarBox)
+      ComboBar:ShowTexture(ComboIndex, ComboBox)
     else
-      ComboBar:HideTexture(ComboIndex, ComboBarBox, Action)
+      ComboBar:HideTexture(ComboIndex, ComboBox, Action)
     end
   end
 end
@@ -219,9 +219,9 @@ function GUB.UnitBarsF.ComboBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'texture' then
-        ComboBar:SetTexture(ComboIndex, ComboBarBox, Bar.StatusBarTexture)
-        ComboBar:SetFillDirection(ComboIndex, ComboBarBox, Bar.FillDirection)
-        ComboBar:SetRotateTexture(ComboIndex, ComboBarBox, Bar.RotateTexture)
+        ComboBar:SetTexture(ComboIndex, ComboBox, Bar.StatusBarTexture)
+        ComboBar:SetFillDirection(ComboIndex, ComboBox, Bar.FillDirection)
+        ComboBar:SetRotateTexture(ComboIndex, ComboBox, Bar.RotateTexture)
       end
       if Attr == nil or Attr == 'color' then
         local BarColor = nil
@@ -232,7 +232,7 @@ function GUB.UnitBarsF.ComboBar:SetAttr(Object, Attr)
         else
           BarColor = Bar.Color[ComboIndex]
         end
-        ComboBar:SetColor(ComboIndex, ComboBarBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        ComboBar:SetColor(ComboIndex, ComboBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
       end
     end
   end
@@ -240,7 +240,7 @@ function GUB.UnitBarsF.ComboBar:SetAttr(Object, Attr)
   -- Forground (Statusbar).
   if Object == nil or Object == 'bar' then
     if Attr == nil or Attr == 'padding' then
-      ComboBar:SetTexturePadding(0, ComboBarBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+      ComboBar:SetTexturePadding(0, ComboBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
     end
   end
 end
@@ -263,7 +263,7 @@ function GUB.UnitBarsF.ComboBar:SetLayout()
   -- Set padding and rotation and fadeout
   ComboBar:SetPadding(0, Gen.ComboPadding)
   ComboBar:SetAngle(Gen.ComboAngle)
-  ComboBar:SetFadeOutTime(0, ComboBarBox, Gen.ComboFadeOutTime)
+  ComboBar:SetFadeOutTime(0, ComboBox, Gen.ComboFadeOutTime)
 
   -- Set size
   ComboBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
@@ -290,7 +290,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for ComboIndex = 1, MaxComboPoints do
 
       -- Create the textures for the boxes.
-    ComboBar:CreateBoxTexture(ComboIndex, ComboBarBox, 'statusbar')
+    ComboBar:CreateBoxTexture(ComboIndex, ComboBox, 'statusbar')
 
      -- Set and save the name for tooltips.
     local Name = 'Combo Point ' .. ComboIndex
@@ -301,7 +301,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   end
 
   -- Show the texture frames.
-  ComboBar:ShowTextureFrame(0, ComboBarBox)
+  ComboBar:ShowTextureFrame(0, ComboBox)
 
   -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames

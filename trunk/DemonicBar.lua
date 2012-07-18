@@ -42,14 +42,14 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- UnitBarF.UnitBar                  Reference to the unitbar data for the demonic bar.
 -- UnitBarF.DemonicBar               Contains the demonic bar displayed on screen.
 
--- DemonicFuryBox                    Demonic Fury in box mode statusbar.
--- DemonicFuryBG                     Background for the demonic bar texture.
--- DemonicFuryBar                    The bar that shows how much demonic fury is present.
--- DemonicFuryBarMeta                Like DemonicFuryBar except shown in metamorphosis.
--- DemonicFuryBorder                 Texture that fits around the demonic bar.
--- DemonicFuryBorderMeta             Like demonicFuryBorder except shown in metamorphosis.
--- DemonicFuryNotch                  Shows the 20% mark on the normal bar.
--- DemonicFuryNotchMeta              Shows the 20% mark on the metamorphosis bar.
+-- FuryBox                           Demonic Fury in box mode statusbar.
+-- FuryBG                            Background for the demonic bar texture.
+-- FuryBar                           The bar that shows how much demonic fury is present.
+-- FuryBarMeta                       Like FuryBar except shown in metamorphosis.
+-- FuryBorder                        Texture that fits around the demonic bar.
+-- FuryBorderMeta                    Like FuryBorder except shown in metamorphosis.
+-- FuryNotch                         Shows the 20% mark on the normal bar.
+-- FuryNotchMeta                     Shows the 20% mark on the metamorphosis bar.
 --                                   These 8 variables are used to reference the different textures/statusbar.
 --
 -- LastDemonicFury                   Keeps track of change in demonic fury.
@@ -74,14 +74,14 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- Powertype constants
 local PowerDemonicFury = PowerTypeToNumber['DEMONIC_FURY']
 
-local DemonicFuryBox = 10
-local DemonicFuryBg = 1
-local DemonicFuryBar = 2
-local DemonicFuryBarMeta = 3
-local DemonicFuryBorder = 4
-local DemonicFuryBorderMeta = 5
-local DemonicFuryNotch = 6
-local DemonicFuryNotchMeta = 7
+local FuryBox = 10
+local FuryBg = 1
+local FuryBar = 2
+local FuryBarMeta = 3
+local FuryBorder = 4
+local FuryBorderMeta = 5
+local FuryNotch = 6
+local FuryNotchMeta = 7
 
 local LastDemonicFury = nil
 local LastMaxDemonicFury = nil
@@ -98,49 +98,49 @@ local DemonicData = {
 
   -- TextureFrame size
   TextureWidth = 169, TextureHeight = 52,
-  [DemonicFuryBg] = {
+  [FuryBg] = {
     Level = 0,
     Point = 'CENTER',
     OffsetX = -2 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 132, Height= 24,
     Left = 0.03906250, Right = 0.55468750, Top = 0.20703125, Bottom = 0.30078125
   },
-  [DemonicFuryBar] = {
+  [FuryBar] = {
     Level = 1,
     Point = 'LEFT',
     OffsetX = 17 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 132, Height = 24,
-    Left = 0.03906250, Right= 0.55468750, Top= 0.10546875, Bottom = 0.19921875
+    Left = 0.03906250, Right = 0.55468750, Top= 0.10546875, Bottom = 0.19921875
   },
-  [DemonicFuryBarMeta] = {
+  [FuryBarMeta] = {
     Level = 1,
     Point = 'LEFT',
     OffsetX = 17 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 132, Height = 24,
     Left = 0.03906250, Right = 0.55468750, Top = 0.00390625, Bottom = 0.09765625
   },
-  [DemonicFuryBorder] = {
+  [FuryBorder] = {
     Level = 2,
     Point = 'LEFT',
     OffsetX = 0 + BarOffsetX, OffsetY = 0 + BarOffsetY,
     Width = 169, Height = 52,
     Left = 0.03906250, Right = 0.69921875, Top = 0.51953125, Bottom = 0.72265625
   },
-  [DemonicFuryBorderMeta] = {
+  [FuryBorderMeta] = {
     Level = 2,
     Point = 'LEFT',
     OffsetX = 0 + BarOffsetX, OffsetY = 0 + BarOffsetY,
     Width = 169, Height = 52,
     Left = 0.03906250, Right = 0.69921875, Top = 0.30859375, Bottom = 0.51171875
   },
-  [DemonicFuryNotch] = {
+  [FuryNotch] = {
     Level = 3,
     Point = 'LEFT',
     OffsetX = 40 + BarOffsetX, OffsetY = -1 + BarOffsetY,
     Width = 7, Height = 22,
     Left = 0.00390625, Right = 0.03125000, Top = 0.09765625, Bottom = 0.18359375
   },
-  [DemonicFuryNotchMeta] = {
+  [FuryNotchMeta] = {
     Level = 3,
     Point = 'LEFT',
     OffsetX = 40 + BarOffsetX, OffsetY = -1 + BarOffsetY,
@@ -179,9 +179,9 @@ end
 local function UpdateDemonicFury(DemonicBarF, DemonicFury, CurrValue, MaxValue)
   local DemonicBar = DemonicBarF.DemonicBar
 
-  DemonicBar:SetTextureFill(1, DemonicFuryBox, DemonicFury)
-  DemonicBar:SetTextureFill(1, DemonicFuryBar, DemonicFury)
-  DemonicBar:SetTextureFill(1, DemonicFuryBarMeta, DemonicFury)
+  DemonicBar:SetTextureFill(1, FuryBox, DemonicFury)
+  DemonicBar:SetTextureFill(1, FuryBar, DemonicFury)
+  DemonicBar:SetTextureFill(1, FuryBarMeta, DemonicFury)
 
     -- Update display values.
   local returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, CurrValue, MaxValue, PercentFn)
@@ -229,27 +229,27 @@ function GUB.UnitBarsF.DemonicBar:Update(Event)
   -- If meta then change texture or box color.
   MetaActive = self.MetaActive or false
   if Meta and not MetaActive then
-    DemonicBar:HideTexture(1, DemonicFuryBar)
-    DemonicBar:HideTexture(1, DemonicFuryBorder)
-    DemonicBar:HideTexture(1, DemonicFuryNotch)
-    DemonicBar:ShowTexture(1, DemonicFuryBarMeta)
-    DemonicBar:ShowTexture(1, DemonicFuryBorderMeta)
-    DemonicBar:ShowTexture(1, DemonicFuryNotchMeta)
+    DemonicBar:HideTexture(1, FuryBar)
+    DemonicBar:HideTexture(1, FuryBorder)
+    DemonicBar:HideTexture(1, FuryNotch)
+    DemonicBar:ShowTexture(1, FuryBarMeta)
+    DemonicBar:ShowTexture(1, FuryBorderMeta)
+    DemonicBar:ShowTexture(1, FuryNotchMeta)
 
     local BarColor = self.UnitBar.Bar.ColorMeta
-    DemonicBar:SetColor(1, DemonicFuryBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+    DemonicBar:SetColor(1, FuryBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
 
    self.MetaActive = true
   elseif not Meta and MetaActive then
-    DemonicBar:ShowTexture(1, DemonicFuryBar)
-    DemonicBar:ShowTexture(1, DemonicFuryBorder)
-    DemonicBar:ShowTexture(1, DemonicFuryNotch)
-    DemonicBar:HideTexture(1, DemonicFuryBarMeta)
-    DemonicBar:HideTexture(1, DemonicFuryBorderMeta)
-    DemonicBar:HideTexture(1, DemonicFuryNotchMeta)
+    DemonicBar:ShowTexture(1, FuryBar)
+    DemonicBar:ShowTexture(1, FuryBorder)
+    DemonicBar:ShowTexture(1, FuryNotch)
+    DemonicBar:HideTexture(1, FuryBarMeta)
+    DemonicBar:HideTexture(1, FuryBorderMeta)
+    DemonicBar:HideTexture(1, FuryNotchMeta)
 
     local BarColor = self.UnitBar.Bar.Color
-    DemonicBar:SetColor(1, DemonicFuryBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+    DemonicBar:SetColor(1, FuryBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
 
     self.MetaActive = false
   end
@@ -356,9 +356,9 @@ function GUB.UnitBarsF.DemonicBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'texture' then
-        DemonicBar:SetTexture(1, DemonicFuryBox, Bar.StatusBarTexture)
-        DemonicBar:SetFillDirection(1, DemonicFuryBox, Bar.FillDirection)
-        DemonicBar:SetRotateTexture(1, DemonicFuryBox, Bar.RotateTexture)
+        DemonicBar:SetTexture(1, FuryBox, Bar.StatusBarTexture)
+        DemonicBar:SetFillDirection(1, FuryBox, Bar.FillDirection)
+        DemonicBar:SetRotateTexture(1, FuryBox, Bar.RotateTexture)
       end
       if Attr == nil or Attr == 'color' then
         local BarColor = nil
@@ -367,10 +367,10 @@ function GUB.UnitBarsF.DemonicBar:SetAttr(Object, Attr)
         else
           BarColor = Bar.ColorMeta
         end
-        DemonicBar:SetColor(1, DemonicFuryBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        DemonicBar:SetColor(1, FuryBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
       end
       if Attr == nil or Attr == 'padding' then
-        DemonicBar:SetTexturePadding(1, DemonicFuryBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        DemonicBar:SetTexturePadding(1, FuryBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   end
@@ -426,14 +426,14 @@ function GUB.UnitBarsF.DemonicBar:SetLayout()
     DemonicBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
 
     -- Hide/show Box mode.
-    DemonicBar:HideTextureFrame(1, DemonicFuryBg)
-    DemonicBar:HideTextureFrame(1, DemonicFuryBar)
-    DemonicBar:HideTextureFrame(1, DemonicFuryBarMeta)
-    DemonicBar:HideTextureFrame(1, DemonicFuryBorder)
-    DemonicBar:HideTextureFrame(1, DemonicFuryBorderMeta)
-    DemonicBar:HideTextureFrame(1, DemonicFuryNotch)
-    DemonicBar:HideTextureFrame(1, DemonicFuryNotchMeta)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryBox)
+    DemonicBar:HideTextureFrame(1, FuryBg)
+    DemonicBar:HideTextureFrame(1, FuryBar)
+    DemonicBar:HideTextureFrame(1, FuryBarMeta)
+    DemonicBar:HideTextureFrame(1, FuryBorder)
+    DemonicBar:HideTextureFrame(1, FuryBorderMeta)
+    DemonicBar:HideTextureFrame(1, FuryNotch)
+    DemonicBar:HideTextureFrame(1, FuryNotchMeta)
+    DemonicBar:ShowTextureFrame(1, FuryBox)
     DemonicBar:ShowBorder(1)
   else
 
@@ -441,14 +441,14 @@ function GUB.UnitBarsF.DemonicBar:SetLayout()
     DemonicBar:SetBoxSize(DemonicData.BoxWidth, DemonicData.BoxHeight)
 
     -- Hide/show Texture mode.
-    DemonicBar:ShowTextureFrame(1, DemonicFuryBg)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryBar)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryBarMeta)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryBorder)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryBorderMeta)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryNotch)
-    DemonicBar:ShowTextureFrame(1, DemonicFuryNotchMeta)
-    DemonicBar:HideTextureFrame(1, DemonicFuryBox)
+    DemonicBar:ShowTextureFrame(1, FuryBg)
+    DemonicBar:ShowTextureFrame(1, FuryBar)
+    DemonicBar:ShowTextureFrame(1, FuryBarMeta)
+    DemonicBar:ShowTextureFrame(1, FuryBorder)
+    DemonicBar:ShowTextureFrame(1, FuryBorderMeta)
+    DemonicBar:ShowTextureFrame(1, FuryNotch)
+    DemonicBar:ShowTextureFrame(1, FuryNotchMeta)
+    DemonicBar:HideTextureFrame(1, FuryBox)
     DemonicBar:HideBorder(1)
   end
 
@@ -472,7 +472,7 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local DemonicBar = Bar:CreateBar(ScaleFrame, Anchor, 1)
 
   -- Create the demonic bar for box mode.
-  DemonicBar:CreateBoxTexture(1, DemonicFuryBox, 'statusbar')
+  DemonicBar:CreateBoxTexture(1, FuryBox, 'statusbar')
 
   -- Create the demonic bar for texture mode.
   for TextureNumber, DD in ipairs(DemonicData) do
@@ -496,11 +496,11 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.Txt2 = DemonicBar:CreateFontString()
 
   -- Show textures.
-  DemonicBar:ShowTexture(1, DemonicFuryBox)
-  DemonicBar:ShowTexture(1, DemonicFuryBg)
-  DemonicBar:ShowTexture(1, DemonicFuryBar)
-  DemonicBar:ShowTexture(1, DemonicFuryBorder)
-  DemonicBar:ShowTexture(1, DemonicFuryNotch)
+  DemonicBar:ShowTexture(1, FuryBox)
+  DemonicBar:ShowTexture(1, FuryBg)
+  DemonicBar:ShowTexture(1, FuryBar)
+  DemonicBar:ShowTexture(1, FuryBorder)
+  DemonicBar:ShowTexture(1, FuryNotch)
 
   -- Save the name for tooltips for normal mode.
   DemonicBar:SetTooltip(nil, UB.Name, MouseOverDesc)

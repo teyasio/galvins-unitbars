@@ -586,8 +586,6 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
   end
   local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
 
- -- print('PS ', Main:GetPredictedSpell(1))
-
   local PredictedSpells = PredictedPower and Main:GetPredictedSpell() > 0 and 1 or 0
 
   -- Return if there is no change.
