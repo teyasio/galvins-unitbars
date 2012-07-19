@@ -172,7 +172,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- HasPet                 - True or false. If true then the player has a pet.
 
 -- PlayerClass            - Name of the class for the player in english.
--- PlayerClassID          - Each class has a number.  See http://www.wowpedia.org/ClassId for a list.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The main power type for the player.
 -- PlayerStance           - The current stance the player is in.
@@ -241,7 +240,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                            HideInVehicle    Hide the unitbar if in a vehicle.
 --                            HideInPetBattle  Hide the unitbar if in a pet battle.
 --                            HideNotActive    Hide the unitbar if its not active.
---                            HideNoCombat     Don't hide the unitbar when not in combat.
+--                            HideNoCombat     Hide the unitbar when not in combat.
 -- Other                  - For anything not related mostly this will be for scale and maybe alpha
 --   Scale                - Sets the scale of the unitbar frame.
 --   FrameStrata          - Sets the strata for the frame to appear on.
@@ -547,6 +546,10 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   Text
 --     FontSettings       - Contains the settings for the text.
 --     Color              - Current color of the text for the bar.
+--
+--
+-- ShadowBar fields       - Same as shardbar fields except for:
+--                            Uses 3 colors.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -572,7 +575,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   SpellID            SpellID to search for.
 --   EndOn              'energize' the spell will be cleared on an energize event.
 --                      'casting'  the spell will be cleared when the spell ends due to success, failed, etc.
---   Fn                 This gets called when a spell starts casting, then end, and on energize.
+--   Fn                 This gets called when a spell starts casting, then on end, and on energize.
 --                        Fn(SpellID, CastTime, Message)
 --                          Message = 'start'  Gets called on spell cast start.
 --                            on 'start' you can return -1 to not add the spell to be tracked.
@@ -634,7 +637,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- The alignment tool uses green and white selected bars.  The green bar is the bar
 -- that the white bars will be lined up with.  When you right click a bar it
--- has a green border around it and the alignment tool panel will open up.
+-- opens up the alignement tool. Right click again to select the bar which will have
+-- a green border around it and the alignment tool panel will open up.
 --
 -- The UnitBarStartMoving() function handles that right/left clicking of a bar
 -- to select/unselect.
@@ -649,9 +653,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -------------------------------------------------------------------------------
 -- ShareData()
 --
--- Other parts of the mod if needed can have a BarType:SendData() function.
--- If this function exists it'll be called.  Then the function can pull data from
--- GUB table to set local variables values.  SendData gets called during runtime
+-- Other parts of the mod if needed can have a BarType:ShareData() function.
+-- This is used to pass upvalues to other parts of the mod.
+-- If this function exists it'll be called. ShareData gets called during runtime
 -- and when things change.  Check bottom of this file on hows it used.
 -- Options:ShareData() is included as well.
 -------------------------------------------------------------------------------
@@ -666,7 +670,6 @@ local HasFocus = false
 local HasPet = false
 local PlayerPowerType = nil
 local PlayerClass = nil
-local PlayerClassID = nil
 local PlayerStance = nil
 local PlayerSpecialization = nil
 local PlayerGUID = nil
@@ -1773,6 +1776,8 @@ local Defaults = {
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
@@ -1839,6 +1844,8 @@ local Defaults = {
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
@@ -1897,6 +1904,8 @@ local Defaults = {
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
@@ -1990,6 +1999,8 @@ local Defaults = {
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
@@ -2230,6 +2241,8 @@ local Defaults = {
         BackdropSettings = {
           BgTexture = BgTexture,
           BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
           BdSize = 12,
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
@@ -2586,14 +2599,14 @@ end
 --
 -- Sets one or more values on a fontstring based on the text type settings
 --
--- Usage: returnOK, msg = SetTextValues(TextType, FontString, CurrValue, MaxValue, PercentFn, PredictedValue)
+-- Usage: returnOK, msg = SetTextValues(TextType, FontString, CurrValue, PercentFn, MaxValue, PredictedValue)
 --
 -- TextType         Contains the data from UB.Text.TextType
 -- FontString       Contains the font string to display data on.
--- CurrValue        Current value.  Used for percentage.
--- MaxValue         Maximum value.  Used for percentage.
 -- PercentFn        Function containing the percentage formula.  The function gets passed the min/max values.
 --                  and must return the result.
+-- CurrValue        Current value.  Used for percentage.
+-- MaxValue         Maximum value.  Used for percentage.
 -- PredictedValue   Predicted health or power value.  Set value to nil if you have no predicted value to set.
 --
 -- returnOK         If any errors happend then this flag will not be nill
@@ -2626,7 +2639,7 @@ local function SetTextValues2(TextType, FontString, CurrValue, MaxValue, Predict
   end
 end
 
-function GUB.Main:SetTextValues(TextType, FontString, CurrValue, MaxValue, PercentFn, PredictedValue)
+function GUB.Main:SetTextValues(TextType, FontString, PercentFn, CurrValue, MaxValue, PredictedValue)
   GetTextValuePercentFn = PercentFn
   return pcall(SetTextValues2, TextType, FontString, CurrValue, MaxValue, PredictedValue)
 end
@@ -2756,6 +2769,7 @@ local function GetHighestFrameLevel(IgnoreFrame, ...)
 
   return GetHighestLevel(0, ...)
 end
+
 -------------------------------------------------------------------------------
 -- SelectUnitBar
 --
@@ -2990,32 +3004,6 @@ function GUB.Main:AlignUnitBars(Alignment, Justify, PaddingEnabled, Padding)
       end
     end
   end
-end
-
--------------------------------------------------------------------------------
--- CreateFadeOut
---
--- Creates a fadeout animation group
---
--- Usage FadeOut, FadeOutA = CreateFadeOut(Frame)
---
--- Frame       Frame that the fadeout is being created for.
---
--- FadeOut     The fadeout animation group.
--- FadeOutA    The fadeout animation.
--------------------------------------------------------------------------------
-function GUB.Main:CreateFadeOut(Frame)
-
-  -- Create an animation for fade out.
-  local FadeOut = Frame:CreateAnimationGroup()
-  local FadeOutA = FadeOut:CreateAnimation('Alpha')
-
-  -- Set the animation group values.
-  FadeOut:SetLooping('NONE')
-  FadeOutA:SetChange(-1)
-  FadeOutA:SetOrder(1)
-
-  return FadeOut, FadeOutA
 end
 
 -------------------------------------------------------------------------------
@@ -3646,34 +3634,58 @@ function GUB.Main:RestoreRelativePoints(Frame)
 end
 
 -------------------------------------------------------------------------------
--- AnimationFadeOut
+-- CreateFade
 --
--- Starts or finishes an alpha animation fade out.
+-- Creates a fadeout or fadein animation group
 --
--- Usage:  AnimationFadeOut(AG, Action, Fn)
+-- Usage Fade, FadeA = CreateFade(Frame, Action)
 --
--- AG        Must be an alpha animation group.
--- Action    'start'   Starts the animation for fading out.
---           'finish'  Finish the animation for fadeout early.
---                     This will call Fn() only if AG was playing.
--- Fn        Function to call after the animation fades out.
---           If set to nil then does nothing.
+-- Frame       Frame that the fadeout is being created for.
+-- Action      If 'out' then fading out, if 'in then fading in.
+--
+-- Fade        The fade animation group.
+-- FadeA       The fade animation.
 -------------------------------------------------------------------------------
-function GUB.Main:AnimationFadeOut(AG, Action, Fn)
+function GUB.Main:CreateFade(Frame, Action)
+
+  -- Create an animation for fade out.
+  local FadeOut = Frame:CreateAnimationGroup()
+  local FadeOutA = FadeOut:CreateAnimation('Alpha')
+
+  -- Set the animation group values.
+  FadeOut:SetLooping('NONE')
+  FadeOutA:SetChange(Action == 'out' and -1 or Action == 'in' and 1)
+  FadeOutA:SetOrder(1)
+
+  return FadeOut, FadeOutA
+end
+
+-------------------------------------------------------------------------------
+-- Animation
+--
+-- Stops or plays an animation.
+--
+-- Usage: Animation(AG, Action, Fn)
+--
+-- AG        Animation Group to start or finish.
+-- Action    'play'  Starts a new animation group then calls Fn when the
+--                    animation is done.  Gets ignored if an existing animation is playing.
+--           'stop' Stops the animation.
+-- Fn        Function to call when used with 'play'.  If set to nil then its ignored.
+-------------------------------------------------------------------------------
+function GUB.Main:Animation(AG, Action, Fn)
 
   -- Stop animation if its playing
   if AG:IsPlaying() then
+    if Action == 'stop' then
 
-    -- Disable the animation script.
-    AG:SetScript('OnFinished', nil)
-    AG:Stop()
-
-    -- Call the function.
-    if Fn then
-      Fn()
+      -- Disable the animation script.
+      AG:SetScript('OnFinished', nil)
+      AG:Stop()
     end
+    return
   end
-  if Action == 'start' then
+  if Action == 'play' then
     AG:SetScript('OnFinished', function(self)
 
                                  -- Call the function Fn when finished.
@@ -3707,7 +3719,7 @@ local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
     if UnitBars.FadeOutTime > 0 then
 
       -- Start the animation fadeout.
-      Main:AnimationFadeOut(FadeOut, 'start', function() Anchor:Hide() end)
+      Main:Animation(FadeOut, 'play', function() Anchor:Hide() end)
     else
       Anchor:Hide()
     end
@@ -3717,7 +3729,7 @@ local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
       if UnitBars.FadeOutTime > 0 then
 
         -- Finish the animation fade out if its still playing.
-        Main:AnimationFadeOut(FadeOut, 'finish')
+        Main:Animation(FadeOut, 'stop')
       end
       Anchor:Show()
       UnitBarF.Hidden = false
@@ -4268,7 +4280,7 @@ local function SetUnitBarsLayout()
 
     -- Stop any old fadeout animation for this unitbar.
     UnitBarF:CancelAnimation()
-    Main:AnimationFadeOut(UnitBarF.FadeOut, 'finish')
+    Main:Animation(UnitBarF.FadeOut, 'stop')
 
     -- Set the anchor position and size.
     Anchor:ClearAllPoints()
@@ -4353,7 +4365,7 @@ local function CreateUnitBars(UnitBarDB)
     end
 
     -- Create an animation for fade out.
-    local FadeOut, FadeOutA = Main:CreateFadeOut(Anchor)
+    local FadeOut, FadeOutA = Main:CreateFade(Anchor, 'out')
 
     -- Save the animation to the unitbar frame.
     UnitBarF.FadeOut = FadeOut
@@ -4440,16 +4452,16 @@ end
 -- Any bar that needs to share variable from main.lua that can change during
 -- runtime can do it thru this ShareData()
 --
--- Currently shares  UnitBars, PlayerClass, PlayerPowerType, PlayerClassID
+-- Currently shares  UnitBars, PlayerClass, and PlayerPowerType
 -------------------------------------------------------------------------------
 local function ShareData()
   for BarType, UBF in pairs(UnitBarsF) do
     local Fn = UBF.ShareData
     if Fn then
-      Fn(UnitBars, PlayerClass, PlayerClassID, PlayerPowerType)
+      Fn(UnitBars, PlayerClass, PlayerPowerType)
     end
   end
-  Options:ShareData(UnitBars, PlayerClass, PlayerClassID, PlayerPowerType)
+  Options:ShareData(UnitBars, PlayerClass, PlayerPowerType)
 end
 
 -------------------------------------------------------------------------------
@@ -4488,7 +4500,7 @@ local function OnInitializeOnce()
   if not Initialized then
 
     -- Get the player class.
-    _, PlayerClass, PlayerClassID = UnitClass('player')
+    _, PlayerClass = UnitClass('player')
 
     -- Get the main power type for the player.
     _, PlayerPowerType = UnitPowerType('player')

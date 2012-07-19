@@ -61,15 +61,18 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 local AddonName = GetAddOnMetadata(MyAddon, 'Title')
 local AddonVersion = GetAddOnMetadata(MyAddon, 'Version')
 local AddonOptionsName = MyAddon .. 'options'
+local AddonOptionsToGUBName = MyAddon .. 'options2'
 local AddonProfileName = MyAddon .. 'profile'
 local AddonSlashName = MyAddon
 
 local SetFunctions = {}
 
+local OptionsToGUBFrame = nil
 local MainOptionsFrame = nil
 local ProfileFrame = nil
 
 local SlashOptions = nil
+local OptionsToGUB = nil
 local MainOptions = nil
 local ProfileOptions = nil
 
@@ -355,7 +358,7 @@ end
 --
 -- NOTE: See Main.lua on how this is called.
 -------------------------------------------------------------------------------
-function GUB.Options:ShareData(UB, PC, PCID, PPT)
+function GUB.Options:ShareData(UB, PC, PPT)
   UnitBars = UB
   PlayerClass = PC
   PlayerPowerType = PPT
@@ -429,36 +432,40 @@ local function CreateSpacer(Order)
 end
 
 -------------------------------------------------------------------------------
+-- CreateToGUBOptions
+--
+-- Creates an option that takes you to the GUB options frame.
+--
+-- Usage: CreateToGUBOptions()
+-------------------------------------------------------------------------------
+local function CreateToGUBOptions(Order, Name, Desc)
+  local ToGUBOptions = {
+    type = 'execute',
+    name = Name,
+    order = Order,
+    desc = Desc,
+    func = function()
+
+             -- Hide blizz blizz options if it's opened.
+             if InterfaceOptionsFrame:IsVisible() then
+               InterfaceOptionsFrame:Hide()
+
+               -- Hide the UI panel behind blizz options.
+               HideUIPanel(GameMenuFrame)
+             end
+
+             -- Open a movable options frame.
+             LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
+           end,
+  }
+  return ToGUBOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateSlashOptions()
 --
 -- Returns a slash options table for unitbars.
 -------------------------------------------------------------------------------
-
---=============================================================================
---=============================================================================
---Galvin's Slash Options Group.
---=============================================================================
---=============================================================================
-local ConfigOptions = {
-  type = 'execute',
-  name = 'config',
-  order = 2,
-  desc = 'Opens a movable options frame',
-  func = function()
-
-           -- Hide blizz blizz options if it's opened.
-           if InterfaceOptionsFrame:IsVisible() then
-             InterfaceOptionsFrame:Hide()
-
-             -- Hide the UI panel behind blizz options.
-             HideUIPanel(GameMenuFrame)
-           end
-
-           -- Open a movable options frame.
-           LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
-         end,
-}
-
 local function CreateSlashOptions()
   local SlashOptions = {
     type = 'group',
@@ -473,11 +480,29 @@ local function CreateSlashOptions()
                 print(AddonName, 'Version ', AddonVersion)
                end,
       },
-      config = ConfigOptions,
-      c = ConfigOptions,
+      config = CreateToGUBOptions(2, '', 'Opens a movable options frame'),
+      c = CreateToGUBOptions(3, '', 'Same as config')
     },
   }
   return SlashOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateOptionsToGUB()
+--
+-- Creates options to be used in blizz options that takes you to GUB options
+-- that can be moved.
+-------------------------------------------------------------------------------
+local function CreateOptionsToGUB()
+  local OptionsToGUB = {
+    name = AddonName,
+    type = 'group',
+    order = 1,
+    args = {
+      ToGUBOptions = CreateToGUBOptions(1, 'GUB Options', 'Opens GUB options'),
+    },
+  }
+  return OptionsToGUB
 end
 
 -------------------------------------------------------------------------------
@@ -2211,7 +2236,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
                    end,
         desc = 'Hides the flash animation after a rune comes off cooldown',
       },
-      CooldownDrawEdge = {
+  --[[    CooldownDrawEdge = {
         type = 'toggle',
         name = 'Draw Edge',
         order = 16,
@@ -2222,7 +2247,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
                      return not UBF.UnitBar.General.CooldownAnimation
                    end,
         desc = 'Shows a line on the cooldown animation',
-      },
+      }, --]]
       CooldownBarDrawEdge = {
         type = 'toggle',
         name = 'Bar Draw Edge',
@@ -3401,11 +3426,6 @@ local function CreateMainOptions()
 
   ProfileOptions.order = 100
 
---=============================================================================
---=============================================================================
---Galvin's UnitBars Group.
---=============================================================================
---=============================================================================
   local MainOptions = {
     name = AddonName,
     type = 'group',
@@ -3547,7 +3567,8 @@ local function CreateMainOptions()
           ShadowBar = CreateUnitBarOptions('ShadowBar', 17, 'Shadow Bar'),
         },
       },
---[[ --=============================================================================
+--[[
+--=============================================================================
 -------------------------------------------------------------------------------
 --    TOOLS group.
 -------------------------------------------------------------------------------
@@ -3741,18 +3762,28 @@ function GUB.Options:OnInitialize()
   -- Create the unitbars options.
   ProfileOptions = LibStub('AceDBOptions-3.0'):GetOptionsTable(GUB.MainDB)
 
+  OptionsToGUB = CreateOptionsToGUB()
   SlashOptions = CreateSlashOptions()
   MainOptions = CreateMainOptions()
 
-  -- Register the slash command options.
+  -- Register profile options with aceconfig.
+  --LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonProfileName, ProfileOptions)
+
+  -- Register the options panels with aceconfig.
   LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonSlashName, SlashOptions, 'gub')
 
-  -- Register the options panel with aceconfig and add it to blizz options.
+  -- Register the options panel with aceconfig.
   LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonOptionsName, MainOptions)
-  MainOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonOptionsName, AddonName)
+
+  -- Register the options to GUB panel with aceconfig.
+  LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonOptionsToGUBName, OptionsToGUB)
+
+
+  -- Add the options panels to blizz options.
+  --MainOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonOptionsName, AddonName)
+  OptionsToGUBFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonOptionsToGUBName, AddonName)
 
   -- Add the Profiles UI as a subcategory below the main options.
-  --LibStub('AceConfig-3.0'):RegisterOptionsTable(AddonProfileName, ProfileOptions)
   --ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)
 
   -- Create the alignment tool options
