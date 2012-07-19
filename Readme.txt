@@ -1,14 +1,16 @@
 
-Galvin's UnitBars is a very customizable addon.  It's main purpose is to only display a class resource.  Currently it
-supports mana, rage, energy, runic power, focus, combo points, runes, and shards.
+Galvin's UnitBars is a very customizable addon.  It's main purpose is to only display a class resource.
+Currently it supports all the resource bars in the default UI.
 
 
 After making a lot of changes if you wish to start over you can restore default settings.  Just go to the bar
 in the bars menu.  Click the bar you want to restore.  Then click the restore button you may have to scroll
 down to see it.
 
-If the configuration menu is getting in the way then close it and type: /gub config from the chat
-box.  This will open a movable configuration window.  Everything in it works the same.
+You can get to the options in two ways.
+First is going to interface options -> addons -> Galvin's UnitBars.  Then click on "GUB Options".
+The other way is to type "/gub config" or "/gub c".
+
 
 * Dragging and dropping
 
@@ -27,12 +29,12 @@ bars, The only flag it can't override is never show.
    Hide in Vehicle      Hide the bar if a vehicle.
    Hide in Pet Battle   Hide the bar if in a pet battle.
    Hide not Active      Hide the bar when it's not active.
-   Hide no Combat       Don't hide the bar when not in combat.
+   Hide no Combat       Hide the bar when not in combat.
 
 * Text Type
-All health and Power bars have a text type.  This lets you control how the health or power values are to be displayed.
-If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.
-In this box you can enter any layout you want.
+All health and Power bars and the Demonic bar have a text type.  This lets you control how the health or power values 
+are to be displayed. If you do not like the default layout, you can enter your own. Click the custom control box and 
+an input box will appear. In this box you can enter any layout you want.
 
 The easist way to create a custom layout is to turn off custom, pick a default layout from the pull down menus.  Then
 click custom.  This will let you edit the default layout generated.
@@ -54,20 +56,12 @@ Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 For more information you can google stringformat for lua.
 
 * Eclipse Bar - Predicted Power
-When eclipse power is turned on.  The mod will add up all the flying spells and the one that's casting and show it
-as predicted power.  Eclipse can also be predicted. 
+When eclipse power is turned on.  The mod will show what state the eclipse bar will be in before the cast is finished.
 
-For this to work smoothly every spell must hit and euphoria won't proc.  Since euphoria can't be predicted.  When
-a spell lands and euphoria procs, the predicted power will jump beyond what the predicted power showed.
-
-* Copy Settings
-This allows you to copy the settings of one bar to another.  Not everything can be copied unless both bars are of the
-same type.  For example a player health bar has all the same properties of a target health bar.  So everything can be
-copied between the two.  The copy settings will only let you pick what can be copied.  There is a copy all which
-will copy all the settings that are supported on the destination bar.
-
-First select the bar you want to copy from.  Then select the bar you want to copy to.  Then pick which settings
-you would like to copy.  Then click the copy button.  A warning will pop up to prevent accidental copying.
+* Cut and Paste
+To copy settings from one bar to the next. Go to the Copy and Paste options on the bar you want to copy from. Click on
+the type you want to copy.  Then go the Copy and Paste options on the bar you want to copy to.  Then click "Paste".
+A confirmation box will pop up asking if you're sure.  Clicking "Clear" will clear the clipboard.
 
 * Alignment
 All bars can be lined up for perfection. Bars can be lined either vertically or horizontally.
@@ -75,7 +69,8 @@ All bars can be lined up for perfection. Bars can be lined either vertically or 
 You need to have bars unlocked.  To open the alignment tool you need to right click a bar.
 Once the alignment tool is open you'll need to select a primary bar by right clicking it.
 
-Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  Then clicking 'align' will make the changes.
+Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  
+Then clicking 'align' will make the changes.
 
 - Horizontal/Vertical:  This will either line up bars from left to right or top to bottom.
 If Horizontal then the vertical location of the bars is unchanged.

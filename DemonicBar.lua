@@ -184,12 +184,12 @@ local function UpdateDemonicFury(DemonicBarF, DemonicFury, CurrValue, MaxValue)
   DemonicBar:SetTextureFill(1, FuryBarMeta, DemonicFury)
 
     -- Update display values.
-  local returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, CurrValue, MaxValue, PercentFn)
+  local returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, PercentFn, CurrValue, MaxValue)
   if not returnOK then
     DemonicBarF.Txt:SetText('Layout Err Text')
   end
 
-  returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text2.TextType, DemonicBarF.Txt2, CurrValue, MaxValue, PercentFn)
+  returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text2.TextType, DemonicBarF.Txt2, PercentFn, CurrValue, MaxValue)
   if not returnOK then
     DemonicBarF.Txt2:SetText('Layout Err Text2')
   end

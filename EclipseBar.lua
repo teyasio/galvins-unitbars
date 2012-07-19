@@ -447,14 +447,15 @@ local function EclipseBarHide(EF, Frame, Hide, FadeOutTime)
 
   if FadeOutTime == -1 then
     if SliderF.Dark then
-      Main:AnimationFadeOut(Frame.FadeOut, 'finish', function() Frame:Hide() end)
+      Main:Animation(Frame.FadeOut, 'stop')
+      Frame:Hide()
     end
 
   elseif not Hide and SliderF.Dark then
     if FadeOutTime > 0 then
 
       -- Finish animation if it's playing.
-      Main:AnimationFadeOut(Frame.FadeOut, 'finish')
+      Main:Animation(Frame.FadeOut, 'stop')
     end
     Frame:Show()
     SliderF.Dark = false
@@ -463,7 +464,7 @@ local function EclipseBarHide(EF, Frame, Hide, FadeOutTime)
     if FadeOutTime > 0 then
 
       -- Fade out the soul shard then hide it.
-      Main:AnimationFadeOut(Frame.FadeOut, 'start', function() Frame:Hide() end)
+      Main:Animation(Frame.FadeOut, 'play', function() Frame:Hide() end)
     else
       Frame:Hide()
     end
@@ -1191,19 +1192,19 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   SunFrame:Hide()
 
   -- Create fadeout for Sun, Moon, Lunar, and Solar.
-  local FadeOut, FadeOutA = Main:CreateFadeOut(MoonFrame)
+  local FadeOut, FadeOutA = Main:CreateFade(MoonFrame, 'out')
   MoonFrame.FadeOut = FadeOut
   MoonFrame.FadeOutA = FadeOutA
 
-  FadeOut, FadeOutA = Main:CreateFadeOut(SunFrame)
+  FadeOut, FadeOutA = Main:CreateFade(SunFrame, 'out')
   SunFrame.FadeOut = FadeOut
   SunFrame.FadeOutA = FadeOutA
 
-  FadeOut, FadeOutA = Main:CreateFadeOut(BarLunar)
+  FadeOut, FadeOutA = Main:CreateFade(BarLunar, 'out')
   BarLunar.FadeOut = FadeOut
   BarLunar.FadeOutA = FadeOutA
 
-  FadeOut, FadeOutA = Main:CreateFadeOut(BarSolar)
+  FadeOut, FadeOutA = Main:CreateFade(BarSolar, 'out')
   BarSolar.FadeOut = FadeOut
   BarSolar.FadeOutA = FadeOutA
 

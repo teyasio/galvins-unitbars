@@ -72,16 +72,16 @@ GUB.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 -------------------------------------------------------------------------------
 local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
   local ComboBar = ComboBarF.ComboBar
-  local Action = nil
   if FinishFadeOut then
-    Action = 'finishfadeout'
+    ComboBar:StopFade(0, ComboBox)
+    return
   end
 
   for ComboIndex = 1, MaxComboPoints do
     if ComboIndex <= ComboPoints then
       ComboBar:ShowTexture(ComboIndex, ComboBox)
     else
-      ComboBar:HideTexture(ComboIndex, ComboBox, Action)
+      ComboBar:HideTexture(ComboIndex, ComboBox)
     end
   end
 end

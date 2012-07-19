@@ -88,7 +88,7 @@ local PredictedSpellValue = {
 --
 -- NOTE: See Main.lua on how this is called.
 -------------------------------------------------------------------------------
-function GUB.Options:ShareData(UB, PC, PCID, PPT)
+function GUB.Options:ShareData(UB, PC, PPT)
   PlayerClass = PC
 end
 
@@ -158,12 +158,12 @@ local function SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
-  local returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text.TextType, StatusBar.Txt, CurrValue, MaxValue, PercentFn, PredictedValue)
+  local returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text.TextType, StatusBar.Txt, PercentFn, CurrValue, MaxValue, PredictedValue)
   if not returnOK then
     StatusBar.Txt:SetText('Layout Err Text')
   end
 
-  returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text2.TextType, StatusBar.Txt2, CurrValue, MaxValue, PercentFn, PredictedValue)
+  returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text2.TextType, StatusBar.Txt2, PercentFn, CurrValue, MaxValue, PredictedValue)
   if not returnOK then
     StatusBar.Txt2:SetText('Layout Err Text2')
   end

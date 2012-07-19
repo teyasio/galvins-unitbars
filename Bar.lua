@@ -77,9 +77,12 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 -- TextureFrame[].Texture            Statusbar or texture.  Child of TextureFrame.
 -- Texture.Width                     Texture only. Width of the texture frame and texture.
 -- Texture.Height                    Texture only. Height of the texture frame and texture.
--- Texture.FadeOutTime               Time in seconds to fade out a texture.  If 0 then this frame doesn't have a fadeout.
--- Texture.FadeOut                   Fadeout animation group for TextureFrame
--- Texture.FadeOutA                  Fadeout animation
+-- Texture.FadeOutTime               Time in seconds to fade out a texture.  If 0 then this texture doesn't have a fadeout.
+-- Texture.FadeInTime                Time in seconds to fade in a texture.  If 0 then this texture doesn't have a fadein.
+-- Texture.FadeOut                   Fadeout animation group for Texture.
+-- Texture.FadeOutA                  Fadeout animation.
+-- Texture.FadeIn                    Fadein animation group for Texture.
+-- Texture.FadeInA                   Fadein animation.
 -- Texture.Hidden                    If true the frame is hidden otherwise it's visible.
 --
 -- Bar frame layout:
@@ -523,22 +526,21 @@ end
 -------------------------------------------------------------------------------
 -- HideTexture
 --
--- Usage: HideTexture(BoxNumber, TextureNumber, Action)
---
--- Action      'finishfadeout' Then any textures currently fadingout will get hidden right away.
---               And the fadeout animation will be cancled.
+-- Usage: HideTexture(BoxNumber, TextureNumber)
 -------------------------------------------------------------------------------
 function BarDB:HideTexture(BoxNumber, TextureNumber, Action)
   DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    if Action == 'finishfadeout' then
-      if Texture.Hidden then
-        Main:AnimationFadeOut(Texture.FadeOut, 'finish', function() Texture:Hide() end)
+    if not Texture.Hidden then
+      if Texture.FadeInTime > 0 then
+
+        -- Stop animation if it's playing.
+        Main:Animation(Texture.FadeIn, 'stop')
+        Texture:SetAlpha(1)
       end
-    elseif not Texture.Hidden then
       if Texture.FadeOutTime > 0 then
 
         -- Fadeout the texture frame then hide it.
-        Main:AnimationFadeOut(Texture.FadeOut, 'start', function() Texture:Hide() end)
+        Main:Animation(Texture.FadeOut, 'play', function() Texture:Hide() end)
       else
         Texture:Hide()
       end
@@ -558,10 +560,36 @@ function BarDB:ShowTexture(BoxNumber, TextureNumber)
       if Texture.FadeOutTime > 0 then
 
         -- Finish animation if it's playing.
-        Main:AnimationFadeOut(Texture.FadeOut, 'finish')
+        Main:Animation(Texture.FadeOut, 'stop')
       end
       Texture:Show()
       Texture.Hidden = false
+      if Texture.FadeInTime > 0 then
+
+        -- Fade in texture then sets its alpha to 1.
+        Texture:SetAlpha(0)
+        Main:Animation(Texture.FadeIn, 'play', function() Texture:SetAlpha(1) end)
+      end
+    end
+  end)
+end
+
+-------------------------------------------------------------------------------
+-- StopFade
+--
+-- Stops fade in or fade out animation playing in the texture.
+--
+-- Usage: StopFade(BoxNumber, TextureNumber)
+-------------------------------------------------------------------------------
+function BarDB:StopFade(BoxNumber, TextureNumber)
+  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
+    if Texture.Hidden then
+      Main:Animation(Texture.FadeOut, 'stop')
+      Texture:Hide()
+    end
+    if not Texture.Hidden then
+      Main:Animation(Texture.FadeIn, 'stop')
+      Texture:SetAlpha(1)
     end
   end)
 end
@@ -577,6 +605,20 @@ function BarDB:SetFadeOutTime(BoxNumber, TextureNumber, Seconds)
 
     -- Set the duration of the fade out.
     Texture.FadeOutA:SetDuration(Seconds)
+  end)
+end
+
+-------------------------------------------------------------------------------
+-- SetFadeInTime
+--
+-- Usage: SetFadeInTime(BoxNumber, TextureNumber, Seconds)
+-------------------------------------------------------------------------------
+function BarDB:SetFadeInTime(BoxNumber, TextureNumber, Seconds)
+  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
+    Texture.FadeInTime = Seconds
+
+    -- Set the duration of the fade in.
+    Texture.FadeInA:SetDuration(Seconds)
   end)
 end
 
@@ -956,6 +998,7 @@ function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
 
   return BDB
 end
+
 -------------------------------------------------------------------------------
 -- CreateBoxTexture
 --
@@ -1029,8 +1072,12 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
   self.TopFrameLevel = TopFrameLevel < CurrentFrameLevel and CurrentFrameLevel or TopFrameLevel
 
   -- Create an animation for fade out for the Texture.
-  Texture.FadeOut, Texture.FadeOutA = Main:CreateFadeOut(Texture)
+  Texture.FadeOut, Texture.FadeOutA = Main:CreateFade(Texture, 'out')
   Texture.FadeOutTime = 0
+
+  -- Create an animation for fade in for the texture.
+  Texture.FadeIn, Texture.FadeInA = Main:CreateFade(Texture, 'in')
+  Texture.FadeInTime = 0
 
   -- Hide the texture or statusbar
   Texture:Hide()

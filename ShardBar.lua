@@ -105,9 +105,10 @@ GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
 -------------------------------------------------------------------------------
 local function UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFadeOut)
   local ShardBar = ShardBarF.ShardBar
-  local Action = nil
   if FinishFadeOut then
-    Action = 'finishfadeout'
+    ShardBar:StopFade(0, ShardBox)
+    ShardBar:StopFade(0, ShardLight)
+    return
   end
 
   for ShardIndex = 1, NumShards do
@@ -119,8 +120,8 @@ local function UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFadeOut)
     else
 
       -- Darken the shard.
-      ShardBar:HideTexture(ShardIndex, ShardBox, Action)
-      ShardBar:HideTexture(ShardIndex, ShardLight, Action)
+      ShardBar:HideTexture(ShardIndex, ShardBox)
+      ShardBar:HideTexture(ShardIndex, ShardLight)
     end
   end
 end

@@ -135,9 +135,10 @@ GUB.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
 -------------------------------------------------------------------------------
 local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
   local HolyBar = HolyBarF.HolyBar
-  local Action = nil
   if FinishFadeOut then
-    Action = 'finishfadeout'
+    HolyBar:StopFade(0, RuneBox)
+    HolyBar:StopFade(0, RuneLight)
+    return
   end
 
   for RuneIndex = 1, MaxHolyRunes do
@@ -145,8 +146,8 @@ local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
       HolyBar:ShowTexture(RuneIndex, RuneBox)
       HolyBar:ShowTexture(RuneIndex, RuneLight)
     else
-      HolyBar:HideTexture(RuneIndex, RuneBox, Action)
-      HolyBar:HideTexture(RuneIndex, RuneLight, Action)
+      HolyBar:HideTexture(RuneIndex, RuneBox)
+      HolyBar:HideTexture(RuneIndex, RuneLight)
     end
   end
 end

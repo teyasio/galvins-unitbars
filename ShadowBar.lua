@@ -91,9 +91,10 @@ GUB.UnitBarsF.ShadowBar.StatusCheck = GUB.Main.StatusCheck
 -------------------------------------------------------------------------------
 local function UpdateShadowOrbs(ShadowBarF, Orbs, FinishFadeOut)
   local ShadowBar = ShadowBarF.ShadowBar
-  local Action = nil
   if FinishFadeOut then
-    Action = 'finishfadeout'
+    ShadowBar:StopFade(0, OrbBox)
+    ShadowBar:StopFade(0, OrbGlow)
+    return
   end
 
   for OrbIndex = 1, MaxShadowOrbs do
@@ -105,8 +106,8 @@ local function UpdateShadowOrbs(ShadowBarF, Orbs, FinishFadeOut)
     else
 
       -- Make the orb dark.
-      ShadowBar:HideTexture(OrbIndex, OrbBox, Action)
-      ShadowBar:HideTexture(OrbIndex, OrbGlow, Action)
+      ShadowBar:HideTexture(OrbIndex, OrbBox)
+      ShadowBar:HideTexture(OrbIndex, OrbGlow)
     end
   end
 end
