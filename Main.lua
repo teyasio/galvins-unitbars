@@ -79,10 +79,11 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --     SelectFrame
 --
 --
--- UnitBarF structure       NOTE: To access UnitBarsF by index use UnitBarsFI[Index].
+-- UnitBarsF structure    NOTE: To access UnitBarsF by index use UnitBarsFI[Index].
 --
 -- UnitBarsParent         - Child of UIParent.  The perpose of this is so all bars can be moved as a group.
--- UnitBarsF[]            - This table contains all the bars.  And all data for each bar.
+-- UnitBarsF[]            - UnitBarsF[] is a frame and table.  This is so each bar can have its own events,
+--                          and all data for each bar.
 --   Anchor               - Child of UnitBarsParent.  The root of every bar.  Controls hide/show
 --                          and size of a bar and location on the screen.  Also brings the bar to top level when clicked.
 --                          From my testing any frame that gets clicked on that is a child of a frame with SetToplevel(true)
@@ -117,8 +118,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   SetAttr()            - Set different parts of the bar. Color, size, font, etc.
 --   SetLayout()          - Before a bar can start taking data this must be called.  This will load the profile data
 --                          into the bar.  This is used for initializing after firstload or during a profile change.
---   EnableBar()          - This is used by StatusCheck() to determin if a bar should be enabled.  Bars like focus and target
---                          need to be disabled when the player doesn't have a target or focus.
+--   BarVisible()         - This is used by StatusCheck() to determin if a bar should be hidden.  Bars like focus and target
+--                          need to be hidden when the player doesn't have a target or focus.
 --   SetSize()            - This can change the location and/or size of the Anchor.
 --
 --
@@ -126,8 +127,8 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- List of UnitBarsF values.
 --
---   Enabled              - True or false.  If true then the bar is enabled otherwise disabled.
---   Hidden               - True or false.  If true then the bar is hidden otherwise shown.
+--   WasEnabled           - True or false.  Flag used to keep track of enable/disable by EnableUnitBars()
+--   Visible              - True or false.  If true then the bar is visible otherwise hidden.
 --   WaitTime             - Amount of time to wait before updating the bar again. Used by CreateUnitBarTimers().
 --   LastTime             - Last time the bars Update() function was called. Updated by the bars Update() function.
 --                          Used by CreateUnitBarTimers().
@@ -159,7 +160,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          needs to be called.  ConvertBackdrop then sets this table to a real backdrop table that
 --                          can be used in SetBackdrop().  This table should never be reference to another table
 --                          since convertbackdrop passes back a reference to this table.
--- EventOrPowerToUBF        Used to an event or power type into an UnitBarsF bartype.  Usedby UnitBarsUpdatePower().
 --
 -- AlignmentTooltipDesc     Tooltip to be shown when the alignment tool is active.
 --
@@ -174,7 +174,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- PlayerClass            - Name of the class for the player in english.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The main power type for the player.
--- PlayerStance           - The current stance the player is in.
+-- PlayerStance           - The current form/stance the player is in.
 -- PlayerSpecialization   - The current specialization for the player
 -- Initialized            - True of false. Flag for OnInitializeOnce().
 -- PSelectedUnitBarF      - Contains a reference to UnitBarF.  Contains the primary selected UnitBar.
@@ -186,15 +186,17 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- BdTexture              - Default border texture for the backdrop and all bars.
 -- StatusBarTexure        - Default bar texture for the health and power bars.
 --
--- UnitBarsFList          - Reusable table used by the alignment tool.
 -- PointCalc              - Table used by CalcSetPoint() to return a location inside a parent frame.
 --
 -- GetTextValuePercentFn  - Contains the function to do percent calculations. Gets set by
 --                          GetTextValues() and called by SetTextValue().
 --
+-- RegEventFrames         - Table used by RegisterEvent() and UnregisterEvent() functions
+--
 -- UnitBar table data structure.
 -- This data is used in the root of the unitbar data table and applies to all bars.  Accessed by UnitBar.Key.
 --
+-- EnableClass            - True or false. If true all unitbars get enabled for your class only.
 -- IsGrouped              - True or false. If true all unitbars get dragged as one object.
 --                                         If false each unitbar can be dragged by its self.
 -- IsLocked               - True or false. If true all unitbars can not be clicked on.
@@ -209,8 +211,9 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- Fields found in all unitbars:
 --
 --   Name                 - Name of the bar.
---   EnableBar()          - Returns true or false.  This gets referenced by UnitBarsF. Not all bars has this.
---   UsedByClass          - Contains the data for HideNotUsable flag.  Not all unitbars has this.
+--   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
+--   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars has this.
+--   UsedByClass          - Contains the data for HideNotUsable flag.  Not all unitbars has this. This is also used for Enable Bar Options.
 --                          Example1: {DRUID = {'1234', 1, 31}}
 --                          Example2: {DRUID = {'12'}, DEATHKNIGHT = {}}
 --                          spec: in Example1 means any of the 4 specs can be used.
@@ -231,7 +234,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          If a flag is found true then a statuscheck will be done to see what the
 --                          bar should do. Flags with a higher priority override flags with a lower.
 --                          Flags from highest priority to lowest.
---                            ShowNever        Disables and hides the unitbar.
 --                            HideNotUsable    Disables and hides the unitbar if the bar is not usable
 --                                             by class, specialization, stance or form, etc.
 --                                             Not everybar has this flag.  If one is present then
@@ -583,6 +585,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          Message = 'end'    Gets called on spell success.
 --                          Message = 'failed' Gets called if the spell didn't complete.
 --                          CastTime  The amount of time to cast the spell in seconds.
+--                          SpellID is always negative on 'start', 'end', or 'failed'
 
 --
 -- EventSpellStart
@@ -752,6 +755,7 @@ local Defaults = {
     RelativePoint = 'CENTER',
     Px = 0,
     Py = 0,
+    EnableClass = false,
     IsGrouped = false,
     IsLocked = false,
     IsClamped = true,
@@ -762,11 +766,11 @@ local Defaults = {
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
-      WaitTime = 1.0,
+      Enabled = true,
+      WaitTime = 1,
       x = 0,
       y = 150,
       Status = {
-        ShowNever       = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -852,11 +856,11 @@ local Defaults = {
 -- Player Power
     PlayerPower = {
       Name = 'Player Power',
-      WaitTime = 1.0,
+      Enabled = true,
+      WaitTime = 1,
       x = 0,
       y = 120,
       Status = {
-        ShowNever       = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -940,12 +944,12 @@ local Defaults = {
 -- Target Health
     TargetHealth = {
       Name = 'Target Health',
-      EnableBar = function() return HasTarget end,
-      WaitTime = 1.0,
+      Enabled = true,
+      BarVisible = function() return HasTarget end,
+      WaitTime = 1,
       x = 0,
       y = 90,
       Status = {
-        ShowNever       = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1031,12 +1035,12 @@ local Defaults = {
 -- Target Power
     TargetPower = {
       Name = 'Target Power',
-      EnableBar = function() return HasTarget end,
-      WaitTime = 1.0,
+      Enabled = true,
+      BarVisible = function() return HasTarget end,
+      WaitTime = 1,
       x = 0,
       y = 60,
       Status = {
-        ShowNever       = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1115,12 +1119,12 @@ local Defaults = {
 -- Focus Health
     FocusHealth = {
       Name = 'Focus Health',
-      EnableBar = function() return HasFocus end,
-      WaitTime = 1.0,
+      Enabled = true,
+      BarVisible = function() return HasFocus end,
+      WaitTime = 1,
       x = 0,
       y = 30,
       Status = {
-        ShowNever       = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1206,12 +1210,12 @@ local Defaults = {
 -- Focus Power
     FocusPower = {
       Name = 'Focus Power',
-      EnableBar = function() return HasFocus end,
-      WaitTime = 1.0,
+      Enabled = true,
+      BarVisible = function() return HasFocus end,
+      WaitTime = 1,
       x = 0,
       y = 0,
       Status = {
-        ShowNever       = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1290,13 +1294,13 @@ local Defaults = {
 -- Pet Health
     PetHealth = {
       Name = 'Pet Health',
-      EnableBar = function() return HasPet end,
+      Enabled = true,
+      BarVisible = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
-      WaitTime = 1.0,
+      WaitTime = 1,
       x = 0,
       y = -30,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1377,12 +1381,13 @@ local Defaults = {
 -- Pet Power
     PetPower = {
       Name = 'Pet Power',
-      EnableBar = function() return HasPet end,
+      Enabled = true,
+      BarVisible = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
+      WaitTime = 1,
       x = 0,
       y = -60,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1460,14 +1465,14 @@ local Defaults = {
       },
     },
 -- Main Power
-    MainPower = {
+    ManaPower = {
       Name = 'Druid or Monk Mana',
+      Enabled = true,
       UsedByClass = {DRUID = {CatForm, BearForm}},
-      WaitTime = 1.0,
+      WaitTime = 1,
       x = 0,
       y = -90,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1547,12 +1552,12 @@ local Defaults = {
 -- RuneBar
     RuneBar = {
       Name = 'Rune Bar',
+      Enabled = true,
       UsedByClass = {DEATHKNIGHT = {}},
-      WaitTime = 1.0,
+      WaitTime = 1,
       x = 0,
       y = -120,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1679,13 +1684,13 @@ local Defaults = {
 -- ComboBar
     ComboBar = {
       Name = 'Combo Bar',
-      EnableBar = function() return HasTarget end,
+      Enabled = true,
+      BarVisible = function() return HasTarget end,
       UsedByClass = {ROGUE = {}, DRUID = {'1234', CatForm}},
       WaitTime = 0.333,
       x = 0,
       y = -150,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1745,12 +1750,12 @@ local Defaults = {
 -- HolyBar
     HolyBar = {
       Name = 'Holy Bar',
+      Enabled = true,
       UsedByClass = {PALADIN = {}},
-      WaitTime = 0.333,
+      WaitTime = 1,
       x = 0,
       y = -180,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1813,12 +1818,12 @@ local Defaults = {
 -- ShardBar
     ShardBar = {
       Name = 'Shard Bar',
+      Enabled = true,
       UsedByClass = {WARLOCK = {'1'}},
-      WaitTime = 0.333,
+      WaitTime = 1,
       x = 0,
       y = -215,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1879,12 +1884,12 @@ local Defaults = {
 -- DemonicBar
     DemonicBar = {
       Name = 'Demonic Bar',
+      Enabled = true,
       UsedByClass = {WARLOCK = {'2'}},
-      WaitTime = 1.0,
+      WaitTime = 1,
       x = -200,
       y = -215,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1969,12 +1974,12 @@ local Defaults = {
 -- EmberBar
     EmberBar = {
       Name = 'Ember Bar',
+      Enabled = true,
       UsedByClass = {WARLOCK = {'3'}},
-      WaitTime = 0.333,
+      WaitTime = 1,
       x = -200,
       y = -215,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -2034,12 +2039,12 @@ local Defaults = {
 -- EclipseBar
     EclipseBar = {
       Name = 'Eclipse Bar',
+      Enabled = true,
       UsedByClass = {DRUID = {'1', MoonkinForm, StanceIsNil}},
       WaitTime = 0.333,
       x = 0,
       y = -250,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -2210,12 +2215,12 @@ local Defaults = {
 -- ShadowBar
     ShadowBar = {
       Name = 'Shadow Bar',
+      Enabled = true,
       UsedByClass = {PRIEST = {'3'}},
       WaitTime = 1,
       x = -200,
       y = -215,
       Status = {
-        ShowNever       = false,
         HideNotUsable   = true,
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -2274,8 +2279,6 @@ local Defaults = {
   },
 }
 
-local UnitBarsFList = {}
-
 local PointCalc = {
         TOPLEFT     = {x = 0,   y = 0},
         TOP         = {x = 0.5, y = 0},
@@ -2324,27 +2327,13 @@ local PredictedSpellMessage = {         -- These variables are blizzard globals.
 
 local PredictedSpells = {}
 
+local RegEventFrames = {}
 
 local PredictedSpellCasting = {
   SpellID = 0,
   LineID = -1,
   Time = 0,
   CastTime = 0,
-}
-
-local PowerColorType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6
-}
-
-local EventOrPowerToUBF = {
-
-  -- Power names
-  MANA = 'power', RAGE = 'power', FOCUS = 'power', ENERGY = 'power', RUNIC_POWER = 'power',
-  SOUL_SHARDS = 'ShardBar', DEMONIC_FURY = 'DemonicBar', BURNING_EMBERS = 'EmberBar', HOLY_POWER = 'HolyBar',
-  SHADOW_ORBS = 'ShadowBar',
-
-  -- Event names
-  RUNE_POWER_UPDATE = 'RuneBar', RUNE_TYPE_UPDATE = 'RuneBar'
 }
 
 local PowerTypeToNumber = {
@@ -2379,10 +2368,9 @@ do
   for BarType, UB in pairs(Defaults.profile) do
     if type(UB) == 'table' then
       Index = Index + 1
-      local UBFTable = {}
+      local UBFTable = CreateFrame('Frame')
       UnitBarsF[BarType] = UBFTable
       UnitBarsFI[Index] = UBFTable
-      UnitBarsF[BarType].UnitBar = UB
     end
   end
 end
@@ -2400,57 +2388,43 @@ end
 --              'setbonus'         Registers events for equipment set bonus
 -------------------------------------------------------------------------------
 local function RegisterEvents(Action, EventType)
+
   if EventType == 'main' then
 
     -- Register events for the addon.
-    GUB:RegisterEvent('UNIT_ENTERED_VEHICLE', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('UNIT_EXITED_VEHICLE', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('UNIT_DISPLAYPOWER', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('UNIT_PET', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_REGEN_ENABLED', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_REGEN_DISABLED', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_TARGET_CHANGED', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_FOCUS_CHANGED', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_DEAD', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_UNGHOST', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_ALIVE', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_LEVEL_UP', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_TALENT_UPDATE', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PLAYER_SPECIALIZATION_CHANGED', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('UPDATE_SHAPESHIFT_FORM', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PET_BATTLE_OPENING_START', 'UnitBarsUpdateStatus')
-    GUB:RegisterEvent('PET_BATTLE_CLOSE', 'UnitBarsUpdateStatus')
+    Main:RegEvent(true, 'UNIT_ENTERED_VEHICLE',          GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_EXITED_VEHICLE',           GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_DISPLAYPOWER',             GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_REGEN_DISABLED',         GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_TARGET_CHANGED',         GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_FOCUS_CHANGED',          GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_DEAD',                   GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_UNGHOST',                GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_ALIVE',                  GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_LEVEL_UP',               GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_TALENT_UPDATE',          GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PLAYER_SPECIALIZATION_CHANGED', GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'UPDATE_SHAPESHIFT_FORM',        GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PET_BATTLE_OPENING_START',      GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'PET_BATTLE_CLOSE',              GUB.UnitBarsUpdateStatus)
 
-    -- Register health and power events.
-    GUB:RegisterEvent('UNIT_HEAL_PREDICTION', 'UnitBarsUpdateHealth')
-    GUB:RegisterEvent('UNIT_HEALTH_FREQUENT', 'UnitBarsUpdateHealth')
-    GUB:RegisterEvent('UNIT_POWER_FREQUENT', 'UnitBarsUpdatePower')
-
-    -- Register rune power events.
-    GUB:RegisterEvent('RUNE_POWER_UPDATE', 'UnitBarsUpdatePower')
-    GUB:RegisterEvent('RUNE_TYPE_UPDATE', 'UnitBarsUpdatePower')
+    -- Rest of the events are defined at the end of each lua file for the bars.
 
   elseif EventType == 'predictedspells' then
-    if Action == 'register' then
+    local Flag = Action == 'register'
 
-      -- register events for predicted spells.
-      GUB:RegisterEvent('COMBAT_LOG_EVENT_UNFILTERED', 'CombatLogUnfiltered')
-      GUB:RegisterEvent('UNIT_SPELLCAST_START', 'SpellCasting')
-      GUB:RegisterEvent('UNIT_SPELLCAST_SUCCEEDED', 'SpellCasting')
-    else
-      GUB:UnregisterEvent('COMBAT_LOG_EVENT_UNFILTERED')
-      GUB:UnregisterEvent('UNIT_SPELLCAST_START')
-      GUB:UnregisterEvent('UNIT_SPELLCAST_SUCCEEDED')
-    end
+    -- register events for predicted spells.
+    Main:RegEvent(Flag, 'COMBAT_LOG_EVENT_UNFILTERED', GUB.CombatLogUnfiltered)
+    Main:RegEvent(Flag, 'UNIT_SPELLCAST_START',        GUB.SpellCasting, 'player')
+    Main:RegEvent(Flag, 'UNIT_SPELLCAST_SUCCEEDED',    GUB.SpellCasting, 'player')
 
   elseif EventType == 'setbonus' then
-    if Action == 'register' then
+    local Flag = Action == 'register'
 
-      -- register event for equipment set bonus tracking.
-      GUB:RegisterEvent('PLAYER_EQUIPMENT_CHANGED', 'PlayerEquipmentChanged')
-    else
-      GUB:UnregisterEvent('PLAYER_EQUIPMENT_CHANGED')
-    end
+    -- register event for equipment set bonus tracking.
+    Main:RegEvent(Flag, 'PLAYER_EQUIPMENT_CHANGED', GUB.PlayerEquipmentChanged)
   end
 end
 
@@ -2468,7 +2442,7 @@ local function InitializeColors()
     local r, g, b = Color.r, Color.g, Color.b
     for BarType, UB in pairs(UnitBars) do
       if BarType == 'PlayerPower' or BarType == 'TargetPower' or
-         BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'MainPower' then
+         BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'ManaPower' then
         local Bar = UB.Bar
         Bar.Color = Bar.Color or {}
         Bar.Color[PowerType] = {r = r, g = g, b = b, a = 1}
@@ -2494,6 +2468,61 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- RegEvent
+--
+-- Registers an event to call a function.
+--
+-- Usage: RegEvent(Reg, Event, Fn, Units)
+--        RegEvent(Reg, Frame, Event, Fn, Units)
+--
+-- Reg    If true then event gets registered otherwise unregistered.
+--
+-- If Units is specified then it uses RegisterUnitEvent instead.
+-------------------------------------------------------------------------------
+function GUB.Main:RegEvent(Reg, Value1, Value2, Value3, ...)
+  local Frame = nil
+  local Event = nil
+  local Fn = nil
+
+  if type(Value1) == 'string' then
+    Frame = nil
+    Event = Value1
+    Fn = Value2
+  else
+    Frame = Value1
+    Event = Value2
+    Fn = Value3
+  end
+
+  -- Find if this event already has an event frame.
+  -- Use frame if one was passed instead.
+  local F = Frame or RegEventFrames[Event]
+  if F == nil then
+
+    -- Create a new event frame for this event
+    F = CreateFrame('Frame')
+    RegEventFrames[Event] = F
+  end
+
+  if Reg then
+    if Frame and ... or Frame == nil then
+
+      -- if units specified then use RegisterUnitEvent.
+      if Frame then
+        F:RegisterUnitEvent(Event, ...)
+      else
+        F:RegisterUnitEvent(Event, Value3, ...)
+      end
+    else
+      F:RegisterEvent(Event)
+    end
+    F:SetScript('OnEvent', Fn)
+  else
+    F:UnregisterEvent(Event)
+  end
+end
 
 -------------------------------------------------------------------------------
 -- NumberToDigitGroups
@@ -2735,7 +2764,7 @@ end
 --
 -- IgnoreFrame      It will skip this frame if it finds it in the children.
 -- Frame            Frame to start searching its children for the highest level.
--- FrameLevel       Highest frame level found in the children frames.
+-- FrameLevel       Highest frame level found in the child frames.
 -------------------------------------------------------------------------------
 local function GetHighestFrameLevel(IgnoreFrame, ...)
 
@@ -2817,7 +2846,7 @@ end
 -- Usage: EnableSelectMode(true or false)
 -------------------------------------------------------------------------------
 function GUB.Main:EnableSelectMode(Action)
-  for _, UBF in pairs(UnitBarsF) do
+  for _, UBF in ipairs(UnitBarsFI) do
     if Action then
       UBF.SelectFrame:Show()
     else
@@ -2934,11 +2963,11 @@ function GUB.Main:AlignUnitBars(Alignment, Justify, PaddingEnabled, Padding)
     return
   end
 
-  -- sort UnitBarsFI (indexed array of UnitBarsF)
+  -- sort UnitBarsF
   if Alignment == 'vertical' then
-    sort(UnitBarsFI, SortY)
+    sort(UnitBarsF, SortY)
   elseif Alignment == 'horizontal' then
-    sort(UnitBarsFI, SortX)
+    sort(UnitBarsF, SortX)
   end
 
   -- Find the primary selected unitbar.
@@ -3706,12 +3735,20 @@ end
 --
 -- UnitBarF       Unitbar frame to hide or show.
 -- HideBar        Hide the bar if equal to true otherwise show.
+--
+-- NOTE:  Hiding a selected unitbar will deselect it.
 -------------------------------------------------------------------------------
-local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
+local function HideUnitBar(UnitBarF, HideBar)
   local FadeOut = UnitBarF.FadeOut
   local Anchor = UnitBarF.Anchor
 
   if HideBar and not UnitBarF.Hidden then
+
+    -- Deselect a unitbar if selected.
+    if UnitBarF == PSelectedUnitBarF then
+      PSelectedUnitBarF = nil
+    end
+    SelectUnitBar(UnitBarF, 'clear')
 
     -- Cancel any animations playing inside this bar.
     UnitBarF:CancelAnimation()
@@ -3724,6 +3761,7 @@ local function HideUnitBar(UnitBarF, HideBar, FinishFadeOut)
       Anchor:Hide()
     end
     UnitBarF.Hidden = true
+
   else
     if not HideBar and UnitBarF.Hidden then
       if UnitBars.FadeOutTime > 0 then
@@ -3745,93 +3783,90 @@ end
 function GUB.Main:StatusCheck()
   local UB = self.UnitBar
   local Status = UB.Status
-  local Enabled = not Status.ShowNever
+  local Visible = true
 
-  if Enabled then
+  -- Check to see if the bar has a HideNotUsable flag.
+  if Status.HideNotUsable then
+    Visible = false
+    local Count = 0
+    local FoundSpec = 0
+    local FoundStance = 0
 
-    -- Check to see if the bar has a HideNotUsable flag.
-    if Status.HideNotUsable then
-      Enabled = false
-      local Count = 0
-      local FoundSpec = 0
-      local FoundStance = 0
+    for Class, Value in pairs(UB.UsedByClass) do
 
-      for Class, Value in pairs(UB.UsedByClass) do
+      -- Find the class.
+      if PlayerClass == Class then
+        FoundSpec = -1
+        FoundStance = -1
+        for _, Value2 in pairs(Value) do
+          Count = Count + 1
 
-        -- Find the class.
-        if PlayerClass == Class then
-          FoundSpec = -1
-          FoundStance = -1
-          for _, Value2 in pairs(Value) do
-            Count = Count + 1
+          -- if spec found check against it.
+          if type(Value2) == 'string' then
+            FoundSpec = 0
+            if PlayerSpecialization and strfind(Value2, PlayerSpecialization) ~= nil then
+              FoundSpec = 1
+            end
+          else
 
-            -- if spec found check against it.
-            if type(Value2) == 'string' then
-              FoundSpec = 0
-              if PlayerSpecialization and strfind(Value2, PlayerSpecialization) ~= nil then
-                FoundSpec = 1
-              end
-            else
-
-              -- if stance found then check against it.
-              FoundStance = FoundStance == -1 and 0 or FoundStance
-              if PlayerStance == nil and Value2 == -1 or PlayerStance and PlayerStance == Value2 then
-                FoundStance = 1
-              end
+            -- if stance found then check against it.
+            FoundStance = FoundStance == -1 and 0 or FoundStance
+            if PlayerStance == nil and Value2 == -1 or PlayerStance and PlayerStance == Value2 then
+              FoundStance = 1
             end
           end
         end
       end
-
-      -- Was anything found.
-      if FoundSpec ~= 0 and FoundStance ~= 0 then
-        Enabled = true
-      end
     end
 
-    -- Check to see if the bar has an enable function and call it.
-    if Enabled then
-      local Fn = self.EnableBar
-      if Fn then
-        Enabled = Fn()
-      end
+    -- Was anything found.
+    if FoundSpec ~= 0 and FoundStance ~= 0 then
+      Visible = true
     end
   end
 
-  self.Enabled = Enabled
-  local ShowUnitBar = Enabled
 
-  if ShowUnitBar then
+  -- Check to see if the bar has an enable function and call it.
+  if Visible then
+    local Fn = self.BarVisible
+    if Fn then
+      Visible = Fn()
+    end
+  end
+
+  self.Visible = Visible
+
+  if Visible then
 
     -- Hide if the HideWhenDead status is set.
     if IsDead and Status.HideWhenDead then
-      ShowUnitBar = false
+      Visible = false
 
     -- Hide if in a vehicle if the HideInVehicle status is set
     elseif InVehicle and Status.HideInVehicle then
-      ShowUnitBar = false
+      Visible = false
 
     -- Hide if in a pet battle and the HideInPetBattle status is set.
     elseif InPetBattle and Status.HideInPetBattle then
-      ShowUnitBar = false
+      Visible = false
 
     -- Get the idle status based on HideNotActive when not in combat.
     elseif not InCombat and Status.HideNotActive then
-      ShowUnitBar = self.IsActive
+      Visible = self.IsActive
 
     -- Hide if not in combat with the HideNoCombat status.
     elseif not InCombat and Status.HideNoCombat then
-      ShowUnitBar = false
+      Visible = false
     end
   end
 
-  -- Make all unitbars visible when they are not locked. Can't override ShowNever and HideNotUsable.
-  if not UnitBars.IsLocked and not (Status.ShowNever or Status.HideNotUsable) then
-    ShowUnitBar = true
+  -- Make all unitbars visible when they are not locked.
+  if not UnitBars.IsLocked then
+    Visible = true
   end
 
   -- Hide/show the unitbar.
-  HideUnitBar(self, not ShowUnitBar)
+  HideUnitBar(self, not Visible)
 end
 
 --*****************************************************************************
@@ -3880,9 +3915,10 @@ end
 --           Message = 'start'  Gets called on spell cast start.
 --                        on 'start' you can return -1 to not add the spell to be tracked.
 --                        see EclipseBar.lua on how this is done.
---           Message = 'gubend'    Gets called on spell success.
---           Message = 'gubfailed' Gets called if the spell didn't complete.
+--           Message = 'end'    Gets called on spell success.
+--           Message = 'failed' Gets called if the spell didn't complete.
 --           CastTime  The amount of time to cast the spell in seconds.
+--           SpellID is always negative on 'start', 'end', or 'failed'
 --
 --           if its energize then the message comes from the server.
 --           if the SpellID is negative then its either 'gubstart' or 'gubend'
@@ -3990,66 +4026,7 @@ end
 function GUB:SpellCasting(Event, Unit, Name, Rank, LineID, SpellID)
 
   -- Predicted spell for player only.
-  if Unit == 'player' then
-    SetPredictedSpell(Event, nil, SpellID, LineID, '')
-  end
-end
-
--------------------------------------------------------------------------------
--- UnitBarsUpdateHealth
--- UnitBarsUpdatePower
---
--- Event handlers that use the frequent events or normal events to update unitbars.
---
--- NOTES:
---   Some bars don't get called by this and require bar timer update code to update them instead.
---   This will check event first, convert it into a UBF.  Then it will convert the power type
---   into an UBF.  Then do an UBF:Update()
--------------------------------------------------------------------------------
-function GUB:UnitBarsUpdateHealth(Event, Unit)
-  local UBF = UnitBarsF[format('%sHealth', gsub(Unit, '%a', strupper, 1))]
-  if UBF and UBF.Enabled then
-    UBF:Update('change')
-  end
-end
-
-function GUB:UnitBarsUpdatePower(Event, ...)
-  local UBF = nil
-
-  -- Convert event into power
-  local Power = EventOrPowerToUBF[Event]
-  if Power ~= nil then
-    UBF = UnitBarsF[Power]
-
-    if UBF and UBF.Enabled then
-      UBF:Update(Event, ...)
-    end
-  else
-    local Unit = select(1, ...)
-    local PowerType = select(2, ...)
-
-    -- Convert power type into UBF
-    Power = EventOrPowerToUBF[PowerType]
-
-    -- Get UnitBarsF from power.
-    if Power == 'power' then
-      UBF = UnitBarsF[format('%sPower', gsub(Unit, '%a', strupper, 1))]
-    else
-      UBF = UnitBarsF[Power]
-    end
-
-    if UBF and UBF.Enabled then
-      UBF:Update('change')
-    end
-
-    -- Update the mainpower bar for druid.
-    if PowerType == 'MANA' and PlayerClass == 'DRUID' then
-      UBF = UnitBarsF.MainPower
-      if UBF.Enabled then
-        UBF:Update('change')
-      end
-    end
-  end
+  SetPredictedSpell(Event, nil, SpellID, LineID, '')
 end
 
 -------------------------------------------------------------------------------
@@ -4075,7 +4052,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   PlayerStance = GetShapeshiftFormID()
   PlayerSpecialization = GetSpecialization()
 
-  for _, UBF in pairs(UnitBarsF) do
+  for _, UBF in ipairs(UnitBarsFI) do
     UBF:StatusCheck()
 
     -- Update incase some unitbars went from disabled to enabled.
@@ -4306,8 +4283,11 @@ local function SetUnitBarsLayout()
     -- Set the IsActive flag to true.
     UnitBarF.IsActive = false
 
-    -- Disable the unitbar.
-    UnitBarF.Enabled = false
+    -- Hide the unitbar.
+    UnitBarF.Visible = false
+
+    -- Reset the WasEnabled flag
+    UnitBarF.WasEnabled = nil
 
     -- Set selected to false.
     SelectUnitBar(UnitBarF, 'clear')
@@ -4335,7 +4315,7 @@ local function CreateUnitBars(UnitBarDB)
   UnitBarsParent:SetMovable(true)
 
   for BarType, UnitBarF in pairs(UnitBarsF) do
-    local UB = UnitBarF.UnitBar
+    local UB = UnitBars[BarType]
 
     -- Create the anchor frame.
     local Anchor = CreateFrame('Frame', nil, UnitBarsParent)
@@ -4374,6 +4354,10 @@ local function CreateUnitBars(UnitBarDB)
     -- Save the bartype.
     UnitBarF.BarType = BarType
 
+    -- Create a reference in the unitbar frame to UnitBars[BarType] and Anchor.
+    UnitBarF.UnitBar = UB
+    Anchor.UnitBar = UB
+
     -- Save a lookback to UnitBarF in anchor for selection.
     Anchor.UnitBarF = UnitBarF
 
@@ -4387,7 +4371,7 @@ local function CreateUnitBars(UnitBarDB)
     UnitBarF.ScaleFrame = ScaleFrame
 
     -- Save the enable bar function.
-    UnitBarF.EnableBar = UB.EnableBar
+    UnitBarF.BarVisible = UB.BarVisible
 
     -- Add a SetSize function.
     UnitBarF.SetSize = SetUnitBarSize
@@ -4395,7 +4379,6 @@ local function CreateUnitBars(UnitBarDB)
     -- Add time fields.
     UnitBarF.WaitTime = UB.WaitTime
     UnitBarF.LastTime = 0
-
   end
 end
 
@@ -4424,11 +4407,11 @@ local function CreateUnitBarTimers()
 
     -- Update all bars based on their time.
     for _, UBF in ipairs(UnitBarsFI) do
-      if UBF.Enabled then
+      if UBF.Visible then
 
         -- Check LastTime against WaitTime.
         if GetTime() - UBF.LastTime > UBF.WaitTime then
-          UBF:Update('change')
+       --   UBF:Update('change')
         end
       end
     end
@@ -4445,6 +4428,57 @@ end
 -- Placed at the bottom was tired of doing function forwarding.
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- EnableUnitBars
+--
+-- Enables/Disables the unitbars.
+-------------------------------------------------------------------------------
+function GUB.Main:EnableUnitBars()
+  local Index = 0
+  local Total = 0
+  local EnableClass = UnitBars.EnableClass
+
+  for BarType, UBF in pairs(UnitBarsF) do
+    local UB = UBF.UnitBar
+
+    Total = Total + 1
+
+    -- Enable/Disable if player class option is true.
+    local UsedByClass = UB.UsedByClass
+
+    if EnableClass then
+      UB.Enabled = UsedByClass == nil or UsedByClass[PlayerClass] ~= nil
+    end
+    local Enabled = UB.Enabled
+
+    -- Only make changes if enable flag was changed.
+    if UBF.WasEnabled ~= Enabled then
+      UBF.WasEnabled = Enabled
+
+      -- Enable/Disable the Unitbar.
+      UBF:Enable(Enabled)
+
+      if Enabled then
+        Index = Index + 1
+        UnitBarsFI[Index] = UBF
+
+        -- Do a status check and update the bar
+        UBF:StatusCheck()
+        UBF:Update()
+      else
+
+        -- Hide the unitbar.
+        HideUnitBar(UBF, true)
+      end
+    end
+  end
+
+  -- Delete extra bars from the array.
+  for Count = Index + 1, Total do
+    UnitBarsFI[Count] = nil
+  end
+end
 
 -------------------------------------------------------------------------------
 -- ShareData
@@ -4482,7 +4516,7 @@ end
 -- SharedMedia management
 -------------------------------------------------------------------------------
 function GUB:MediaUpdate(Name, MediaType, Key)
-  for _, UBF in pairs(UnitBarsF) do
+  for BarType, UBF in pairs(UnitBarsF) do
     if MediaType == 'border' or MediaType == 'background' then
       UBF:SetAttr('bg', 'backdrop')
     elseif MediaType == 'statusbar' then
@@ -4563,6 +4597,9 @@ function GUB:OnEnable()
 
   -- Update all the unitbars according to the new data.
   SetUnitBarsLayout()
+
+  -- Enable unit bars.
+  Main:EnableUnitBars()
 
   -- Set up the scripts.
   UnitBarsSetScript(true)

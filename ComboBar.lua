@@ -94,7 +94,7 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ComboBar:Update(Event)
-  if not self.Enabled then
+  if not self.Visible then
     return
   end
 
@@ -309,3 +309,14 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Save the combo bar and frames.
   UnitBarF.ComboBar = ComboBar
 end
+
+--*****************************************************************************
+--
+-- Combobar Enable/Disable functions
+--
+--*****************************************************************************
+
+function GUB.UnitBarsF.ComboBar:Enable(Enable)
+  -- Combo bar doesn't use events.
+end
+

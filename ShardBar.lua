@@ -135,8 +135,15 @@ end
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:Update(Event)
-  if not self.Enabled then
+function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
+  if not self.Visible then
+    return
+  end
+
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShard
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerShard then
     return
   end
 
@@ -446,3 +453,12 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.ShardBar = ShardBar
 end
 
+--*****************************************************************************
+--
+-- Shardbar Enable/Disable functions
+--
+--*****************************************************************************
+
+function GUB.UnitBarsF.ShardBar:Enable(Enable)
+  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+end

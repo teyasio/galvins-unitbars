@@ -1372,7 +1372,7 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
 
   local AllColor = true
   local PCOA = PowerColorsOptions.args
-  if BarType == 'PlayerPower' or BarType == 'MainPower' then
+  if BarType == 'PlayerPower' or BarType == 'ManaPower' then
     AllColor = false
   end
 
@@ -1386,7 +1386,7 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
     end
 
     if AllColor or PowerTypeSt == PlayerPowerType or
-       PlayerClass == 'DRUID' and BarType ~= 'MainPower' and (PowerTypeSt == 'RAGE' or PowerTypeSt == 'ENERGY') then
+       PlayerClass == 'DRUID' and BarType ~= 'ManaPower' and (PowerTypeSt == 'RAGE' or PowerTypeSt == 'ENERGY') then
       PCOA['Color' .. PowerType] = {
         type = 'color',
         name = n,
@@ -3169,6 +3169,9 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
     name = Name,
     order = Order,
     desc = Desc,
+    hidden = function()
+               return not UBF.UnitBar.Enabled
+             end,
     args = {
       Status = {
         type = 'group',
@@ -3185,37 +3188,31 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                 GUB:UnitBarsUpdateStatus()
               end,
         args = {
-          ShowNever = {
-            type = 'toggle',
-            name = 'Never Show',
-            order = 1,
-            desc = 'Disables and hides the bar',
-          },
           HideNotUsable = {
             type = 'toggle',
             name = 'Hide not Usable',
             disabled = function()
                          return UBF.UnitBar.Status.HideNotUsable == nil
                        end,
-            order = 2,
-            desc = 'Disables and hides the bar if it can not be used by your class, spec, stance, or form, etc',
+            order = 1,
+            desc = 'Hides the bar if it can not be used by your class, spec, stance, or form, etc',
           },
           HideWhenDead = {
             type = 'toggle',
             name = 'Hide when Dead',
-            order = 3,
+            order = 2,
             desc = "Hides the bar when you're dead",
           },
           HideInVehicle = {
             type = 'toggle',
             name = 'Hide in Vehicle',
-            order = 4,
+            order = 3,
             desc = "Hides the bar when you're in a vehicle",
           },
           HideInPetBattle = {
             type = 'toggle',
             name = 'Hide in Pet Battle',
-            order = 5,
+            order = 4,
             desc = "Hides the bar when you're in a pet battle",
           },
           HideNotActive = {
@@ -3224,13 +3221,13 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
             disabled = function()
                          return BarType == 'EclipseBar'
                        end,
-            order = 6,
+            order = 5,
             desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
           },
           HideNoCombat = {
             type = 'toggle',
             name = 'Hide no Combat',
-            order = 7,
+            order = 6,
             desc = 'When not in combat the bar will be hidden',
           },
         },
@@ -3418,6 +3415,77 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 end
 
 -------------------------------------------------------------------------------
+-- CreateEnableUnitBarOptions
+--
+-- Creates options that let you disable/enable unit bars.
+--
+-- Usage: CreateEnableUnitBarOptions(Args, Order, Name, Desc)
+--
+-- Args      Table containing the unitbars.
+-- Order     Position in the options list.
+-- Name      Name of the options.
+-- Desc      Description when mousing over the options name.
+-------------------------------------------------------------------------------
+local function CreateEnableUnitBarOptions(Args, Order, Name, Desc)
+  local EnableUnitBarOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    desc = Desc,
+    args = {
+      EnableClass = {
+        type = 'toggle',
+        name = 'Enable Class Bars',
+        desc = 'Enable bars for your class only',
+        order = 1,
+        get = function(Info)
+                return UnitBars.EnableClass
+              end,
+        set = function(Info, Value)
+                UnitBars.EnableClass = Value
+                Main:EnableUnitBars()
+              end,
+      },
+      UnitBarList = {
+        type = 'group',
+        name = 'Check off the bars you want to enable',
+        dialogInline = true,
+        disabled = function()
+                          return UnitBars.EnableClass
+                        end,
+        order = 2,
+        get = function(Info)
+                return UnitBars[Info[#Info]].Enabled
+              end,
+        set = function(Info, Value)
+                UnitBars[Info[#Info]].Enabled = Value
+
+                -- Enable unit bars.
+                Main:EnableUnitBars()
+              end,
+        args = {
+          Spacer10 = CreateSpacer(10),
+        },
+      },
+    },
+  }
+
+  -- Create enable list
+  local EUBOptions = EnableUnitBarOptions.args.UnitBarList.args
+
+  for BarType, BarOptions in pairs(Args) do
+    local UBToggle = {}
+    UBToggle.type = 'toggle'
+    UBToggle.name = BarOptions.name
+    UBToggle.order = BarOptions.order * 10
+
+    EUBOptions[BarType] = UBToggle
+  end
+
+  return EnableUnitBarOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateMainOptions
 --
 -- Returns the main options table.
@@ -3426,7 +3494,7 @@ local function CreateMainOptions()
 
   ProfileOptions.order = 100
 
-  local MainOptions = {
+  MainOptions = {
     name = AddonName,
     type = 'group',
     order = 1,
@@ -3504,69 +3572,77 @@ local function CreateMainOptions()
           },
         },
       },
+    },
+  }
 --=============================================================================
 -------------------------------------------------------------------------------
 --    BARS group.
 -------------------------------------------------------------------------------
 --=============================================================================
-      UnitBars = {
-        type = 'group',
-        name = 'Bars',
-        order = 2,
-        args = {
+  local MainOptionsArgs = MainOptions.args
 
-          -- Player Health group.
-          PlayerHealth = CreateUnitBarOptions('PlayerHealth', 1, 'Player Health'),
+  MainOptionsArgs.UnitBars = {
+    type = 'group',
+    name = 'Bars',
+    order = 2,
+    args = {
 
-          -- Player Power group.
-          PlayerPower = CreateUnitBarOptions('PlayerPower', 2, 'Player Power'),
+      -- Player Health group.
+      PlayerHealth = CreateUnitBarOptions('PlayerHealth', 1, 'Player Health'),
 
-          -- Target Health group.
-          TargetHealth = CreateUnitBarOptions('TargetHealth', 3, 'Target Health'),
+      -- Player Power group.
+      PlayerPower = CreateUnitBarOptions('PlayerPower', 2, 'Player Power'),
 
-          -- Target Power group.
-          TargetPower = CreateUnitBarOptions('TargetPower', 4, 'Target Power'),
+      -- Target Health group.
+      TargetHealth = CreateUnitBarOptions('TargetHealth', 3, 'Target Health'),
 
-          -- Focus Health group.
-          FocusHealth = CreateUnitBarOptions('FocusHealth', 5, 'Focus Health'),
+      -- Target Power group.
+      TargetPower = CreateUnitBarOptions('TargetPower', 4, 'Target Power'),
 
-          -- Focus Power group.
-          FocusPower = CreateUnitBarOptions('FocusPower', 6, 'Focus Power'),
+      -- Focus Health group.
+      FocusHealth = CreateUnitBarOptions('FocusHealth', 5, 'Focus Health'),
 
-          -- Pet Health group.
-          PetHealth = CreateUnitBarOptions('PetHealth', 7, 'Pet Health', 'Classes with pets only'),
+      -- Focus Power group.
+      FocusPower = CreateUnitBarOptions('FocusPower', 6, 'Focus Power'),
 
-          -- Pet Power group.
-          PetPower = CreateUnitBarOptions('PetPower', 8, 'Pet Power', 'Classes with pets only'),
+      -- Pet Health group.
+      PetHealth = CreateUnitBarOptions('PetHealth', 7, 'Pet Health', 'Classes with pets only'),
 
-          -- Main Power group. (druid mana)
-          MainPower = CreateUnitBarOptions('MainPower', 9, 'Druid|Monk Mana', 'Druids or Monks only: Shown when in cat or bear form'),
+      -- Pet Power group.
+      PetPower = CreateUnitBarOptions('PetPower', 8, 'Pet Power', 'Classes with pets only'),
 
-          -- Runebar group.
-          RuneBar = CreateUnitBarOptions('RuneBar', 10, 'Rune Bar'),
+      -- Main Power group. (druid mana)
+      ManaPower = CreateUnitBarOptions('ManaPower', 9, 'Druid|Monk Mana', 'Druids or Monks only: Shown when in cat or bear form'),
 
-          -- Combobar group.
-          ComboBar = CreateUnitBarOptions('ComboBar', 11, 'Combo Bar'),
+      -- Runebar group.
+      RuneBar = CreateUnitBarOptions('RuneBar', 10, 'Rune Bar'),
 
-          -- Holybar group.
-          HolyBar = CreateUnitBarOptions('HolyBar', 12, 'Holy Bar'),
+      -- Combobar group.
+      ComboBar = CreateUnitBarOptions('ComboBar', 11, 'Combo Bar'),
 
-          -- Shardbar group.
-          ShardBar = CreateUnitBarOptions('ShardBar', 13, 'Shard Bar', 'Affliction Warlocks only'),
+      -- Holybar group.
+      HolyBar = CreateUnitBarOptions('HolyBar', 12, 'Holy Bar'),
 
-          -- Demonicbar group.
-          DemonicBar = CreateUnitBarOptions('DemonicBar', 14, 'Demonic Bar', 'Demonology Warlocks only'),
+      -- Shardbar group.
+      ShardBar = CreateUnitBarOptions('ShardBar', 13, 'Shard Bar', 'Affliction Warlocks only'),
 
-          -- Shardbar group.
-          EmberBar = CreateUnitBarOptions('EmberBar', 15, 'Ember Bar', 'Destruction Warlocks only'),
+      -- Demonicbar group.
+      DemonicBar = CreateUnitBarOptions('DemonicBar', 14, 'Demonic Bar', 'Demonology Warlocks only'),
 
-          -- Eclipsebar group.
-          EclipseBar = CreateUnitBarOptions('EclipseBar', 16, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
+      -- Shardbar group.
+      EmberBar = CreateUnitBarOptions('EmberBar', 15, 'Ember Bar', 'Destruction Warlocks only'),
 
-          -- Shadowbar group.
-          ShadowBar = CreateUnitBarOptions('ShadowBar', 17, 'Shadow Bar'),
-        },
-      },
+      -- Eclipsebar group.
+      EclipseBar = CreateUnitBarOptions('EclipseBar', 16, 'Eclipse Bar', 'Balance Druids only: Shown when in moonkin form or normal form'),
+
+      -- Shadowbar group.
+      ShadowBar = CreateUnitBarOptions('ShadowBar', 17, 'Shadow Bar'),
+    },
+  }
+
+  -- Disable Unitbar options.
+  MainOptionsArgs.UnitBars.args.EnableBars = CreateEnableUnitBarOptions(MainOptionsArgs.UnitBars.args, 0, 'Enable', 'Enable or Disable bars')
+
 --[[
 --=============================================================================
 -------------------------------------------------------------------------------
@@ -3586,31 +3662,29 @@ local function CreateMainOptions()
 --    PROFILES group.
 -------------------------------------------------------------------------------
 --=============================================================================
-      Profile = ProfileOptions,
-      -- order = 100 -- make sure its always at the end.
+  MainOptionsArgs.Profile = ProfileOptions
+
 --=============================================================================
 -------------------------------------------------------------------------------
 --    HELP group.
 -------------------------------------------------------------------------------
 --=============================================================================
-      Help = {
-        type = 'group',
-        name = 'Help',
-        order = 101,
-        args = {
-          Verstion = {
-            type = 'description',
-            name = function()
-                     return format('|cffffd200%s   version %s|r', AddonName, AddonVersion)
-                   end,
-            order = 1,
-          },
-          HelpText = {
-            type = 'description',
-            name = HelpText,
-            order = 2,
-          },
-        },
+  MainOptionsArgs.Help = {
+    type = 'group',
+    name = 'Help',
+    order = 101,
+    args = {
+      Verstion = {
+        type = 'description',
+        name = function()
+                 return format('|cffffd200%s   version %s|r', AddonName, AddonVersion)
+               end,
+        order = 1,
+      },
+      HelpText = {
+        type = 'description',
+        name = HelpText,
+        order = 2,
       },
     },
   }

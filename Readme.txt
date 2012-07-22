@@ -23,8 +23,7 @@ flags active at the same time.  A flag with a higher priority will always overri
 below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the
 bars, The only flag it can't override is never show.
 
-   Never Show           Disables and hides the bar.
-   Hide not usable      Disable and hides the bar if it's not usable by the class, spec, form, stance etc.
+   Hide not usable      Hides the bar if it's not usable by the class, spec, form, stance etc.
    Hide when Dead       Hide the bar when the player is dead.
    Hide in Vehicle      Hide the bar if a vehicle.
    Hide in Pet Battle   Hide the bar if in a pet battle.
@@ -63,7 +62,7 @@ To copy settings from one bar to the next. Go to the Copy and Paste options on t
 the type you want to copy.  Then go the Copy and Paste options on the bar you want to copy to.  Then click "Paste".
 A confirmation box will pop up asking if you're sure.  Clicking "Clear" will clear the clipboard.
 
-* Alignment
+* Align bars
 All bars can be lined up for perfection. Bars can be lined either vertically or horizontally.
 
 You need to have bars unlocked.  To open the alignment tool you need to right click a bar.
@@ -72,12 +71,11 @@ Once the alignment tool is open you'll need to select a primary bar by right cli
 Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  
 Then clicking 'align' will make the changes.
 
-- Horizontal/Vertical:  This will either line up bars from left to right or top to bottom.
-If Horizontal then the vertical location of the bars is unchanged.
-If Vertical then the horizontal location of the bars is unchanged.
-- Justify: Set the justification.  Bars will then be lined up by their left, right, top, bottom sides.
-- Padding: Instead of just lining up bars you may want to have equal spacing between them as well.
-This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
+Left to Right: Bars will be lined up horizontally. Without changing their vertical position.
+Top to Bottom: Bars wil be lined up vertically. Without changing their horizontal position.
+Justify: Sets the justification.  Bars will then be lined up by their left, right, top, bottom sides.
+Padding: Instead of just lining up bars you may want to have equal spacing between them as well.
+         This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
 
 * Profiles
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just

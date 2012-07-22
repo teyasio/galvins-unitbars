@@ -552,7 +552,7 @@ end
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.RuneBar:Update(Event, ...)
-  if not self.Enabled then
+  if not self.Visible then
     return
   end
 
@@ -1256,4 +1256,13 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.RuneF = RuneF
 end
 
+--*****************************************************************************
+--
+-- Runebar Enable/Disable functions
+--
+--*****************************************************************************
 
+function GUB.UnitBarsF.RuneBar:Enable(Enable)
+  Main:RegEvent(Enable, self, 'RUNE_POWER_UPDATE', self.Update)
+  Main:RegEvent(Enable, self, 'RUNE_TYPE_UPDATE', self.Update)
+end

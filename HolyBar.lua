@@ -161,8 +161,14 @@ end
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.HolyBar:Update(Event)
-  if not self.Enabled then
+function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
+  if not self.Visible then
+    return
+  end
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerHoly
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerHoly then
     return
   end
 
@@ -417,7 +423,6 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   -- Create the holybar.
   local HolyBar = Bar:CreateBar(ScaleFrame, Anchor, MaxHolyRunes)
 
-
   for RuneIndex, HD in ipairs(HolyData) do
 
       -- Create the textures for box and runes.
@@ -459,4 +464,14 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   -- Save the holybar
   UnitBarF.HolyBar = HolyBar
+end
+
+--*****************************************************************************
+--
+-- Holybar Enable/Disable functions
+--
+--*****************************************************************************
+
+function GUB.UnitBarsF.HolyBar:Enable(Enable)
+  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
