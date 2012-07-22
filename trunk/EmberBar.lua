@@ -154,8 +154,15 @@ end
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.EmberBar:Update(Event)
-  if not self.Enabled then
+function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
+  if not self.Visible then
+    return
+  end
+
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerEmber
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerEmber then
     return
   end
 
@@ -468,5 +475,14 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.EmberBar = EmberBar
 end
 
+--*****************************************************************************
+--
+-- Emberbar Enable/Disable functions
+--
+--*****************************************************************************
+
+function GUB.UnitBarsF.EmberBar:Enable(Enable)
+  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+end
 
 

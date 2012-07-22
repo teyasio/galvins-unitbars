@@ -82,17 +82,6 @@ local PredictedSpellValue = {
 }
 
 -------------------------------------------------------------------------------
--- ShareData
---
--- Main.lua calls this when values change.
---
--- NOTE: See Main.lua on how this is called.
--------------------------------------------------------------------------------
-function GUB.Options:ShareData(UB, PC, PPT)
-  PlayerClass = PC
-end
-
--------------------------------------------------------------------------------
 -- HapFunction
 --
 -- Assigns a function to all the health and power bars under one name.
@@ -110,6 +99,17 @@ local function HapFunction(Name, Fn)
 end
 
 -------------------------------------------------------------------------------
+-- ShareData
+--
+-- Main.lua calls this when values change.
+--
+-- NOTE: See Main.lua on how this is called.
+-------------------------------------------------------------------------------
+HapFunction('ShareData', function(UB, PC, PPT)
+  PlayerClass = PC
+end)
+
+-------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
 HapFunction('StatusCheck', Main.StatusCheck)
@@ -121,11 +121,26 @@ HapFunction('StatusCheck', Main.StatusCheck)
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- CheckSpell
+--
+-- Calls update on cast end
+-------------------------------------------------------------------------------
+local function CheckSpell(SpellID, CastTime, Message)
+  if SpellID < 0 then
+    if Message == 'start' then
+      return abs(SpellID)
+    else
+      UnitBarsF.PlayerPower:Update('change')
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- Set Steady shot and cobra shot for predicted power.
 -- Set a callback that will update the power bar when ever either of these spells are casting.
 -------------------------------------------------------------------------------
-Main:SetPredictedSpells(SpellSteadyShot, 'casting', function(SpellID, Message) UnitBarsF.PlayerPower:Update('change') end)
-Main:SetPredictedSpells(SpellCobraShot,  'casting', function(SpellID, Message) UnitBarsF.PlayerPower:Update('change') end)
+Main:SetPredictedSpells(SpellSteadyShot, 'casting', CheckSpell)
+Main:SetPredictedSpells(SpellCobraShot,  'casting', CheckSpell)
 
 --*****************************************************************************
 --
@@ -138,9 +153,9 @@ Main:SetPredictedSpells(SpellCobraShot,  'casting', function(SpellID, Message) U
 --
 -- Sets the minimum, maximum, and text value to the StatusBar.
 --
--- Usage: SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
+-- Usage: SetStatusBarValue(UnitBarF, CurrValue, MaxValue, PredictedValue)
 --
--- StatusBar       Frame that text is being created for.
+-- UnitBarF        Frame that text is being created for.
 -- CurrValue       Current value to set.
 -- MaxValue        Maximum value to set.
 -- PredictedValue  Predicted health or power.
@@ -154,18 +169,19 @@ local function PercentFn(Value, MaxValue)
   return ceil(Value / MaxValue * 100)
 end
 
-local function SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedValue)
+local function SetStatusBarValue(UnitBarF, CurrValue, MaxValue, PredictedValue)
+  local StatusBar = UnitBarF.StatusBar
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
-  local returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text.TextType, StatusBar.Txt, PercentFn, CurrValue, MaxValue, PredictedValue)
+  local returnOK, msg = Main:SetTextValues(UnitBarF.UnitBar.Text.TextType, UnitBarF.Txt, PercentFn, CurrValue, MaxValue, PredictedValue)
   if not returnOK then
-    StatusBar.Txt:SetText('Layout Err Text')
+    UnitBarF.Txt:SetText('Layout Err Text')
   end
 
-  returnOK, msg = Main:SetTextValues(StatusBar.UnitBar.Text2.TextType, StatusBar.Txt2, PercentFn, CurrValue, MaxValue, PredictedValue)
+  returnOK, msg = Main:SetTextValues(UnitBarF.UnitBar.Text2.TextType, UnitBarF.Txt2, PercentFn, CurrValue, MaxValue, PredictedValue)
   if not returnOK then
-    StatusBar.Txt2:SetText('Layout Err Text2')
+    UnitBarF.Txt2:SetText('Layout Err Text2')
   end
 end
 
@@ -220,6 +236,9 @@ end
 -- Unit       player, target, pet, etc
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
+  if not self.Visible then
+    return
+  end
 
   -- Set the time the bar was updated.
   self.LastTime = GetTime()
@@ -265,9 +284,8 @@ local function UpdateHealthBar(self, Event, Unit)
   end
 
   -- Set the color and display the value.
-  local StatusBar = self.StatusBar
-  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedHealing)
+  self.StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
+  SetStatusBarValue(self, CurrValue, MaxValue, PredictedHealing)
 
   -- Set the IsActive flag.
   self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
@@ -277,27 +295,19 @@ local function UpdateHealthBar(self, Event, Unit)
 end
 
 function GUB.UnitBarsF.PlayerHealth:Update(Event)
-  if self.Enabled then
-    UpdateHealthBar(self, Event, 'player')
-  end
+  UpdateHealthBar(self, Event, 'player')
 end
 
 function GUB.UnitBarsF.TargetHealth:Update(Event)
-  if self.Enabled then
-    UpdateHealthBar(self, Event, 'target')
-  end
+  UpdateHealthBar(self, Event, 'target')
 end
 
 function GUB.UnitBarsF.FocusHealth:Update(Event)
-  if self.Enabled then
-    UpdateHealthBar(self, Event, 'focus')
-  end
+  UpdateHealthBar(self, Event, 'focus')
 end
 
 function GUB.UnitBarsF.PetHealth:Update(Event)
-  if self.Enabled then
-    UpdateHealthBar(self, Event, 'pet')
-  end
+  UpdateHealthBar(self, Event, 'pet')
 end
 
 -------------------------------------------------------------------------------
@@ -305,20 +315,27 @@ end
 --
 -- Updates the power of the unit.
 --
--- Usage: UpdatePowerBar(Event, Unit, PowerType, PlayerClass)
+-- Usage: UpdatePowerBar(Event, Unit, PowerType)
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -- Unit          Unit name 'player' ,'target', etc
 -- PowerType     If not nil then this value will be used as the powertype.
 --               if nil then the Unit's powertype will be used instead.
--- PlayerClass   Name of the class. If nil not used.
 -------------------------------------------------------------------------------
-local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
+local function UpdatePowerBar(self, Event, Unit, PowerType)
+  if not self.Visible then
+    return
+  end
 
   -- Set the time the bar was updated.
   self.LastTime = GetTime()
 
-  PowerType = PowerType or UnitPowerType(Unit)
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or UnitPowerType(Unit)
+
+  -- Return if not correct powertype.
+  if PowerType == nil or PowerType > 6 or self.BarType == 'ManaPower' and PowerType ~= PowerMana then
+    return
+  end
 
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
@@ -363,9 +380,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
   end
 
   -- Set the color and display the value.
-  local StatusBar = self.StatusBar
-  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  SetStatusBarValue(StatusBar, CurrValue, MaxValue, PredictedPower)
+  self.StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
+  SetStatusBarValue(self, CurrValue, MaxValue, PredictedPower)
 
   -- Set the IsActive flag.
   local IsActive = false
@@ -385,33 +401,23 @@ local function UpdatePowerBar(self, Event, Unit, PowerType, PlayerClass)
 end
 
 function GUB.UnitBarsF.PlayerPower:Update(Event)
-  if self.Enabled then
-    UpdatePowerBar(self, Event, 'player', nil, PlayerClass)
-  end
+  UpdatePowerBar(self, Event, 'player')
 end
 
 function GUB.UnitBarsF.TargetPower:Update(Event)
-  if self.Enabled then
-    UpdatePowerBar(self, Event, 'target')
-  end
+  UpdatePowerBar(self, Event, 'target')
 end
 
 function GUB.UnitBarsF.FocusPower:Update(Event)
-  if self.Enabled then
-    UpdatePowerBar(self, Event, 'focus')
-  end
+  UpdatePowerBar(self, Event, 'focus')
 end
 
 function GUB.UnitBarsF.PetPower:Update(Event)
-  if self.Enabled then
-    UpdatePowerBar(self, Event, 'pet')
-  end
+  UpdatePowerBar(self, Event, 'pet')
 end
 
-function GUB.UnitBarsF.MainPower:Update(Event)
-  if self.Enabled then
-    UpdatePowerBar(self, Event, 'player', PowerMana)
-  end
+function GUB.UnitBarsF.ManaPower:Update(Event)
+  UpdatePowerBar(self, Event, 'player', 'MANA')
 end
 
 -------------------------------------------------------------------------------
@@ -577,7 +583,7 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Text (StatusBar.Txt).
   if Object == nil or Object == 'text' then
-    local Txt = self.StatusBar.Txt
+    local Txt = self.Txt
 
     local TextColor = UB.Text.Color
 
@@ -591,7 +597,7 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Text2 (StatusBar.Txt2).
   if Object == nil or Object == 'text2' then
-    local Txt = self.StatusBar.Txt2
+    local Txt = self.Txt2
 
     local TextColor = UB.Text2.Color
 
@@ -645,8 +651,8 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   local PredictedBar = CreateFrame('StatusBar', nil, Border)
 
-  StatusBar.Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
-  StatusBar.Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
+  Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
+  Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
 
   -- Set the border to always be the same size as the anchor.
   Border:SetAllPoints(Anchor)
@@ -667,4 +673,59 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.Border = Border
   UnitBarF.StatusBar = StatusBar
   UnitBarF.PredictedBar = PredictedBar
+  UnitBarF.Txt = Txt
+  UnitBarF.Txt2 = Txt2
+end
+
+--*****************************************************************************
+--
+-- Health and Power bar Enable/Disable functions
+--
+--*****************************************************************************
+
+local function RegEventHealth(Enable, UnitBarF, ...)
+  Main:RegEvent(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION', UpdateHealthBar, ...)
+  Main:RegEvent(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT', UpdateHealthBar, ...)
+  Main:RegEvent(Enable, UnitBarF, 'UNIT_MAXHEALTH',       UpdateHealthBar, ...)
+end
+
+local function RegEventPower(Enable, UnitBarF, ...)
+  Main:RegEvent(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, ...)
+  Main:RegEvent(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
+end
+
+function GUB.UnitBarsF.PlayerHealth:Enable(Enable)
+  RegEventHealth(Enable, self, 'player')
+end
+
+function GUB.UnitBarsF.TargetHealth:Enable(Enable)
+  RegEventHealth(Enable, self, 'target')
+end
+
+function GUB.UnitBarsF.FocusHealth:Enable(Enable)
+  RegEventHealth(Enable, self, 'focus')
+end
+
+function GUB.UnitBarsF.PetHealth:Enable(Enable)
+  RegEventHealth(Enable, self, 'pet')
+end
+
+function GUB.UnitBarsF.PlayerPower:Enable(Enable)
+  RegEventPower(Enable, self, 'player')
+end
+
+function GUB.UnitBarsF.TargetPower:Enable(Enable)
+  RegEventPower(Enable, self, 'target')
+end
+
+function GUB.UnitBarsF.FocusPower:Enable(Enable)
+  RegEventPower(Enable, self, 'player')
+end
+
+function GUB.UnitBarsF.PetPower:Enable(Enable)
+  RegEventPower(Enable, self, 'player')
+end
+
+function GUB.UnitBarsF.ManaPower:Enable(Enable)
+  RegEventPower(Enable, self, 'player')
 end

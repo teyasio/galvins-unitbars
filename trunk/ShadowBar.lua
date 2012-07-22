@@ -121,8 +121,15 @@ end
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:Update(Event)
-  if not self.Enabled then
+function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
+  if not self.Visible then
+    return
+  end
+
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShadow
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerShadow then
     return
   end
 
@@ -408,5 +415,15 @@ function GUB.ShadowBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
   -- Save the shadowbar
   UnitBarF.ShadowBar = ShadowBar
+end
+
+--*****************************************************************************
+--
+-- Shadowbar Enable/Disable functions
+--
+--*****************************************************************************
+
+function GUB.UnitBarsF.ShadowBar:Enable(Enable)
+  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
 

@@ -564,7 +564,7 @@ end
 -- Event     'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.EclipseBar:Update(Event)
-  if not self.Enabled then
+  if not self.Visible then
     return
   end
 
@@ -1245,3 +1245,15 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.OffsetFrame = OffsetFrame
   UnitBarF.EclipseF = EclipseFrame
 end
+
+--*****************************************************************************
+--
+-- Eclipsebar Enable/Disable functions
+--
+--*****************************************************************************
+
+function GUB.UnitBarsF.EclipseBar:Enable(Enable)
+  -- Eclipse bar doesn't use events.
+end
+
+

@@ -203,8 +203,15 @@ end
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.DemonicBar:Update(Event)
-  if not self.Enabled then
+function GUB.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
+  if not self.Visible then
+    return
+  end
+
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerDemonicFury
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerDemonicFury then
     return
   end
 
@@ -509,4 +516,12 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.DemonicBar = DemonicBar
 end
 
+--*****************************************************************************
+--
+-- Demonicbar Enable/Disable functions
+--
+--*****************************************************************************
 
+function GUB.UnitBarsF.DemonicBar:Enable(Enable)
+  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+end
