@@ -33,6 +33,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -137,7 +139,15 @@ end
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   if not self.Visible then
-    return
+
+    -- Check to see if bar is waiting for activity.
+    if self.IsActive == 0 then
+      if Event == nil or Event == 'change' then
+        return
+      end
+    else
+      return
+    end
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShard
@@ -177,9 +187,9 @@ function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   UpdateSoulShards(self, SoulShards, NumShards)
 
     -- Set this IsActive flag
-  self.IsActive = SoulShards > 0
+  self.IsActive = SoulShards > 0 and 1 or -1
 
-  -- Do a status check for active status.
+  -- Do a status check.
   self:StatusCheck()
 end
 
@@ -433,7 +443,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     ShardBar:SetTextureSize(ShardIndex, ShardLight, ShardData.Width, ShardData.Height, ShardData.Point)
 
      -- Set and save the name for tooltips for each shard.
-    local Name = strconcat('Shard ', ShardIndex)
+    local Name = strconcat('Soul Shard ', ShardIndex)
 
     ShardBar:SetTooltip(ShardIndex, Name, MouseOverDesc)
 

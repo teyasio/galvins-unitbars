@@ -1,7 +1,7 @@
 --
--- ShadowBar.lua
+-- ChiBar.lua
 --
--- Displays the Shadow Priest shadow bar.
+-- Displays the monk chi bar.
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -41,96 +41,82 @@ local C_PetBattles, UIParent =
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar                  Reference to the unitbar data for the shadow bar.
--- UnitBarF.ShadowBar                Contains the shadow bar displayed on screen.
---
--- ShadowData                        Contains all the data for the shadow bar.
---   Texture                         Path name to the texture.
---   TextureWidth, TextureHeight     Width and Height of the orbs in texture mode.
---   [TextureType]
---     Level                         Frame level to display the texture on.
---     Point                         Position of the texture inside the texture frame.
---     Width, Height                 Width and Height of the texture.
---     Left, Right, Top, Bottom      Texcoords inside the Texture that locate each texture.
---
--- OrbBox                            Texture number for orbs in box mode.
--- OrbDark                           Texture number for dark orbs in texture mode.
--- OrbGlow                           Texture number for glowing orbs in texture mode.
---
--- LastOrbs                          Keep track of change for displaying the shadow orbs.
+-- UnitBarF.UnitBar               Reference to the unitbar data for the chi bar.
+-- UnitBarF.ChiBar                Contains the chi bar displayed on screen.
 -------------------------------------------------------------------------------
-local MaxShadowOrbs = 3
+local MaxChiOrbs = 5
 
 -- Powertype constants
-local PowerShadow = PowerTypeToNumber['SHADOW_ORBS']
+local PowerChi = PowerTypeToNumber['LIGHT_FORCE']
 
 -- shadow orbs Texture constants
 local OrbBox = 10
 local OrbDark = 1
-local OrbGlow = 2
+local OrbLight = 2
 
 local LastOrbs = nil
+local CurrentNumOrbs = nil
 
-local ShadowData = {
-  Texture = [[Interface\PlayerFrame\Priest-ShadowUI]],
-  TextureWidth = 38 + 4, TextureHeight = 37 + 4,
+local ChiData = {
+  Texture = [[Interface\PlayerFrame\MonkUI]],
+  TextureWidth = 21 + 8, TextureHeight = 21 + 8,
   [OrbDark] = {
     Level = 0,
     Point = 'CENTER',
-    Width = 38, Height = 37,
-    Left = 0.30078125, Right = 0.44921875, Top = 0.44531250, Bottom = 0.73437500
+    Width = 21, Height = 21,
+    Left = 0.09375000, Right = 0.17578125, Top = 0.71093750, Bottom = 0.87500000
   },
-  [OrbGlow] = {
+  [OrbLight] = {
     Level = 1,
     Point = 'CENTER',
-    Width = 38, Height = 37,
-    Left = 0.45703125, Right = 0.60546875, Top = 0.44531250, Bottom = 0.73437500
+    Width = 21, Height = 21,
+    Left = 0.00390625, Right = 0.08593750, Top = 0.71093750, Bottom = 0.87500000
   },
 }
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-GUB.UnitBarsF.ShadowBar.StatusCheck = GUB.Main.StatusCheck
+GUB.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
--- Shadwbar display
+-- Chibar display
 --
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UpdateShadowOrbs
+-- UpdateChiOrbs
 --
 -- Glows or darkens the shadow orbs
 --
--- Usage: UpdateShadowOrbs(ShadowBarF, Orbs, FinishFadeOut)
+-- Usage: UpdateChiOrbs(ChiBarF, Orbs, FinishFadeOut)
 --
--- ShadowBarF       Shadow bar containing orbs to update.
+-- ChiBarF       Chi bar containing orbs to update.
 -- Orbs             Total amount of orbs to glow.
 -- FinishFadeOut    If true then any fadeout animation currently playing
 --                  will be stopped.
 --                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function UpdateShadowOrbs(ShadowBarF, Orbs, FinishFadeOut)
-  local ShadowBar = ShadowBarF.ShadowBar
+local function UpdateChiOrbs(ChiBarF, Orbs, NumOrbs, FinishFadeOut)
+  local ChiBar = ChiBarF.ChiBar
   if FinishFadeOut then
-    ShadowBar:StopFade(0, OrbBox)
-    ShadowBar:StopFade(0, OrbGlow)
+    ChiBar:StopFade(0, OrbBox)
+    ChiBar:StopFade(0, OrbLight)
     return
   end
 
-  for OrbIndex = 1, MaxShadowOrbs do
+  for OrbIndex = 1, NumOrbs do
 
     -- Make the orb glow.
     if OrbIndex <= Orbs then
-      ShadowBar:ShowTexture(OrbIndex, OrbBox)
-      ShadowBar:ShowTexture(OrbIndex, OrbGlow)
+      ChiBar:ShowTexture(OrbIndex, OrbBox)
+      ChiBar:ShowTexture(OrbIndex, OrbLight)
     else
 
       -- Make the orb dark.
-      ShadowBar:HideTexture(OrbIndex, OrbBox)
-      ShadowBar:HideTexture(OrbIndex, OrbGlow)
+      ChiBar:HideTexture(OrbIndex, OrbBox)
+      ChiBar:HideTexture(OrbIndex, OrbLight)
     end
   end
 end
@@ -138,13 +124,13 @@ end
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
--- Update the number of shadow orbs of the player
+-- Update the number of chi orbs of the player
 --
 -- usage: Update(Event)
 --
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
+function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   if not self.Visible then
 
     -- Check to see if bar is waiting for activity.
@@ -157,26 +143,41 @@ function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
     end
   end
 
-  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShadow
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerChi
 
   -- Return if not the correct powertype.
-  if PowerType ~= PowerShadow then
+  if PowerType ~= PowerChi then
     return
   end
 
   -- Set the time the bar was updated.
   self.LastTime = GetTime()
 
-  local Orbs = UnitPower('player', PowerShadow)
+  local Orbs = UnitPower('player', PowerChi)
+  local NumOrbs = UnitPowerMax('player', PowerChi)
+
+  -- Set default value if NumShards returns zero.
+  NumOrbs = NumOrbs > 0 and NumOrbs or MaxChiOrbs - 1
 
   -- Return if no change.
-  if Event == 'change' and Orbs == LastOrbs then
+  if Event == 'change' and Orbs == LastOrbs and NumOrbs == CurrentNumOrbs then
     return
   end
 
   LastOrbs = Orbs
 
-  UpdateShadowOrbs(self, Orbs)
+  -- Check for max soulshard change
+  if NumOrbs ~= CurrentNumOrbs then
+    CurrentNumOrbs = NumOrbs
+
+    -- Change the number of boxes in the bar.
+    self.ChiBar:SetNumBoxes(NumOrbs)
+
+    -- Update the layout to reflect the change.
+    self:SetLayout()
+  end
+
+  UpdateChiOrbs(self, Orbs, NumOrbs)
 
     -- Set this IsActive flag
   self.IsActive = Orbs > 0 and 1 or -1
@@ -188,52 +189,46 @@ end
 -------------------------------------------------------------------------------
 -- CancelAnimation    UnitBarsF function
 --
--- Cancels all animation playing in the shadow bar.
+-- Cancels all animation playing in the chi bar.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:CancelAnimation()
-  UpdateShadowOrbs(self, 0, true)
+function GUB.UnitBarsF.ChiBar:CancelAnimation()
+  UpdateChiOrbs(self, 0, MaxChiOrbs, true)
 end
-
---*****************************************************************************
---
--- Shadowbar creation/setting
---
---*****************************************************************************
 
 -------------------------------------------------------------------------------
 -- EnableMouseClicks    UnitBarsF function
 --
--- This will enable or disbable mouse clicks for the shadow bar.
+-- This will enable or disbable mouse clicks for the chi bar.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:EnableMouseClicks(Enable)
-  local ShadowBar = self.ShadowBar
+function GUB.UnitBarsF.ChiBar:EnableMouseClicks(Enable)
+  local ChiBar = self.ChiBar
 
   -- Enable/Disable normal mode.
-  ShadowBar:SetEnableMouseClicks(nil, Enable)
+  ChiBar:SetEnableMouseClicks(nil, Enable)
 
   -- Enable/disable box mode.
-  ShadowBar:SetEnableMouseClicks(0, Enable)
+  ChiBar:SetEnableMouseClicks(0, Enable)
 end
 
 -------------------------------------------------------------------------------
 -- FrameSetScript    UnitBarsF function
 --
--- Set up script handlers for the shadowbar.
+-- Set up script handlers for the chibar.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:FrameSetScript()
-  local ShadowBar = self.ShadowBar
+function GUB.UnitBarsF.ChiBar:FrameSetScript()
+  local ChiBar = self.ChiBar
 
   -- Enable normal mode. for the bar.
-  ShadowBar:SetEnableMouse(nil)
+  ChiBar:SetEnableMouse(nil)
 
   -- Enable box mode.
-  ShadowBar:SetEnableMouse(0)
+  ChiBar:SetEnableMouse(0)
 end
 
 -------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
--- Sets different parts of the shadowbar.
+-- Sets different parts of the chibar.
 --
 -- Usage: SetAttr(Object, Attr)
 --
@@ -253,8 +248,8 @@ end
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
-  local ShadowBar = self.ShadowBar
+function GUB.UnitBarsF.ChiBar:SetAttr(Object, Attr)
+  local ChiBar = self.ChiBar
 
   -- Check scale and strata for 'frame'
   Main:UnitBarSetAttr(self, Object, Attr)
@@ -270,7 +265,7 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
     local Padding = Bar.Padding
     local BackdropSettings = Background.BackdropSettings
 
-    for OrbIndex = 1, MaxShadowOrbs do
+    for OrbIndex = 1, MaxChiOrbs do
 
       -- Background (Border).
       if Object == nil or Object == 'bg' then
@@ -284,16 +279,16 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
         end
 
         if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
-          ShadowBar:SetBackdrop(OrbIndex, BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+          ChiBar:SetBackdrop(OrbIndex, BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
         end
       end
 
       -- Forground (Statusbar).
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
-          ShadowBar:SetTexture(OrbIndex, OrbBox, Bar.StatusBarTexture)
-          ShadowBar:SetFillDirection(OrbIndex, OrbBox, Bar.FillDirection)
-          ShadowBar:SetRotateTexture(OrbIndex, OrbBox, Bar.RotateTexture)
+          ChiBar:SetTexture(OrbIndex, OrbBox, Bar.StatusBarTexture)
+          ChiBar:SetFillDirection(OrbIndex, OrbBox, Bar.FillDirection)
+          ChiBar:SetRotateTexture(OrbIndex, OrbBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
           local BarColor = nil
@@ -304,7 +299,7 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
           else
             BarColor = Bar.Color[OrbIndex]
           end
-          ShadowBar:SetColor(OrbIndex, OrbBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+          ChiBar:SetColor(OrbIndex, OrbBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
         end
       end
     end
@@ -312,7 +307,7 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        ShadowBar:SetTexturePadding(0, OrbBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        ChiBar:SetTexturePadding(0, OrbBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -326,7 +321,7 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
       local BgColor = UB.Background.Color
 
       if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
-        ShadowBar:SetBackdrop(nil, UB.Background.BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+        ChiBar:SetBackdrop(nil, UB.Background.BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
     end
   end
@@ -335,10 +330,10 @@ end
 -------------------------------------------------------------------------------
 -- SetLayout    UnitBarsF function
 --
--- Set a shadowbar to a new layout
+-- Set a chibar to a new layout
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:SetLayout()
-  local ShadowBar = self.ShadowBar
+function GUB.UnitBarsF.ChiBar:SetLayout()
+  local ChiBar = self.ChiBar
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -347,114 +342,120 @@ function GUB.UnitBarsF.ShadowBar:SetLayout()
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fadeout
-  ShadowBar:SetPadding(0, Gen.ShadowPadding)
-  ShadowBar:SetAngle(Gen.ShadowAngle)
-  ShadowBar:SetFadeOutTime(0, OrbBox, Gen.ShadowFadeOutTime)
-  ShadowBar:SetFadeOutTime(0, OrbGlow, Gen.ShadowFadeOutTime)
+  -- Set padding and rotation and fade times.
+  ChiBar:SetPadding(0, Gen.ChiPadding)
+  ChiBar:SetAngle(Gen.ChiAngle)
+  ChiBar:SetFadeOutTime(0, OrbBox, Gen.ChiFadeOutTime)
+  ChiBar:SetFadeOutTime(0, OrbLight, Gen.ChiFadeOutTime)
+  ChiBar:SetFadeInTime(0, OrbBox, Gen.ChiFadeInTime)
+  ChiBar:SetFadeInTime(0, OrbLight, Gen.ChiFadeInTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
 
     -- Set size
-    ShadowBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
-    ShadowBar:SetBoxScale(1)
+    ChiBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
+    ChiBar:SetBoxScale(1)
 
     -- Hide/show Box mode.
-    ShadowBar:HideTextureFrame(0, OrbDark)
-    ShadowBar:HideTextureFrame(0, OrbGlow)
-    ShadowBar:ShowTextureFrame(0, OrbBox)
+    ChiBar:HideTextureFrame(0, OrbDark)
+    ChiBar:HideTextureFrame(0, OrbLight)
+    ChiBar:ShowTextureFrame(0, OrbBox)
 
-    ShadowBar:HideBorder(nil)
-    ShadowBar:ShowBorder(0)
+    ChiBar:HideBorder(nil)
+    ChiBar:ShowBorder(0)
   else
 
     -- Texture mode
-    local ShadowScale = Gen.ShadowScale
+    local ChiScale = Gen.ChiScale
 
     -- Set Size
-    ShadowBar:SetBoxSize(ShadowData.TextureWidth, ShadowData.TextureHeight)
-    ShadowBar:SetBoxScale(Gen.ShadowSize)
-    ShadowBar:SetTextureScale(0, OrbDark, ShadowScale)
-    ShadowBar:SetTextureScale(0, OrbGlow, ShadowScale)
+    ChiBar:SetBoxSize(ChiData.TextureWidth, ChiData.TextureHeight)
+    ChiBar:SetBoxScale(Gen.ChiSize)
+    ChiBar:SetTextureScale(0, OrbDark, ChiScale)
+    ChiBar:SetTextureScale(0, OrbLight, ChiScale)
 
     -- Hide/show Texture mode.
-    ShadowBar:ShowTextureFrame(0, OrbDark)
-    ShadowBar:ShowTextureFrame(0, OrbGlow)
-    ShadowBar:HideTextureFrame(0, OrbBox)
+    ChiBar:ShowTextureFrame(0, OrbDark)
+    ChiBar:ShowTextureFrame(0, OrbLight)
+    ChiBar:HideTextureFrame(0, OrbBox)
 
-    ShadowBar:HideBorder(0)
-    ShadowBar:ShowBorder(nil)
+    ChiBar:HideBorder(0)
+    ChiBar:ShowBorder(nil)
   end
 
-  -- Display the shadowbar.
-  self:SetSize(ShadowBar:Display())
+  -- Display the chibar.
+  self:SetSize(ChiBar:Display())
 end
 
 -------------------------------------------------------------------------------
 -- CreateBar
 --
--- Usage: GUB.ShadowBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+-- Usage: GUB.ChiBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
--- UnitBarF     The unitbar frame which will contain the shadow bar.
+-- UnitBarF     The unitbar frame which will contain the chi bar.
 -- UB           Unitbar data.
 -- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.ShadowBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.ChiBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
 
-  -- Create the shadowbar.
-  local ShadowBar = Bar:CreateBar(ScaleFrame, Anchor, MaxShadowOrbs)
+  -- Create the chibar.
+  local ChiBar = Bar:CreateBar(ScaleFrame, Anchor, MaxChiOrbs)
 
-  for OrbIndex = 1, MaxShadowOrbs do
+  for OrbIndex = 1, MaxChiOrbs do
 
-    -- Create shadow orb for box mode.
-    ShadowBar:CreateBoxTexture(OrbIndex, OrbBox, 'statusbar')
+    -- Create chi orb for box mode.
+    ChiBar:CreateBoxTexture(OrbIndex, OrbBox, 'statusbar')
 
-    for TextureNumber, SD in ipairs(ShadowData) do
+    for TextureNumber, SD in ipairs(ChiData) do
 
-      -- Create the textures for box and orbs
-      ShadowBar:CreateBoxTexture(OrbIndex, TextureNumber, 'texture', SD.Level, ShadowData.TextureWidth, ShadowData.TextureHeight)
+      -- Create the textures for orb.
+      ChiBar:CreateBoxTexture(OrbIndex, TextureNumber, 'texture', SD.Level, ChiData.TextureWidth, ChiData.TextureHeight)
 
       -- Set the textures
-      ShadowBar:SetTexture(OrbIndex, TextureNumber, ShadowData.Texture)
+      ChiBar:SetTexture(OrbIndex, TextureNumber, ChiData.Texture)
 
-      -- Set the shadow orb texture
-      ShadowBar:SetTexCoord(OrbIndex, TextureNumber, SD.Left, SD.Right, SD.Top, SD.Bottom)
+      -- Set the chi orb texture
+      ChiBar:SetTexCoord(OrbIndex, TextureNumber, SD.Left, SD.Right, SD.Top, SD.Bottom)
 
       -- Set the size of the texture
-      ShadowBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height, SD.Point)
+      if TextureNumber == OrbLight then
+        ChiBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height, SD.Point, 0, 0)
+      else
+        ChiBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height, SD.Point, 0, 0)
+      end
     end
 
-     -- Set and save the name for tooltips for each shadow orb.
-    local Name = strconcat('Shadow Orb ', OrbIndex)
+     -- Set and save the name for tooltips for each chi orb.
+    local Name = strconcat('Chi Orb ', OrbIndex)
 
-    ShadowBar:SetTooltip(OrbIndex, Name, MouseOverDesc)
+    ChiBar:SetTooltip(OrbIndex, Name, MouseOverDesc)
 
     ColorAllNames[OrbIndex] = Name
   end
 
   -- Show the dark textures.
-  ShadowBar:ShowTexture(0 , OrbDark)
+  ChiBar:ShowTexture(0 , OrbDark)
 
   -- Save the name for tooltips for normal mode.
-  ShadowBar:SetTooltip(nil, UB.Name, MouseOverDesc)
+  ChiBar:SetTooltip(nil, UB.Name, MouseOverDesc)
 
   -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames
 
-  -- Save the shadowbar
-  UnitBarF.ShadowBar = ShadowBar
+  -- Save the chibar.
+  UnitBarF.ChiBar = ChiBar
 end
 
 --*****************************************************************************
 --
--- Shadowbar Enable/Disable functions
+-- Chibar Enable/Disable functions
 --
 --*****************************************************************************
 
-function GUB.UnitBarsF.ShadowBar:Enable(Enable)
+function GUB.UnitBarsF.ChiBar:Enable(Enable)
   Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
 

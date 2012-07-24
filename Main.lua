@@ -27,6 +27,7 @@ GUB.DemonicBar = {}
 GUB.EmberBar = {}
 GUB.EclipseBar = {}
 GUB.ShadowBar = {}
+GUB.ChiBar = {}
 GUB.Options = Options
 
 -------------------------------------------------------------------------------
@@ -60,6 +61,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -80,6 +83,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 --
 -- UnitBarsF structure    NOTE: To access UnitBarsF by index use UnitBarsFI[Index].
+--                              UnitBarsFI is used to enable/disable bars in EnableUnitBars().
 --
 -- UnitBarsParent         - Child of UIParent.  The perpose of this is so all bars can be moved as a group.
 -- UnitBarsF[]            - UnitBarsF[] is a frame and table.  This is so each bar can have its own events,
@@ -134,8 +138,11 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          Used by CreateUnitBarTimers().
 --                          This was created so when a bar gets updated thru an event, it wont get updated right away
 --                          in CreateUnitBarsTimers() unless the WaitTime has elapsed.
---   IsActive             - True or false.  If true the bar is considered to be doing something, otherwise doing nothing.
---                          If the bar doesn't have an active state, then this value defaults to true.
+--   IsActive             - 1, 0, or -1.
+--                             1  Currently Active.
+--                            -1  Currently Inactive.
+--                             0  The bars update function is waiting for activity.
+--                          If the bar doesn't have an active state, then this value defaults to 1
 --   ScaleWidth           - Contains the scaled width of the Anchor.
 --   ScaleHeight          - Contains the scaled height of the Anchor.
 --   Width                - Contains the unscaled width of the Anchor.  ScaleWidth * scale.
@@ -173,7 +180,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 
 -- PlayerClass            - Name of the class for the player in english.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
--- PlayerPowerType        - The main power type for the player.
+-- PlayerPowerType        - The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in.
 -- PlayerSpecialization   - The current specialization for the player
 -- Initialized            - True of false. Flag for OnInitializeOnce().
@@ -213,20 +220,13 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --   Name                 - Name of the bar.
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
 --   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars has this.
---   UsedByClass          - Contains the data for HideNotUsable flag.  Not all unitbars has this. This is also used for Enable Bar Options.
---                          Example1: {DRUID = {'1234', 1, 31}}
---                          Example2: {DRUID = {'12'}, DEATHKNIGHT = {}}
---                          spec: in Example1 means any of the 4 specs can be used.
---                          stance:  Check for stance/form for the class.  There can be more than one
---                                   stance.
+--   UsedByClass          - If a bar doesn't have this key then any class can use the bar and be any spec or no spec.
+--                          Contains the data for HideNotUsable flag.  Not all unitbars has this. This is also used for Enable Bar Options.
+--                          Example1: {DRUID = '1234'}
+--                            Class has to be druid and any of the 4 specs can be used.
+--                          Example2: {DRUID = '12', DEATHKNIGHT = ''}
+--                            Class has to be druid or deathknight.  Spec 1 or 2 on the druid has to be used. Deathknight, spec isn't checked.
 --
---                            stance = -1 means that the specialization returned nil.  Some classes may not
---                            return a number and nil instead.  So use this to check for a nil value.
---                            If there is no stance or spec then just the class has to match. if there is just
---                            stance or spec the spec or stance needs to match.
---
---                            There can be more than one classname with a table and no limit to
---                            how many specialization and stance/form numbers.
 --  WaitTime              - Used for UnitBarsF. See UnitBarsF values.
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
@@ -676,10 +676,12 @@ local PlayerClass = nil
 local PlayerStance = nil
 local PlayerSpecialization = nil
 local PlayerGUID = nil
+
 local MoonkinForm = MOONKIN_FORM
 local CatForm = CAT_FORM
 local BearForm = BEAR_FORM
-local StanceIsNil = -1
+local MonkMistWeaverSpec = SPEC_MONK_MISTWEAVER
+
 local Initialized = false
 local GetTextValuePercentFn = nil
 
@@ -698,7 +700,7 @@ local EventSpellMissed      = 4
 local EventSpellFailed      = 5
 
 local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
-local UnitBarDelay = 1 / 4   -- 4 times per second.
+local UnitBarDelay = 1 / 4   -- 4 times per second. (250 ms)
 
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -755,7 +757,7 @@ local Defaults = {
     RelativePoint = 'CENTER',
     Px = 0,
     Py = 0,
-    EnableClass = false,
+    EnableClass = true,
     IsGrouped = false,
     IsLocked = false,
     IsClamped = true,
@@ -1296,7 +1298,7 @@ local Defaults = {
       Name = 'Pet Health',
       Enabled = true,
       BarVisible = function() return HasPet end,
-      UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
+      UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
       WaitTime = 1,
       x = 0,
       y = -30,
@@ -1383,7 +1385,7 @@ local Defaults = {
       Name = 'Pet Power',
       Enabled = true,
       BarVisible = function() return HasPet end,
-      UsedByClass = {DEATHKNIGHT = {}, MAGE = {'3'}, WARLOCK = {}, HUNTER = {}},
+      UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
       WaitTime = 1,
       x = 0,
       y = -60,
@@ -1464,11 +1466,16 @@ local Defaults = {
         Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
--- Main Power
+-- Mana Power
     ManaPower = {
       Name = 'Druid or Monk Mana',
       Enabled = true,
-      UsedByClass = {DRUID = {CatForm, BearForm}},
+      BarVisible = function()
+                     return
+                       ( PlayerClass == 'DRUID' and ( PlayerStance ==  CatForm or PlayerStance == BearForm ) or
+                         PlayerClass == 'MONK' and PlayerSpecialization == MonkMistWeaverSpec ) and
+                       PlayerPowerType ~= 0 end, -- 0 = Mana
+      UsedByClass = {DRUID = '', MONK = '2'},
       WaitTime = 1,
       x = 0,
       y = -90,
@@ -1553,7 +1560,7 @@ local Defaults = {
     RuneBar = {
       Name = 'Rune Bar',
       Enabled = true,
-      UsedByClass = {DEATHKNIGHT = {}},
+      UsedByClass = {DEATHKNIGHT = ''},
       WaitTime = 1,
       x = 0,
       y = -120,
@@ -1686,7 +1693,7 @@ local Defaults = {
       Name = 'Combo Bar',
       Enabled = true,
       BarVisible = function() return HasTarget end,
-      UsedByClass = {ROGUE = {}, DRUID = {'1234', CatForm}},
+      UsedByClass = {ROGUE = '', DRUID = '1234'},
       WaitTime = 0.333,
       x = 0,
       y = -150,
@@ -1751,7 +1758,7 @@ local Defaults = {
     HolyBar = {
       Name = 'Holy Bar',
       Enabled = true,
-      UsedByClass = {PALADIN = {}},
+      UsedByClass = {PALADIN = ''},
       WaitTime = 1,
       x = 0,
       y = -180,
@@ -1819,7 +1826,7 @@ local Defaults = {
     ShardBar = {
       Name = 'Shard Bar',
       Enabled = true,
-      UsedByClass = {WARLOCK = {'1'}},
+      UsedByClass = {WARLOCK = '1'},
       WaitTime = 1,
       x = 0,
       y = -215,
@@ -1885,7 +1892,7 @@ local Defaults = {
     DemonicBar = {
       Name = 'Demonic Bar',
       Enabled = true,
-      UsedByClass = {WARLOCK = {'2'}},
+      UsedByClass = {WARLOCK = '2'},
       WaitTime = 1,
       x = -200,
       y = -215,
@@ -1975,7 +1982,7 @@ local Defaults = {
     EmberBar = {
       Name = 'Ember Bar',
       Enabled = true,
-      UsedByClass = {WARLOCK = {'3'}},
+      UsedByClass = {WARLOCK = '3'},
       WaitTime = 1,
       x = -200,
       y = -215,
@@ -2040,7 +2047,8 @@ local Defaults = {
     EclipseBar = {
       Name = 'Eclipse Bar',
       Enabled = true,
-      UsedByClass = {DRUID = {'1', MoonkinForm, StanceIsNil}},
+      BarVisible = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) end,
+      UsedByClass = {DRUID = '1'},
       WaitTime = 0.333,
       x = 0,
       y = -250,
@@ -2216,7 +2224,7 @@ local Defaults = {
     ShadowBar = {
       Name = 'Shadow Bar',
       Enabled = true,
-      UsedByClass = {PRIEST = {'3'}},
+      UsedByClass = {PRIEST = '3'},
       WaitTime = 1,
       x = -200,
       y = -215,
@@ -2273,6 +2281,75 @@ local Defaults = {
           [1] = {r = 0.729, g = 0.466, b = 1, a = 1},
           [2] = {r = 0.729, g = 0.466, b = 1, a = 1},
           [3] = {r = 0.729, g = 0.466, b = 1, a = 1},
+        },
+      },
+    },
+-- ChiBar
+    ChiBar = {
+      Name = 'Chi Bar',
+      Enabled = true,
+      UsedByClass = {MONK = ''},
+      WaitTime = 1,
+      x = -200,
+      y = -215,
+      Status = {
+        HideNotUsable   = true,
+        HideWhenDead    = true,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
+      },
+      General = {
+        BoxMode = false,
+        ChiSize = 1,
+        ChiPadding = 5,
+        ChiScale = 1,
+        ChiFadeOutTime = 1,
+        ChiFadeInTime = 0.5,
+        ChiAngle = 90
+      },
+      Other = {
+        Scale = 1,
+        FrameStrata = 'MEDIUM',
+      },
+      Background = {
+        ColorAll = false,
+        PaddingAll = true,
+        BackdropSettings = {
+          BgTexture = BgTexture,
+          BdTexture = BdTexture,
+          BgTile = false,
+          BgTileSize = 16,
+          BdSize = 12,
+          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        },
+        Color = {
+          r = 0.113, g = 0.192, b = 0.188, a = 1,
+          [1] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+          [2] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+          [3] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+          [4] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+          [5] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+        },
+      },
+      Bar = {
+        Advanced = false,
+        ColorAll = false,
+        BoxWidth = 30,
+        BoxHeight = 30,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {
+          r = 0.407, g = 0.764, b = 0.670, a = 1,
+          [1] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
+          [2] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
+          [3] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
+          [4] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
+          [5] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
         },
       },
     },
@@ -2338,7 +2415,8 @@ local PredictedSpellCasting = {
 
 local PowerTypeToNumber = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
-  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, SHADOW_ORBS = 13, BURNING_EMBERS = 14, DEMONIC_FURY = 15
+  SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, LIGHT_FORCE = 12,
+  SHADOW_ORBS = 13, BURNING_EMBERS = 14, DEMONIC_FURY = 15
 }
 
 local PowerColorType = {
@@ -2854,6 +2932,11 @@ function GUB.Main:EnableSelectMode(Action)
     end
   end
   SelectMode = Action
+
+  -- Set PSelectedUnitBarF to nil if SelectMode was turned off.
+  if not SelectMode then
+    PSelectedUnitBarF = nil
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -3778,92 +3861,76 @@ end
 -------------------------------------------------------------------------------
 -- StatusCheck    UnitBarsF function
 --
--- Checks the status on the unitbar frame to see if it should be shown/hidden/enabled
+-- Does a status check and updates the bar if it became visible.
+--
+-- Usage: StatusCheck()
 -------------------------------------------------------------------------------
-function GUB.Main:StatusCheck()
+function GUB.Main:StatusCheck(Event)
   local UB = self.UnitBar
   local Status = UB.Status
   local Visible = true
 
   -- Check to see if the bar has a HideNotUsable flag.
-  if Status.HideNotUsable then
+  local HideNotUsable = Status.HideNotUsable or false
+  if HideNotUsable then
+    local Spec = UB.UsedByClass[PlayerClass]
+
     Visible = false
-    local Count = 0
-    local FoundSpec = 0
-    local FoundStance = 0
-
-    for Class, Value in pairs(UB.UsedByClass) do
-
-      -- Find the class.
-      if PlayerClass == Class then
-        FoundSpec = -1
-        FoundStance = -1
-        for _, Value2 in pairs(Value) do
-          Count = Count + 1
-
-          -- if spec found check against it.
-          if type(Value2) == 'string' then
-            FoundSpec = 0
-            if PlayerSpecialization and strfind(Value2, PlayerSpecialization) ~= nil then
-              FoundSpec = 1
-            end
-          else
-
-            -- if stance found then check against it.
-            FoundStance = FoundStance == -1 and 0 or FoundStance
-            if PlayerStance == nil and Value2 == -1 or PlayerStance and PlayerStance == Value2 then
-              FoundStance = 1
-            end
-          end
-        end
-      end
-    end
-
-    -- Was anything found.
-    if FoundSpec ~= 0 and FoundStance ~= 0 then
+    -- Check if class found, then check spec.
+    if Spec and PlayerSpecialization and (Spec == '' or strfind(Spec, PlayerSpecialization)) then
       Visible = true
     end
   end
 
-
-  -- Check to see if the bar has an enable function and call it.
-  if Visible then
-    local Fn = self.BarVisible
-    if Fn then
-      Visible = Fn()
-    end
-  end
-
-  self.Visible = Visible
-
-  if Visible then
-
-    -- Hide if the HideWhenDead status is set.
-    if IsDead and Status.HideWhenDead then
-      Visible = false
-
-    -- Hide if in a vehicle if the HideInVehicle status is set
-    elseif InVehicle and Status.HideInVehicle then
-      Visible = false
-
-    -- Hide if in a pet battle and the HideInPetBattle status is set.
-    elseif InPetBattle and Status.HideInPetBattle then
-      Visible = false
-
-    -- Get the idle status based on HideNotActive when not in combat.
-    elseif not InCombat and Status.HideNotActive then
-      Visible = self.IsActive
-
-    -- Hide if not in combat with the HideNoCombat status.
-    elseif not InCombat and Status.HideNoCombat then
-      Visible = false
-    end
-  end
-
-  -- Make all unitbars visible when they are not locked.
+  -- Show bars if not locked.
   if not UnitBars.IsLocked then
-    Visible = true
+
+    -- use HideNotUsable visible flag if HideNotUsable is set.
+    if not HideNotUsable then
+      Visible = true
+    end
+  else
+
+    -- Check to see if the bar has an enable function and call it.
+    if Visible then
+      local Fn = self.BarVisible
+      if Fn then
+        Visible = Fn()
+      end
+    end
+
+    if Visible then
+
+      -- Hide if the HideWhenDead status is set.
+      if IsDead and Status.HideWhenDead then
+        Visible = false
+
+      -- Hide if in a vehicle if the HideInVehicle status is set
+      elseif InVehicle and Status.HideInVehicle then
+        Visible = false
+
+      -- Hide if in a pet battle and the HideInPetBattle status is set.
+      elseif InPetBattle and Status.HideInPetBattle then
+        Visible = false
+
+      -- Get the idle status based on HideNotActive when not in combat.
+      elseif not InCombat and Status.HideNotActive then
+        Visible = self.IsActive == 1
+
+        -- if not visible then set IsActive to watch for activity.
+        if not Visible then
+          self.IsActive = 0
+        end
+
+      -- Hide if not in combat with the HideNoCombat status.
+      elseif not InCombat and Status.HideNoCombat then
+        Visible = false
+      end
+    end
   end
+
+  -- Update the visible flag.
+  self.Visible = Visible
 
   -- Hide/show the unitbar.
   HideUnitBar(self, not Visible)
@@ -4050,12 +4117,11 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   HasFocus = UnitExists('focus') == 1
   HasPet = select(1, HasPetUI()) ~= nil
   PlayerStance = GetShapeshiftFormID()
+  PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization()
 
   for _, UBF in ipairs(UnitBarsFI) do
     UBF:StatusCheck()
-
-    -- Update incase some unitbars went from disabled to enabled.
     UBF:Update()
   end
 end
@@ -4255,7 +4321,7 @@ local function SetUnitBarsLayout()
     local ScaleFrame = UnitBarF.ScaleFrame
     local SelectFrame = UnitBarF.SelectFrame
 
-    -- Stop any old fadeout animation for this unitbar.
+    -- Stop any old fade animation for this unitbar.
     UnitBarF:CancelAnimation()
     Main:Animation(UnitBarF.FadeOut, 'stop')
 
@@ -4280,8 +4346,8 @@ local function SetUnitBarsLayout()
     -- Set the layout for the bar.
     UnitBarF:SetLayout()
 
-    -- Set the IsActive flag to true.
-    UnitBarF.IsActive = false
+    -- Set the IsActive flag to -1 (inactive).
+    UnitBarF.IsActive = -1
 
     -- Hide the unitbar.
     UnitBarF.Visible = false
@@ -4386,6 +4452,9 @@ end
 -- CreateUnitBarTimers
 --
 -- All unitbars are controlled thru SetTimer()
+--
+-- NOTES: This keeps track of doing statuschecks and since all bars get updated
+--        every so often.  This keeps the predictedspells system working.
 -------------------------------------------------------------------------------
 local function CreateUnitBarTimers()
 
@@ -4407,11 +4476,11 @@ local function CreateUnitBarTimers()
 
     -- Update all bars based on their time.
     for _, UBF in ipairs(UnitBarsFI) do
-      if UBF.Visible then
+      if UBF.IsVisible then
 
         -- Check LastTime against WaitTime.
         if GetTime() - UBF.LastTime > UBF.WaitTime then
-       --   UBF:Update('change')
+          UBF:Update('change')
         end
       end
     end
@@ -4463,7 +4532,7 @@ function GUB.Main:EnableUnitBars()
         Index = Index + 1
         UnitBarsFI[Index] = UBF
 
-        -- Do a status check and update the bar
+        -- Do a status check.
         UBF:StatusCheck()
         UBF:Update()
       else
@@ -4536,8 +4605,8 @@ local function OnInitializeOnce()
     -- Get the player class.
     _, PlayerClass = UnitClass('player')
 
-    -- Get the main power type for the player.
-    _, PlayerPowerType = UnitPowerType('player')
+    -- Get the player power type for the player.
+    PlayerPowerType = UnitPowerType('player')
 
     -- Get the globally unique identifier for the player.
     PlayerGUID = UnitGUID('player')

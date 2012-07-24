@@ -32,6 +32,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -95,7 +97,15 @@ end
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ComboBar:Update(Event)
   if not self.Visible then
-    return
+
+    -- Check to see if bar is waiting for activity.
+    if self.IsActive == 0 then
+      if Event == nil or Event == 'change' then
+        return
+      end
+    else
+      return
+    end
   end
 
   -- Set the time the bar was updated.
@@ -115,9 +125,9 @@ function GUB.UnitBarsF.ComboBar:Update(Event)
   UpdateComboPoints(self, ComboPoints)
 
   -- Set the IsActive flag
-  self.IsActive = ComboPoints > 0
+  self.IsActive = ComboPoints > 0 and 1 or -1
 
-  -- Do a status check for active status.
+  -- Do a status check.
   self:StatusCheck()
 end
 

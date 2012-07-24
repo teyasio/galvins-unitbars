@@ -33,6 +33,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -113,6 +115,12 @@ local EmberData = {
 -------------------------------------------------------------------------------
 GUB.UnitBarsF.EmberBar.StatusCheck = GUB.Main.StatusCheck
 
+--*****************************************************************************
+--
+-- Emberbar display
+--
+--*****************************************************************************
+
 -------------------------------------------------------------------------------
 -- UpdateBurningEmbers
 --
@@ -156,7 +164,15 @@ end
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   if not self.Visible then
-    return
+
+    -- Check to see if bar is waiting for activity.
+    if self.IsActive == 0 then
+      if Event == nil or Event == 'change' then
+        return
+      end
+    else
+      return
+    end
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerEmber
@@ -197,9 +213,9 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   UpdateBurningEmbers(self, EmberPower, NumEmbers)
 
     -- Set this IsActive flag
-  self.IsActive = EmberPower > 0
+  self.IsActive = EmberPower > 0 and 1 or -1
 
-  -- Do a status check for active status.
+  -- Do a status check.
   self:StatusCheck()
 end
 
@@ -458,7 +474,7 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     EmberBar:SetFillDirection(EmberIndex, EmberFill, 'VERTICAL')
 
     -- Set and save the name for tooltips for each ember.
-    local Name = strconcat('Ember ', EmberIndex)
+    local Name = strconcat('Burning Ember ', EmberIndex)
 
     EmberBar:SetTooltip(EmberIndex, Name, MouseOverDesc)
 

@@ -34,6 +34,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -128,8 +130,12 @@ HapFunction('StatusCheck', Main.StatusCheck)
 local function CheckSpell(SpellID, CastTime, Message)
   if SpellID < 0 then
     if Message == 'start' then
+
+      -- If the spell is starting to cast then queue it.
       return abs(SpellID)
     else
+
+      -- Spell is done casting.  Update the power.
       UnitBarsF.PlayerPower:Update('change')
     end
   end
@@ -237,7 +243,15 @@ end
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
   if not self.Visible then
-    return
+
+    -- Check to see if bar is waiting for activity.
+    if self.IsActive == 0 then
+      if Event == nil or Event == 'change' then
+        return
+      end
+    else
+      return
+    end
   end
 
   -- Set the time the bar was updated.
@@ -249,7 +263,7 @@ local function UpdateHealthBar(self, Event, Unit)
   local Gen = self.UnitBar.General
   local PredictedHealing = Gen and Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
 
-  -- Return if there is no change.
+  -- Return if there is no change or not visible.
   if Event == 'change' and
      CurrValue == LastCurrValue[self] and MaxValue == LastMaxValue[self] and
      PredictedHealing == LastPredictedValue[self] then
@@ -288,9 +302,9 @@ local function UpdateHealthBar(self, Event, Unit)
   SetStatusBarValue(self, CurrValue, MaxValue, PredictedHealing)
 
   -- Set the IsActive flag.
-  self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
+  self.IsActive = CurrValue < MaxValue and 1 or PredictedHealing > 0 and 1 or -1
 
-  -- Do a status check for active status.
+  -- Do a status check.
   self:StatusCheck()
 end
 
@@ -315,27 +329,51 @@ end
 --
 -- Updates the power of the unit.
 --
--- Usage: UpdatePowerBar(Event, Unit, PowerType)
+-- Usage: UpdatePowerBar(self, Event, Unit, PowerType2)
 --
+-- self          UnitBarF contains the power bar to display.
 -- Event         'change' then the bar will only get updated if there is a change.
 -- Unit          Unit name 'player' ,'target', etc
--- PowerType     If not nil then this value will be used as the powertype.
---               if nil then the Unit's powertype will be used instead.
+-- PowerType2    PowerType from server or when PowerMana update is called.
+--               If nil then the unit's powertype is used if nots a ManaPower bar.
 -------------------------------------------------------------------------------
-local function UpdatePowerBar(self, Event, Unit, PowerType)
+local function UpdatePowerBar(self, Event, Unit, PowerType2)
   if not self.Visible then
+
+    -- Check to see if bar is waiting for activity.
+    if self.IsActive == 0 then
+      if Event == nil or Event == 'change' then
+        return
+      end
+    else
+      return
+    end
+  end
+
+  -- Convert string powertype into number.
+  PowerType2 = PowerTypeToNumber[PowerType2]
+
+  local PowerType = nil
+
+  if self.BarType ~= 'ManaPower' then
+    PowerType = UnitPowerType(Unit)
+    if PowerType2 ~= nil and PowerType ~= PowerType2 then
+
+      -- Return, not correct power type.
+      return
+    end
+
+  -- ManaPower bar can only be a mana powertype.
+  elseif PowerType2 == PowerMana then
+    PowerType = PowerMana
+  else
+
+    -- Return, not correct power type.
     return
   end
 
   -- Set the time the bar was updated.
   self.LastTime = GetTime()
-
-  PowerType = PowerType and PowerTypeToNumber[PowerType] or UnitPowerType(Unit)
-
-  -- Return if not correct powertype.
-  if PowerType == nil or PowerType > 6 or self.BarType == 'ManaPower' and PowerType ~= PowerMana then
-    return
-  end
 
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
@@ -384,19 +422,21 @@ local function UpdatePowerBar(self, Event, Unit, PowerType)
   SetStatusBarValue(self, CurrValue, MaxValue, PredictedPower)
 
   -- Set the IsActive flag.
-  local IsActive = false
+  local IsActive = -1
   if PowerType == PowerMana or PowerType == PowerEnergy or PowerType == PowerFocus then
     if CurrValue < MaxValue or PredictedPower > 0 then
-      IsActive = true
+      IsActive = 1
     end
   else
     if CurrValue > 0 then
-      IsActive = true
+      if self.BarType == 'PlayerPower' then
+      end
+      IsActive = 1
     end
   end
   self.IsActive = IsActive
 
-  -- Do a status check for active status.
+  -- Do a status check.
   self:StatusCheck()
 end
 
@@ -651,8 +691,8 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   local PredictedBar = CreateFrame('StatusBar', nil, Border)
 
-  Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
-  Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
+  local Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
+  local Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
 
   -- Set the border to always be the same size as the anchor.
   Border:SetAllPoints(Anchor)
@@ -719,11 +759,11 @@ function GUB.UnitBarsF.TargetPower:Enable(Enable)
 end
 
 function GUB.UnitBarsF.FocusPower:Enable(Enable)
-  RegEventPower(Enable, self, 'player')
+  RegEventPower(Enable, self, 'focus')
 end
 
 function GUB.UnitBarsF.PetPower:Enable(Enable)
-  RegEventPower(Enable, self, 'player')
+  RegEventPower(Enable, self, 'pet')
 end
 
 function GUB.UnitBarsF.ManaPower:Enable(Enable)
