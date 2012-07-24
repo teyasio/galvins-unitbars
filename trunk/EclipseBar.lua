@@ -40,6 +40,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -720,6 +722,12 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
     EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
     EclipseBarHide(EF, 'Solar', false, FadeOutTime)
   end
+
+  -- Do a status check.
+  self.IsActive = 1
+
+  -- Do a status check.
+  self:StatusCheck()
 end
 
 -------------------------------------------------------------------------------

@@ -66,6 +66,7 @@ local AddonProfileName = MyAddon .. 'profile'
 local AddonSlashName = MyAddon
 
 local SetFunctions = {}
+local O = {}
 
 local OptionsToGUBFrame = nil
 local MainOptionsFrame = nil
@@ -84,113 +85,121 @@ local CapCopyUB = nil
 local CapCopyName = nil
 local CapCopyKey = nil
 
-local FontOffsetXMin = -150
-local FontOffsetXMax = 150
-local FontOffsetYMin = -150
-local FontOffsetYMax = 150
-local FontShadowOffsetMin = 0
-local FontShadowOffsetMax = 10
+local O = {
+  FontOffsetXMin = -150,
+  FontOffsetXMax = 150,
+  FontOffsetYMin = -150,
+  FontOffsetYMax = 150,
+  FontShadowOffsetMin = 0,
+  FontShadowOffsetMax = 10,
 
-local UnitBarPaddingMin = -20
-local UnitBarPaddingMax = 20
-local UnitBarBgTileSizeMin = 1
-local UnitBarBgTileSizeMax = 100
-local UnitBarBorderSizeMin = 2
-local UnitBarBorderSizeMax = 32
-local UnitBarFontSizeMin = 6
-local UnitBarFontSizeMax = 64
-local UnitBarFontFieldWidthMin = 20
-local UnitBarFontFieldWidthMax = 400
-local UnitBarScaleMin = 0.10
-local UnitBarScaleMax = 4
-local UnitBarWidthMin = 10
-local UnitBarWidthMax = 500
-local UnitBarHeightMin = 10
-local UnitBarHeightMax = 500
-local UnitBarSoftMin = 10
-local UnitBarSoftMax = 500
-local UnitBarOffset = 25
+  UnitBarPaddingMin = -20,
+  UnitBarPaddingMax = 20,
+  UnitBarBgTileSizeMin = 1,
+  UnitBarBgTileSizeMax = 100,
+  UnitBarBorderSizeMin = 2,
+  UnitBarBorderSizeMax = 32,
+  UnitBarFontSizeMin = 6,
+  UnitBarFontSizeMax = 64,
+  UnitBarFontFieldWidthMin = 20,
+  UnitBarFontFieldWidthMax = 400,
+  UnitBarScaleMin = 0.10,
+  UnitBarScaleMax = 4,
+  UnitBarWidthMin = 10,
+  UnitBarWidthMax = 500,
+  UnitBarHeightMin = 10,
+  UnitBarHeightMax = 500,
+  UnitBarOffset = 25,
 
-local RuneBarAngleMin = 45
-local RuneBarAngleMax = 360
-local RuneBarSizeMin = 10
-local RuneBarSizeMax = 100
-local RuneBarPaddingMin = -10
-local RuneBarPaddingMax = 50
-local RuneOffsetXMin = -50
-local RuneOffsetXMax = 50
-local RuneOffsetYMin = -50
-local RuneOffsetYMax = 50
-local RuneEnergizeTimeMin = 0
-local RuneEnergizeTimeMax = 5
+  RuneBarAngleMin = 45,
+  RuneBarAngleMax = 360,
+  RuneBarSizeMin = 10,
+  RuneBarSizeMax = 100,
+  RuneBarPaddingMin = -10,
+  RuneBarPaddingMax = 50,
+  RuneOffsetXMin = -50,
+  RuneOffsetXMax = 50,
+  RuneOffsetYMin = -50,
+  RuneOffsetYMax = 50,
+  RuneEnergizeTimeMin = 0,
+  RuneEnergizeTimeMax = 5,
 
-local ComboBarPaddingMin = -10
-local ComboBarPaddingMax = 50
-local ComboBarFadeOutMin = 0
-local ComboBarFadeOutMax = 5
-local ComboBarAngleMin = 45
-local ComboBarAngleMax = 360
+  ComboBarPaddingMin = -10,
+  ComboBarPaddingMax = 50,
+  ComboBarFadeOutMin = 0,
+  ComboBarFadeOutMax = 5,
+  ComboBarAngleMin = 45,
+  ComboBarAngleMax = 360,
 
-local HolyBarSizeMin = 0.01
-local HolyBarSizeMax = 3
-local HolyBarScaleMin = 0.1
-local HolyBarScaleMax = 2
-local HolyBarPaddingMin = -50
-local HolyBarPaddingMax = 50
-local HolyBarFadeOutMin = 0
-local HolyBarFadeOutMax = 5
-local HolyBarAngleMin = 45
-local HolyBarAngleMax = 360
+  HolyBarSizeMin = 0.01,
+  HolyBarSizeMax = 3,
+  HolyBarScaleMin = 0.1,
+  HolyBarScaleMax = 2,
+  HolyBarPaddingMin = -50,
+  HolyBarPaddingMax = 50,
+  HolyBarFadeOutMin = 0,
+  HolyBarFadeOutMax = 5,
+  HolyBarAngleMin = 45,
+  HolyBarAngleMax = 360,
 
-local ShardBarSizeMin = 0.01
-local ShardBarSizeMax = 3
-local ShardBarScaleMin = 0.1
-local ShardBarScaleMax = 2
-local ShardBarPaddingMin = -50
-local ShardBarPaddingMax = 50
-local ShardBarFadeOutMin = 0
-local ShardBarFadeOutMax = 5
-local ShardBarAngleMin = 45
-local ShardBarAngleMax = 360
+  ShardBarSizeMin = 0.01,
+  ShardBarSizeMax = 3,
+  ShardBarScaleMin = 0.1,
+  ShardBarScaleMax = 2,
+  ShardBarPaddingMin = -50,
+  ShardBarPaddingMax = 50,
+  ShardBarFadeOutMin = 0,
+  ShardBarFadeOutMax = 5,
+  ShardBarAngleMin = 45,
+  ShardBarAngleMax = 360,
 
-local EmberBarSizeMin = 0.01
-local EmberBarSizeMax = 3
-local EmberBarScaleMin = 0.1
-local EmberBarScaleMax = 2
-local EmberBarPaddingMin = -50
-local EmberBarPaddingMax = 50
-local EmberBarAngleMin = 45
-local EmberBarAngleMax = 360
+  EmberBarSizeMin = 0.01,
+  EmberBarSizeMax = 3,
+  EmberBarScaleMin = 0.1,
+  EmberBarScaleMax = 2,
+  EmberBarPaddingMin = -50,
+  EmberBarPaddingMax = 50,
+  EmberBarAngleMin = 45,
+  EmberBarAngleMax = 360,
 
-local EclipseBarFadeOutMin = 0
-local EclipseBarFadeOutMax = 5
-local EclipseAngleMin = 90
-local EclipseAngleMax = 360
-local EclipseSunOffsetXMin = -50
-local EclipseSunOffsetXMax = 50
-local EclipseSunOffsetYMin = -50
-local EclipseSunOffsetYMax = 50
-local EclipseMoonOffsetXMin = -50
-local EclipseMoonOffsetXMax = 50
-local EclipseMoonOffsetYMin = -50
-local EclipseMoonOffsetYMax = 50
+  EclipseBarFadeOutMin = 0,
+  EclipseBarFadeOutMax = 5,
+  EclipseAngleMin = 90,
+  EclipseAngleMax = 360,
+  EclipseSunOffsetXMin = -50,
+  EclipseSunOffsetXMax = 50,
+  EclipseSunOffsetYMin = -50,
+  EclipseSunOffsetYMax = 50,
+  EclipseMoonOffsetXMin = -50,
+  EclipseMoonOffsetXMax = 50,
+  EclipseMoonOffsetYMin = -50,
+  EclipseMoonOffsetYMax = 50,
 
-local ShadowBarSizeMin = 0.01
-local ShadowBarSizeMax = 3
-local ShadowBarScaleMin = 0.1
-local ShadowBarScaleMax = 2
-local ShadowBarPaddingMin = -50
-local ShadowBarPaddingMax = 50
-local ShadowBarFadeOutMin = 0
-local ShadowBarFadeOutMax = 5
-local ShadowBarAngleMin = 45
-local ShadowBarAngleMax = 360
+  ShadowBarSizeMin = 0.01,
+  ShadowBarSizeMax = 3,
+  ShadowBarScaleMin = 0.1,
+  ShadowBarScaleMax = 2,
+  ShadowBarPaddingMin = -50,
+  ShadowBarPaddingMax = 50,
+  ShadowBarFadeOutMin = 0,
+  ShadowBarFadeOutMax = 5,
+  ShadowBarAngleMin = 45,
+  ShadowBarAngleMax = 360,
 
--- Size variables for combo, holy, and shard bars.
-local BoxBarWidthMin = 10
-local BoxBarWidthMax = 100
-local BoxBarHeightMin = 10
-local BoxBarHeightMax = 100
+  ChiBarSizeMin = 0.01,
+  ChiBarSizeMax = 3,
+  ChiBarScaleMin = 0.1,
+  ChiBarScaleMax = 2,
+  ChiBarPaddingMin = -50,
+  ChiBarPaddingMax = 50,
+  ChiBarFadeOutMin = 0,
+  ChiBarFadeOutMax = 5,
+  ChiBarFadeInMin = 0,
+  ChiBarFadeInMax = 1,
+  ChiBarAngleMin = 45,
+  ChiBarAngleMax = 360,
+}
+
 
 local FontStyleDropdown = {
   NONE = 'None',
@@ -585,8 +594,9 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
     name = Name,
     order = Order,
     hidden = function()
-               return Object == 'bg' and ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'ShadowBar' ) and
-                      not UBF.UnitBar.General.BoxMode
+               return Object == 'bg' and
+                      ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'ShadowBar' or
+                        BarType == 'EmberBar' or BarType == 'ChiBar' ) and not UBF.UnitBar.General.BoxMode
              end,
     dialogInline = true,
     get = function(Info)
@@ -820,8 +830,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
             disabled = function()
                          return not GetTable(BarType, 'Background', TableName).BackdropSettings.BgTile
                        end,
-            min = UnitBarBgTileSizeMin,
-            max = UnitBarBgTileSizeMax,
+            min = O.UnitBarBgTileSizeMin,
+            max = O.UnitBarBgTileSizeMax,
             step = 1,
           },
           Spacer20 = CreateSpacer(20),
@@ -829,8 +839,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
             type = 'range',
             name = 'Border Thickness',
             order = 21,
-            min = UnitBarBorderSizeMin,
-            max = UnitBarBorderSizeMax,
+            min = O.UnitBarBorderSizeMin,
+            max = O.UnitBarBorderSizeMax,
             step = 2,
           },
         },
@@ -845,8 +855,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
       name = 'Background Color',
       order = 22,
       hidden = function()
-                 return ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar') and
-                        UBF.UnitBar.General.BoxMode
+                 return ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'EmberBar' or
+                          BarType == 'ShadowBar' or BarType == 'ChiBar') and UBF.UnitBar.General.BoxMode
                end,
       hasAlpha = true,
       get = function()
@@ -867,7 +877,7 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
 
   -- Add color all options.
   if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
-     BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
+     BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
     local MaxColors = 5
     if BarType == 'ShadowBar' then
       MaxColors = 3
@@ -929,8 +939,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
         hidden = function()
                    return not GetTable(BarType, 'Background', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Left = {
@@ -940,8 +950,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Background', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Right = {
@@ -951,8 +961,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Background', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Top = {
@@ -962,8 +972,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Background', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Bottom = {
@@ -973,8 +983,8 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Background', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
     },
@@ -1247,16 +1257,16 @@ local function CreateTextOptions(BarType, Object, Order, Name)
         type = 'range',
         name = 'Size',
         order = 4,
-        min = UnitBarFontSizeMin,
-        max = UnitBarFontSizeMax,
+        min = O.UnitBarFontSizeMin,
+        max = O.UnitBarFontSizeMax,
         step = 1,
       },
       Width = {
         type = 'range',
         name = 'Field Width',
         order = 5,
-        min = UnitBarFontFieldWidthMin,
-        max = UnitBarFontFieldWidthMax,
+        min = O.UnitBarFontFieldWidthMin,
+        max = O.UnitBarFontFieldWidthMax,
         step = 1,
       },
       Position = {
@@ -1307,24 +1317,24 @@ local function CreateTextOptions(BarType, Object, Order, Name)
         type = 'range',
         name = 'Horizonal',
         order = 2,
-        min = FontOffsetXMin,
-        max = FontOffsetXMax,
+        min = O.FontOffsetXMin,
+        max = O.FontOffsetXMax,
         step = 1,
       },
       OffsetY = {
         type = 'range',
         name = 'Vertical',
         order = 3,
-        min = FontOffsetYMin,
-        max = FontOffsetYMax,
+        min = O.FontOffsetYMin,
+        max = O.FontOffsetYMax,
         step = 1,
       },
       ShadowOffset = {
         type = 'range',
         name = 'Shadow',
         order = 4,
-        min = FontShadowOffsetMin,
-        max = FontShadowOffsetMax,
+        min = O.FontShadowOffsetMin,
+        max = O.FontShadowOffsetMax,
         step = 1,
       },
     },
@@ -1370,11 +1380,19 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
     args = {},
   }
 
+  -- Power types for the player power bar. '= 0' has no meaning.
+  local PlayerPower = {
+    DRUID = {ENERGY = 0, RAGE = 0, MANA = 0},
+    MONK  = {ENERGY = 0, MANA = 0},
+  }
+
   local AllColor = true
   local PCOA = PowerColorsOptions.args
   if BarType == 'PlayerPower' or BarType == 'ManaPower' then
     AllColor = false
   end
+
+  local ClassPowerType = PlayerPower[PlayerClass]
 
   for PowerTypeSt, PowerType in pairs(PowerColorType) do
     local n = gsub(strlower(PowerTypeSt), '%a', strupper, 1)
@@ -1385,9 +1403,11 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
       Width = 'normal'
     end
 
-    if AllColor or PowerTypeSt == PlayerPowerType or
-       PlayerClass == 'DRUID' and BarType ~= 'ManaPower' and (PowerTypeSt == 'RAGE' or PowerTypeSt == 'ENERGY') then
-      PCOA['Color' .. PowerType] = {
+    if AllColor or BarType == 'ManaPower' and PowerTypeSt == 'MANA' or
+                   BarType ~= 'ManaPower' and
+                     ( ClassPowerType and ClassPowerType[PowerTypeSt] or
+                       PowerType == PlayerPowerType ) then
+      PCOA[PowerTypeSt] = {
         type = 'color',
         name = n,
         order = PowerType,
@@ -1585,10 +1605,10 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
 
   SetFunction(FunctionLabel, function()
     local t = GetTable(BarType, 'Bar', TableName)
-    BarSizeOptions.args[ABarWidthKey].min = t[BarWidthKey] - UnitBarOffset
-    BarSizeOptions.args[ABarWidthKey].max = t[BarWidthKey] + UnitBarOffset
-    BarSizeOptions.args[ABarHeightKey].min = t[BarHeightKey] - UnitBarOffset
-    BarSizeOptions.args[ABarHeightKey].max = t[BarHeightKey] + UnitBarOffset
+    BarSizeOptions.args[ABarWidthKey].min = t[BarWidthKey] - O.UnitBarOffset
+    BarSizeOptions.args[ABarWidthKey].max = t[BarWidthKey] + O.UnitBarOffset
+    BarSizeOptions.args[ABarHeightKey].min = t[BarHeightKey] - O.UnitBarOffset
+    BarSizeOptions.args[ABarHeightKey].max = t[BarHeightKey] + O.UnitBarOffset
   end)
 
   BarSizeOptions = {
@@ -1606,9 +1626,9 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
             if Key == ABarWidthKey or Key == ABarHeightKey then
               Key = gsub(Key, 'Advanced', '')
               if strfind(Key, 'Width') then
-                Value = min(max(Value + Width, UnitBarWidthMin), UnitBarWidthMax)
+                Value = min(max(Value + Width, O.UnitBarWidthMin), O.UnitBarWidthMax)
               else
-                Value = min(max(Value + Height, UnitBarHeightMin), UnitBarHeightMax)
+                Value = min(max(Value + Height, O.UnitBarHeightMin), O.UnitBarHeightMax)
               end
             end
 
@@ -1619,7 +1639,7 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
 
             -- Update layout.
             if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or
-               BarType == 'DemonicBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
+               BarType == 'DemonicBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
               UBF:SetLayout()
             else
               if TableName then
@@ -1657,8 +1677,8 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
         hidden = function()
                    return GetTable(BarType, 'Bar', TableName).Advanced
                  end,
-        min = UnitBarWidthMin,
-        max = UnitBarWidthMax,
+        min = O.UnitBarWidthMin,
+        max = O.UnitBarWidthMax,
         step = 1,
       },
       [BarHeightKey] = {
@@ -1670,8 +1690,8 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
         hidden = function()
                    return GetTable(BarType, 'Bar', TableName).Advanced
                  end,
-        min = UnitBarHeightMin,
-        max = UnitBarHeightMax,
+        min = O.UnitBarHeightMin,
+        max = O.UnitBarHeightMax,
         step = 1,
       },
       [ABarWidthKey] = {
@@ -1683,8 +1703,8 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
         hidden = function()
                    return not GetTable(BarType, 'Bar', TableName).Advanced
                  end,
-        min = GetTable(BarType, 'Bar', TableName)[BarWidthKey] - UnitBarOffset,
-        max = GetTable(BarType, 'Bar', TableName)[BarWidthKey] + UnitBarOffset,
+        min = GetTable(BarType, 'Bar', TableName)[BarWidthKey] - O.UnitBarOffset,
+        max = GetTable(BarType, 'Bar', TableName)[BarWidthKey] + O.UnitBarOffset,
         step = 1,
       },
       [ABarHeightKey] = {
@@ -1696,8 +1716,8 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
         hidden = function()
                    return not GetTable(BarType, 'Bar', TableName).Advanced
                  end,
-        min = GetTable(BarType, 'Bar', TableName)[BarHeightKey] - UnitBarOffset,
-        max = GetTable(BarType, 'Bar', TableName)[BarHeightKey] + UnitBarOffset,
+        min = GetTable(BarType, 'Bar', TableName)[BarHeightKey] - O.UnitBarOffset,
+        max = GetTable(BarType, 'Bar', TableName)[BarHeightKey] + O.UnitBarOffset,
         step = 1,
       },
     },
@@ -1736,7 +1756,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     hidden = function()
                return BarType == 'RuneBar' and UBF.UnitBar.General.RuneMode == 'rune' or
                       ( BarType == 'HolyBar' or BarType == 'ShardBar' or BarType == 'DemonicBar' or
-                        BarType == 'EmberBar' or BarType == 'ShadowBar') and not UBF.UnitBar.General.BoxMode
+                        BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar') and
+                      not UBF.UnitBar.General.BoxMode
              end,
     args = {
       General = {
@@ -1752,7 +1773,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
                 -- Update layout.
                 if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
-                   BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
+                   BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
                   UBF:SetLayout()
                 else
                   if Object then
@@ -1820,7 +1841,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   GA.Spacer10 = CreateSpacer(10)
 
   if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and
-     BarType ~= 'EclipseBar' and BarType ~= 'ShadowBar' then
+     BarType ~= 'EclipseBar' and BarType ~= 'ShadowBar' and BarType ~= 'ChiBar' then
 
     GA.FillDirection = {
       type = 'select',
@@ -1842,7 +1863,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   if BarType == 'RuneBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'RuneWidth', 'RuneHeight')
   elseif BarType == 'ComboBar' or BarType == 'HolyBar' or BarType == 'ShardBar' or
-         BarType == 'DemonicBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
+         BarType == 'DemonicBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
     GA.BoxSize = CreateBarSizeOptions(BarType, TableName, 100, 'BoxWidth', 'BoxHeight')
   elseif BarType == 'EclipseBar' then
     local o = gsub(Object, '%a', strupper, 1)
@@ -1926,7 +1947,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
   -- Add bar color options if its a combobar or shardbar.
   if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
-     BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' then
+     BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
     local MaxColors = 5
     if BarType == 'ShadowBar' then
       MaxColors = 3
@@ -2040,8 +2061,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         hidden = function()
                    return not GetTable(BarType, 'Bar', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Left = {
@@ -2051,8 +2072,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Bar', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Right = {
@@ -2062,8 +2083,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Bar', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Top = {
@@ -2073,8 +2094,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Bar', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
       Bottom = {
@@ -2084,8 +2105,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         hidden = function()
                    return GetTable(BarType, 'Bar', TableName).PaddingAll
                  end,
-        min = UnitBarPaddingMin,
-        max = UnitBarPaddingMax,
+        min = O.UnitBarPaddingMin,
+        max = O.UnitBarPaddingMax,
         step = 1,
       },
     },
@@ -2266,8 +2287,8 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
                    end,
-        min = RuneBarAngleMin,
-        max = RuneBarAngleMax,
+        min = O.RuneBarAngleMin,
+        max = O.RuneBarAngleMax,
         step = 45,
       },
       RunePadding = {
@@ -2278,8 +2299,8 @@ local function CreateRuneBarOptions(BarType, Order, Name)
         disabled = function()
                      return not UnitBars.RuneBar.General.BarMode
                    end,
-        min = RuneBarPaddingMin,
-        max = RuneBarPaddingMax,
+        min = O.RuneBarPaddingMin,
+        max = O.RuneBarPaddingMax,
         step = 1,
       },
       RuneSize = {
@@ -2290,8 +2311,8 @@ local function CreateRuneBarOptions(BarType, Order, Name)
                    return BarType == 'RuneBar' and strsub(UBF.UnitBar.General.RuneMode, 1, 4) ~= 'rune'
                  end,
         desc = 'Change the size of all the runes',
-        min = RuneBarSizeMin,
-        max = RuneBarSizeMax,
+        min = O.RuneBarSizeMin,
+        max = O.RuneBarSizeMax,
         step = 1,
       },
       Spacer30 = CreateSpacer(30),
@@ -2308,16 +2329,16 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             type = 'range',
             name = 'Horizontal Offset',
             order = 1,
-            min = RuneOffsetXMin,
-            max = RuneOffsetYMax,
+            min = O.RuneOffsetXMin,
+            max = O.RuneOffsetYMax,
             step = 1,
           },
           RuneOffsetY = {
             type = 'range',
             name = 'Vertical Offset',
             order = 2,
-            min = RuneOffsetYMin,
-            max = RuneOffsetYMax,
+            min = O.RuneOffsetYMin,
+            max = O.RuneOffsetYMax,
             step = 1,
           },
           RunePosition = {
@@ -2344,8 +2365,8 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             name = 'Time',
             order = 1,
             desc = 'Amount of time to wait before removing empowerment overlay',
-            min = RuneEnergizeTimeMin,
-            max = RuneEnergizeTimeMax,
+            min = O.RuneEnergizeTimeMin,
+            max = O.RuneEnergizeTimeMax,
             step = 1,
           },
           Color = CreateColorAllOptions(BarType, 'runebarenergize', 8, 2, 'Colors'),
@@ -2394,8 +2415,8 @@ local function CreateComboBarOptions(BarType, Order, Name)
         name = 'Combo Padding',
         order = 1,
         desc = 'Set the Amount of space between each combo point box',
-        min = ComboBarPaddingMin,
-        max = ComboBarPaddingMax,
+        min = O.ComboBarPaddingMin,
+        max = O.ComboBarPaddingMax,
         step = 1,
       },
       ComboAngle = {
@@ -2403,8 +2424,8 @@ local function CreateComboBarOptions(BarType, Order, Name)
         name = 'Combo Rotation',
         order = 2,
         desc = 'Rotates the combo bar',
-        min = ComboBarAngleMin,
-        max = ComboBarAngleMax,
+        min = O.ComboBarAngleMin,
+        max = O.ComboBarAngleMax,
         step = 45,
       },
       ComboFadeOutTime = {
@@ -2412,8 +2433,8 @@ local function CreateComboBarOptions(BarType, Order, Name)
         name = 'Combo Fadeout Time',
         order = 3,
         desc = 'The amount of time in seconds to fade out a combo point',
-        min = ComboBarFadeOutMin,
-        max = ComboBarFadeOutMax,
+        min = O.ComboBarFadeOutMin,
+        max = O.ComboBarFadeOutMax,
         step = 1,
       },
     },
@@ -2465,8 +2486,8 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         name = 'Holy Padding',
         order = 2,
         desc = 'Set the Amount of space between each holy rune',
-        min = HolyBarPaddingMin,
-        max = HolyBarPaddingMax,
+        min = O.HolyBarPaddingMin,
+        max = O.HolyBarPaddingMax,
         step = 1,
       },
       HolyAngle = {
@@ -2474,8 +2495,8 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         name = 'Holy Rotation',
         order = 3,
         desc = 'Rotates the holy bar',
-        min = HolyBarAngleMin,
-        max = HolyBarAngleMax,
+        min = O.HolyBarAngleMin,
+        max = O.HolyBarAngleMax,
         step = 45,
       },
       HolySize = {
@@ -2486,8 +2507,8 @@ local function CreateHolyBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the size of all the holy power runes',
-        min = HolyBarSizeMin,
-        max = HolyBarSizeMax,
+        min = O.HolyBarSizeMin,
+        max = O.HolyBarSizeMax,
         step = 0.01,
         isPercent = true
       },
@@ -2499,8 +2520,8 @@ local function CreateHolyBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the scale of all the holy power runes',
-        min = HolyBarScaleMin,
-        max = HolyBarScaleMax,
+        min = O.HolyBarScaleMin,
+        max = O.HolyBarScaleMax,
         step = 0.01,
         isPercent = true,
       },
@@ -2509,8 +2530,8 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         name = 'Holy Fadeout Time',
         order = 6,
         desc = 'The amount of time in seconds to fade out a holy rune',
-        min = HolyBarFadeOutMin,
-        max = HolyBarFadeOutMax,
+        min = O.HolyBarFadeOutMin,
+        max = O.HolyBarFadeOutMax,
         step = 1,
       },
     },
@@ -2562,8 +2583,8 @@ local function CreateShardBarOptions(BarType, Order, Name)
         name = 'Shard Padding',
         order = 2,
         desc = 'Set the Amount of space between each soul shard',
-        min = ShardBarPaddingMin,
-        max = ShardBarPaddingMax,
+        min = O.ShardBarPaddingMin,
+        max = O.ShardBarPaddingMax,
         step = 1,
       },
       ShardAngle = {
@@ -2571,8 +2592,8 @@ local function CreateShardBarOptions(BarType, Order, Name)
         name = 'Shard Rotation',
         order = 3,
         desc = 'Rotates the shard bar',
-        min = ShardBarAngleMin,
-        max = ShardBarAngleMax,
+        min = O.ShardBarAngleMin,
+        max = O.ShardBarAngleMax,
         step = 45,
       },
       ShardSize = {
@@ -2583,8 +2604,8 @@ local function CreateShardBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the size of all the soul shards',
-        min = ShardBarSizeMin,
-        max = ShardBarSizeMax,
+        min = O.ShardBarSizeMin,
+        max = O.ShardBarSizeMax,
         step = 0.01,
         isPercent = true
       },
@@ -2596,8 +2617,8 @@ local function CreateShardBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the scale of all the soul shards',
-        min = ShardBarScaleMin,
-        max = ShardBarScaleMax,
+        min = O.ShardBarScaleMin,
+        max = O.ShardBarScaleMax,
         step = 0.01,
         isPercent = true,
       },
@@ -2606,8 +2627,8 @@ local function CreateShardBarOptions(BarType, Order, Name)
         name = 'Shard Fadeout Time',
         order = 6,
         desc = 'The amount of time in seconds to fade out a soul shard',
-        min = ShardBarFadeOutMin,
-        max = ShardBarFadeOutMax,
+        min = O.ShardBarFadeOutMin,
+        max = O.ShardBarFadeOutMax,
         step = 1,
       },
     },
@@ -2707,8 +2728,8 @@ local function CreateEmberBarOptions(BarType, Order, Name)
         name = 'Ember Padding',
         order = 2,
         desc = 'Set the Amount of space between each burning ember',
-        min = EmberBarPaddingMin,
-        max = EmberBarPaddingMax,
+        min = O.EmberBarPaddingMin,
+        max = O.EmberBarPaddingMax,
         step = 1,
       },
       EmberAngle = {
@@ -2716,8 +2737,8 @@ local function CreateEmberBarOptions(BarType, Order, Name)
         name = 'Ember Rotation',
         order = 3,
         desc = 'Rotates the ember bar',
-        min = EmberBarAngleMin,
-        max = EmberBarAngleMax,
+        min = O.EmberBarAngleMin,
+        max = O.EmberBarAngleMax,
         step = 45,
       },
       EmberSize = {
@@ -2728,8 +2749,8 @@ local function CreateEmberBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the size of all the burning embers',
-        min = EmberBarSizeMin,
-        max = EmberBarSizeMax,
+        min = O.EmberBarSizeMin,
+        max = O.EmberBarSizeMax,
         step = 0.01,
         isPercent = true
       },
@@ -2741,8 +2762,8 @@ local function CreateEmberBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the scale of all the burning embers',
-        min = EmberBarScaleMin,
-        max = EmberBarScaleMax,
+        min = O.EmberBarScaleMin,
+        max = O.EmberBarScaleMax,
         step = 0.01,
         isPercent = true,
       },
@@ -2825,8 +2846,8 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         name = 'Eclipse Rotation',
         order = 13,
         desc = 'Rotates the eclipse bar',
-        min = EclipseAngleMin,
-        max = EclipseAngleMax,
+        min = O.EclipseAngleMin,
+        max = O.EclipseAngleMax,
         step = 90,
       },
       EclipseFadeOutTime = {
@@ -2834,8 +2855,8 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         name = 'Eclipse Fadeout Time',
         order = 14,
         desc = 'The amount of time in seconds to fade out sun and moon',
-        min = EclipseBarFadeOutMin,
-        max = EclipseBarFadeOutMax,
+        min = O.EclipseBarFadeOutMin,
+        max = O.EclipseBarFadeOutMax,
         step = 1,
       },
       Spacer20 = CreateSpacer(20),
@@ -2844,8 +2865,8 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         name = 'Sun Horizontal Offset',
         order = 21,
         desc = 'Offsets the horizontal position of the sun',
-        min = EclipseSunOffsetXMin,
-        max = EclipseSunOffsetXMax,
+        min = O.EclipseSunOffsetXMin,
+        max = O.EclipseSunOffsetXMax,
         step = 1,
       },
       SunOffsetY = {
@@ -2853,8 +2874,8 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         name = 'Sun Vertical Offset',
         order = 22,
         desc = 'Offsets the horizontal position of the sun',
-        min = EclipseSunOffsetYMin,
-        max = EclipseSunOffsetYMax,
+        min = O.EclipseSunOffsetYMin,
+        max = O.EclipseSunOffsetYMax,
         step = 1,
       },
       Spacer30 = CreateSpacer(30),
@@ -2863,8 +2884,8 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         name = 'Moon Horizontal Offset',
         order = 31,
         desc = 'Offsets the horizontal position of the moon',
-        min = EclipseMoonOffsetXMin,
-        max = EclipseMoonOffsetXMax,
+        min = O.EclipseMoonOffsetXMin,
+        max = O.EclipseMoonOffsetXMax,
         step = 1,
       },
       MoonOffsetY = {
@@ -2872,8 +2893,8 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         name = 'Moon Vertical Offset',
         order = 32,
         desc = 'Offsets the horizontal position of the moon',
-        min = EclipseMoonOffsetYMin,
-        max = EclipseMoonOffsetYMax,
+        min = O.EclipseMoonOffsetYMin,
+        max = O.EclipseMoonOffsetYMax,
         step = 1,
       },
       PredictedOptions = {
@@ -2969,8 +2990,8 @@ local function CreateShadowBarOptions(BarType, Order, Name)
         name = 'Shadow Padding',
         order = 2,
         desc = 'Set the Amount of space between each shadow orb',
-        min = ShadowBarPaddingMin,
-        max = ShadowBarPaddingMax,
+        min = O.ShadowBarPaddingMin,
+        max = O.ShadowBarPaddingMax,
         step = 1,
       },
       ShadowAngle = {
@@ -2978,8 +2999,8 @@ local function CreateShadowBarOptions(BarType, Order, Name)
         name = 'Shadow Rotation',
         order = 3,
         desc = 'Rotates the shadow bar',
-        min = ShadowBarAngleMin,
-        max = ShadowBarAngleMax,
+        min = O.ShadowBarAngleMin,
+        max = O.ShadowBarAngleMax,
         step = 45,
       },
       ShadowSize = {
@@ -2990,8 +3011,8 @@ local function CreateShadowBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the size of all the shadow orbs',
-        min = ShadowBarSizeMin,
-        max = ShadowBarSizeMax,
+        min = O.ShadowBarSizeMin,
+        max = O.ShadowBarSizeMax,
         step = 0.01,
         isPercent = true
       },
@@ -3003,8 +3024,8 @@ local function CreateShadowBarOptions(BarType, Order, Name)
                    return UBF.UnitBar.General.BoxMode
                  end,
         desc = 'Sets the scale of all the shadow orbs',
-        min = ShadowBarScaleMin,
-        max = ShadowBarScaleMax,
+        min = O.ShadowBarScaleMin,
+        max = O.ShadowBarScaleMax,
         step = 0.01,
         isPercent = true,
       },
@@ -3013,13 +3034,119 @@ local function CreateShadowBarOptions(BarType, Order, Name)
         name = 'Shadow Fadeout Time',
         order = 6,
         desc = 'The amount of time in seconds to fade out a shadow orb',
-        min = ShadowBarFadeOutMin,
-        max = ShadowBarFadeOutMax,
+        min = O.ShadowBarFadeOutMin,
+        max = O.ShadowBarFadeOutMax,
         step = 1,
       },
     },
   }
   return ShadowBarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateChiBarOptions
+--
+-- Creates options for a soul chi bar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: ChiBarOptions = CreateChiBarOptions(BarType, Order, Name)
+--
+-- BarType               Type of options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- ChiBarOptions       Options table for the chi bar.
+-------------------------------------------------------------------------------
+local function CreateChiBarOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+
+  local ChiBarOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.General[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            UBF.UnitBar.General[Info[#Info]] = Value
+
+            -- Update the layout to show changes.
+            UBF:SetLayout()
+          end,
+    args = {
+      BoxMode = {
+        type = 'toggle',
+        name = 'Box Mode',
+        order = 1,
+        desc = 'If checked, this bar will show boxes instead of textures',
+      },
+      ChiPadding = {
+        type = 'range',
+        name = 'Chi Padding',
+        order = 2,
+        desc = 'Set the Amount of space between each chi orb',
+        min = O.ChiBarPaddingMin,
+        max = O.ChiBarPaddingMax,
+        step = 1,
+      },
+      ChiAngle = {
+        type = 'range',
+        name = 'Chi Rotation',
+        order = 3,
+        desc = 'Rotates the chi bar',
+        min = O.ChiBarAngleMin,
+        max = O.ChiBarAngleMax,
+        step = 45,
+      },
+      ChiSize = {
+        type = 'range',
+        name = 'Chi Size',
+        order = 4,
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        desc = 'Sets the size of all the chi orbs',
+        min = O.ChiBarSizeMin,
+        max = O.ChiBarSizeMax,
+        step = 0.01,
+        isPercent = true
+      },
+      ChiScale = {
+        type = 'range',
+        name = 'Chi Scale',
+        order = 5,
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        desc = 'Sets the scale of all the chi orbs',
+        min = O.ChiBarScaleMin,
+        max = O.ChiBarScaleMax,
+        step = 0.01,
+        isPercent = true,
+      },
+      ChiFadeOutTime = {
+        type = 'range',
+        name = 'Chi Fadeout Time',
+        order = 6,
+        desc = 'The amount of time in seconds to fade out a chi orb',
+        min = O.ChiBarFadeOutMin,
+        max = O.ChiBarFadeOutMax,
+        step = 1,
+      },
+      ChiFadeInTime = {
+        type = 'range',
+        name = 'Chi Fadein Time',
+        order = 7,
+        desc = 'The amount of time in seconds to fade in a chi orb',
+        min = O.ChiBarFadeInMin,
+        max = O.ChiBarFadeInMax,
+        step = 0.10,
+      },
+    },
+  }
+  return ChiBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -3184,7 +3311,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         set = function(Info, Value)
                 UBF.UnitBar.Status[Info[#Info]] = Value
 
-                -- Must do a status check/update.
+                -- Update the status of all bars.
                 GUB:UnitBarsUpdateStatus()
               end,
         args = {
@@ -3195,7 +3322,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                          return UBF.UnitBar.Status.HideNotUsable == nil
                        end,
             order = 1,
-            desc = 'Hides the bar if it can not be used by your class, spec, stance, or form, etc',
+            desc = 'Hides the bar if it can not be used by your class and spec.  Bar will stay hidden even with bars unlocked',
           },
           HideWhenDead = {
             type = 'toggle',
@@ -3256,6 +3383,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   elseif BarType == 'ShardBar' then
     UBOA.ShardBar = CreateShardBarOptions(BarType, 2, 'General')
 
+  -- Add demonicbar options
   elseif BarType == 'DemonicBar' then
     UBOA.DemonicBar = CreateDemonicBarOptions(BarType, 2, 'General')
 
@@ -3267,9 +3395,13 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   elseif BarType == 'EclipseBar' then
     UBOA.EclipseBar = CreateEclipseBarOptions(BarType, 2, 'General')
 
-  -- Add shardbar options
+  -- Add shadowbar options
   elseif BarType == 'ShadowBar' then
     UBOA.ShardBar = CreateShadowBarOptions(BarType, 2, 'General')
+
+  -- Add chibar options
+  elseif BarType == 'ChiBar' then
+    UBOA.ChiBar = CreateChiBarOptions(BarType, 2, 'General')
 
   -- Add health and power bar options
   elseif BarType == 'PlayerPower' and PlayerClass == 'HUNTER' or strfind(BarType, 'Power') == nil and BarType ~= 'PetHealth' then
@@ -3287,8 +3419,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         name = 'Scale',
         order = 1,
         desc = 'Changes the scale of the bar',
-        min = UnitBarScaleMin,
-        max = UnitBarScaleMax,
+        min = O.UnitBarScaleMin,
+        max = O.UnitBarScaleMax,
         step = 1,
         get = function()
                 return UBF.UnitBar.Other.Scale
@@ -3334,8 +3466,9 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
                  -- Update the layout.
                  UBF:SetLayout()
-                 UBF:StatusCheck()
-                 UBF:Update()
+                 UBF.DoStatusCheck = true
+                 --UBF:StatusCheck()
+                 --UBF:Update()
                end,
       },
       ResetPosition = {
@@ -3404,7 +3537,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   -- Add text options
   if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and
-     BarType ~= 'EmberBar' and BarType ~= 'ShadowBar' then
+     BarType ~= 'EmberBar' and BarType ~= 'ShadowBar' and BarType ~= 'ChiBar' then
     UBOA.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
     if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
       UBOA.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
@@ -3612,7 +3745,7 @@ local function CreateMainOptions()
       PetPower = CreateUnitBarOptions('PetPower', 8, 'Pet Power', 'Classes with pets only'),
 
       -- Main Power group. (druid mana)
-      ManaPower = CreateUnitBarOptions('ManaPower', 9, 'Druid|Monk Mana', 'Druids or Monks only: Shown when in cat or bear form'),
+      ManaPower = CreateUnitBarOptions('ManaPower', 9, 'Druid|Monk Mana', 'Shown when normal mana bar is not available'),
 
       -- Runebar group.
       RuneBar = CreateUnitBarOptions('RuneBar', 10, 'Rune Bar'),
@@ -3637,10 +3770,13 @@ local function CreateMainOptions()
 
       -- Shadowbar group.
       ShadowBar = CreateUnitBarOptions('ShadowBar', 17, 'Shadow Bar'),
+
+      -- Chibar group.
+      ChiBar = CreateUnitBarOptions('ChiBar', 18, 'Chi Bar'),
     },
   }
 
-  -- Disable Unitbar options.
+  -- Enable Unitbar options.
   MainOptionsArgs.UnitBars.args.EnableBars = CreateEnableUnitBarOptions(MainOptionsArgs.UnitBars.args, 0, 'Enable', 'Enable or Disable bars')
 
 --[[
