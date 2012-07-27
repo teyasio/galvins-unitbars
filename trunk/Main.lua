@@ -108,7 +108,7 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- List of UninBarsF methods:
 --
---   CancelAnimation()    - Some bars have alpha animations.  If a childframe has an alpha animation fadeout being
+--   CancelAnimation()    - Some bars have alpha animations.  If a childframe has an alpha animation fadeout/fadein being
 --                          played and its parent also has an animation fadeout being played at the same time.  The
 --                          child can get stuck in a transparent state.  Only way to fix is to reload ui.  This is a bug
 --                          in the wow ui.  The work around is when a bar is to be hidden which would trigger a fadeout.
@@ -138,11 +138,11 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --                          Used by CreateUnitBarTimers().
 --                          This was created so when a bar gets updated thru an event, it wont get updated right away
 --                          in CreateUnitBarsTimers() unless the WaitTime has elapsed.
---   IsActive             - 1, 0, or -1.
---                             1  Currently Active.
---                            -1  Currently Inactive.
---                             0  The bars update function is waiting for activity.
---                          If the bar doesn't have an active state, then this value defaults to 1
+--   IsActive             - True, false, or 0.  If true the bar is considered to be doing something, otherwise doing nothing.
+--                            True   The bar is considered to be doing something.
+--                            False  The bar is not active.
+--                            0      The bar is waiting to be active again.  If the flag is checked by StatusCheck() and is false.
+--                                   Then it sets it to zero.
 --   ScaleWidth           - Contains the scaled width of the Anchor.
 --   ScaleHeight          - Contains the scaled height of the Anchor.
 --   Width                - Contains the unscaled width of the Anchor.  ScaleWidth * scale.
@@ -559,54 +559,59 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 --
 -- Keeps track of spells casting.
 --
--- PredictedSpellEvent  Used by SetPredictedSpell().
--- PredictedSpellMessage
---                      Used with EventSpellFailed.  If the Message is not found in the table.
---                      then the spell is considered failed.
--- PredictedSpellTimeout
---                      Amount of time before clearing the casting spell.  If for some reason the spell
---                      wasn't cleared this will clear it.
+-- PredictedSpellEvent       - Used by SetPredictedSpell().
+--                             Converts an event from CombatLogUnfiltered()/SpellCasting() to one of the following:
+--                               EventSpellStart
+--                               EventSpellSucceeded
+--                               EventSpellEnergize
+--                               EventSpellMissed
+--                               EventSpellFailed
 --
--- PredictedSpellCasting
---   SpellID            Spell that is casting
---   LineID             LineID of Spell
---   Time               Current time the spell was started to cast.
---   CastTime           Amount of time for the spell to finish casting in seconds.
+-- PredictedSpellMessage     - Used by SetPredictedSpell()
+--                             Used with EventSpellFailed.  If the Message is not found in the table.
+--                             then the spell is considered failed.
+-- PredictedSpellsTimeout     - Used by ModifyCastingSpell()
+--                             Amount of time before clearing the casting spell.
 --
--- PredictedSpells[SpellID]  Used by SetPredictedSpells() and SetPredictedSpell()
---   SpellID            SpellID to search for.
---   EndOn              'energize' the spell will be cleared on an energize event.
---                      'casting'  the spell will be cleared when the spell ends due to success, failed, etc.
---   Fn                 This gets called when a spell starts casting, then on end, and on energize.
---                        Fn(SpellID, CastTime, Message)
---                          Message = 'start'  Gets called on spell cast start.
---                            on 'start' you can return -1 to not add the spell to be tracked.
---                            see EclipseBar.lua on how this is done.
---                          Message = 'end'    Gets called on spell success.
---                          Message = 'failed' Gets called if the spell didn't complete.
---                          CastTime  The amount of time to cast the spell in seconds.
---                          SpellID is always negative on 'start', 'end', or 'failed'
-
+-- PredictedSpellsTime        - Used by ModifyCastingSpell(), CheckPredictedSpellsTimeout()
+--                             Keeps track of the time based on PredictedSpellsTimeout. When time is reached
+--                             the casting spell is removed.
 --
--- EventSpellStart
--- EventSpellSucceeded
--- EventSpellEnergize
--- EventSpellMissed
--- EventSpellFailed    These constants are used to track the spell events in SetPredictedSpell()
+-- PredictedSpellsTimer       - Used by SetPredictedSpells(), ModifyCastingSpell()
+--                             Timer handle for CheckPredictedSpellsTimeout()
 --
--- PredictedSpellsTime Time since last GetPredictedSpell() call.  If this timer reaches 0 then
---                     predicted spells sytem unregistes events that make it work.
---                     Used by CreateUnitBarTimers()
--- PredictedSpellsWaitTime
---                     Time in seconds to wait after the last GetPredictedSpell() call to turn
---                     off.
+-- PredictedSpellsActive     - Used by SetPredictedSeplls(), HideUnitBar()
+--                             If true then predictedspells is turned on, otherwise its off.
+--
+-- PredictedSpellCasting     - Used by ModifyCastingSpell(), CheckPredictedSpellsTimeout(),
+--                                     GetPredictedSpells(), SetPredictedSpell()
+--   SpellID                   Spell that is casting
+--   LineID                    LineID of Spell
+--   CastTime                  Amount of time for the spell to finish casting in seconds.
+--
+-- PredictedSpells[SpellID]  - Used by SetPredictedSpells(), SetPredictedSpell()
+--   SpellID                   SpellID to search for.
+--   EndOn                       'energize' the spell will be cleared on an energize event.
+--                               'casting'  the spell will be cleared when the spell ends due to success, failed, etc.
+--   Fn                        This gets called when a spell starts casting, then on end, and on energize.
+--                             Fn(SpellID, CastTime, Message)
+--                               Message
+--                                 'start'  Gets called on spell cast start.
+--                                   on 'start' you can return -1 to not add the spell to be tracked.
+--                                   see EclipseBar.lua on how this is done.
+--                                 'afterstart'  Gets called right after 'cast start'.
+--                                 'end'    Gets called on spell success.
+--                                 'failed' Gets called if the spell didn't complete.
+--                                 'timeout' Gets called by CheckPredictedSpellsTimeout() if the spell timed out.
+--                               CastTime  The amount of time to cast the spell in seconds.
+--                               SpellID is always negative on 'start', 'afterstart', 'end', or 'failed'
+--
 --
 -- NOTE: See the notes on each of the predicted power functions for more details.  Also
 --       See Eclipse.lua on how this is used.
+--       PredictedSpells will turn its self off if the frame its being used on is hidden.
+--       Will turn back on when frame is shown.  Assuming the system wasn't turned off before hand.
 --
---       The eventspell system will disable its self if not used after a PredictedSpellsWaitTime.
---       When GetPredictedSpell() is used it'll be renabled.
---       By default predicted spells is disabled until used.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -631,8 +636,6 @@ LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Text
 -- SetTimer
 --
 -- Calls functions based on a delay.
---
--- NOTE: See CreateUnitBarTimers() on how this is used.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -689,9 +692,11 @@ local EquipmentSetRegisterEvent = false
 local PSelectedUnitBarF = nil
 local SelectMode = false
 
-local PredictedSpellTimeout = 7
-local PredictedSpellsTime = 0
-local PredictedSpellsWaitTime = 5 -- 5 secs
+local PredictedSpellsTimeout = 7
+local PredictedSpellsTime = nil
+local PredictedSpellsTimer = nil
+local PredictedSpellsActive = false
+local PredictedSpellsBarType = nil
 
 local EventSpellStart       = 1
 local EventSpellSucceeded   = 2
@@ -700,7 +705,7 @@ local EventSpellMissed      = 4
 local EventSpellFailed      = 5
 
 local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
-local UnitBarDelay = 1 / 4   -- 4 times per second. (250 ms)
+local UnitBarDelay = 1 -- Once per second. (1000 ms)
 
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -1694,7 +1699,7 @@ local Defaults = {
       Enabled = true,
       BarVisible = function() return HasTarget end,
       UsedByClass = {ROGUE = '', DRUID = '1234'},
-      WaitTime = 0.333,
+      WaitTime = 1,
       x = 0,
       y = -150,
       Status = {
@@ -3124,27 +3129,27 @@ end
 -- Will call a function based on a delay.
 --
 -- To start a timer
---   usage: SetTimer(Frame, Delay, TimerFn)
+--   usage: SetTimer(Table, Delay, TimerFn)
 -- To stop a timer
---   usage: SetTimer(Frame, nil)
+--   usage: SetTimer(Table, nil)
 --
--- Object   Object the timer is attached to. Can be anything, numbers, tables, functions, etc.
+-- Table    Must be a table.
 -- Delay    Amount of time to delay after each call to Fn()
 -- TimerFn  Function to be added. If nil then the timer will be stopped.
 --
 -- NOTE:  TimerFn will be called as TimerFn(Frame, Elapsed) from AnimationGroup in StartTimer()
---        See CreateUnitBarTimers() on how this is used.
+--        See CheckPredictedSpellsTimeout() on how this is used.
 --
---        To reduce garbage.  Only a new StartTimer() will get created when a new object is passed.
+--        To reduce garbage.  Only a new StartTimer() will get created when a new table is passed.
 --
 --        I decided to do it this way because the overhead of using indexed
 --        arrays for multiple timers ended up using more cpu.
 ---------------------------------------------------------------------------------
-function GUB.Main:SetTimer(Object, Delay, TimerFn)
+function GUB.Main:SetTimer(Table, Delay, TimerFn)
   local AnimationGroup = nil
   local Animation = nil
 
-  Object.SetTimer = Object.SetTimer or function(Start, Delay, TimerFn2)
+  Table.SetTimer = Table.SetTimer or function(Start, Delay, TimerFn2)
 
     -- Create an animation Group timer if one doesn't exist.
     if AnimationGroup == nil then
@@ -3152,7 +3157,7 @@ function GUB.Main:SetTimer(Object, Delay, TimerFn)
       Animation = AnimationGroup:CreateAnimation('Animation')
       Animation:SetOrder(1)
       AnimationGroup:SetLooping('REPEAT')
-      AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Object, self:GetDuration()) end )
+      AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Table, self:GetDuration()) end )
     end
     if Start then
       TimerFn = TimerFn2
@@ -3166,11 +3171,11 @@ function GUB.Main:SetTimer(Object, Delay, TimerFn)
   if TimerFn then
 
     -- Start timer since a function was passed
-    Object.SetTimer(true, Delay, TimerFn)
+    Table.SetTimer(true, Delay, TimerFn)
   else
 
     -- Stop timer since no function was passed.
-    Object.SetTimer(false)
+    Table.SetTimer(false)
   end
 end
 
@@ -3287,11 +3292,34 @@ function GUB.Main:CheckAura(Condition, ...)
 end
 
 -------------------------------------------------------------------------------
+-- CheckPredictedSpellsTimeout
+--
+-- Timer that watches to timeout the current casting spell.
+-------------------------------------------------------------------------------
+local function CheckPredictedSpellsTimeout(self, Elapsed)
+
+  -- Check for predicted spell time out.
+  if PredictedSpellsTime > 0 then
+    PredictedSpellsTime = PredictedSpellsTime - Elapsed
+  else
+    local SpellID = PredictedSpellCasting.SpellID
+    local CastTime = PredictedSpellCasting.CastTime
+    local Fn = PredictedSpellCasting.Fn
+
+    self.ModifyCastingSpell('remove')
+
+    if Fn then
+      Fn(SpellID, CastTime, 'timeout')
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- ModifyCastingSpell
 --
 -- Adds or Remove a spell that is casting.
 --
--- usage ModifyCastingSpell(Action, SpellID, LineID, Time, CastTime)
+-- usage ModifyCastingSpell(Action, SpellID, LineID, CastTime, Fn)
 --
 -- Action   'remove' or 'add'
 --            'add'    will add the current spell to casting.
@@ -3299,21 +3327,31 @@ end
 --
 -- SpellID     The spell to add.
 -- LineID      LineID to add.
--- Time      Time the spell was added.
--- CastTime  Amount of time it takes to cast the spell.
+-- CastTime    Amount of time it takes to cast the spell.
+-- Fn          Function to call when timeout happens.
 -------------------------------------------------------------------------------
-local function ModifyCastingSpell(Action, SpellID, LineID, Time, CastTime)
+local function ModifyCastingSpell(Action, SpellID, LineID, CastTime, Fn)
+
+  -- Stop the timeout checker.
+  Main:SetTimer(PredictedSpellsTimer, nil)
+
   if Action == 'add' then
     PredictedSpellCasting.SpellID = SpellID
     PredictedSpellCasting.LineID = LineID
-    PredictedSpellCasting.Time = Time
     PredictedSpellCasting.CastTime = CastTime
+    PredictedSpellCasting.Fn = Fn
+
+    -- Set timeout
+    PredictedSpellsTime = PredictedSpellsTimeout - 1 -- Takes one second for timer to start ticking.
+
+    -- Start the timeout checker.
+    Main:SetTimer(PredictedSpellsTimer, 1, CheckPredictedSpellsTimeout)
 
   elseif Action == 'remove' then
     PredictedSpellCasting.SpellID = 0
     PredictedSpellCasting.LineID = -1
-    PredictedSpellCasting.Time = 0
     PredictedSpellCasting.CastTime = 0
+    PredictedSpellCasting.Fn = nil
   end
 end
 
@@ -3327,23 +3365,31 @@ end
 -- SpellID      Returns the spell ID or 0 for no spell.
 -------------------------------------------------------------------------------
 function GUB.Main:GetPredictedSpell()
-
-  -- Register events if the wait time expired.
-  if PredictedSpellsTime == 0 then
-    RegisterEvents('register', 'predictedspells')
-
-    -- Remove any casting spell left over.
-    ModifyCastingSpell('remove')
-  end
-  PredictedSpellsTime = PredictedSpellsWaitTime
-
-  -- Check for time out
-  if PredictedSpellCasting.SpellID > 0 and
-     GetTime() - PredictedSpellCasting.Time > PredictedSpellTimeout then
-    ModifyCastingSpell('remove')
-  end
-
   return PredictedSpellCasting.SpellID
+end
+
+-------------------------------------------------------------------------------
+-- SetPredictedSpellsActive
+--
+-- Turns predicted spells on or off.
+--
+-- Usage: SetPredictedSpellsActive(BarType, Action)
+--
+-- BarType   If BarType matches with what was set in SetPredictedSpells() then
+--           Action won't be ignored.
+-- Action    True or False.  If true then predictedspells if turned on otherwise off.
+-------------------------------------------------------------------------------
+local function SetPredictedSpellsActive(BarType, Action)
+  if BarType == PredictedSpellsBarType then
+    if Action then
+      RegisterEvents('register' , 'predictedspells')
+    else
+      RegisterEvents('unregister' , 'predictedspells')
+
+      -- Remove any casting spell left over.
+      ModifyCastingSpell('remove')
+    end
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -3352,7 +3398,8 @@ end
 -- Adds a spellID to the list for predicted spells.
 -- Can also turn off or on predicted spells.
 --
--- usage: SetPredictedSpells(SpellID, EndOn, Fn)
+-- Usage: SetPredictedSpells(SpellID, EndOn, Fn)
+--        SetPredictedSpells(true or false, BarType)
 --
 -- SpellID       ID of the spell to track.
 -- EndOn         Tells how the spell will end.
@@ -3360,12 +3407,26 @@ end
 --               'energize' means the spell will end on energize event.
 -- Fn            See SetPredictedSpell() and Eclipse.lua on how Fn() is used.
 --
+-- BarType       Type of bar the spells will be used with.  This is needed for hiding/showing by HideUnitBar()
+-- true          Turn on predicted power.
+-- false         Turn off predicted power.
+--
 -- NOTE:   When using endon 'energize' you must add the energize spellID as well otherwise
 --         the predictedspell system will not see the energize event.  See EclipseBar.lua how this is set up.
 -------------------------------------------------------------------------------
 function GUB.Main:SetPredictedSpells(SpellID, EndOn, Fn)
-  local PS = {EndOn = EndOn, Fn = Fn}
-  PredictedSpells[SpellID] = PS
+  if type(SpellID) ~= 'boolean' then
+    local PS = {EndOn = EndOn, Fn = Fn}
+    PredictedSpells[SpellID] = PS
+  else
+    if PredictedSpellsTimer == nil then
+      PredictedSpellsTimer = CreateFrame('Frame')
+      PredictedSpellsTimer.ModifyCastingSpell = ModifyCastingSpell
+    end
+    PredictedSpellsBarType = EndOn
+    PredictedSpellsActive = SpellID
+    SetPredictedSpellsActive(PredictedSpellsBarType, PredictedSpellsActive)
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -3827,6 +3888,11 @@ local function HideUnitBar(UnitBarF, HideBar)
 
   if HideBar and not UnitBarF.Hidden then
 
+    -- Disable PredictedSpells if active.
+    if PredictedSpellsActive then
+      SetPredictedSpellsActive(UnitBarF.BarType, false)
+    end
+
     -- Deselect a unitbar if selected.
     if UnitBarF == PSelectedUnitBarF then
       PSelectedUnitBarF = nil
@@ -3845,16 +3911,20 @@ local function HideUnitBar(UnitBarF, HideBar)
     end
     UnitBarF.Hidden = true
 
-  else
-    if not HideBar and UnitBarF.Hidden then
-      if UnitBars.FadeOutTime > 0 then
+  elseif not HideBar and UnitBarF.Hidden then
 
-        -- Finish the animation fade out if its still playing.
-        Main:Animation(FadeOut, 'stop')
-      end
-      Anchor:Show()
-      UnitBarF.Hidden = false
+    -- Enable PredictedSpells if active.
+    if PredictedSpellsActive then
+      SetPredictedSpellsActive(UnitBarF.BarType, true)
     end
+
+    if UnitBars.FadeOutTime > 0 then
+
+      -- Finish the animation fade out if its still playing.
+      Main:Animation(FadeOut, 'stop')
+    end
+    Anchor:Show()
+    UnitBarF.Hidden = false
   end
 end
 
@@ -3915,7 +3985,8 @@ function GUB.Main:StatusCheck(Event)
 
       -- Get the idle status based on HideNotActive when not in combat.
       elseif not InCombat and Status.HideNotActive then
-        Visible = self.IsActive == 1
+        local IsActive = self.IsActive
+        Visible = type(IsActive) == 'boolean' and IsActive
 
         -- if not visible then set IsActive to watch for activity.
         if not Visible then
@@ -3982,13 +4053,14 @@ end
 --           Message = 'start'  Gets called on spell cast start.
 --                        on 'start' you can return -1 to not add the spell to be tracked.
 --                        see EclipseBar.lua on how this is done.
---           Message = 'end'    Gets called on spell success.
---           Message = 'failed' Gets called if the spell didn't complete.
+--                   = 'afterstart'  Gets called right after the spell starts casting.
+--                   = 'end'    Gets called on spell success.
+--                   = 'failed' Gets called if the spell didn't complete.
+--                   = 'timeout' Gets called by CheckPredictedSpellsTimeout() if the spell timed out.
 --           CastTime  The amount of time to cast the spell in seconds.
---           SpellID is always negative on 'start', 'end', or 'failed'
+--           SpellID is always negative on 'start', 'end', 'afterstart', or 'failed'
 --
---           if its energize then the message comes from the server.
---           if the SpellID is negative then its either 'gubstart' or 'gubend'
+--           If its energize then the message comes from the server.
 -------------------------------------------------------------------------------
 local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
   local PSE = PredictedSpellEvent[Event]
@@ -4018,7 +4090,11 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
         if SpellID > -1 then
 
           -- Set casting spell.
-          ModifyCastingSpell('add', SpellID, LineID, GetTime(), CastTime)
+          ModifyCastingSpell('add', SpellID, LineID, CastTime, Fn)
+        end
+
+        if Fn then
+          Fn(-SpellID, CastTime, 'afterstart')
         end
       else
         CastTime = PredictedSpellCasting.CastTime
@@ -4044,14 +4120,14 @@ local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
 
       if PSE == EventSpellEnergize or PSE == EventSpellMissed then
 
-        -- call Fn on energize.
-        if PSE == EventSpellEnergize and Fn then
-          Fn(SpellID, CastTime, Message)
-        end
-
         -- Remove casting spell if SpellID > 0
         if PS.EndOn == 'energize' or PSE == EventSpellMissed then
           ModifyCastingSpell('remove')
+        end
+
+        -- call Fn on energize.
+        if PSE == EventSpellEnergize and Fn then
+          Fn(SpellID, CastTime, Message)
         end
       end
     end
@@ -4346,8 +4422,8 @@ local function SetUnitBarsLayout()
     -- Set the layout for the bar.
     UnitBarF:SetLayout()
 
-    -- Set the IsActive flag to -1 (inactive).
-    UnitBarF.IsActive = -1
+    -- Set the IsActive flag to false.
+    UnitBarF.IsActive = false
 
     -- Hide the unitbar.
     UnitBarF.Visible = false
@@ -4448,47 +4524,6 @@ local function CreateUnitBars(UnitBarDB)
   end
 end
 
--------------------------------------------------------------------------------
--- CreateUnitBarTimers
---
--- All unitbars are controlled thru SetTimer()
---
--- NOTES: This keeps track of doing statuschecks and since all bars get updated
---        every so often.  This keeps the predictedspells system working.
--------------------------------------------------------------------------------
-local function CreateUnitBarTimers()
-
-  -- Timer for updating health and power bars and keeping track of predicted spells.
-  local function UnitBarsTimer(self, Elapsed)
-
-    -- Turn off the events for Predicted spells if they're
-    -- not used after a certain amount of time.
-    if PredictedSpellsTime > 0 then
-      PredictedSpellsTime = PredictedSpellsTime - Elapsed
-      if PredictedSpellsTime == 0 then
-        PredictedSpellsTime = -1
-      end
-    end
-    if PredictedSpellsTime < 0 then
-      RegisterEvents('unregister' , 'predictedspells')
-      PredictedSpellsTime = 0
-    end
-
-    -- Update all bars based on their time.
-    for _, UBF in ipairs(UnitBarsFI) do
-      if UBF.IsVisible then
-
-        -- Check LastTime against WaitTime.
-        if GetTime() - UBF.LastTime > UBF.WaitTime then
-          UBF:Update('change')
-        end
-      end
-    end
-  end
-
-  -- Create health and power bars timer.
-  Main:SetTimer(CreateFrame('Frame'), UnitBarDelay, UnitBarsTimer)
-end
 
 --*****************************************************************************
 --
@@ -4521,26 +4556,26 @@ function GUB.Main:EnableUnitBars()
     end
     local Enabled = UB.Enabled
 
-    -- Only make changes if enable flag was changed.
-    if UBF.WasEnabled ~= Enabled then
-      UBF.WasEnabled = Enabled
+    if Enabled then
+      Index = Index + 1
+      UnitBarsFI[Index] = UBF
 
-      -- Enable/Disable the Unitbar.
-      UBF:Enable(Enabled)
-
-      if Enabled then
-        Index = Index + 1
-        UnitBarsFI[Index] = UBF
+      if UBF.WasEnabled ~= Enabled then
+        UBF:Enable(Enabled)
 
         -- Do a status check.
         UBF:StatusCheck()
         UBF:Update()
-      else
-
-        -- Hide the unitbar.
-        HideUnitBar(UBF, true)
       end
+    else
+      if UBF.WasEnabled ~= Enabled then
+        UBF:Enable(Enabled)
+      end
+
+      -- Hide the unitbar.
+      HideUnitBar(UBF, true)
     end
+    UBF.WasEnabled = Enabled
   end
 
   -- Delete extra bars from the array.
@@ -4648,9 +4683,6 @@ function GUB:OnInitialize()
   -- Create the unitbars.
   CreateUnitBars()
 
-  -- Create the unitbar timers.
-  CreateUnitBarTimers()
-
 --@do-not-package@
   GUBfdata = UnitBarsF -- debugging 00000000000000000000000000000000000
 --@end-do-not-package@
@@ -4667,11 +4699,11 @@ function GUB:OnEnable()
   -- Update all the unitbars according to the new data.
   SetUnitBarsLayout()
 
-  -- Enable unit bars.
-  Main:EnableUnitBars()
-
   -- Set up the scripts.
   UnitBarsSetScript(true)
+
+  -- Enable unit bars.
+  Main:EnableUnitBars()
 
   -- Initialize the events.
   RegisterEvents('register', 'main')

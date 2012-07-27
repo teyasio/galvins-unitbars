@@ -60,7 +60,6 @@ local C_PetBattles, UIParent =
 --
 -- MaxPowerPerEmber                  Amount of power for each ember.
 -- CurrentNumEmbers                  Contains the current number of embers the player has.
--- LastEmberPower                    Keeps track of change in ember power.
 --
 -- BarOffsetX, BarOffsetY            Offset the whole bar within the border.
 -------------------------------------------------------------------------------
@@ -71,7 +70,6 @@ local MaxPowerPerEmber = MAX_POWER_PER_EMBER
 local PowerEmber = PowerTypeToNumber['BURNING_EMBERS']
 
 local CurrentNumEmbers = nil
-local LastEmberPower = nil
 
 -- Ember Texture constants
 local EmberBox = 10
@@ -163,11 +161,11 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -192,13 +190,6 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   -- Set default value if NumEmbers returns zero.
   NumEmbers = NumEmbers > 0 and NumEmbers or MaxEmbers - 1
 
-  -- Return if no change.
-  if Event == 'change' and EmberPower == LastEmberPower and NumEmbers == CurrentNumEmbers then
-    return
-  end
-
-  LastEmberPower = EmberPower
-
   -- Check for max ember change
   if NumEmbers ~= CurrentNumEmbers then
     CurrentNumEmbers = NumEmbers
@@ -213,7 +204,7 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   UpdateBurningEmbers(self, EmberPower, NumEmbers)
 
     -- Set this IsActive flag
-  self.IsActive = EmberPower > 0 and 1 or -1
+  self.IsActive = EmberPower > 0
 
   -- Do a status check.
   self:StatusCheck()

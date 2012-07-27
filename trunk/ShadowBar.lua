@@ -56,8 +56,6 @@ local C_PetBattles, UIParent =
 -- OrbBox                            Texture number for orbs in box mode.
 -- OrbDark                           Texture number for dark orbs in texture mode.
 -- OrbGlow                           Texture number for glowing orbs in texture mode.
---
--- LastOrbs                          Keep track of change for displaying the shadow orbs.
 -------------------------------------------------------------------------------
 local MaxShadowOrbs = 3
 
@@ -68,8 +66,6 @@ local PowerShadow = PowerTypeToNumber['SHADOW_ORBS']
 local OrbBox = 10
 local OrbDark = 1
 local OrbGlow = 2
-
-local LastOrbs = nil
 
 local ShadowData = {
   Texture = [[Interface\PlayerFrame\Priest-ShadowUI]],
@@ -145,11 +141,11 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -169,17 +165,10 @@ function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
 
   local Orbs = UnitPower('player', PowerShadow)
 
-  -- Return if no change.
-  if Event == 'change' and Orbs == LastOrbs then
-    return
-  end
-
-  LastOrbs = Orbs
-
   UpdateShadowOrbs(self, Orbs)
 
     -- Set this IsActive flag
-  self.IsActive = Orbs > 0 and 1 or -1
+  self.IsActive = Orbs > 0
 
   -- Do a status check.
   self:StatusCheck()

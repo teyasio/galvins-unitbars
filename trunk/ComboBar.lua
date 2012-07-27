@@ -96,14 +96,10 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ComboBar:Update(Event)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
-    if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
-        return
-      end
-    else
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
+    if self.IsActive == 0 and (Event == nil or Event == 'change') or true then
       return
     end
   end
@@ -125,7 +121,7 @@ function GUB.UnitBarsF.ComboBar:Update(Event)
   UpdateComboPoints(self, ComboPoints)
 
   -- Set the IsActive flag
-  self.IsActive = ComboPoints > 0 and 1 or -1
+  self.IsActive = ComboPoints > 0
 
   -- Do a status check.
   self:StatusCheck()
@@ -327,6 +323,6 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.ComboBar:Enable(Enable)
-  -- Combo bar doesn't use events.
+  Main:RegEvent(Enable, self, 'UNIT_COMBO_POINTS', self.Update, 'player')
 end
 

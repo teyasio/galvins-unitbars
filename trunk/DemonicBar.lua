@@ -85,9 +85,6 @@ local FuryBorderMeta = 5
 local FuryNotch = 6
 local FuryNotchMeta = 7
 
-local LastDemonicFury = nil
-local LastMaxDemonicFury = nil
-
 local MetaBuff = 103958 -- Warlock metamorphosis spell ID buff.
 local MetaActive = false
 
@@ -206,11 +203,11 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -233,14 +230,6 @@ function GUB.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
 
   -- Check for metamorphosis.
   local Meta = Main:CheckAura('o', MetaBuff)
-
-  -- Return if no change.
-  if Event == 'change' and DemonicFury == LastDemonicFury and MaxDemonicFury == LastMaxDemonicFury then
-    return
-  end
-
-  LastDemonicFury = DemonicFury
-  LastMaxDemonicFury = MaxDemonicFury
   local DemonicBar = self.DemonicBar
 
   -- If meta then change texture or box color.
@@ -279,7 +268,7 @@ function GUB.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
   UpdateDemonicFury(self, Value, DemonicFury, MaxDemonicFury)
 
     -- Set this IsActive flag when not 20% or in metamorphosis.
-  self.IsActive = (Value ~= 0.20 or MetaActive) and 1 or -1
+  self.IsActive = Value ~= 0.20 or MetaActive
 
   -- Do a status check.
   self:StatusCheck()

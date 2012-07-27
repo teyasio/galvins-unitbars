@@ -16,6 +16,7 @@
 local MyAddon, GUB = ...
 
 local Main = GUB.Main
+local UnitBarsF = GUB.UnitBarsF
 local LSM = GUB.LSM
 local PowerTypeToNumber = GUB.PowerTypeToNumber
 local MouseOverDesc = GUB.MouseOverDesc
@@ -53,7 +54,7 @@ local C_PetBattles, UIParent =
 --
 -- UnitBarF.EclipseF                 Table containing the frames that make up the eclipse bar.
 --
--- Border.Anchor                     Anchor reference for moving.
+-- Border.Anchor                     Anchor reference for moving. Only for Moon, Sun, and Bar.
 --
 -- EclipseF.Moon                     Table containing frame data for moon.
 --   Dark                            If true the Moon is not lit.
@@ -156,10 +157,6 @@ local C_PetBattles, UIParent =
 local PowerEclipse = PowerTypeToNumber['ECLIPSE']
 
 local EclipseDirection = nil
-local LastEclipsePower = nil
-local LastEclipseDirection = nil
-local LastEclipse = nil
-local LastPredictedSpells = nil
 
 local SolarBuff = 48517
 local LunarBuff = 48518
@@ -239,22 +236,29 @@ GUB.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
 -- predictedspell system not to track it.
 --
 -- Setting SpellID to -1 tells it not to add the spell to be tracked.
+--
+-- This function also updates the bar when predicted gets changed.
 -------------------------------------------------------------------------------
 local function CheckSpell(SpellID, CastTime, Message)
-  if SpellID < 0 and Message == 'start' then
-    SpellID = abs(SpellID)
+  if SpellID < 0 then
+    if Message == 'start' then
+      SpellID = abs(SpellID)
 
-    -- Check for Celestial Alignment buff.  Will the buff drop off before spell
-    -- is done casting?
-    local Spell, TimeLeft = Main:CheckAura('o', CABuff)
-    if Spell then
-      if CastTime < TimeLeft then
-        SpellID = -1
+      -- Check for Celestial Alignment buff.  Will the buff drop off before spell
+      -- is done casting?
+      local Spell, TimeLeft = Main:CheckAura('o', CABuff)
+      if Spell then
+        if CastTime < TimeLeft then
+          SpellID = -1
+        end
       end
+      return SpellID
     end
   end
 
-  return SpellID
+  -- afterstart, end, failed.
+  -- Show the predicted power changes on the bar.
+  UnitBarsF.EclipseBar:Update()
 end
 
 -------------------------------------------------------------------------------
@@ -565,8 +569,15 @@ end
 --
 -- Event     'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:Update(Event)
+function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   if not self.Visible then
+    return
+  end
+
+  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerEclipse
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerEclipse then
     return
   end
 
@@ -584,42 +595,14 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
   local ED = GetEclipseDirection()
 
   -- Update EclipseDirection on maxpower or nil or none.
+
   if abs(EclipsePower) == EclipseMaxPower or EclipsePower == 0 or EclipseDirection == nil then
     EclipseDirection = ED
   end
   local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
-
   local PredictedSpells = PredictedPower and Main:GetPredictedSpell() > 0 and 1 or 0
 
-  -- Return if there is no change.
-  if Event == 'change' and EclipsePower == LastEclipsePower and EclipseDirection == LastEclipseDirection and
-     Eclipse == LastEclipse and PredictedSpells == 0 and LastPredictedSpells == 0 then
-    return
-  end
-
   local EF = self.EclipseF
-
-  -- Check for real zero eclipse power.
-  if EclipsePower == 0 then
-    local EclipsePowerZeroTime = EF.EclipsePowerZeroTime
-
-    -- Set the starting time and return.
-    if EclipsePowerZeroTime == nil or EclipsePowerZeroTime == 0 then
-      EF.EclipsePowerZeroTime = GetTime()
-      return
-
-    -- Keep returning if not enough time has passed.
-    elseif GetTime() - EclipsePowerZeroTime < 0.4 then
-      return
-    end
-  else
-    EF.EclipsePowerZeroTime = 0
-  end
-
-  LastEclipsePower = EclipsePower
-  LastEclipseDirection = EclipseDirection
-  LastEclipse = Eclipse
-  LastPredictedSpells = PredictedSpells
 
   local IndicatorHideShow = Gen.IndicatorHideShow
   local FadeOutTime = Gen.EclipseFadeOutTime
@@ -723,8 +706,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event)
     EclipseBarHide(EF, 'Solar', false, FadeOutTime)
   end
 
-  -- Do a status check.
-  self.IsActive = 1
+  self.IsActive = true
 
   -- Do a status check.
   self:StatusCheck()
@@ -803,12 +785,14 @@ end
 -- Sets different parts of the eclipsebar.
 --
 -- Usage: SetAttr(Object, Attr, Eclipse)
+--        SetAttr('ppower')
 --
 -- Object       Object being changed:
 --               'bg'        for background (Border).
 --               'bar'       for forground (StatusBar).
 --               'text'      for the text.
 --               'frame'     for the frame.
+--               'ppower'    for predicted power.
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
 --               'backdrop'  Backdrop settings being set to the object.
@@ -823,13 +807,14 @@ end
 --               'bar'       Apply changes to the bar.
 --               'slider'    Apply changes to the slider.
 --               'Indicator' Apply changes to the predicted slider.
---              if Eclipse is nil then only frame scale, frame strata, or text can be changed.
+--              If Eclipse is nil then only frame scale, frame strata, or text can be changed.
+--              Eclipse can have more than one paramater.  So to do moon and sun you would do ('moon', 'sun').
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
 --       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, Eclipse)
+function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, ...)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
@@ -837,6 +822,11 @@ function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, Eclipse)
 
   -- Check scale and strata for 'frame'
   Main:UnitBarSetAttr(self, Object, Attr)
+
+  -- Set predicted power settings.
+  if Object == nil or Object == 'ppower' then
+    Main:SetPredictedSpells(UB.General.PredictedPower, 'EclipseBar')
+  end
 
   -- Text (StatusBar.Txt).
   if Object == nil or Object == 'text' then
@@ -853,98 +843,101 @@ function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, Eclipse)
   end
 
   -- if Eclipse is nil then return.
-  if not Eclipse then
+  if ... == nil then
     return
   end
 
-  -- Uppercase the first character.
-  Eclipse = gsub(Eclipse, '%a', strupper, 1)
+  for EclipseIndex = 1, select('#', ...) do
 
-  -- Get bar data.
-  local Background = UB.Background[Eclipse]
-  local Bar = UB.Bar[Eclipse]
-  local UBF = EclipseF[Eclipse]
+    -- Uppercase the first character.
+    local Eclipse = gsub(select(EclipseIndex, ...), '%a', strupper, 1)
 
-  -- Background (Border).
-  if Object == nil or Object == 'bg' then
-    local Border = UBF.Border
-    local BgColor = Background.Color
+    -- Get bar data.
+    local Background = UB.Background[Eclipse]
+    local Bar = UB.Bar[Eclipse]
+    local UBF = EclipseF[Eclipse]
 
-    if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-    end
-    if Attr == nil or Attr == 'color' then
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-    end
-  end
+    -- Background (Border).
+    if Object == nil or Object == 'bg' then
+      local Border = UBF.Border
+      local BgColor = Background.Color
 
-  -- Forground (Statusbar).
-  if Object == nil or Object == 'bar' then
-    local StatusBar = UBF.StatusBar
-    local StatusBarLunar = EclipseF.Lunar.Frame
-    local StatusBarSolar = EclipseF.Solar.Frame
-    local Frame = UBF.Frame
-
-    local Padding = Bar.Padding
-    local BarColor = Bar.Color
-    local BarColorLunar = Bar.ColorLunar
-    local BarColorSolar = Bar.ColorSolar
-
-    if Attr == nil or Attr == 'texture' then
-      if Eclipse ~= 'Bar' then
-        StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
-        StatusBar:GetStatusBarTexture():SetHorizTile(false)
-        StatusBar:GetStatusBarTexture():SetVertTile(false)
-        StatusBar:SetOrientation(Bar.FillDirection)
-        StatusBar:SetRotatesTexture(Bar.RotateTexture)
-      else
-        StatusBarLunar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureLunar))
-        StatusBarSolar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureSolar))
-        StatusBarLunar:GetStatusBarTexture():SetHorizTile(false)
-        StatusBarLunar:GetStatusBarTexture():SetVertTile(false)
-        StatusBarLunar:SetOrientation(Bar.FillDirection)
-        StatusBarLunar:SetRotatesTexture(Bar.RotateTexture)
-        StatusBarSolar:GetStatusBarTexture():SetHorizTile(false)
-        StatusBarSolar:GetStatusBarTexture():SetVertTile(false)
-        StatusBarSolar:SetOrientation(Bar.FillDirection)
-        StatusBarSolar:SetRotatesTexture(Bar.RotateTexture)
+      if Attr == nil or Attr == 'backdrop' then
+        Border:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
+        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      end
+      if Attr == nil or Attr == 'color' then
+        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
       end
     end
 
-    if Attr == nil or Attr == 'color' then
-      if Eclipse ~= 'Bar' then
-        StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-      else
-        StatusBarLunar:SetStatusBarColor(BarColorLunar.r, BarColorLunar.g, BarColorLunar.b, BarColorLunar.a)
-        StatusBarSolar:SetStatusBarColor(BarColorSolar.r, BarColorSolar.g, BarColorSolar.b, BarColorSolar.a)
+    -- Forground (Statusbar).
+    if Object == nil or Object == 'bar' then
+      local StatusBar = UBF.StatusBar
+      local StatusBarLunar = EclipseF.Lunar.Frame
+      local StatusBarSolar = EclipseF.Solar.Frame
+      local Frame = UBF.Frame
+
+      local Padding = Bar.Padding
+      local BarColor = Bar.Color
+      local BarColorLunar = Bar.ColorLunar
+      local BarColorSolar = Bar.ColorSolar
+
+      if Attr == nil or Attr == 'texture' then
+        if Eclipse ~= 'Bar' then
+          StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
+          StatusBar:GetStatusBarTexture():SetHorizTile(false)
+          StatusBar:GetStatusBarTexture():SetVertTile(false)
+          StatusBar:SetOrientation(Bar.FillDirection)
+          StatusBar:SetRotatesTexture(Bar.RotateTexture)
+        else
+          StatusBarLunar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureLunar))
+          StatusBarSolar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureSolar))
+          StatusBarLunar:GetStatusBarTexture():SetHorizTile(false)
+          StatusBarLunar:GetStatusBarTexture():SetVertTile(false)
+          StatusBarLunar:SetOrientation(Bar.FillDirection)
+          StatusBarLunar:SetRotatesTexture(Bar.RotateTexture)
+          StatusBarSolar:GetStatusBarTexture():SetHorizTile(false)
+          StatusBarSolar:GetStatusBarTexture():SetVertTile(false)
+          StatusBarSolar:SetOrientation(Bar.FillDirection)
+          StatusBarSolar:SetRotatesTexture(Bar.RotateTexture)
+        end
       end
-    end
 
-    if Attr == nil or Attr == 'padding' then
-      if Eclipse ~= 'Bar' then
-        StatusBar:ClearAllPoints()
-        StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
-        StatusBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
-      else
-        local RB = RotateBar[UB.General.EclipseAngle]
-
-        StatusBarLunar:ClearAllPoints()
-        StatusBarLunar:SetPoint(RB.LunarPoint1, Frame, RB.LunarRelativePoint1,
-                                Padding.Left * RB.LunarPadding1X, Padding.Top * RB.LunarPadding1Y)
-        StatusBarLunar:SetPoint(RB.LunarPoint2, Frame, RB.LunarRelativePoint2,
-                                Padding.Right * RB.LunarPadding2X, Padding.Bottom * RB.LunarPadding2Y)
-        StatusBarSolar:ClearAllPoints()
-        StatusBarSolar:SetPoint(RB.SolarPoint1, Frame, RB.SolarRelativePoint1,
-                                Padding.Left * RB.SolarPadding1X, Padding.Top * RB.SolarPadding1Y)
-        StatusBarSolar:SetPoint(RB.SolarPoint2, Frame, RB.SolarRelativePoint2,
-                                Padding.Right * RB.SolarPadding2X, Padding.Bottom * RB.SolarPadding2Y)
+      if Attr == nil or Attr == 'color' then
+        if Eclipse ~= 'Bar' then
+          StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        else
+          StatusBarLunar:SetStatusBarColor(BarColorLunar.r, BarColorLunar.g, BarColorLunar.b, BarColorLunar.a)
+          StatusBarSolar:SetStatusBarColor(BarColorSolar.r, BarColorSolar.g, BarColorSolar.b, BarColorSolar.a)
+        end
       end
-    end
 
-    if Attr == nil or Attr == 'size' then
-      Frame:SetWidth(Bar[format('%sWidth', Eclipse)])
-      Frame:SetHeight(Bar[format('%sHeight', Eclipse)])
+      if Attr == nil or Attr == 'padding' then
+        if Eclipse ~= 'Bar' then
+          StatusBar:ClearAllPoints()
+          StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
+          StatusBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+        else
+          local RB = RotateBar[UB.General.EclipseAngle]
+
+          StatusBarLunar:ClearAllPoints()
+          StatusBarLunar:SetPoint(RB.LunarPoint1, Frame, RB.LunarRelativePoint1,
+                                  Padding.Left * RB.LunarPadding1X, Padding.Top * RB.LunarPadding1Y)
+          StatusBarLunar:SetPoint(RB.LunarPoint2, Frame, RB.LunarRelativePoint2,
+                                  Padding.Right * RB.LunarPadding2X, Padding.Bottom * RB.LunarPadding2Y)
+          StatusBarSolar:ClearAllPoints()
+          StatusBarSolar:SetPoint(RB.SolarPoint1, Frame, RB.SolarRelativePoint1,
+                                  Padding.Left * RB.SolarPadding1X, Padding.Top * RB.SolarPadding1Y)
+          StatusBarSolar:SetPoint(RB.SolarPoint2, Frame, RB.SolarRelativePoint2,
+                                  Padding.Right * RB.SolarPadding2X, Padding.Bottom * RB.SolarPadding2Y)
+        end
+      end
+
+      if Attr == nil or Attr == 'size' then
+        Frame:SetWidth(Bar[format('%sWidth', Eclipse)])
+        Frame:SetHeight(Bar[format('%sHeight', Eclipse)])
+      end
     end
   end
 end
@@ -1083,11 +1076,7 @@ function GUB.UnitBarsF.EclipseBar:SetLayout()
   EF.Solar.Frame.FadeOutA:SetDuration(FadeOutTime)
 
   -- Set all attributes.
-  self:SetAttr(nil, nil, 'moon')
-  self:SetAttr(nil, nil, 'bar')
-  self:SetAttr(nil, nil, 'sun')
-  self:SetAttr(nil, nil, 'slider')
-  self:SetAttr(nil, nil, 'indicator')
+  self:SetAttr(nil, nil, 'moon', 'bar', 'sun', 'slider', 'indicator')
 
   -- Save size data to self (UnitBarF).
   self:SetSize(BorderWidth, BorderHeight)
@@ -1261,7 +1250,9 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.EclipseBar:Enable(Enable)
-  -- Eclipse bar doesn't use events.
+  Main:RegEvent(Enable, self, 'UNIT_AURA', self.Update, 'player')
+  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEvent(Enable, self, 'ECLIPSE_DIRECTION_CHANGE', self.Update, 'player')
 end
 
 
