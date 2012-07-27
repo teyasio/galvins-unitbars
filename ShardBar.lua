@@ -52,7 +52,6 @@ local C_PetBattles, UIParent =
 --   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
 -- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
 --
--- LastSoulShards                    Keeps track of change in the soulshard bar.
 -- CurrentNumShards                  Total number of shards the player currently has.
 --
 -- ShardBox                          Soul shard in box mode.  Statusbar
@@ -69,7 +68,6 @@ local ShardBox = 1
 local ShardDark = 2
 local ShardLight = 3
 
-local LastSoulShards = nil
 local CurrentNumShards = nil
 
 local ShardData = {
@@ -138,11 +136,11 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -166,13 +164,6 @@ function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   -- Set default value if NumShards returns zero.
   NumShards = NumShards > 0 and NumShards or MaxSoulShards - 1
 
-  -- Return if no change.
-  if Event == 'change' and SoulShards == LastSoulShards and NumShards == CurrentNumShards then
-    return
-  end
-
-  LastSoulShards = SoulShards
-
   -- Check for max soulshard change
   if NumShards ~= CurrentNumShards then
     CurrentNumShards = NumShards
@@ -187,7 +178,7 @@ function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   UpdateSoulShards(self, SoulShards, NumShards)
 
     -- Set this IsActive flag
-  self.IsActive = SoulShards > 0 and 1 or -1
+  self.IsActive = SoulShards > 0
 
   -- Do a status check.
   self:StatusCheck()

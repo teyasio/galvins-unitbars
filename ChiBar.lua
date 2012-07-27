@@ -36,13 +36,37 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 local C_PetBattles, UIParent =
       C_PetBattles, UIParent
 
+
+-- Locals
+
+-- UnitBarF = UnitBarsF[]
+--
+-- UnitBarF.UnitBar                  Reference to the unitbar data for the shadow bar.
+-- UnitBarF.ShadowBar                Contains the shadow bar displayed on screen.
+--
+-- ShadowData                        Contains all the data for the shadow bar.
+--
+
 -------------------------------------------------------------------------------
 -- Locals
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar               Reference to the unitbar data for the chi bar.
--- UnitBarF.ChiBar                Contains the chi bar displayed on screen.
+-- UnitBarF.UnitBar                  Reference to the unitbar data for the chi bar.
+-- UnitBarF.ChiBar                   Contains the chi bar displayed on screen.
+--
+-- ChiData                           Contains all the data for the chi bar.
+--   Texture                         Path name to the texture.
+--   TextureWidth, TextureHeight     Width and Height of the orbs in texture mode.
+--   [TextureType]
+--     Level                         Frame level to display the texture on.
+--     Point                         Position of the texture inside the texture frame.
+--     Width, Height                 Width and Height of the texture.
+--     Left, Right, Top, Bottom      Texcoords inside the Texture that locate each texture.
+--
+-- OrbBox                            Texture number for orbs in box mode.
+-- OrbDark                           Texture number for dark orbs in texture mode.
+-- Orblight                          Texture number for lit orbs in texture mode.
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 5
 
@@ -54,7 +78,6 @@ local OrbBox = 10
 local OrbDark = 1
 local OrbLight = 2
 
-local LastOrbs = nil
 local CurrentNumOrbs = nil
 
 local ChiData = {
@@ -131,11 +154,11 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -159,13 +182,6 @@ function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   -- Set default value if NumShards returns zero.
   NumOrbs = NumOrbs > 0 and NumOrbs or MaxChiOrbs - 1
 
-  -- Return if no change.
-  if Event == 'change' and Orbs == LastOrbs and NumOrbs == CurrentNumOrbs then
-    return
-  end
-
-  LastOrbs = Orbs
-
   -- Check for max soulshard change
   if NumOrbs ~= CurrentNumOrbs then
     CurrentNumOrbs = NumOrbs
@@ -180,7 +196,7 @@ function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   UpdateChiOrbs(self, Orbs, NumOrbs)
 
     -- Set this IsActive flag
-  self.IsActive = Orbs > 0 and 1 or -1
+  self.IsActive = Orbs > 0
 
   -- Do a status check.
   self:StatusCheck()

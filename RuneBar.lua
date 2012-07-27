@@ -487,6 +487,7 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
     if Gen.CooldownText then
       RuneF.CooldownText = true
       RuneF.StartRuneCooldown2(StartTime, Duration, Txt)
+
       Main:SetTimer(RuneF, 0.25, RuneF.StartRuneCooldown)
     end
 
@@ -554,11 +555,11 @@ end
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.RuneBar:Update(Event, ...)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -592,11 +593,11 @@ function GUB.UnitBarsF.RuneBar:Update(Event, ...)
   end
 
   -- Calculate active status.
-  local Active = -1
+  local Active = false
   for i = 1, MaxRunes do
     local Start, Duration, RuneReady = GetRuneCooldown(i)
     if not RuneReady then
-      Active = 1
+      Active = true
       break
     end
   end

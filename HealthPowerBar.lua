@@ -53,12 +53,6 @@ local C_PetBattles, UIParent =
 --
 -- StatusBar.UnitBar          Reference to unitbar data for GetStatusBarTextValue()
 --
--- LastCurrValue
--- LastMaxValue
--- LastPowerType              These three values keep track of any changes in the health and power bars.
---
--- LastPredictedValue         Hunters only.  Keeps track of predicted power change.
---
 -- PlayerClass                The players class.
 -------------------------------------------------------------------------------
 local PlayerClass = nil
@@ -67,11 +61,6 @@ local PlayerClass = nil
 local PowerMana = PowerTypeToNumber['MANA']
 local PowerEnergy = PowerTypeToNumber['ENERGY']
 local PowerFocus = PowerTypeToNumber['FOCUS']
-
-local LastCurrValue = {}
-local LastMaxValue = {}
-local LastPowerType = {}
-local LastPredictedValue = {}
 
 -- Predicted spell ID constants.
 local SpellSteadyShot = 56641
@@ -136,9 +125,10 @@ local function CheckSpell(SpellID, CastTime, Message)
     else
 
       -- Spell is done casting.  Update the power.
-      UnitBarsF.PlayerPower:Update('change')
+      UnitBarsF.PlayerPower:Update()
     end
   end
+  print(SpellID, Message)
 end
 
 -------------------------------------------------------------------------------
@@ -242,11 +232,11 @@ end
 -- Unit       player, target, pet, etc
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -262,18 +252,6 @@ local function UpdateHealthBar(self, Event, Unit)
 
   local Gen = self.UnitBar.General
   local PredictedHealing = Gen and Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
-
-  -- Return if there is no change or not visible.
-  if Event == 'change' and
-     CurrValue == LastCurrValue[self] and MaxValue == LastMaxValue[self] and
-     PredictedHealing == LastPredictedValue[self] then
-    return
-  end
-
-  LastCurrValue[self] = CurrValue
-  LastMaxValue[self] = MaxValue
-  LastPredictedValue[self] = PredictedHealing
-
   local Bar = self.UnitBar.Bar
   local PredictedBar = self.PredictedBar
 
@@ -302,7 +280,7 @@ local function UpdateHealthBar(self, Event, Unit)
   SetStatusBarValue(self, CurrValue, MaxValue, PredictedHealing)
 
   -- Set the IsActive flag.
-  self.IsActive = CurrValue < MaxValue and 1 or PredictedHealing > 0 and 1 or -1
+  self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
 
   -- Do a status check.
   self:StatusCheck()
@@ -338,11 +316,11 @@ end
 --               If nil then the unit's powertype is used if nots a ManaPower bar.
 -------------------------------------------------------------------------------
 local function UpdatePowerBar(self, Event, Unit, PowerType2)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -377,29 +355,16 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
-
   local Gen = self.UnitBar.General
 
   -- Get predicted power for hunters only.
   local PredictedPower = Gen and Gen.PredictedPower and Unit == 'player' and PlayerClass == 'HUNTER' and
                          PredictedSpellValue[Main:GetPredictedSpell()] or 0
 
-  -- Return if there is no change.
-  if Event == 'change' and
-     CurrValue == LastCurrValue[self] and MaxValue == LastMaxValue[self] and
-     PowerType == LastPowerType[self] and PredictedPower == 0 and LastPredictedValue[self] == 0 then
-    return
-  end
-
   -- Check for two piece bonus hunters only.
   if PlayerClass == 'HUNTER' and PredictedPower > 0 and Main:GetSetBonus(13) >= 2 then
     PredictedPower = PredictedPower * 2
   end
-
-  LastCurrValue[self] = CurrValue
-  LastMaxValue[self] = MaxValue
-  LastPowerType[self] = PowerType
-  LastPredictedValue[self] = PredictedPower
 
   local Bar = self.UnitBar.Bar
   local Color = Bar.Color[PowerType]
@@ -422,16 +387,16 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   SetStatusBarValue(self, CurrValue, MaxValue, PredictedPower)
 
   -- Set the IsActive flag.
-  local IsActive = -1
+  local IsActive = false
   if PowerType == PowerMana or PowerType == PowerEnergy or PowerType == PowerFocus then
     if CurrValue < MaxValue or PredictedPower > 0 then
-      IsActive = 1
+      IsActive = true
     end
   else
     if CurrValue > 0 then
       if self.BarType == 'PlayerPower' then
       end
-      IsActive = 1
+      IsActive = true
     end
   end
   self.IsActive = IsActive
@@ -521,13 +486,15 @@ end)
 -- Sets different parts of the health and power bars.
 --
 -- Usage: SetAttr(Object, Attr)
+--        SetAttr('ppower')
 --
 -- Object       Object being changed:
---               'bg' for background (Border).
---               'bar' for forground (StatusBar).
---               'text' for text (StatusBar.Txt).
---               'text2' for text2 (StatusBar.Txt2).
---               'frame' for the frame.
+--               'bg'        for background (Border).
+--               'bar'       for forground (StatusBar).
+--               'text'      for text (StatusBar.Txt).
+--               'text2'     for text2 (StatusBar.Txt2).
+--               'ppower'    for predicted power.
+--               'frame'     for the frame.
 -- Attr         Type of attribute being applied to object:
 --               'color'     Color being set to the object.
 --               'pcolor'    Predicted color being set to the object.
@@ -550,9 +517,16 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
+  local Gen = UB.General
 
   -- Check scale and strata for 'frame'
   Main:UnitBarSetAttr(self, Object, Attr)
+
+  -- Set predicted power settings.
+  if self.BarType == 'PlayerPower' and PlayerClass == 'HUNTER' and (Object == nil or Object == 'ppower') then
+    print('PP', Gen)
+    Main:SetPredictedSpells(Gen.PredictedPower, 'PlayerPower')
+  end
 
   -- Background (Border).
   if Object == nil or Object == 'bg' then

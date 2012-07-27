@@ -58,8 +58,6 @@ local C_PetBattles, UIParent =
 --     Width, Height                 Width and Height of the rune texture and the texture frame.
 --     Left, Right, Top, Bottom      Texture coordinates inside of the HolyPowerTexture
 --                                   containing the holy rune.
---
--- LastHolyPower                     Keeps track if there is a change in the holy bar.
 -------------------------------------------------------------------------------
 local MaxHolyRunes = 5
 
@@ -70,8 +68,6 @@ local PowerHoly = PowerTypeToNumber['HOLY_POWER']
 local RuneBox = 1
 local RuneDark = 2
 local RuneLight = 3
-
-local LastHolyPower = nil
 
 local HolyData = {
   Texture = [[Interface\PlayerFrame\PaladinPowerTextures]],
@@ -164,11 +160,11 @@ end
 -- Event         'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
-  if not self.Visible then
 
-    -- Check to see if bar is waiting for activity.
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if not self.Visible then
     if self.IsActive == 0 then
-      if Event == nil or Event == 'change' then
+      if Event == nil then
         return
       end
     else
@@ -176,6 +172,7 @@ function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
     end
   end
 
+  print(Event, PowerType)
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerHoly
 
   -- Return if not the correct powertype.
@@ -188,17 +185,10 @@ function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
 
   local HolyPower = UnitPower('player', PowerHoly)
 
-  -- Return if no change.
-  if Event == 'change' and HolyPower == LastHolyPower then
-    return
-  end
-
-  LastHolyPower = HolyPower
-
   UpdateHolyRunes(self, HolyPower)
 
     -- Set this IsActive flag
-  self.IsActive = HolyPower > 0 and 1 or -1
+  self.IsActive = HolyPower > 0
 
   -- Do a status check.
   self:StatusCheck()
@@ -485,4 +475,5 @@ end
 
 function GUB.UnitBarsF.HolyBar:Enable(Enable)
   Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEvent(Enable, self, 'UNIT_POWER', self.Update, 'player')
 end

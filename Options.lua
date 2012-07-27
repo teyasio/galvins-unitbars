@@ -2142,7 +2142,12 @@ local function CreateHapBarOptions(BarType, Order, Name)
             return UBF.UnitBar.General[Info[#Info]]
           end,
     set = function(Info, Value)
-            UBF.UnitBar.General[Info[#Info]] = Value
+            local Option = Info[#Info]
+            UBF.UnitBar.General[Option] = Value
+
+            if Option == 'PredictedPower' then
+              UBF:SetAttr('ppower')
+            end
 
             -- Update the bar to show changes.
             UBF:Update()
