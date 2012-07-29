@@ -1006,7 +1006,7 @@ end
 --
 -- Creates a frame to hold a texture for the bar.
 --
--- Usage: CreateBoxTexture(BoxNumber, TextureNumber, 'statusbar (TextureType)')
+-- Usage: CreateBoxTexture(BoxNumber, TextureNumber, 'statusbar (TextureType)', FrameLevel)
 --        CreateBoxTexture(BoxNumber, TextureNumber, 'texture (TextureType)', FrameLevel, Width, Height)
 
 --
@@ -1014,8 +1014,7 @@ end
 -- TextureNumber      Numerical value to reference the texture.
 -- TextureType        'statusbar' statusbar texture.
 --                    'texture'   standard texture.
--- FrameLevel         Used for 'texture' only.
---                    If level is used then the TexureFrame level is set.
+-- FrameLevel         If level is used then the TexureFrame level is set.
 --                    Level is counted from its current level and up.  So setting 2 would
 --                    be current level frame level + 2.
 --
@@ -1041,7 +1040,7 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
   if TextureType == 'statusbar' then
     Texture = CreateFrame('StatusBar', nil, TextureFrame)
     Texture:SetPoint('TOPLEFT', 0, 0)
-    Texture:SetPoint('BOTTOMRIGHT' ,Value1 or 0, Value2 or 0)
+    Texture:SetPoint('BOTTOMRIGHT' ,0, 0)
     Texture:SetMinMaxValues(0, 1)
     Texture:SetValue(1)
 
@@ -1054,8 +1053,6 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
   else
     Texture = TextureFrame:CreateTexture(nil)
 
-    -- Add 1 to account for the border in the boxframe being the same frame level.
-    TextureFrame:SetFrameLevel(TextureFrame:GetFrameLevel() + FrameLevel + 1)
     TextureFrame:SetWidth(Width)
     TextureFrame:SetHeight(Height)
 
@@ -1067,6 +1064,9 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
     TextureFrame:SetPoint('CENTER', 0, 0)
     TextureFrame.Type = 'texture'
   end
+
+  -- Add 1 to account for the border in the boxframe being the same frame level.
+  TextureFrame:SetFrameLevel(TextureFrame:GetFrameLevel() + FrameLevel + 1)
 
   -- Update TopFrameLevel counter
   local TopFrameLevel = self.TopFrameLevel or 0

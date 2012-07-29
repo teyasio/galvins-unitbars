@@ -583,10 +583,17 @@ local function CreateColorAllOptions(BarType, Object, MaxColors, Order, Name)
     UnitBarTable = 'Bar'
   elseif Object == 'text' then
     UnitBarTable = 'Text'
+
+  -- Special object for energize color for rune bar.
   elseif Object == 'runebarenergize' then
     Object = 'texture'
     UnitBarTable = 'General'
     TableName = 'Energize'
+
+  -- Special object for fiery ember color.
+  elseif Object == 'fieryembers' then
+    Object = 'bar'
+    UnitBarTable = 'BarFiery'
   end
 
   local ColorAllOptions = {
@@ -1796,7 +1803,6 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   local GA = BarOptions.args.General.args
 
   if BarType ~= 'EclipseBar' or BarType == 'EclipseBar' and Object ~= 'bar' then
-
     GA.StatusBarTexture = {
       type = 'select',
       name = 'Bar Texture',
@@ -1811,7 +1817,17 @@ local function CreateBarOptions(BarType, Object, Order, Name)
 
       GA.PredictedBarTexture = {
         type = 'select',
-        name = 'Predicted Bar Texture',
+        name = 'Bar Texture (predicted)',
+        order = 2,
+        dialogControl = 'LSM30_Statusbar',
+        values = LSM:HashTable('statusbar'),
+        arg = 'texture',
+      }
+    end
+    if BarType == 'EmberBar' then
+      GA.FieryStatusBarTexture = {
+        type = 'select',
+        name = 'Bar Texture (fiery embers)',
         order = 2,
         dialogControl = 'LSM30_Statusbar',
         values = LSM:HashTable('statusbar'),
@@ -1956,7 +1972,12 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     elseif BarType == 'RuneBar' then
       MaxColors = 8
     end
-    BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
+    if BarType == 'EmberBar' then
+      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
+      BarOptions.args.BarColorsFire = CreateColorAllOptions(BarType, 'fieryembers', MaxColors, 2, 'Colors (fiery embers)')
+    else
+      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
+    end
   end
 
   -- Add color options for demonicbar
@@ -2007,7 +2028,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   -- Add predicted color for Health bars only or for Player Power for hunters.
   if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or
      BarType == 'PlayerPower' and PlayerClass == 'HUNTER' then
-    BarOptions.args.PredictedColors = CreatePredictedColorOptions(BarType, 3, 'Predicted Color')
+    BarOptions.args.PredictedColors = CreatePredictedColorOptions(BarType, 3, 'Color (predicted)')
   end
 
   BarOptions.args.Padding = {
@@ -2838,10 +2859,57 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         desc = 'If checked, the energy from wrath, starfire and starsurge will be shown ahead of time. Predicted options group will open up below when checked',
       },
       Spacer10 = CreateSpacer(10),
+      PredictedOptions = {
+        type = 'group',
+        name = 'Predicted Options',
+        dialogInline = true,
+        order = 11,
+        hidden = function()
+                   return not UBF.UnitBar.General.PredictedPower
+                 end,
+        args = {
+          PredictedBarHalfLit = {
+            type = 'toggle',
+            name = 'Bar Half Lit',
+            order = 1,
+            desc = 'If checked, bar half lit is based on predicted power',
+            disabled = function()
+                         return not UBF.UnitBar.General.BarHalfLit
+                       end,
+          },
+          PredictedPowerText = {
+            type = 'toggle',
+            name = 'Power Text',
+            order = 2,
+            desc = 'If checked, predicted power text will be shown instead',
+          },
+          PredictedHideSlider = {
+            type = 'toggle',
+            name = 'Hide Slider',
+            order = 3,
+            desc = 'If checked, the slider will be hidden',
+          },
+          PredictedEclipse = {
+            type = 'toggle',
+            name = 'Eclipse',
+            order = 4,
+            desc = 'If checked, the sun or moon will light up based on predicted power',
+          },
+          IndicatorHideShow  = {
+            type = 'select',
+            name = 'Indicator (predicted power)',
+            order = 5,
+            desc = 'Hide or Show the indicator',
+            values = IndicatorDropdown,
+            style = 'dropdown',
+          },
+        },
+      },
+      Spacer10 = CreateSpacer(20),
       SliderDirection = {
         type = 'select',
         name = 'Slider Direction',
-        order = 12,
+        order = 21,
         values = DirectionDropdown,
         style = 'dropdown',
         desc = 'Specifies the direction the slider will move in'
@@ -2849,7 +2917,7 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       EclipseAngle = {
         type = 'range',
         name = 'Eclipse Rotation',
-        order = 13,
+        order = 22,
         desc = 'Rotates the eclipse bar',
         min = O.EclipseAngleMin,
         max = O.EclipseAngleMax,
@@ -2858,7 +2926,7 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       EclipseFadeOutTime = {
         type = 'range',
         name = 'Eclipse Fadeout Time',
-        order = 14,
+        order = 23,
         desc = 'The amount of time in seconds to fade out sun and moon',
         min = O.EclipseBarFadeOutMin,
         max = O.EclipseBarFadeOutMax,
@@ -2868,7 +2936,7 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       SunOffsetX = {
         type = 'range',
         name = 'Sun Horizontal Offset',
-        order = 21,
+        order = 24,
         desc = 'Offsets the horizontal position of the sun',
         min = O.EclipseSunOffsetXMin,
         max = O.EclipseSunOffsetXMax,
@@ -2877,7 +2945,7 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       SunOffsetY = {
         type = 'range',
         name = 'Sun Vertical Offset',
-        order = 22,
+        order = 25,
         desc = 'Offsets the horizontal position of the sun',
         min = O.EclipseSunOffsetYMin,
         max = O.EclipseSunOffsetYMax,
@@ -2901,50 +2969,6 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         min = O.EclipseMoonOffsetYMin,
         max = O.EclipseMoonOffsetYMax,
         step = 1,
-      },
-      PredictedOptions = {
-        type = 'group',
-        name = 'Predicted Options',
-        dialogInline = true,
-        order = 33,
-        hidden = function()
-                   return not UBF.UnitBar.General.PredictedPower
-                 end,
-        args = {
-          IndicatorHideShow  = {
-            type = 'select',
-            name = 'Indicator (predicted power)',
-            order = 1,
-            desc = 'Hide or Show the indicator',
-            values = IndicatorDropdown,
-            style = 'dropdown',
-          },
-          Spacer10 = CreateSpacer(10),
-          PredictedBarHalfLit = {
-            type = 'toggle',
-            name = 'Bar Half Lit',
-            order = 11,
-            desc = 'If checked, bar half lit is based on predicted power',
-          },
-          PredictedPowerText = {
-            type = 'toggle',
-            name = 'Power Text',
-            order = 12,
-            desc = 'If checked, predicted power text will be shown instead',
-          },
-          PredictedHideSlider = {
-            type = 'toggle',
-            name = 'Hide Slider',
-            order = 13,
-            desc = 'If checked, the slider will be hidden',
-          },
-          PredictedEclipse = {
-            type = 'toggle',
-            name = 'Eclipse',
-            order = 14,
-            desc = 'If checked, the sun or moon will light up based on predicted power',
-          },
-        },
       },
     },
   }
@@ -3471,9 +3495,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
                  -- Update the layout.
                  UBF:SetLayout()
-                 UBF.DoStatusCheck = true
-                 --UBF:StatusCheck()
-                 --UBF:Update()
+                 UBF:StatusCheck()
+                 UBF:Update()
                end,
       },
       ResetPosition = {

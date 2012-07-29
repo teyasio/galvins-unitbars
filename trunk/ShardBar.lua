@@ -414,7 +414,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for ShardIndex = 1, MaxSoulShards do
 
       -- Create the textures for box and runes.
-    ShardBar:CreateBoxTexture(ShardIndex, ShardBox, 'statusbar')
+    ShardBar:CreateBoxTexture(ShardIndex, ShardBox, 'statusbar', 0)
     ShardBar:CreateBoxTexture(ShardIndex, ShardDark, 'texture', 0, ShardData.Width, ShardData.Height)
     ShardBar:CreateBoxTexture(ShardIndex, ShardLight, 'texture', 1, ShardData.Width, ShardData.Height)
 

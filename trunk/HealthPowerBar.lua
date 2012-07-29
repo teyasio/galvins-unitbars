@@ -128,7 +128,6 @@ local function CheckSpell(SpellID, CastTime, Message)
       UnitBarsF.PlayerPower:Update()
     end
   end
-  print(SpellID, Message)
 end
 
 -------------------------------------------------------------------------------
@@ -524,7 +523,6 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Set predicted power settings.
   if self.BarType == 'PlayerPower' and PlayerClass == 'HUNTER' and (Object == nil or Object == 'ppower') then
-    print('PP', Gen)
     Main:SetPredictedSpells(Gen.PredictedPower, 'PlayerPower')
   end
 
@@ -564,7 +562,7 @@ HapFunction('SetAttr', function(self, Object, Attr)
       if PredictedBarTexture then
         PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', PredictedBarTexture))
       else
-        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', 'Empty'))
+        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', 'GUB Empty'))
       end
       PredictedBar:GetStatusBarTexture():SetHorizTile(false)
       PredictedBar:GetStatusBarTexture():SetVertTile(false)

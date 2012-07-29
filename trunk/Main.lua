@@ -69,6 +69,7 @@ local C_PetBattles, UIParent =
 ------------------------------------------------------------------------------
 LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar.tga]])
 LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar.tga]])
+LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Textures\GUB_EmptyBar.tga]])
 
 ------------------------------------------------------------------------------
 -- Unitbars frame layout and animation groups.
@@ -2039,12 +2040,23 @@ local Defaults = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
+        FieryStatusBarTexture = GUBStatusBarTexture,
         Color = {
           r = 1, g = 0.325, b = 0 , a = 1,
           [1] = {r = 1, g = 0.325, b = 0 , a = 1},
           [2] = {r = 1, g = 0.325, b = 0 , a = 1},
           [3] = {r = 1, g = 0.325, b = 0 , a = 1},
           [4] = {r = 1, g = 0.325, b = 0 , a = 1},
+        },
+      },
+      BarFiery = {  -- Color for fiery embers.
+        ColorAll = false,
+        Color = {
+          r = 0.941, g = 0.690, b = 0.094, a = 1,
+          [1] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
+          [2] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
+          [3] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
+          [4] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
         },
       },
     },

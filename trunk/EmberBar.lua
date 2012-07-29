@@ -54,6 +54,7 @@ local C_PetBattles, UIParent =
 --     Left, Right, Top, Bottom      Coordinates inside the main texture for the texture we need.
 --
 -- EmberBox                          Contains the box for box mode.
+-- EmberFieryBox                     Contains the on fire color for box mode.
 -- EmberBg                           Background texture for the ember bar.
 -- EmberFill                         Fill texture for showing the ember fill up.
 -- EmberFire                         Fire texture shown after the ember is filled.
@@ -73,6 +74,7 @@ local CurrentNumEmbers = nil
 
 -- Ember Texture constants
 local EmberBox = 10
+local EmberFieryBox = 11
 local EmberBg = 1
 local EmberFill = 2
 local EmberFire = 3
@@ -142,8 +144,10 @@ local function UpdateBurningEmbers(EmberBarF, EmberPower, NumEmbers)
     -- Check to light ember up.
     if EmberPower >= MaxPowerPerEmber then
       EmberBar:ShowTexture(EmberIndex, EmberFire)
+      EmberBar:ShowTexture(EmberIndex, EmberFieryBox)
     else
       EmberBar:HideTexture(EmberIndex, EmberFire)
+      EmberBar:HideTexture(EmberIndex, EmberFieryBox)
     end
 
     -- Left over for next ember.
@@ -204,7 +208,7 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   UpdateBurningEmbers(self, EmberPower, NumEmbers)
 
     -- Set this IsActive flag
-  self.IsActive = EmberPower > 0
+  self.IsActive = EmberPower ~= 10
 
   -- Do a status check.
   self:StatusCheck()
@@ -291,6 +295,7 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
   -- Check if we're in boxmode.
   if UB.General.BoxMode then
     local Bar = UB.Bar
+    local BarFiery = UB.BarFiery
     local Background = UB.Background
     local Padding = Bar.Padding
     local BackdropSettings = Background.BackdropSettings
@@ -319,9 +324,14 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
           EmberBar:SetTexture(EmberIndex, EmberBox, Bar.StatusBarTexture)
           EmberBar:SetFillDirection(EmberIndex, EmberBox, Bar.FillDirection)
           EmberBar:SetRotateTexture(EmberIndex, EmberBox, Bar.RotateTexture)
+
+          EmberBar:SetTexture(EmberIndex, EmberFieryBox, Bar.FieryStatusBarTexture)
+          EmberBar:SetFillDirection(EmberIndex, EmberFieryBox, Bar.FillDirection)
+          EmberBar:SetRotateTexture(EmberIndex, EmberFieryBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
           local BarColor = nil
+          local BarFieryColor = nil
 
           -- Get all color if ColorAll is true.
           if Bar.ColorAll then
@@ -329,7 +339,13 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
           else
             BarColor = Bar.Color[EmberIndex]
           end
+          if BarFiery.ColorAll then
+            BarFieryColor = BarFiery.Color
+          else
+            BarFieryColor = BarFiery.Color[EmberIndex]
+          end
           EmberBar:SetColor(EmberIndex, EmberBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+          EmberBar:SetColor(EmberIndex, EmberFieryBox, BarFieryColor.r, BarFieryColor.g, BarFieryColor.b, BarFieryColor.a)
         end
       end
     end
@@ -338,6 +354,7 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
         EmberBar:SetTexturePadding(0, EmberBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        EmberBar:SetTexturePadding(0, EmberFieryBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -388,6 +405,7 @@ function GUB.UnitBarsF.EmberBar:SetLayout()
     EmberBar:HideTextureFrame(0, EmberFill)
     EmberBar:HideTextureFrame(0, EmberFire)
     EmberBar:ShowTextureFrame(0, EmberBox)
+    EmberBar:ShowTextureFrame(0, EmberFieryBox)
 
     EmberBar:HideBorder(nil)
     EmberBar:ShowBorder(0)
@@ -408,6 +426,7 @@ function GUB.UnitBarsF.EmberBar:SetLayout()
     EmberBar:ShowTextureFrame(0, EmberFill)
     EmberBar:ShowTextureFrame(0, EmberFire)
     EmberBar:HideTextureFrame(0, EmberBox)
+    EmberBar:HideTextureFrame(0, EmberFieryBox)
 
     EmberBar:HideBorder(0)
     EmberBar:ShowBorder(nil)
@@ -436,7 +455,10 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for EmberIndex = 1, MaxEmbers do
 
     -- Create burning ember for box mode.
-    EmberBar:CreateBoxTexture(EmberIndex, EmberBox, 'statusbar')
+    EmberBar:CreateBoxTexture(EmberIndex, EmberBox, 'statusbar', 0)
+
+    -- Create the fiery ember for box mode.
+    EmberBar:CreateBoxTexture(EmberIndex, EmberFieryBox, 'statusbar', 1)
 
     for TextureNumber, ED in ipairs(EmberData) do
 

@@ -478,7 +478,7 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local DemonicBar = Bar:CreateBar(ScaleFrame, Anchor, 1)
 
   -- Create the demonic bar for box mode.
-  DemonicBar:CreateBoxTexture(1, FuryBox, 'statusbar')
+  DemonicBar:CreateBoxTexture(1, FuryBox, 'statusbar', 0)
 
   -- Create the demonic bar for texture mode.
   for TextureNumber, DD in ipairs(DemonicData) do

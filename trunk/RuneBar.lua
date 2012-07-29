@@ -212,13 +212,13 @@ local function GetRuneName(RuneF)
     RuneNumber = '1'
   end
   if RuneType == RuneBlood then
-    RuneName = 'Blood'
+    RuneName = 'Blood Rune'
   elseif RuneType == RuneUnholy then
-    RuneName = 'Unholy'
+    RuneName = 'Unholy Rune'
   elseif RuneType == RuneFrost then
-    RuneName = 'Frost'
+    RuneName = 'Frost Rune'
   elseif RuneType == RuneDeath then
-    RuneName = 'Death'
+    RuneName = 'Death Rune'
   end
 
   return format('%s %s', RuneName, RuneNumber)
@@ -1258,8 +1258,8 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   end
 
   -- Add death rune name for options.
-  ColorAllNames[7] = 'Death 1'
-  ColorAllNames[8] = 'Death 2'
+  ColorAllNames[7] = 'Death Rune 1'
+  ColorAllNames[8] = 'Death Rune 2'
 
   -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames
