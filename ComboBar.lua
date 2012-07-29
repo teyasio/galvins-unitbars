@@ -296,7 +296,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for ComboIndex = 1, MaxComboPoints do
 
       -- Create the textures for the boxes.
-    ComboBar:CreateBoxTexture(ComboIndex, ComboBox, 'statusbar')
+    ComboBar:CreateBoxTexture(ComboIndex, ComboBox, 'statusbar', 0)
 
      -- Set and save the name for tooltips.
     local Name = 'Combo Point ' .. ComboIndex

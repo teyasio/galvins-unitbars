@@ -104,12 +104,6 @@ local C_PetBattles, UIParent =
 --
 -- RotateBar                         Table containing data for the bar rotation.
 --
--- EclipseDirection                  Only gets when eclipse power is at max.
---                                   Sometimes the direction can change before the eclipse power hits
---                                   max power.  So to fix this, the direction gets updated when the
---                                   eclipsepower is at maxpower.  If EclipseDirection is nil or none then
---                                   it will be set to the current direction.
---
 -- LastEclipseDirection
 -- LastEclipse
 -- LastEclipsePower
@@ -155,8 +149,6 @@ local C_PetBattles, UIParent =
 
 -- Powertype constants
 local PowerEclipse = PowerTypeToNumber['ECLIPSE']
-
-local EclipseDirection = nil
 
 local SolarBuff = 48517
 local LunarBuff = 48518
@@ -308,7 +300,7 @@ end
 -- Calculates different parts of the eclipse bar for prediction.
 --
 -- usage: PPower, PEclipse, PPowerType, PDirection , PowerChange =
---          GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, SoTFActive)
+--          GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, Eclipse, SoTFActive)
 --
 -- SpellID         ID of the value being added.  See GetPredictedSpell()
 -- Value           Positive value to add to Power.
@@ -316,6 +308,7 @@ end
 -- MaxPower        Maximum eclipse power (constant)
 -- Direction       Current direction the power is going in 'sun', 'moon', or 'none'.
 -- PowerType       Type of power -1 lunar, 1 solar
+-- Eclipse         -1 = lunar eclipse, 1 = solar eclipse, 0 = none
 -- SoTFActive      If true then soul of the forest is active, otherwise false
 --
 -- The returned values are based on the Value passed being added to Power.
@@ -326,10 +319,14 @@ end
 -- PDirection      'moon' = lunar, 'sun' = solar, or 'none'.
 -- PowerChange     If true then the SpellID actually caused a power change.
 -------------------------------------------------------------------------------
-local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, SoTFActive)
+local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, Eclipse, SoTFActive)
   local PowerChange = false
-  local Eclipse = 0
   local OldPower = Power
+
+  -- Double power if there is no eclipse state.
+  if Eclipse == 0 then
+    Value = Value * 2
+  end
 
   -- Add value based on eclipse direction.
   if Direction == 'moon' then
@@ -371,11 +368,6 @@ local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Directi
     end
   end
 
-  -- Calc eclipse.
-  if Direction == 'moon' and Power > 0 and Power <= MaxPower or Direction == 'sun' and Power < 0 and Power >= -MaxPower then
-    Eclipse = PowerType
-  end
-
   -- Check for soul of the forest and add the correct power.
   if SoTFActive then
 
@@ -387,6 +379,17 @@ local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Directi
     elseif OldPower < 0 and Power >= 0 then
       Power = Power + SoTFPower
     end
+  end
+
+  -- Calc eclipse.
+  if Direction == 'moon' and Power > 0 and Power <= MaxPower or Direction == 'sun' and Power < 0 and Power >= -MaxPower then
+
+    -- Set the eclipse state.
+    Eclipse = PowerType
+  else
+
+    -- No eclipse state.
+    Eclipse = 0
   end
 
   return Power, Eclipse, GetEclipsePowerType(Power, Direction), Direction, PowerChange
@@ -565,7 +568,7 @@ end
 --
 -- Update the eclipse bar power, sun, and moon.
 --
--- usage: Update(Event)
+-- usage: Update(Event, Unit, PowerType)
 --
 -- Event     'change' then the bar will only get updated if there is a change.
 -------------------------------------------------------------------------------
@@ -592,13 +595,12 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
   local SpellID = Main:CheckAura('o', SolarBuff, LunarBuff)
   local Eclipse = SpellID == SolarBuff and 1 or SpellID == LunarBuff and -1 or 0
-  local ED = GetEclipseDirection()
+  local EclipseDirection = GetEclipseDirection()
 
   -- Update EclipseDirection on maxpower or nil or none.
-
-  if abs(EclipsePower) == EclipseMaxPower or EclipsePower == 0 or EclipseDirection == nil then
-    EclipseDirection = ED
-  end
+--  if abs(EclipsePower) == EclipseMaxPower or EclipsePower == 0 or EclipseDirection == nil then
+--    EclipseDirection = ED
+--  end
   local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
   local PredictedSpells = PredictedPower and Main:GetPredictedSpell() > 0 and 1 or 0
 
@@ -643,7 +645,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
       Value = PredictedSpellValue[SpellID]
 
       PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
-        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, SoTFActive)
+        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, PEclipse, SoTFActive)
 
       -- Set power change flag.
       if PowerChange then
@@ -678,33 +680,19 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     EF.Txt:SetText('')
   end
 
-  -- Hide/show sun and moon
-  if PredictedEclipse and (EclipseDirection ~= 'moon' and PEclipse == 1 or PEclipse == 1 and Eclipse == 1) or
-     (not PredictedEclipse or PEclipse ~= 0) and Eclipse == 1 then
-    EclipseBarHide(EF, 'Sun', false, FadeOutTime)
-  else
-    EclipseBarHide(EF, 'Sun', true, FadeOutTime)
+  -- Use PEclise if PredictedEclipse and PEclipse are set.
+  if PredictedEclipse and PEclipse ~= nil then
+    Eclipse = PEclipse
   end
-  if PredictedEclipse and (EclipseDirection ~= 'sun' and PEclipse == -1 or PEclipse == -1 and Eclipse == -1) or
-     (not PredictedEclipse or PEclipse ~= 0) and Eclipse == -1 then
-   EclipseBarHide(EF, 'Moon', false, FadeOutTime)
-  else
-    EclipseBarHide(EF, 'Moon', true, FadeOutTime)
-  end
+  EclipseBarHide(EF, 'Sun', Eclipse ~= 1, FadeOutTime)
+  EclipseBarHide(EF, 'Moon', Eclipse ~= -1, FadeOutTime)
 
-  -- Check the HalfLit option, predicted power can change how this works.
-  if PredictedBarHalfLit and PEclipseDirection == 'sun' or
-     BarHalfLit and EclipseDirection == 'sun' then
-    EclipseBarHide(EF, 'Lunar', true, FadeOutTime)
-    EclipseBarHide(EF, 'Solar', false, FadeOutTime)
-  elseif PredictedBarHalfLit and PEclipseDirection == 'moon' or
-         BarHalfLit and EclipseDirection == 'moon' then
-    EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
-    EclipseBarHide(EF, 'Solar', true, FadeOutTime)
-  else
-    EclipseBarHide(EF, 'Lunar', false, FadeOutTime)
-    EclipseBarHide(EF, 'Solar', false, FadeOutTime)
+  -- Use PEclipseDirection if BarHalfLit and PredictedBarHalfLit is true and there is PEclispeDirection.
+  if BarHalfLit and PredictedBarHalfLit and PEclipseDirection ~= nil then
+    EclipseDirection = PEclipseDirection
   end
+  EclipseBarHide(EF, 'Lunar', BarHalfLit and EclipseDirection == 'sun', FadeOutTime)
+  EclipseBarHide(EF, 'Solar', BarHalfLit and EclipseDirection == 'moon', FadeOutTime)
 
   self.IsActive = true
 
@@ -1251,7 +1239,7 @@ end
 
 function GUB.UnitBarsF.EclipseBar:Enable(Enable)
   Main:RegEvent(Enable, self, 'UNIT_AURA', self.Update, 'player')
-  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEvent(Enable, self, 'UNIT_POWER', self.Update, 'player')
   Main:RegEvent(Enable, self, 'ECLIPSE_DIRECTION_CHANGE', self.Update, 'player')
 end
 

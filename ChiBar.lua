@@ -423,7 +423,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for OrbIndex = 1, MaxChiOrbs do
 
     -- Create chi orb for box mode.
-    ChiBar:CreateBoxTexture(OrbIndex, OrbBox, 'statusbar')
+    ChiBar:CreateBoxTexture(OrbIndex, OrbBox, 'statusbar', 0)
 
     for TextureNumber, SD in ipairs(ChiData) do
 

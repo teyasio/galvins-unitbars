@@ -399,7 +399,7 @@ function GUB.ShadowBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for OrbIndex = 1, MaxShadowOrbs do
 
     -- Create shadow orb for box mode.
-    ShadowBar:CreateBoxTexture(OrbIndex, OrbBox, 'statusbar')
+    ShadowBar:CreateBoxTexture(OrbIndex, OrbBox, 'statusbar', 0)
 
     for TextureNumber, SD in ipairs(ShadowData) do
 

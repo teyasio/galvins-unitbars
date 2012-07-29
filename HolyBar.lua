@@ -172,7 +172,6 @@ function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
     end
   end
 
-  print(Event, PowerType)
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerHoly
 
   -- Return if not the correct powertype.
@@ -427,7 +426,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   for RuneIndex, HD in ipairs(HolyData) do
 
       -- Create the textures for box and runes.
-    HolyBar:CreateBoxTexture(RuneIndex, RuneBox, 'statusbar')
+    HolyBar:CreateBoxTexture(RuneIndex, RuneBox, 'statusbar', 0)
     HolyBar:CreateBoxTexture(RuneIndex, RuneDark, 'texture', 0, HD.Width, HD.Height)
     HolyBar:CreateBoxTexture(RuneIndex, RuneLight, 'texture', 1, HD.Width, HD.Height)
 
