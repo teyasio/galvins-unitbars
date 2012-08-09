@@ -86,6 +86,9 @@ local CapCopyName = nil
 local CapCopyKey = nil
 
 local O = {
+  FadeOutTime = 5,
+  FadeInTime = 1,
+
   FontOffsetXMin = -150,
   FontOffsetXMax = 150,
   FontOffsetYMin = -150,
@@ -128,6 +131,8 @@ local O = {
   ComboBarPaddingMax = 50,
   ComboBarFadeOutMin = 0,
   ComboBarFadeOutMax = 5,
+  ComboBarFadeInMin = 0,
+  ComboBarFadeInMax = 1,
   ComboBarAngleMin = 45,
   ComboBarAngleMax = 360,
 
@@ -139,6 +144,8 @@ local O = {
   HolyBarPaddingMax = 50,
   HolyBarFadeOutMin = 0,
   HolyBarFadeOutMax = 5,
+  HolyBarFadeInMin = 0,
+  HolyBarFadeInMax = 1,
   HolyBarAngleMin = 45,
   HolyBarAngleMax = 360,
 
@@ -150,6 +157,8 @@ local O = {
   ShardBarPaddingMax = 50,
   ShardBarFadeOutMin = 0,
   ShardBarFadeOutMax = 5,
+  ShardBarFadeInMin = 0,
+  ShardBarFadeInMax = 1,
   ShardBarAngleMin = 45,
   ShardBarAngleMax = 360,
 
@@ -161,9 +170,15 @@ local O = {
   EmberBarPaddingMax = 50,
   EmberBarAngleMin = 45,
   EmberBarAngleMax = 360,
+  EmberBarFieryFadeInMin = 0,
+  EmberBarFieryFadeInMax = 1,
+  EmberBarFieryFadeOutMin = 0,
+  EmberBarFieryFadeOutMax = 5,
 
   EclipseBarFadeOutMin = 0,
   EclipseBarFadeOutMax = 5,
+  EclipseBarFadeInMin = 0,
+  EclipseBarFadeInMax = 1,
   EclipseAngleMin = 90,
   EclipseAngleMax = 360,
   EclipseSunOffsetXMin = -50,
@@ -183,6 +198,8 @@ local O = {
   ShadowBarPaddingMax = 50,
   ShadowBarFadeOutMin = 0,
   ShadowBarFadeOutMax = 5,
+  ShadowBarFadeInMin = 0,
+  ShadowBarFadeInMax = 1,
   ShadowBarAngleMin = 45,
   ShadowBarAngleMax = 360,
 
@@ -893,7 +910,7 @@ local function CreateBackgroundOptions(BarType, Object, Order, Name)
     elseif BarType == 'RuneBar' then
       MaxColors = 8
     end
-    BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'bg', MaxColors, 2, 'Colors')
+    BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'bg', MaxColors, 2, 'Color')
   end
 
   BackgroundOptions.args.Padding = {
@@ -1288,7 +1305,7 @@ local function CreateTextOptions(BarType, Object, Order, Name)
 
   -- Add color all text option for the runebar only.
   if BarType == 'RuneBar' then
-    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 8, 2, 'Colors')
+    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'text', 8, 2, 'Color')
   else
     TextOptions.args.Font.args.TextColor = {
       type = 'color',
@@ -1389,8 +1406,8 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
 
   -- Power types for the player power bar. '= 0' has no meaning.
   local PlayerPower = {
-    DRUID = {ENERGY = 0, RAGE = 0, MANA = 0},
-    MONK  = {ENERGY = 0, MANA = 0},
+    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0},
+    MONK  = {MANA = 0, ENERGY = 0},
   }
 
   local AllColor = true
@@ -1429,29 +1446,29 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
--- CreateClassColorsOptions
+-- CreateClassColorOptions
 --
 -- Creates class color options for a UnitBar.
 --
 -- Subfunction of CreateBarOptions()
 --
--- Usage: ClassColorsOptions = CreateClassColorsOptions(BarType, Order, Name)
+-- Usage: ClassColorOptions = CreateClassColorOptions(BarType, Order, Name)
 --
 -- BarType               Type of options being created.
 -- Order                 Order number.
 -- Name                  Name text
 --
--- PowerColorsOptions    Options table for class colors.
+-- PowerColorsOptions    Options table for class color.
 -------------------------------------------------------------------------------
-local function CreateClassColorsOptions(BarType, Order, Name)
+local function CreateClassColorOptions(BarType, Order, Name)
   local UBF = UnitBarsF[BarType]
-  local ClassColorsMenu = {
+  local ClassColorMenu = {
     [1]  = 'DEATHKNIGHT', [2]  = 'DRUID',  [3] = 'HUNTER', [4] = 'MAGE',  [5]  = 'MONK',
     [6]  = 'PALADIN',     [7]  = 'PRIEST', [8] = 'PRIEST', [9] = 'ROGUE', [10] = 'SHAMAN',
     [11] = 'WARLOCK',     [12] = 'WARRIOR'
   }
 
-  local ClassColorsOptions = {
+  local ClassColorOptions = {
     type = 'group',
     name = Name,
     order = Order,
@@ -1480,16 +1497,16 @@ local function CreateClassColorsOptions(BarType, Order, Name)
     args = {
       ClassColorToggle = {
         type = 'toggle',
-        name = 'Class Colors',
+        name = 'Class Color',
         order = 1,
-        desc = 'If checked, class colors will be used',
+        desc = 'If checked, class color will be used',
         get = function()
                 return UBF.UnitBar.Bar.ClassColor
               end,
         set = function(Info, Value)
                 UBF.UnitBar.Bar.ClassColor = Value
 
-                -- Refresh color when changing between class colors and normal.
+                -- Refresh color when changing between class color and normal.
                 UBF:Update()
               end,
       },
@@ -1508,8 +1525,8 @@ local function CreateClassColorsOptions(BarType, Order, Name)
     },
   }
 
-  local CCOA = ClassColorsOptions.args
-  for Index, ClassName in ipairs(ClassColorsMenu) do
+  local CCOA = ClassColorOptions.args
+  for Index, ClassName in ipairs(ClassColorMenu) do
     local n = gsub(strlower(ClassName), '%a', strupper, 1)
     local Width = 'half'
     if Index == 1 then
@@ -1532,7 +1549,7 @@ local function CreateClassColorsOptions(BarType, Order, Name)
     end
   end
 
-  return ClassColorsOptions
+  return ClassColorOptions
 end
 
 -------------------------------------------------------------------------------
@@ -1811,8 +1828,8 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       values = LSM:HashTable('statusbar'),
       arg = 'texture',
     }
-    if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or
-       BarType == 'FocusHealth' or
+    if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'PetHealth' or
+       BarType == 'FocusHealth' or BarType == 'PetHealth' or
        BarType == 'PlayerPower' and PlayerClass == 'HUNTER' then
 
       GA.PredictedBarTexture = {
@@ -1824,7 +1841,17 @@ local function CreateBarOptions(BarType, Object, Order, Name)
         arg = 'texture',
       }
     end
-    if BarType == 'EmberBar' then
+    if BarType == 'DemonicBar' then
+      GA.MetaStatusBarTexture = {
+        type = 'select',
+        name = 'Bar Texture (metamorphosis)',
+        order = 2,
+        dialogControl = 'LSM30_Statusbar',
+        values = LSM:HashTable('statusbar'),
+        arg = 'texture',
+      }
+
+    elseif BarType == 'EmberBar' then
       GA.FieryStatusBarTexture = {
         type = 'select',
         name = 'Bar Texture (fiery embers)',
@@ -1867,11 +1894,18 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       style = 'dropdown',
       arg = 'texture',
     }
+    GA.ReverseFill = {
+      type = 'toggle',
+      name = 'Reverse Fill',
+      order = 12,
+      arg = 'texture',
+    }
   end
+  GA.Spacer15 = CreateSpacer(15)
   GA.RotateTexture = {
     type = 'toggle',
     name = 'Rotate Texture',
-    order = 12,
+    order = 16,
     arg = 'texture',
   }
   GA.Spacer20 = CreateSpacer(20)
@@ -1884,13 +1918,12 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   elseif BarType == 'EclipseBar' then
     local o = gsub(Object, '%a', strupper, 1)
     GA.BarSize = CreateBarSizeOptions(BarType, TableName, 100, o .. 'Width', o .. 'Height')
-    GA.Spacer30 = CreateSpacer(30)
 
     if Object == 'bar' then
       GA.BarColorLunar = {
         type = 'color',
         name = 'Color (lunar)',
-        order = 31,
+        order = 21,
         hasAlpha = true,
         get = function()
                 local c = UBF.UnitBar.Bar.Bar.ColorLunar
@@ -1905,7 +1938,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       GA.BarColorSolar = {
         type = 'color',
         name = 'Color (solar)',
-        order = 32,
+        order = 22,
         hasAlpha = true,
         get = function()
                 local c = UBF.UnitBar.Bar.Bar.ColorSolar
@@ -1922,11 +1955,10 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     GA.BarSize = CreateBarSizeOptions(BarType, TableName, 100, 'HapWidth', 'HapHeight')
   end
   if BarType == 'PetHealth' or BarType == 'EclipseBar' and ( Object == 'moon' or Object == 'sun' ) then
-    GA.Spacer40 = CreateSpacer(40)
     GA.BarColor = {
       type = 'color',
       name = 'Color',
-      order = 41,
+      order = 21,
       hasAlpha = true,
       get = function()
               local c = GetTable(BarType, 'Bar', TableName).Color
@@ -1947,11 +1979,11 @@ local function CreateBarOptions(BarType, Object, Order, Name)
     }
   end
 
-  -- Add class colors for Player, Target, and Focus health bars only.
+  -- Add class color for Player, Target, and Focus health bars only.
   if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
 
     -- Add the class color options.
-    BarOptions.args.ClassColors = CreateClassColorsOptions(BarType, 2, 'Color')
+    BarOptions.args.ClassColor = CreateClassColorOptions(BarType, 2, 'Color')
   end
 
   -- Add power colors for power bars only.
@@ -1973,10 +2005,10 @@ local function CreateBarOptions(BarType, Object, Order, Name)
       MaxColors = 8
     end
     if BarType == 'EmberBar' then
-      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
-      BarOptions.args.BarColorsFire = CreateColorAllOptions(BarType, 'fieryembers', MaxColors, 2, 'Colors (fiery embers)')
+      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Color')
+      BarOptions.args.BarColorsFire = CreateColorAllOptions(BarType, 'fieryembers', MaxColors, 2, 'Color (fiery embers)')
     else
-      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Colors')
+      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'bar', MaxColors, 2, 'Color')
     end
   end
 
@@ -2003,7 +2035,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
           order = 1,
           hasAlpha = true,
         },
-        ColorMeta = {
+        MetaColor = {
           type = 'color',
           name = 'Metamorphosis',
           order = 2,
@@ -2026,7 +2058,7 @@ local function CreateBarOptions(BarType, Object, Order, Name)
   end
 
   -- Add predicted color for Health bars only or for Player Power for hunters.
-  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' or
      BarType == 'PlayerPower' and PlayerClass == 'HUNTER' then
     BarOptions.args.PredictedColors = CreatePredictedColorOptions(BarType, 3, 'Color (predicted)')
   end
@@ -2395,7 +2427,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             max = O.RuneEnergizeTimeMax,
             step = 1,
           },
-          Color = CreateColorAllOptions(BarType, 'runebarenergize', 8, 2, 'Colors'),
+          Color = CreateColorAllOptions(BarType, 'runebarenergize', 8, 2, 'Color'),
         },
       },
     },
@@ -2454,10 +2486,19 @@ local function CreateComboBarOptions(BarType, Order, Name)
         max = O.ComboBarAngleMax,
         step = 45,
       },
+      ComboFadeInTime = {
+        type = 'range',
+        name = 'Combo Fade-in',
+        order = 3,
+        desc = 'The amount of time in seconds to fade in a combo point',
+        min = O.ComboBarFadeInMin,
+        max = O.ComboBarFadeInMax,
+        step = 0.10,
+      },
       ComboFadeOutTime = {
         type = 'range',
-        name = 'Combo Fadeout Time',
-        order = 3,
+        name = 'Combo Fade-out',
+        order = 4,
         desc = 'The amount of time in seconds to fade out a combo point',
         min = O.ComboBarFadeOutMin,
         max = O.ComboBarFadeOutMax,
@@ -2551,10 +2592,19 @@ local function CreateHolyBarOptions(BarType, Order, Name)
         step = 0.01,
         isPercent = true,
       },
+      HolyFadeInTime = {
+        type = 'range',
+        name = 'Holy Fade-in',
+        order = 6,
+        desc = 'The amount of time in seconds to fade in a holy rune',
+        min = O.HolyBarFadeInMin,
+        max = O.HolyBarFadeInMax,
+        step = 0.10,
+      },
       HolyFadeOutTime = {
         type = 'range',
-        name = 'Holy Fadeout Time',
-        order = 6,
+        name = 'Holy Fade-out',
+        order = 7,
         desc = 'The amount of time in seconds to fade out a holy rune',
         min = O.HolyBarFadeOutMin,
         max = O.HolyBarFadeOutMax,
@@ -2648,10 +2698,19 @@ local function CreateShardBarOptions(BarType, Order, Name)
         step = 0.01,
         isPercent = true,
       },
+      ShardFadeInTime = {
+        type = 'range',
+        name = 'Shard Fade-in',
+        order = 6,
+        desc = 'The amount of time in seconds to fade in a soul shard',
+        min = O.ShardBarFadeInMin,
+        max = O.ShardBarFadeInMax,
+        step = 0.10,
+      },
       ShardFadeOutTime = {
         type = 'range',
-        name = 'Shard Fadeout Time',
-        order = 6,
+        name = 'Shard Fade-out',
+        order = 7,
         desc = 'The amount of time in seconds to fade out a soul shard',
         min = O.ShardBarFadeOutMin,
         max = O.ShardBarFadeOutMax,
@@ -2704,6 +2763,27 @@ local function CreateDemonicBarOptions(BarType, Order, Name)
         order = 1,
         desc = 'If checked, this bar will show boxes instead of textures',
       },
+      ReverseFill = {
+        type = 'toggle',
+        name = 'Reverse fill',
+        order = 2,
+        desc = 'Reverse fill. In box mode this option can be found under "Bar"',
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        get = function()
+                return UBF.UnitBar.Bar.ReverseFill
+              end,
+        set = function(Info, Value)
+                UBF.UnitBar.Bar.ReverseFill = Value
+
+                -- Set reverse fill to the bar.
+                UBF:SetAttr('bar', 'texture')
+
+                -- Update the bar.
+                UBF:Update()
+              end,
+      },
     },
   }
 
@@ -2749,10 +2829,32 @@ local function CreateEmberBarOptions(BarType, Order, Name)
         order = 1,
         desc = 'If checked, this bar will show boxes instead of textures',
       },
+      ReverseFill = {
+        type = 'toggle',
+        name = 'Reverse fill',
+        order = 2,
+        desc = 'Reverse fill. In box mode this option can be found under "Bar"',
+        hidden = function()
+                   return UBF.UnitBar.General.BoxMode
+                 end,
+        get = function()
+                return UBF.UnitBar.Bar.ReverseFill
+              end,
+        set = function(Info, Value)
+                UBF.UnitBar.Bar.ReverseFill = Value
+
+                -- Set reverse fill to the bar.
+                UBF:SetAttr('bar', 'texture')
+
+                -- Update the bar.
+                UBF:Update()
+              end,
+      },
+      Spacer10 = CreateSpacer(10),
       EmberPadding = {
         type = 'range',
         name = 'Ember Padding',
-        order = 2,
+        order = 11,
         desc = 'Set the Amount of space between each burning ember',
         min = O.EmberBarPaddingMin,
         max = O.EmberBarPaddingMax,
@@ -2761,7 +2863,7 @@ local function CreateEmberBarOptions(BarType, Order, Name)
       EmberAngle = {
         type = 'range',
         name = 'Ember Rotation',
-        order = 3,
+        order = 12,
         desc = 'Rotates the ember bar',
         min = O.EmberBarAngleMin,
         max = O.EmberBarAngleMax,
@@ -2770,7 +2872,7 @@ local function CreateEmberBarOptions(BarType, Order, Name)
       EmberSize = {
         type = 'range',
         name = 'Ember Size',
-        order = 4,
+        order = 13,
         hidden = function()
                    return UBF.UnitBar.General.BoxMode
                  end,
@@ -2783,7 +2885,7 @@ local function CreateEmberBarOptions(BarType, Order, Name)
       EmberScale = {
         type = 'range',
         name = 'Ember Scale',
-        order = 5,
+        order = 14,
         hidden = function()
                    return UBF.UnitBar.General.BoxMode
                  end,
@@ -2792,6 +2894,24 @@ local function CreateEmberBarOptions(BarType, Order, Name)
         max = O.EmberBarScaleMax,
         step = 0.01,
         isPercent = true,
+      },
+      FieryEmberFadeInTime = {
+        type = 'range',
+        name = 'Fiery Ember Fade-in',
+        order = 15,
+        desc = 'The amount of time in seconds to fade in the fiery embers',
+        min = O.EmberBarFieryFadeInMin,
+        max = O.EmberBarFieryFadeInMax,
+        step = 0.10,
+      },
+      FieryEmberFadeOutTime = {
+        type = 'range',
+        name = 'Fiery Ember Fade-out',
+        order = 16,
+        desc = 'The amount of time in seconds to fade out the fiery embers',
+        min = O.EmberBarFieryFadeOutMin,
+        max = O.EmberBarFieryFadeOutMax,
+        step = 1,
       },
     },
   }
@@ -2840,22 +2960,28 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         order = 1,
         desc = 'If checked, the slider will stay inside the bar',
       },
+      HideSlider = {
+        type = 'toggle',
+        name = 'Hide Slider',
+        order = 2,
+        desc = 'If checked, the slider will be hidden',
+      },
       BarHalfLit = {
         type = 'toggle',
         name = 'Bar Half Lit',
-        order = 2,
+        order = 3,
         desc = 'If checked, half the bar becomes lit to show the slider direction',
       },
       PowerText = {
         type = 'toggle',
         name = 'Power Text',
-        order = 3,
+        order = 4,
         desc = 'If checked, then eclipse power text will be shown',
       },
       PredictedPower = {
         type = 'toggle',
         name = 'Predicted Power',
-        order = 4,
+        order = 5,
         desc = 'If checked, the energy from wrath, starfire and starsurge will be shown ahead of time. Predicted options group will open up below when checked',
       },
       Spacer10 = CreateSpacer(10),
@@ -2883,29 +3009,23 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
             order = 2,
             desc = 'If checked, predicted power text will be shown instead',
           },
-          PredictedHideSlider = {
-            type = 'toggle',
-            name = 'Hide Slider',
-            order = 3,
-            desc = 'If checked, the slider will be hidden',
-          },
           PredictedEclipse = {
             type = 'toggle',
             name = 'Eclipse',
-            order = 4,
+            order = 3,
             desc = 'If checked, the sun or moon will light up based on predicted power',
           },
           IndicatorHideShow  = {
             type = 'select',
             name = 'Indicator (predicted power)',
-            order = 5,
+            order = 4,
             desc = 'Hide or Show the indicator',
             values = IndicatorDropdown,
             style = 'dropdown',
           },
         },
       },
-      Spacer10 = CreateSpacer(20),
+      Spacer20 = CreateSpacer(20),
       SliderDirection = {
         type = 'select',
         name = 'Slider Direction',
@@ -2923,20 +3043,11 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
         max = O.EclipseAngleMax,
         step = 90,
       },
-      EclipseFadeOutTime = {
-        type = 'range',
-        name = 'Eclipse Fadeout Time',
-        order = 23,
-        desc = 'The amount of time in seconds to fade out sun and moon',
-        min = O.EclipseBarFadeOutMin,
-        max = O.EclipseBarFadeOutMax,
-        step = 1,
-      },
-      Spacer20 = CreateSpacer(20),
+      Spacer30 = CreateSpacer(40),
       SunOffsetX = {
         type = 'range',
         name = 'Sun Horizontal Offset',
-        order = 24,
+        order = 31,
         desc = 'Offsets the horizontal position of the sun',
         min = O.EclipseSunOffsetXMin,
         max = O.EclipseSunOffsetXMax,
@@ -2945,17 +3056,17 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       SunOffsetY = {
         type = 'range',
         name = 'Sun Vertical Offset',
-        order = 25,
+        order = 32,
         desc = 'Offsets the horizontal position of the sun',
         min = O.EclipseSunOffsetYMin,
         max = O.EclipseSunOffsetYMax,
         step = 1,
       },
-      Spacer30 = CreateSpacer(30),
+      Spacer40 = CreateSpacer(50),
       MoonOffsetX = {
         type = 'range',
         name = 'Moon Horizontal Offset',
-        order = 31,
+        order = 41,
         desc = 'Offsets the horizontal position of the moon',
         min = O.EclipseMoonOffsetXMin,
         max = O.EclipseMoonOffsetXMax,
@@ -2964,10 +3075,29 @@ local function CreateEclipseBarOptions(BarType, Order, Name)
       MoonOffsetY = {
         type = 'range',
         name = 'Moon Vertical Offset',
-        order = 32,
+        order = 42,
         desc = 'Offsets the horizontal position of the moon',
         min = O.EclipseMoonOffsetYMin,
         max = O.EclipseMoonOffsetYMax,
+        step = 1,
+      },
+      Spacer50 = CreateSpacer(30),
+      EclipseFadeInTime = {
+        type = 'range',
+        name = 'Eclipse Fade-in',
+        order = 51,
+        desc = 'The amount of time in seconds to fade in the sun, moon, and bar half lit',
+        min = O.EclipseBarFadeInMin,
+        max = O.EclipseBarFadeInMax,
+        step = 0.10,
+      },
+      EclipseFadeOutTime = {
+        type = 'range',
+        name = 'Eclipse Fade-out',
+        order = 52,
+        desc = 'The amount of time in seconds to fade out the sun, moon, and bar half lit',
+        min = O.EclipseBarFadeOutMin,
+        max = O.EclipseBarFadeOutMax,
         step = 1,
       },
     },
@@ -3058,10 +3188,19 @@ local function CreateShadowBarOptions(BarType, Order, Name)
         step = 0.01,
         isPercent = true,
       },
+      ShadowFadeInTime = {
+        type = 'range',
+        name = 'Shadow Fade-in',
+        order = 6,
+        desc = 'The amount of time in seconds to fade in a shadow orb',
+        min = O.ShadowBarFadeInMin,
+        max = O.ShadowBarFadeInMax,
+        step = 0.10,
+      },
       ShadowFadeOutTime = {
         type = 'range',
-        name = 'Shadow Fadeout Time',
-        order = 6,
+        name = 'Shadow Fade-out',
+        order = 7,
         desc = 'The amount of time in seconds to fade out a shadow orb',
         min = O.ShadowBarFadeOutMin,
         max = O.ShadowBarFadeOutMax,
@@ -3155,23 +3294,23 @@ local function CreateChiBarOptions(BarType, Order, Name)
         step = 0.01,
         isPercent = true,
       },
-      ChiFadeOutTime = {
-        type = 'range',
-        name = 'Chi Fadeout Time',
-        order = 6,
-        desc = 'The amount of time in seconds to fade out a chi orb',
-        min = O.ChiBarFadeOutMin,
-        max = O.ChiBarFadeOutMax,
-        step = 1,
-      },
       ChiFadeInTime = {
         type = 'range',
-        name = 'Chi Fadein Time',
-        order = 7,
+        name = 'Chi Fade-in',
+        order = 6,
         desc = 'The amount of time in seconds to fade in a chi orb',
         min = O.ChiBarFadeInMin,
         max = O.ChiBarFadeInMax,
         step = 0.10,
+      },
+      ChiFadeOutTime = {
+        type = 'range',
+        name = 'Chi Fade-out',
+        order = 7,
+        desc = 'The amount of time in seconds to fade out a chi orb',
+        min = O.ChiBarFadeOutMin,
+        max = O.ChiBarFadeOutMax,
+        step = 1,
       },
     },
   }
@@ -3351,7 +3490,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                          return UBF.UnitBar.Status.HideNotUsable == nil
                        end,
             order = 1,
-            desc = 'Hides the bar if it can not be used by your class and spec.  Bar will stay hidden even with bars unlocked',
+            desc = 'Hides the bar if it can not be used by your class or spec.  Bar will stay hidden even with bars unlocked',
           },
           HideWhenDead = {
             type = 'toggle',
@@ -3433,7 +3572,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
     UBOA.ChiBar = CreateChiBarOptions(BarType, 2, 'General')
 
   -- Add health and power bar options
-  elseif BarType == 'PlayerPower' and PlayerClass == 'HUNTER' or strfind(BarType, 'Power') == nil and BarType ~= 'PetHealth' then
+  elseif BarType == 'PlayerPower' and PlayerClass == 'HUNTER' or strfind(BarType, 'Power') == nil then
     UBOA.HapBar = CreateHapBarOptions(BarType, 2, 'General')
   end
 
@@ -3679,57 +3818,103 @@ local function CreateMainOptions()
                 GUB:UnitBarsUpdateStatus()
               end,
         args = {
-          IsLocked = {
-            type = 'toggle',
-            name = 'Lock Bars',
+          Main = {
+            name = 'Main',
+            type = 'group',
             order = 1,
-            desc = 'Prevent bars from being dragged around',
+            dialogInline = true,
+            args = {
+              IsLocked = {
+                type = 'toggle',
+                name = 'Lock Bars',
+                order = 1,
+                desc = 'Prevent bars from being dragged around',
+              },
+              IsClamped = {
+                type = 'toggle',
+                name = 'Screen Clamp',
+                order = 2,
+                desc = 'Prevent bars from going off the screen',
+              },
+              IsGrouped = {
+                type = 'toggle',
+                name = 'Group Drag',
+                order = 3,
+                desc = 'Drag all the bars as one instead of one at a time',
+              },
+              AlignmentToolEnabled = {
+                type = 'toggle',
+                name = 'Enable Alignment Tool',
+                order = 4,
+                desc = 'If unchecked, right clicking a unitbar will not open the alignment tool',
+              },
+            },
           },
-          IsClamped = {
-            type = 'toggle',
-            name = 'Screen Clamp',
+          Tooltips = {
+            name = 'Tooltips',
+            type = 'group',
             order = 2,
-            desc = 'Prevent bars from going off the screen',
+            dialogInline = true,
+            args = {
+              HideTooltips = {
+                type = 'toggle',
+                name = 'Hide Tooltips',
+                order = 1,
+                desc = 'Turns off mouse over tooltips when bars are not locked',
+              },
+              HideTooltipsDesc = {
+                type = 'toggle',
+                name = 'Hide Tooltips Desc',
+                order = 2,
+                desc = 'Turns off the description in mouse over tooltips when bars are not locked',
+              },
+            },
           },
-          IsGrouped = {
-            type = 'toggle',
-            name = 'Group Drag',
+          Fading = {
+            name = 'Fading',
+            type = 'group',
             order = 3,
-            desc = 'Drag all the bars as one instead of one at a time',
-          },
-          HideTooltips = {
-            type = 'toggle',
-            name = 'Hide Tooltips',
-            order = 4,
-            desc = 'Turns off mouse over tooltips when bars are not locked',
-          },
-          HideTooltipsDesc = {
-            type = 'toggle',
-            name = 'Hide Tooltips Desc',
-            order = 5,
-            desc = 'Turns off the description in mouse over tooltips when bars are not locked',
-          },
-          AlignmentToolEnabled = {
-            type = 'toggle',
-            name = 'Enable Alignment Tool',
-            order = 6,
-            desc = 'If unchecked, right clicking a unitbar will not open the alignment tool',
-          },
-          FadeOutTime = {
-            type = 'range',
-            name = 'Fadeout Time',
-            order = 7,
-            desc = 'The amount of time in seconds to fade out a bar',
-            min = 0,
-            max = 5,
-            step = 1,
-            get = function()
-                    return UnitBars.FadeOutTime
-                  end,
-            set = function(Info, Value)
-                    UnitBars.FadeOutTime = Value
-                    Main:UnitBarsSetAllOptions()
-                  end,
+            dialogInline = true,
+            args = {
+              ReverseFading = {
+                type = 'toggle',
+                name = 'Reverse Fading',
+                order = 1,
+                desc = 'If checked, fading in/out can switch direction smoothly',
+              },
+              FadeInTime = {
+                type = 'range',
+                name = 'Fade-in',
+                order = 8,
+                desc = 'The amount of time in seconds to fade in a bar',
+                min = 0,
+                max = O.FadeInTime,
+                step = 0.10,
+                get = function()
+                        return UnitBars.FadeInTime
+                      end,
+                set = function(Info, Value)
+                        UnitBars.FadeInTime = Value
+                        Main:UnitBarsSetAllOptions()
+                      end,
+              },
+              FadeOutTime = {
+                type = 'range',
+                name = 'Fade-out',
+                order = 9,
+                desc = 'The amount of time in seconds to fade out a bar',
+                min = 0,
+                max = O.FadeOutTime,
+                step = 1,
+                get = function()
+                        return UnitBars.FadeOutTime
+                      end,
+                set = function(Info, Value)
+                        UnitBars.FadeOutTime = Value
+                        Main:UnitBarsSetAllOptions()
+                      end,
+              },
+            },
           },
         },
       },

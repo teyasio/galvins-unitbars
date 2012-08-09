@@ -26,12 +26,11 @@ To drag any bar around the screen use the left mouse button while pressing any m
 |cff00ff00Status|r
 All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flags it can't override is never show and hide not usable.
 
-   Never Show          Disables and hides the bar.
-   Hide not Usable     Disable and hides the bar if it's not usable by the class, spec, form, stance etc.
+   Hide not Usable     Disable and hides the bar if it's not usable by the class or spec.
    Hide when Dead      Hide the bar when the player is dead.
    Hide in Vehicle     Hide the bar if a vehicle.
    Hide in Pet Battle  Hide the bar if in a pet battle.
-   Hide not Active     Hide the bar when it's not active.
+   Hide not Active     Hide the bar when it's not active and out of combat.
    Hide no Combat      Hide the bar when not in combat.
 
 |cff00ff00Text Type|r

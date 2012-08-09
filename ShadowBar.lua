@@ -1,7 +1,7 @@
 --
 -- ShadowBar.lua
 --
--- Displays the Shadow Priest shadow bar.
+-- Displays the priest shadow bar.
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -100,21 +100,13 @@ GUB.UnitBarsF.ShadowBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Glows or darkens the shadow orbs
 --
--- Usage: UpdateShadowOrbs(ShadowBarF, Orbs, FinishFadeOut)
+-- Usage: UpdateShadowOrbs(ShadowBarF, Orbs, FinishFade)
 --
 -- ShadowBarF       Shadow bar containing orbs to update.
 -- Orbs             Total amount of orbs to glow.
--- FinishFadeOut    If true then any fadeout animation currently playing
---                  will be stopped.
---                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function UpdateShadowOrbs(ShadowBarF, Orbs, FinishFadeOut)
+local function UpdateShadowOrbs(ShadowBarF, Orbs, FinishFade)
   local ShadowBar = ShadowBarF.ShadowBar
-  if FinishFadeOut then
-    ShadowBar:StopFade(0, OrbBox)
-    ShadowBar:StopFade(0, OrbGlow)
-    return
-  end
 
   for OrbIndex = 1, MaxShadowOrbs do
 
@@ -136,21 +128,17 @@ end
 --
 -- Update the number of shadow orbs of the player
 --
--- usage: Update(Event)
+-- Usage: Update(Event, Unit, PowerType)
 --
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShadow
@@ -159,9 +147,6 @@ function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
   if PowerType ~= PowerShadow then
     return
   end
-
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
 
   local Orbs = UnitPower('player', PowerShadow)
 
@@ -172,15 +157,6 @@ function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the shadow bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShadowBar:CancelAnimation()
-  UpdateShadowOrbs(self, 0, true)
 end
 
 --*****************************************************************************
@@ -281,7 +257,6 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
           ShadowBar:SetTexture(OrbIndex, OrbBox, Bar.StatusBarTexture)
-          ShadowBar:SetFillDirection(OrbIndex, OrbBox, Bar.FillDirection)
           ShadowBar:SetRotateTexture(OrbIndex, OrbBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
@@ -301,7 +276,7 @@ function GUB.UnitBarsF.ShadowBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        ShadowBar:SetTexturePadding(0, OrbBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        ShadowBar:SetStatusBarPadding(0, OrbBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -332,15 +307,19 @@ function GUB.UnitBarsF.ShadowBar:SetLayout()
   -- Get the unitbar data.
   local UB = self.UnitBar
   local Gen = self.UnitBar.General
+  local ShadowFadeInTime = Gen.ShadowFadeInTime
+  local ShadowFadeOutTime = Gen.ShadowFadeOutTime
 
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fadeout
+  -- Set padding and rotation and fade.
   ShadowBar:SetPadding(0, Gen.ShadowPadding)
   ShadowBar:SetAngle(Gen.ShadowAngle)
-  ShadowBar:SetFadeOutTime(0, OrbBox, Gen.ShadowFadeOutTime)
-  ShadowBar:SetFadeOutTime(0, OrbGlow, Gen.ShadowFadeOutTime)
+  ShadowBar:SetFadeTime(0, OrbBox, 'in', ShadowFadeInTime)
+  ShadowBar:SetFadeTime(0, OrbGlow, 'in', ShadowFadeInTime)
+  ShadowBar:SetFadeTime(0, OrbBox, 'out', ShadowFadeOutTime)
+  ShadowBar:SetFadeTime(0, OrbGlow, 'out', ShadowFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -348,6 +327,9 @@ function GUB.UnitBarsF.ShadowBar:SetLayout()
     -- Set size
     ShadowBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
     ShadowBar:SetBoxScale(1)
+
+    -- Stop any fading animation.
+    ShadowBar:StopFade(0, OrbBox)
 
     -- Hide/show Box mode.
     ShadowBar:HideTextureFrame(0, OrbDark)
@@ -366,6 +348,9 @@ function GUB.UnitBarsF.ShadowBar:SetLayout()
     ShadowBar:SetBoxScale(Gen.ShadowSize)
     ShadowBar:SetTextureScale(0, OrbDark, ShadowScale)
     ShadowBar:SetTextureScale(0, OrbGlow, ShadowScale)
+
+    -- Stop any fading animation.
+    ShadowBar:StopFade(0, OrbGlow)
 
     -- Hide/show Texture mode.
     ShadowBar:ShowTextureFrame(0, OrbDark)
@@ -394,7 +379,7 @@ function GUB.ShadowBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
 
   -- Create the shadowbar.
-  local ShadowBar = Bar:CreateBar(ScaleFrame, Anchor, MaxShadowOrbs)
+  local ShadowBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxShadowOrbs)
 
   for OrbIndex = 1, MaxShadowOrbs do
 
@@ -413,11 +398,14 @@ function GUB.ShadowBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
       ShadowBar:SetTexCoord(OrbIndex, TextureNumber, SD.Left, SD.Right, SD.Top, SD.Bottom)
 
       -- Set the size of the texture
-      ShadowBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height, SD.Point)
+      ShadowBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height)
+
+      -- set texture point.
+      ShadowBar:SetTexturePoint(OrbIndex, TextureNumber, SD.Point)
     end
 
      -- Set and save the name for tooltips for each shadow orb.
-    local Name = strconcat('Shadow Orb ', OrbIndex)
+    local Name = 'Shadow Orb ' .. OrbIndex
 
     ShadowBar:SetTooltip(OrbIndex, Name, MouseOverDesc)
 
@@ -444,6 +432,6 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.ShadowBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
 

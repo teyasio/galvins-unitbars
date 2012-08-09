@@ -123,21 +123,13 @@ GUB.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Lights or darkens holy runes
 --
--- Usage: UpdateHolyRunes(HolyRuneF, HolyPower, FinishFadeOut)
+-- Usage: UpdateHolyRunes(HolyRuneF, HolyPower, FinishFade)
 --
 -- HolyBarF         HolyBar containing runes to update.
 -- HolyPower        Updates the holy runes based on the holypower.
--- FinishFadeOut    If true then any fadeout animation currently playing
---                  will be stopped.
---                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function UpdateHolyRunes(HolyBarF, HolyPower, FinishFadeOut)
+local function UpdateHolyRunes(HolyBarF, HolyPower)
   local HolyBar = HolyBarF.HolyBar
-  if FinishFadeOut then
-    HolyBar:StopFade(0, RuneBox)
-    HolyBar:StopFade(0, RuneLight)
-    return
-  end
 
   for RuneIndex = 1, MaxHolyRunes do
     if RuneIndex <= HolyPower then
@@ -155,21 +147,17 @@ end
 --
 -- Update the holy power level of the player
 --
--- usage: Update(Event)
+-- Usage: Update(Event, Unit, PowerType)
 --
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
+function GUB.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerHoly
@@ -178,9 +166,6 @@ function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
   if PowerType ~= PowerHoly then
     return
   end
-
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
 
   local HolyPower = UnitPower('player', PowerHoly)
 
@@ -191,15 +176,6 @@ function GUB.UnitBarsF.HolyBar:Update(Event, PowerType)
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the holy bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.HolyBar:CancelAnimation()
-  UpdateHolyRunes(self, 0, true)
 end
 
 --*****************************************************************************
@@ -300,7 +276,6 @@ function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
           HolyBar:SetTexture(RuneIndex, RuneBox, Bar.StatusBarTexture)
-          HolyBar:SetFillDirection(RuneIndex, RuneBox, Bar.FillDirection)
           HolyBar:SetRotateTexture(RuneIndex, RuneBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
@@ -320,7 +295,7 @@ function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        HolyBar:SetTexturePadding(0, RuneBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        HolyBar:SetStatusBarPadding(0, RuneBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -329,8 +304,6 @@ function GUB.UnitBarsF.HolyBar:SetAttr(Object, Attr)
 
     -- Background (Border).
     if Object == nil or Object == 'bg' then
-      local Border = self.Border
-
       local BgColor = UB.Background.Color
 
       if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
@@ -351,6 +324,8 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
   -- Get the unitbar data.
   local UB = self.UnitBar
   local Gen = self.UnitBar.General
+  local HolyFadeInTime = Gen.HolyFadeInTime
+  local HolyFadeOutTime = Gen.HolyFadeOutTime
 
   -- Convert old holy size to a default of 1.
   if Gen.HolySize > 9 then
@@ -360,11 +335,13 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fadeout
+  -- Set padding and rotation and fade.
   HolyBar:SetPadding(0, Gen.HolyPadding)
   HolyBar:SetAngle(Gen.HolyAngle)
-  HolyBar:SetFadeOutTime(0, RuneBox, Gen.HolyFadeOutTime)
-  HolyBar:SetFadeOutTime(0, RuneLight, Gen.HolyFadeOutTime)
+  HolyBar:SetFadeTime(0, RuneBox, 'in', HolyFadeInTime)
+  HolyBar:SetFadeTime(0, RuneLight, 'in', HolyFadeInTime)
+  HolyBar:SetFadeTime(0, RuneBox, 'out', HolyFadeOutTime)
+  HolyBar:SetFadeTime(0, RuneLight, 'out', HolyFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -374,6 +351,9 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
     HolyBar:SetBoxScale(1)
     HolyBar:SetTextureScale(0, RuneDark, 1)
     HolyBar:SetTextureScale(0, RuneLight, 1)
+
+    -- Stop any fading animation.
+    HolyBar:StopFade(0, RuneBox)
 
     -- Hide/show Box mode.
     HolyBar:HideTextureFrame(0, RuneDark)
@@ -392,6 +372,9 @@ function GUB.UnitBarsF.HolyBar:SetLayout()
     HolyBar:SetBoxScale(Gen.HolySize)
     HolyBar:SetTextureScale(0, RuneDark, HolyScale)
     HolyBar:SetTextureScale(0, RuneLight, HolyScale)
+
+    -- Stop any fading animation.
+    HolyBar:StopFade(0, RuneLight)
 
     -- Hide/show Texture mode.
     HolyBar:ShowTextureFrame(0, RuneDark)
@@ -421,7 +404,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local DarkColor = HolyData.DarkColor
 
   -- Create the holybar.
-  local HolyBar = Bar:CreateBar(ScaleFrame, Anchor, MaxHolyRunes)
+  local HolyBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxHolyRunes)
 
   for RuneIndex, HD in ipairs(HolyData) do
 
@@ -437,13 +420,17 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     -- Set the holy rune dark texture
     HolyBar:SetTexCoord(RuneIndex, RuneDark, HD.Left, HD.Right, HD.Top, HD.Bottom)
 
-    HolyBar:SetTextureSize(RuneIndex, RuneDark, HD.Width, HD.Height, HD.Point, HD.OffsetX, HD.OffsetY)
+    HolyBar:SetTextureSize(RuneIndex, RuneDark, HD.Width, HD.Height)
     HolyBar:SetDesaturated(RuneIndex, RuneDark, true)
     HolyBar:SetColor(RuneIndex, RuneDark, DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
 
     -- Set the holy rune light texture
     HolyBar:SetTexCoord(RuneIndex, RuneLight, HD.Left, HD.Right, HD.Top, HD.Bottom)
-    HolyBar:SetTextureSize(RuneIndex, RuneLight, HD.Width, HD.Height, HD.Point, HD.OffsetX, HD.OffsetY)
+    HolyBar:SetTextureSize(RuneIndex, RuneLight, HD.Width, HD.Height)
+
+    -- Set texture points.
+    HolyBar:SetTexturePoint(RuneIndex, RuneDark, HD.Point, HD.OffsetX, HD.OffsetY)
+    HolyBar:SetTexturePoint(RuneIndex, RuneLight, HD.Point, HD.OffsetX, HD.OffsetY)
 
      -- Set and save the name for tooltips for box mode.
     local Name = 'Holy Rune ' .. RuneIndex
@@ -473,6 +460,6 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.HolyBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
-  Main:RegEvent(Enable, self, 'UNIT_POWER', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER', self.Update, 'player')
 end

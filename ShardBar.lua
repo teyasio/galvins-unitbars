@@ -52,8 +52,6 @@ local C_PetBattles, UIParent =
 --   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
 -- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
 --
--- CurrentNumShards                  Total number of shards the player currently has.
---
 -- ShardBox                          Soul shard in box mode.  Statusbar
 -- ShardDark                         Dark soul shard when not lit.
 -- ShardLight                        Light sould shard used for lighting a dark soul shard.
@@ -67,8 +65,6 @@ local PowerShard = PowerTypeToNumber['SOUL_SHARDS']
 local ShardBox = 1
 local ShardDark = 2
 local ShardLight = 3
-
-local CurrentNumShards = nil
 
 local ShardData = {
   Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
@@ -94,22 +90,14 @@ GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Lights or darkens the soul shards
 --
--- Usage: UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFadeOut)
+-- Usage: UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFade)
 --
 -- ShardBarF        SoulShard bar containing shards to update.
 -- SoulShards       Total amount of shards to light up.
 -- NumShards        Total amount of shards that can be displayed.
--- FinishFadeOut    If true then any fadeout animation currently playing
---                  will be stopped.
---                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFadeOut)
+local function UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFade)
   local ShardBar = ShardBarF.ShardBar
-  if FinishFadeOut then
-    ShardBar:StopFade(0, ShardBox)
-    ShardBar:StopFade(0, ShardLight)
-    return
-  end
 
   for ShardIndex = 1, NumShards do
 
@@ -131,21 +119,17 @@ end
 --
 -- Update the number of shards of the player
 --
--- usage: Update(Event)
+-- Usage: Update(Event, Unit, PowerType)
 --
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShard
@@ -155,42 +139,38 @@ function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
     return
   end
 
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
-
   local SoulShards = UnitPower('player', PowerShard)
   local NumShards = UnitPowerMax('player', PowerShard)
 
   -- Set default value if NumShards returns zero.
   NumShards = NumShards > 0 and NumShards or MaxSoulShards - 1
 
-  -- Check for max soulshard change
-  if NumShards ~= CurrentNumShards then
-    CurrentNumShards = NumShards
+  -- Check for total shard change.
+  if NumShards ~= self.NumShards then
+    local ShardBar = self.ShardBar
 
     -- Change the number of boxes in the bar.
-    self.ShardBar:SetNumBoxes(NumShards)
+    ShardBar:SetNumBoxes(NumShards)
 
     -- Update the layout to reflect the change.
     self:SetLayout()
+
+    self.NumShards = NumShards
+
+  -- Reduce cpu usage by checking for soulshard change.
+  -- This is because unit_power_frequent is firing off more than it should.
+  elseif SoulShards == self.SoulShards then
+    return
   end
 
+  self.SoulShards = SoulShards
   UpdateSoulShards(self, SoulShards, NumShards)
 
-    -- Set this IsActive flag
-  self.IsActive = SoulShards > 0
+  -- Set the IsActive flag.
+  self.IsActive = SoulShards < NumShards
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the shard bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:CancelAnimation()
-  UpdateSoulShards(self, 0, MaxSoulShards, true)
 end
 
 --*****************************************************************************
@@ -291,7 +271,6 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
           ShardBar:SetTexture(ShardIndex, ShardBox, Bar.StatusBarTexture)
-          ShardBar:SetFillDirection(ShardIndex, ShardBox, Bar.FillDirection)
           ShardBar:SetRotateTexture(ShardIndex, ShardBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
@@ -311,17 +290,15 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        ShardBar:SetTexturePadding(0, ShardBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        ShardBar:SetStatusBarPadding(0, ShardBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
 
-    -- Else in normal bar mode.
+    -- Else in texture mode.
 
     -- Background (Border).
     if Object == nil or Object == 'bg' then
-      local Border = self.Border
-
       local BgColor = UB.Background.Color
 
       if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
@@ -342,6 +319,8 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
   -- Get the unitbar data.
   local UB = self.UnitBar
   local Gen = self.UnitBar.General
+  local ShardFadeInTime = Gen.ShardFadeInTime
+  local ShardFadeOutTime = Gen.ShardFadeOutTime
 
   -- Convert old shard size to a default of 1.
   if Gen.ShardSize > 9 then
@@ -351,11 +330,13 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fadeout
+  -- Set padding and rotation and fade.
   ShardBar:SetPadding(0, Gen.ShardPadding)
   ShardBar:SetAngle(Gen.ShardAngle)
-  ShardBar:SetFadeOutTime(0, ShardBox, Gen.ShardFadeOutTime)
-  ShardBar:SetFadeOutTime(0, ShardLight, Gen.ShardFadeOutTime)
+  ShardBar:SetFadeTime(0, ShardBox, 'in', ShardFadeInTime)
+  ShardBar:SetFadeTime(0, ShardLight, 'in', ShardFadeInTime)
+  ShardBar:SetFadeTime(0, ShardBox, 'out', ShardFadeOutTime)
+  ShardBar:SetFadeTime(0, ShardLight, 'out', ShardFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -363,6 +344,9 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
     -- Set size
     ShardBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
     ShardBar:SetBoxScale(1)
+
+    -- Stop any fading animation.
+    ShardBar:StopFade(0, ShardBox)
 
     -- Hide/show Box mode.
     ShardBar:HideTextureFrame(0, ShardDark)
@@ -381,6 +365,9 @@ function GUB.UnitBarsF.ShardBar:SetLayout()
     ShardBar:SetBoxScale(Gen.ShardSize)
     ShardBar:SetTextureScale(0, ShardDark, ShardScale)
     ShardBar:SetTextureScale(0, ShardLight, ShardScale)
+
+    -- Stop any fading animation.
+    ShardBar:StopFade(0, ShardLight)
 
     -- Hide/show Texture mode.
     ShardBar:ShowTextureFrame(0, ShardDark)
@@ -409,7 +396,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
 
   -- Create the shardbar.
-  local ShardBar = Bar:CreateBar(ScaleFrame, Anchor, MaxSoulShards)
+  local ShardBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxSoulShards)
 
   for ShardIndex = 1, MaxSoulShards do
 
@@ -425,16 +412,20 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     -- Set the soulshard dark texture
     ShardBar:SetTexCoord(ShardIndex, ShardDark, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
 
-    ShardBar:SetTextureSize(ShardIndex, ShardDark, ShardData.Width, ShardData.Height, ShardData.Point)
+    ShardBar:SetTextureSize(ShardIndex, ShardDark, ShardData.Width, ShardData.Height)
     ShardBar:SetDesaturated(ShardIndex, ShardDark, true)
     ShardBar:SetColor(ShardIndex, ShardDark, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
 
     -- Set the soulshard light texture
     ShardBar:SetTexCoord(ShardIndex, ShardLight, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
-    ShardBar:SetTextureSize(ShardIndex, ShardLight, ShardData.Width, ShardData.Height, ShardData.Point)
+    ShardBar:SetTextureSize(ShardIndex, ShardLight, ShardData.Width, ShardData.Height)
+
+    -- Set texture points.
+    ShardBar:SetTexturePoint(ShardIndex, ShardDark, ShardData.Point)
+    ShardBar:SetTexturePoint(ShardIndex, ShardLight, ShardData.Point)
 
      -- Set and save the name for tooltips for each shard.
-    local Name = strconcat('Soul Shard ', ShardIndex)
+    local Name = 'Soul Shard ' .. ShardIndex
 
     ShardBar:SetTooltip(ShardIndex, Name, MouseOverDesc)
 
@@ -461,5 +452,5 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.ShardBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end

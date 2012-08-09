@@ -38,6 +38,7 @@ local C_PetBattles, UIParent =
 -- Locals
 --
 -- BarDB                             Bar Database. All functions are called thru this except for CreateBar().
+-- BarDB.UnitBarF                    The bar that created the bar.
 -- BarDB.ParentFrame                 The whole bar will be a child of this frame.
 -- BarDB.TotalBoxes                  Total number of boxes the bar was created with.
 -- BarDB.NumBoxes                    Current number of boxes in the bar.
@@ -46,7 +47,6 @@ local C_PetBattles, UIParent =
 -- BarDB.OffsetFrame                 Child of ParentFrame.  This is used to help with rotation
 -- BarDB.Padding                     Amount of distance between the boxes and the bars border.
 -- BarDB.Angle                       Angle in degrees in which way the bar will be displayed.
--- BarDB.FadeOutTime                 Time in seconds to fade a box out to hide it.  If zero fadeout is disabled.
 -- BarDB.BoxScale                    Change the scale of all the boxes in the bar.
 -- BarDB.BoxWidth                    Width of all the boxes.
 -- BarDB.BoxHeight                   Height of all the boxes.
@@ -65,27 +65,36 @@ local C_PetBattles, UIParent =
 -- BoxFrame[].TextureFrame[]         An array of frames holding the textures/statusbar for the box.
 -- TextureFrame[]                    Invisible frame containing the textures/statusbars.  Child of BoxFrame.
 --                                   This can be used to change the scale of a texture or hide/show it.
--- TextureFrame[].FillDirection      'HORIZONTAL' or 'VERTICAL'
--- TextureFrame[].RotateTexture      Statusbar only.  If true then texture is rotated 90 degrees.
---                                   If false no rotation takes place.
--- TextureFrame[].TexLeft
--- TextureFrame[].TexRight
--- TextureFrame[].TexTop
--- TextureFrame[].TexBottom          Texcoordinates for the texture.
 --
--- TextureFrame[].Type               Contains the type of texture.
---                                   'statusbar'  then its a statusbar.
---                                   'texture'    contains a texture.
 -- TextureFrame[].Texture            Statusbar or texture.  Child of TextureFrame.
 -- Texture.Width                     Texture only. Width of the texture frame and texture.
 -- Texture.Height                    Texture only. Height of the texture frame and texture.
--- Texture.FadeOutTime               Time in seconds to fade out a texture.  If 0 then this texture doesn't have a fadeout.
--- Texture.FadeInTime                Time in seconds to fade in a texture.  If 0 then this texture doesn't have a fadein.
--- Texture.FadeOut                   Fadeout animation group for Texture.
--- Texture.FadeOutA                  Fadeout animation.
--- Texture.FadeIn                    Fadein animation group for Texture.
--- Texture.FadeInA                   Fadein animation.
 -- Texture.Hidden                    If true the frame is hidden otherwise it's visible.
+-- Texture.FillDirection             'HORIZONTAL' or 'VERTICAL'
+-- Texture.ReverseFill               If true then the fill is the opposite otherwise its default.
+-- Texture.RotateTexture             If true then texture is rotated 90 degrees.
+-- Texture.Value                     Current value of the statusbar, last used by SetFill().
+-- Texture.Type                      Contains the type of texture.
+--                                    'statusbar'  then its a statusbar.
+--                                    'texture'    contains a texture.
+-- Texture.TexLeft
+-- Texture.TexRight
+-- Texture.TexTop
+-- Texture.TexBottom                 Texcoordinates for the texture.
+--
+-- Texture.Point                     Position of the texture inside the texture frame.
+-- Texture.OffsetX                   Horizontal offset from Point.
+-- Texture.OffsetY                   Vertical offset from Point.
+--
+-- Texture.FadeInTime                Time in seconds to fade in a texture.  If 0 then this texture doesn't have a fadein.
+-- Texture.FadeOutTime               Time in seconds to fade out a texture.  If 0 then this texture doesn't have a fadeout.
+-- Texture.Fade                      Fade animation for fade in and out.
+--                                   NOTE: The fade key only exist if SetFadeTime() was set.
+--
+-- NextBF                            Used by NextBar().  Contains the current BoxFrame.
+-- NextNumBoxes                      Used by NextBar().  Contains the total number of boxes for the bar.
+-- NextBox                           Used by NextBar().  Iterator keeps track of what box NextBar() is working on.
+-- LastBox                           Used by NextBar().  If true then the last box was returned, otherwise false.
 --
 -- Bar frame layout:
 --
@@ -110,6 +119,7 @@ local C_PetBattles, UIParent =
 --   SetTexture()
 --   SetTexCoord()    If the texture file has multiple textures.
 --   SetTexureSize()
+--   SetTexturePoint()
 --   SetBoxSize()     Without this nothing will show.
 --
 -- After adding all your textures.  Then you can do CreateFontString if you need one.  The fontstring
@@ -139,6 +149,11 @@ local C_PetBattles, UIParent =
 --
 -- There are more functions to use depending on what you're doing.
 -------------------------------------------------------------------------------
+local NextBF = nil
+local NextNumBoxes = nil
+local NextBox = 0
+local LastBox = true
+
 local BarDB = {}
 
 --*****************************************************************************
@@ -324,55 +339,81 @@ local function SetFrame(Frame, Object, Action)
 end
 
 -------------------------------------------------------------------------------
--- DoBar
+-- NextBar
 --
--- Sub function for set functions.
+-- Returns data for each box in the bar. Used by the different Set functions below
 --
--- Usage: DoBar(BarDB, BoxNumber, TextureNumber, Fn)
+-- Usage: Border, BoxFrame = NextBar(BarDB, [BoxNumber])
+--        Border, BoxFrame, TextureFrame, Texture, Type = NextBar(BarDB, BoxNumber, TextureNumber)
 --
--- BarDB          Bar database.
--- BoxNumber      If 0 refers to all boxes, if greater than 0 then it refers to just
---                that one box.  If nil then bar is assumed.
--- TextureNumber  Only valid if BoxNumber is non nil.
--- Fn             Function.  Passes back one of the following:
---                Fn(Border)
---                   Bar Border.  If BoxNumber is nil
---                Fn(Border, BoxFrame)
---                   If BoxNumber is not nil
---                Fn(Border, BoxFrame, TextureFrame, Texture, Type)
---                   If BoxNumber and TextureNumber are not nil.
--------------------------------------------------------------------------------
-local function DoBar(BarDB, BoxNumber, TextureNumber, Fn)
+-- BarDB          Bar data.
+-- BoxNumber      Current Boxnumber.  If 0 then all boxes are iterated.  If nil then
+--                just the bars border is returned.
+-- TextureNumber  The Texture you want to return for that box.  Must be greater than zero.
+--                If nil then just the border and box frame are returned.
 
-  -- Return border if BoxNumber is nill.
-  if BoxNumber == nil then
-    Fn(BarDB.Border)
+-- Border         If no BoxNumber is specified then this is the bars border.
+--                Otherwise its the border of the BoxNumber (BoxFrame).
+-- BoxFrame       The frame of the box.  This contains the TextureFrame.
+-- TextureFrame   Child of BoxFrame.  This contains a texture/statusbar.
+-- Texture        Child of TextureFrame.  This is the actual texture/statusbar.
+-- Type           String. Type of texture can be texture or statusbar.
+--
+-- LastBox        This is an upvalue used by NextBar(), when true there is no next box to get.
+--                Otherwise false.
+-------------------------------------------------------------------------------
+local function NextBar(self, BoxNumber, TextureNumber)
+  if NextBox == 0 then
+
+    -- Return border if BoxNumber is nil
+    if BoxNumber == nil then
+      return self.Border
+
+    elseif BoxNumber > 0 then
+      local BF = self.BoxFrame[BoxNumber]
+
+      if TextureNumber == nil then
+
+        -- Return border of boxnumber.
+        return BF.Border, BF
+      else
+        local TF = BF.TextureFrame[TextureNumber]
+        local Texture = TF.Texture
+
+        -- Return the box data.
+        return BF.Border, BF, TF, Texture, Texture.Type
+      end
+    else
+
+      -- Set up iteration.
+      LastBox = false
+      NextBox = 0
+      NextBF = self.BoxFrame
+      NextNumBoxes = self.NumBoxes
+    end
+  end
+
+  -- Get the next box.
+  NextBox = NextBox + 1
+  local BF = NextBF[NextBox]
+
+  -- Check for end of iteration.
+  if NextBox == NextNumBoxes then
+
+    -- Return last box.
+    LastBox = true
+    NextBox = 0
+  end
+
+  if TextureNumber then
+    local TF = BF.TextureFrame[TextureNumber]
+    local Texture = TF.Texture
+
+    return BF.Border, BF, TF, Texture, Texture.Type
   else
 
-    -- Return box frames since there is a boxnumber.
-    local BoxFrame = BarDB.BoxFrame
-    local IndexStart = BoxNumber
-    local IndexEnd = BoxNumber
-
-    -- Check to see if BoxNumber is equal to 0
-    if BoxNumber == 0 then
-      IndexStart = 1
-      IndexEnd = BarDB.NumBoxes
-    end
-
-    -- Loop thru 1 or all of the boxes.
-    for BoxFrameIndex = IndexStart, IndexEnd do
-      local BF = BoxFrame[BoxFrameIndex]
-      local Border = BF.Border
-
-      -- If texure number is not nil then pass back Border, BoxFrame, TextureFrame, Texture, and Type
-      if TextureNumber then
-        local TF = BF.TextureFrame[TextureNumber]
-        Fn(Border, BF, TF, TF.Texture, TF.Type)
-      else
-        Fn(Border, BF)
-      end
-    end
+    -- Return just border since no texturenumber is specified.
+    return BF.Border, BF
   end
 end
 
@@ -405,17 +446,20 @@ end
 --        Otherwise a full pathname to the texture is needed.
 -------------------------------------------------------------------------------
 function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+
     if Type == 'statusbar' then
       Texture:SetStatusBarTexture(LSM:Fetch('statusbar', TextureName))
       Texture:GetStatusBarTexture():SetHorizTile(false)
       Texture:GetStatusBarTexture():SetVertTile(false)
-      Texture:SetOrientation(TextureFrame.FillDirection)
-      Texture:SetRotatesTexture(TextureFrame.RotateTexture)
+      Texture:SetOrientation(Texture.FillDirection)
+      Texture:SetReverseFill(Texture.ReverseFill)
+      Texture:SetRotatesTexture(Texture.RotateTexture)
     else
       Texture:SetTexture(TextureName)
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -424,10 +468,12 @@ end
 -- Usage: SetTexCoord(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
 -------------------------------------------------------------------------------
 function BarDB:SetTexCoord(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
+  repeat
+    local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
+
     Texture:SetTexCoord(Left, Right, Top, Bottom)
-    TextureFrame.TexLeft, TextureFrame.TexRight, TextureFrame.TexTop, TextureFrame.TexBottom = Left, Right, Top, Bottom
-  end)
+    Texture.TexLeft, Texture.TexRight, Texture.TexTop, Texture.TexBottom = Left, Right, Top, Bottom
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -438,9 +484,11 @@ end
 -- Action   true then Desaturation gets set. Otherwise not.
 -------------------------------------------------------------------------------
 function BarDB:SetDesaturated(BoxNumber, TextureNumber, Action)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
+  repeat
+    local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
+
     Texture:SetDesaturated(Action)
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -456,25 +504,23 @@ end
 -- NOTES:    The FontString gets made for the whole bar and not any of the boxes in the bar.
 -------------------------------------------------------------------------------
 function BarDB:CreateFontString(Layer, Inherits)
-  local FS = nil
-  DoBar(self, nil, nil, function(Border)
-    local TextFrame = self.TextFrame
+  local Border = NextBar(self)
 
-    -- Frame hasn't been created yet.
-    if TextFrame == nil then
-      TextFrame = CreateFrame('Frame', nil, Border)
+  local TextFrame = self.TextFrame
 
-      -- Set all points to border
-      TextFrame:SetAllPoints(Border)
+  -- Frame hasn't been created yet.
+  if TextFrame == nil then
+    TextFrame = CreateFrame('Frame', nil, Border)
 
-      -- Set frame to be above all else. So text shows up.
-      TextFrame:SetFrameLevel(self.TopFrameLevel + 1)
-      self.TextFrame = TextFrame
+    -- Set all points to border
+    TextFrame:SetAllPoints(Border)
 
-    end
-    FS = TextFrame:CreateFontString(nil, Layer, Inherits)
-  end)
-  return FS
+    -- Set frame to be above all else. So text shows up.
+    TextFrame:SetFrameLevel(self.TopFrameLevel + 1)
+    self.TextFrame = TextFrame
+
+  end
+  return TextFrame:CreateFontString(nil, Layer, Inherits)
 end
 
 --=============================================================================
@@ -487,9 +533,11 @@ end
 -- Usage: HideBorder(BoxNumber)
 -------------------------------------------------------------------------------
 function BarDB:HideBorder(BoxNumber)
-  DoBar(self, BoxNumber, nil, function(Border)
+  repeat
+    local Border = NextBar(self, BoxNumber)
+
     Border:Hide()
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -498,9 +546,11 @@ end
 -- Usage: ShowBorder(BoxNumber)
 -------------------------------------------------------------------------------
 function BarDB:ShowBorder(BoxNumber)
-  DoBar(self, BoxNumber, nil, function(Border)
+  repeat
+    local Border = NextBar(self, BoxNumber)
+
     Border:Show()
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -509,9 +559,11 @@ end
 -- Usage: HideTextureFrame(BoxNumber, TextureNumber)
 -------------------------------------------------------------------------------
 function BarDB:HideTextureFrame(BoxNumber, TextureNumber)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame)
+  repeat
+    local _, _, TextureFrame = NextBar(self, BoxNumber, TextureNumber)
+
     TextureFrame:Hide()
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -520,9 +572,11 @@ end
 -- Usage: ShowTextureFrame(BoxNumber, TextureNumber)
 -------------------------------------------------------------------------------
 function BarDB:ShowTextureFrame(BoxNumber, TextureNumber)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame)
+  repeat
+    local _, _, TextureFrame = NextBar(self, BoxNumber, TextureNumber)
+
     TextureFrame:Show()
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -530,25 +584,21 @@ end
 --
 -- Usage: HideTexture(BoxNumber, TextureNumber)
 -------------------------------------------------------------------------------
-function BarDB:HideTexture(BoxNumber, TextureNumber, Action)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    if not Texture.Hidden then
-      if Texture.FadeInTime > 0 then
+function BarDB:HideTexture(BoxNumber, TextureNumber)
+  repeat
+    local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
 
-        -- Stop animation if it's playing.
-        Main:Animation(Texture.FadeIn, 'stop')
-        Texture:SetAlpha(1)
-      end
+    if not Texture.Hidden then
       if Texture.FadeOutTime > 0 then
 
         -- Fadeout the texture frame then hide it.
-        Main:Animation(Texture.FadeOut, 'play', function() Texture:Hide() end)
+        Texture.Fade:SetAnimation('out')
       else
         Texture:Hide()
       end
       Texture.Hidden = true
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -557,23 +607,20 @@ end
 -- Usage: ShowTexture(BoxNumber, TextureNumber)
 -------------------------------------------------------------------------------
 function BarDB:ShowTexture(BoxNumber, TextureNumber)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    if Texture.Hidden then
-      if Texture.FadeOutTime > 0 then
+  repeat
+    local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
 
-        -- Finish animation if it's playing.
-        Main:Animation(Texture.FadeOut, 'stop')
-      end
-      Texture:Show()
-      Texture.Hidden = false
+    if Texture.Hidden then
       if Texture.FadeInTime > 0 then
 
-        -- Fade in texture then sets its alpha to 1.
-        Texture:SetAlpha(0)
-        Main:Animation(Texture.FadeIn, 'play', function() Texture:SetAlpha(1) end)
+        -- Fade in the texture.
+        Texture.Fade:SetAnimation('in')
+      else
+        Texture:Show()
       end
+      Texture.Hidden = false
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -584,44 +631,45 @@ end
 -- Usage: StopFade(BoxNumber, TextureNumber)
 -------------------------------------------------------------------------------
 function BarDB:StopFade(BoxNumber, TextureNumber)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    if Texture.Hidden then
-      Main:Animation(Texture.FadeOut, 'stop')
-      Texture:Hide()
+  repeat
+    local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
+
+    local Fade = Texture.Fade
+    if Fade then
+      Fade:SetAnimation('stop')
     end
-    if not Texture.Hidden then
-      Main:Animation(Texture.FadeIn, 'stop')
-      Texture:SetAlpha(1)
-    end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
--- SetFadeOutTime
+-- SetFadeTime
 --
--- Usage: SetFadeOutTime(BoxNumber, TextureNumber, Seconds)
--------------------------------------------------------------------------------
-function BarDB:SetFadeOutTime(BoxNumber, TextureNumber, Seconds)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    Texture.FadeOutTime = Seconds
-
-    -- Set the duration of the fade out.
-    Texture.FadeOutA:SetDuration(Seconds)
-  end)
-end
-
--------------------------------------------------------------------------------
--- SetFadeInTime
+-- Usage: SetFadeTime(BoxNumber, TextureNumber, Action, Seconds)
 --
--- Usage: SetFadeInTime(BoxNumber, TextureNumber, Seconds)
+-- Action    'in' sets the amount of time in seconds for fading in.
+--           'out' sets the amount of time in seconds for fading out.
 -------------------------------------------------------------------------------
-function BarDB:SetFadeInTime(BoxNumber, TextureNumber, Seconds)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    Texture.FadeInTime = Seconds
+function BarDB:SetFadeTime(BoxNumber, TextureNumber, Action, Seconds)
+  local UnitBarF = self.UnitBarF
+  repeat
+    local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
+
+    local Fade = Texture.Fade
+
+    -- Create fade if one doesn't exist.
+    if Fade == nil then
+      Fade = Main:CreateFade(UnitBarF, Texture)
+      Texture.Fade = Fade
+    end
 
     -- Set the duration of the fade in.
-    Texture.FadeInA:SetDuration(Seconds)
-  end)
+    Fade:SetDuration(Action, Seconds)
+    if Action == 'in' then
+      Texture.FadeInTime = Seconds
+    else
+      Texture.FadeOutTime = Seconds
+    end
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -636,10 +684,12 @@ function BarDB:SetBoxSize(Width, Height)
   -- Save width and height in the BarDB.
   self.BoxWidth = Width
   self.BoxHeight = Height
-  DoBar(self, 0, nil, function(Border, BoxFrame)
+  repeat
+    local _, BoxFrame = NextBar(self, 0)
+
     BoxFrame:SetWidth(Width)
     BoxFrame:SetHeight(Height)
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -654,14 +704,16 @@ end
 --        mouse clicks.  Otherwise it will use the box's frame instead.
 -------------------------------------------------------------------------------
 function BarDB:SetEnableMouseClicks(BoxNumber, Action)
-  DoBar(self, BoxNumber, nil, function(Border, Frame)
+  repeat
+    local Border, Frame = NextBar(self, BoxNumber)
+
     if BoxNumber == nil then
 
       -- If boxnumber is nil then then the border has to be used.
       Frame = Border
     end
     SetFrame(Frame, 'enablemouseclicks', Action)
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -679,7 +731,9 @@ end
 --        Otherwise the box's frame is used instead to drag/drop the bar.
 -------------------------------------------------------------------------------
 function BarDB:SetEnableMouse(BoxNumber, Action)
-  DoBar(self, BoxNumber, nil, function(Border, Frame)
+  repeat
+    local Border, Frame = NextBar(self, BoxNumber)
+
     if BoxNumber == nil then
 
       -- If boxnumber is nil then the border has to be used.
@@ -689,7 +743,7 @@ function BarDB:SetEnableMouse(BoxNumber, Action)
     if Frame.TooltipName then
       SetFrame(Frame, 'tooltip', Action)
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -698,14 +752,16 @@ end
 -- Usage: SetTooltip(BoxNumber, TooltipName, TooltipDescription)
 -------------------------------------------------------------------------------
 function BarDB:SetTooltip(BoxNumber, TooltipName, TooltipDescription)
-  DoBar(self, BoxNumber, nil, function(Border, Frame)
+  repeat
+    local Border, Frame = NextBar(self, BoxNumber)
+
     if BoxNumber == nil then
 
       -- If boxnumber is nil then the border has to be used.
       Frame = Border
     end
     Main:SetTooltip(Frame, TooltipName, TooltipDescription)
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -727,7 +783,9 @@ end
 -- SetBackdrop(BoxNumber, BackdropSettings, r, g, b, a)
 -------------------------------------------------------------------------------
 function BarDB:SetBackdrop(BoxNumber, BackdropSettings, r, g, b, a)
-  DoBar(self, BoxNumber, nil, function(Border)
+  repeat
+    local Border = NextBar(self, BoxNumber)
+
     Border:SetBackdrop(Main:ConvertBackdrop(BackdropSettings))
     if r then
       Border:SetBackdropColor(r, g, b, a)
@@ -736,7 +794,7 @@ function BarDB:SetBackdrop(BoxNumber, BackdropSettings, r, g, b, a)
       -- Set background color to invisible.
       Border:SetBackdropColor(0, 0, 0, 0)
     end
-  end)
+  until LastBox
 end
 
 --------------------------------------------------------------------------------
@@ -745,14 +803,16 @@ end
 -- Usage: SetPadding(BoxNumber, Padding)
 --------------------------------------------------------------------------------
 function BarDB:SetPadding(BoxNumber, Padding)
-  DoBar(self, BoxNumber, nil, function(Border, Frame)
+  repeat
+    local _, Frame = NextBar(self, BoxNumber)
+
     if BoxNumber == nil then
 
       -- Set frame to self since this is for bar and not box.
       Frame = self
     end
     Frame.Padding = Padding
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -762,9 +822,11 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetBoxScale(Scale)
   self.BoxScale = Scale
-  DoBar(self, 0, nil, function(Border, Frame)
+  repeat
+    local _, Frame = NextBar(self, 0)
+
     Frame:SetScale(Scale)
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -773,39 +835,68 @@ end
 -- Usage: SetColor(BoxNumber, TextureNumber, r, g, b, a)
 -------------------------------------------------------------------------------
 function BarDB:SetColor(BoxNumber, TextureNumber, r, g, b, a)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+
     if Type == 'statusbar' then
       Texture:SetStatusBarColor(r, g, b, a)
     else
       Texture:SetVertexColor(r, g, b, a)
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
--- SetTexturePadding
+-- SetStatusBarPadding
 --
--- SetTexturePadding(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
---
--- NOTES: Works with statusbars only
+-- SetStatusBarPadding(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
 -------------------------------------------------------------------------------
-function BarDB:SetTexturePadding(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+function BarDB:SetStatusBarPadding(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
     if Type == 'statusbar' then
       Texture:ClearAllPoints()
       Texture:SetPoint('TOPLEFT', Left , Top)
       Texture:SetPoint('BOTTOMRIGHT', Right, Bottom)
+
+      local Value = Texture.Value
+
+      -- Force the statusbar to reflect the changes.
+      Texture:SetValue(Value - 1)
+      Texture:SetValue(Value)
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
 -- SetTextureSize
 --
--- Usage: SetTextureSize(BoxNumber, TextureNumber, Width, Height, Point, OffsetX, OffsetY)
+-- Usage: SetTextureSize(BoxNumber, TextureNumber, Width, Height)
 --
 -- Width              Width of the texture
 -- Height             Height of the texture.
+-- Point              Texture position within the frame.
+--
+-- NOTES: Works with textures only.
+-------------------------------------------------------------------------------
+function BarDB:SetTextureSize(BoxNumber, TextureNumber, Width, Height)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+    if Type == 'texture' then
+      Texture:SetWidth(Width)
+      Texture:SetHeight(Height)
+
+      Texture.Width = Width
+      Texture.Height = Height
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetTexturePoint
+--
+-- Usage: SetTexturePoint(BoxNumber, TextureNumber, Point, OffsetX, OffsetY)
+--
 -- Point              Texture position within the frame.
 -- OffsetX            Amount in pixels to offset. Positive goes right, negative goes left.
 -- OffsetY            Amount in pixels to offset. Positive goes up, negative goes down.
@@ -813,16 +904,17 @@ end
 --
 -- NOTES: Works with textures only.
 -------------------------------------------------------------------------------
-function BarDB:SetTextureSize(BoxNumber, TextureNumber, Width, Height, Point, OffsetX, OffsetY)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+function BarDB:SetTexturePoint(BoxNumber, TextureNumber, Point, OffsetX, OffsetY)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
     if Type == 'texture' then
-      Texture:SetWidth(Width)
-      Texture:SetHeight(Height)
       Texture:SetPoint(Point, OffsetX or 0, OffsetY or 0)
-      Texture.Width = Width
-      Texture.Height = Height
+
+      Texture.Point = Point
+      Texture.OffsetX = OffsetX or 0
+      Texture.OffsetY = OffsetY or 0
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -831,9 +923,11 @@ end
 -- Usage: SetTextureScale(BoxNumber, TextureNumber, Scale)
 -------------------------------------------------------------------------------
 function BarDB:SetTextureScale(BoxNumber, TextureNumber, Scale)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame)
+  repeat
+    local _, _, TextureFrame = NextBar(self, BoxNumber, TextureNumber)
+
     TextureFrame:SetScale(Scale)
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -843,12 +937,18 @@ end
 --
 -- Action    true   texture is rotated
 --           false  no rotation
+--
+-- NOTE:  Works on statusbars only.
 -------------------------------------------------------------------------------
 function BarDB:SetRotateTexture(BoxNumber, TextureNumber, Action)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture)
-    Texture:SetRotatesTexture(Action)
-    TextureFrame.RotateTexture = Action
-  end)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+
+    if Type == 'statusbar' then
+      Texture:SetRotatesTexture(Action)
+    end
+    Texture.RotateTexture = Action
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -860,58 +960,97 @@ end
 --           'VERTICAL'     Fill from bottom to top.
 -------------------------------------------------------------------------------
 function BarDB:SetFillDirection(BoxNumber, TextureNumber, Action)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+
     if Type == 'statusbar' then
       Texture:SetOrientation(Action)
     end
-    TextureFrame.FillDirection = Action
-  end)
+    Texture.FillDirection = Action
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
--- SetTextureFill
+-- SetReverseFill
+--
+-- Usage: SetReverseFill(BoxNumber, TextureNumber, Action)
+--
+-- Action    true         The fill will be reversed.  Right to left or top to bottom.
+--           false        Default fill.  Left to right or bottom to top.
+-------------------------------------------------------------------------------
+function BarDB:SetReverseFill(BoxNumber, TextureNumber, Action)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+
+    if Type == 'statusbar' then
+      Texture:SetReverseFill(Action)
+    end
+    Texture.ReverseFill = Action
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFill
 --
 -- Shows more of the texture instead of stretching.
+-- Works for status bars too, but can't control texture stretching.
 --
--- Usage: SetTextureFill(BoxNumber, TextureNumber, Amount)
+-- Usage: SetFill(BoxNumber, TextureNumber, Value)
 --
--- Amount    A number between 0 and 1.  If Amount > 1 then its set to 1.
---             If Amount < 0 then its set to 0.
+-- Value    A number between 0 and MaxValue
+-- MaxValue  Maximum value for the fill.
 --
--- NOTE: SetFillDirection will control the fill that this function will use.
+-- NOTE: SetFillDirection() will control the fill that this function will use.
 --       Cant set texture width to 0 so use 0.001 this will make the texture not be
 --       visible.  Setting texture size to 0 doesn't hide the texture.
 -------------------------------------------------------------------------------
-function BarDB:SetTextureFill(BoxNumber, TextureNumber, Amount)
-  DoBar(self, BoxNumber, TextureNumber, function(Border, Frame, TextureFrame, Texture, Type)
+function BarDB:SetFill(BoxNumber, TextureNumber, Value)
+  repeat
+    local _, _, _, Texture, Type = NextBar(self, BoxNumber, TextureNumber)
+
     if Type == 'texture' then
-      local TexLeft, TexRight, TexTop, TexBottom = TextureFrame.TexLeft, TextureFrame.TexRight, TextureFrame.TexTop, TextureFrame.TexBottom
+      local TexLeft, TexRight, TexTop, TexBottom = Texture.TexLeft, Texture.TexRight, Texture.TexTop, Texture.TexBottom
       local Width, Height =  Texture.Width, Texture.Height
 
-      -- Clip amount if not equal to 1
-      Amount = Amount > 1 and 1 or Amount < 0 and 0 or Amount
+      -- Clip the amount if out of range.
+      Value = Value > 1 and 1 or Value < 0 and 0 or Value
 
       -- Calculate the texture width
-      if TextureFrame.FillDirection == 'HORIZONTAL' then
-        local TextureWidth = Amount * Width
+      if Texture.FillDirection == 'HORIZONTAL' then
+        local TextureWidth = Value * Width
 
-        -- Calc the position betwen left and right
-        TexRight = TexLeft + Amount * (TexRight - TexLeft)
+        -- Check for reverse fill.
+        if Texture.ReverseFill then
+          TexLeft = TexRight - Value * (TexRight - TexLeft)
+          Texture:SetPoint(Texture.Point, Texture.OffsetX + (Width - TextureWidth), Texture.OffsetY)
+        else
+          TexRight = TexLeft + Value * (TexRight - TexLeft)
+          Texture:SetPoint(Texture.Point, Texture.OffsetX, Texture.OffsetY)
+        end
         Texture:SetWidth(TextureWidth > 0 and TextureWidth or 0.001)
       else
-        local TextureHeight = Amount * Height
 
-        -- Calc the position between top and bottom.
-        TexTop = TexBottom - Amount * (TexBottom - TexTop)
+        -- Calculate the texture height.
+        local TextureHeight = Value * Height
+
+        -- Check for reverse fill
+        if Texture.ReverseFill then
+          TexBottom = TexTop + Value * (TexBottom - TexTop)
+          Texture:SetPoint(Texture.Point, Texture.OffsetX, Texture.OffsetY + (Height - TextureHeight))
+        else
+          TexTop = TexBottom - Value * (TexBottom - TexTop)
+          Texture:SetPoint(Texture.Point, Texture.OffsetX, Texture.OffsetY)
+        end
         Texture:SetHeight(TextureHeight > 0 and TextureHeight or 0.001)
       end
       Texture:SetTexCoord(TexLeft, TexRight, TexTop, TexBottom)
     else
 
       -- Set statusbar value.
-      Texture:SetValue(Amount)
+      Texture:SetValue(Value)
+      Texture.Value = Value
     end
-  end)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -945,28 +1084,38 @@ end
 --
 -- Sets up a bar that will contain boxes which hold textures/statusbars.
 --
--- Usage: BarDB = CreateBar(ParentFrame, Anchor, NumBoxes)
+-- Usage: BarDB = CreateBar(UnitBarF, ParentFrame, NumBoxes)
 --
+-- UnitBarF           The bar will belong to UnitBarF as a child.
 -- ParentFrame        Parent frame the bar will be a child of.
--- Anchor             Anchor that is used for moving.
 -- NumBoxes           Total boxes that the bar will contain.
 -- BarDB              Bar database containing everything to work with the bar.
 --
 -- Note:  All bar functions are called thru the returned table.
 -------------------------------------------------------------------------------
-function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
-  local BDB = Main:DeepCopy(BarDB)
+function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
+  local Bar = {}
+
+  -- Copy the functions.
+  for FnName, Fn in pairs(BarDB) do
+    if type(Fn) == 'function' then
+      Bar[FnName] = Fn
+    end
+  end
+
+  local Anchor = UnitBarF.Anchor
 
   -- initialize the bar database.
-  BDB.ParentFrame = ParentFrame
-  BDB.TotalBoxes = NumBoxes
-  BDB.NumBoxes = NumBoxes
-  BDB.Angle = 90
-  BDB.Padding = 0
-  BDB.BoxWidth = 1
-  BDB.BoxHeight = 1
-  BDB.BoxScale = 1
-  BDB.BoxFrame = {}
+  Bar.UnitBarF = UnitBarF
+  Bar.ParentFrame = ParentFrame
+  Bar.TotalBoxes = NumBoxes
+  Bar.NumBoxes = NumBoxes
+  Bar.Angle = 90
+  Bar.Padding = 0
+  Bar.BoxWidth = 1
+  Bar.BoxHeight = 1
+  Bar.BoxScale = 1
+  Bar.BoxFrame = {}
 
   -- Create the border frame.
   local Border = CreateFrame('Frame', nil, ParentFrame)
@@ -977,8 +1126,8 @@ function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, ParentFrame)
 
-  BDB.OffsetFrame = OffsetFrame
-  BDB.Border = Border
+  Bar.OffsetFrame = OffsetFrame
+  Bar.Border = Border
 
   -- Create the boxes for the bar.
   for BoxFrameIndex = 1, NumBoxes do
@@ -987,7 +1136,7 @@ function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
     local BoxFrame = CreateFrame('Frame', nil, OffsetFrame)
     local Border = CreateFrame('Frame', nil, BoxFrame)
 
-    -- Set the SetScriptFrame and border to always be the size of the boxframe.
+    -- Set the border to always be the size of the boxframe.
     Border:SetAllPoints(BoxFrame)
 
     -- Save frame data to the bar database.
@@ -995,10 +1144,10 @@ function GUB.Bar:CreateBar(ParentFrame, Anchor, NumBoxes)
     BoxFrame.Anchor = Anchor
     BoxFrame.Padding = 0
     BoxFrame.TextureFrame = {}
-    BDB.BoxFrame[BoxFrameIndex] = BoxFrame
+    Bar.BoxFrame[BoxFrameIndex] = BoxFrame
   end
 
-  return BDB
+  return Bar
 end
 
 -------------------------------------------------------------------------------
@@ -1032,10 +1181,6 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
   TextureFrame:SetHeight(1)
   TextureFrame:Hide()
 
-  -- Set default rotation to false and fill direction to horizontal
-  TextureFrame.Rotate = false
-  TextureFrame.FillDirection = 'HORIZONTAL'
-
   -- Create a statusbar or texture.
   if TextureType == 'statusbar' then
     Texture = CreateFrame('StatusBar', nil, TextureFrame)
@@ -1043,13 +1188,14 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
     Texture:SetPoint('BOTTOMRIGHT' ,0, 0)
     Texture:SetMinMaxValues(0, 1)
     Texture:SetValue(1)
+    Texture:SetOrientation('HORIZONTAL')
 
     -- Statusbar gets streched to the boxframe size.
     TextureFrame:SetAllPoints(BoxFrame)
 
     -- Set defaults for statusbar.
-    TextureFrame.RotateTexture = false
-    TextureFrame.Type = 'statusbar'
+    Texture.Value = 1
+    Texture.Type = 'statusbar'
   else
     Texture = TextureFrame:CreateTexture(nil)
 
@@ -1062,8 +1208,24 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
 
     -- Texture Frame is centered in the boxframe.
     TextureFrame:SetPoint('CENTER', 0, 0)
-    TextureFrame.Type = 'texture'
+    Texture.Type = 'texture'
+
+    -- Set defaults.
+    Texture.TexLeft = 0
+    Texture.TexRight = 1
+    Texture.TexTop = 0
+    Texture.TexBottom = 1
+    Texture.Point = 'CENTER'
+    Texture.OffsetX = 0
+    Texture.OffsetY = 0
   end
+
+  -- Set defaults.
+  Texture.RotateTexture = false
+  Texture.FillDirection = 'HORIZONTAL'
+  Texture.ReverseFill = false
+  Texture.FadeOutTime = 0
+  Texture.FadeInTime = 0
 
   -- Add 1 to account for the border in the boxframe being the same frame level.
   TextureFrame:SetFrameLevel(TextureFrame:GetFrameLevel() + FrameLevel + 1)
@@ -1072,14 +1234,6 @@ function BarDB:CreateBoxTexture(BoxNumber, TextureNumber, TextureType, FrameLeve
   local TopFrameLevel = self.TopFrameLevel or 0
   local CurrentFrameLevel = TextureFrame:GetFrameLevel()
   self.TopFrameLevel = TopFrameLevel < CurrentFrameLevel and CurrentFrameLevel or TopFrameLevel
-
-  -- Create an animation for fade out for the Texture.
-  Texture.FadeOut, Texture.FadeOutA = Main:CreateFade(Texture, 'out')
-  Texture.FadeOutTime = 0
-
-  -- Create an animation for fade in for the texture.
-  Texture.FadeIn, Texture.FadeInA = Main:CreateFade(Texture, 'in')
-  Texture.FadeInTime = 0
 
   -- Hide the texture or statusbar
   Texture:Hide()

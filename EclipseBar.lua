@@ -61,16 +61,14 @@ local C_PetBattles, UIParent =
 --   Frame                           Child of MoonBorder. Used to hide/show the moon.
 --   Border                          Child of OffsetFrame. Used to show a visible border for moon.
 --   StatusBar                       Child of Moon.Frame.  Statusbar containing the visible texture.
---   FadeOut                         Animation group for fadeout.
---   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
+--   Fade                            Animation group for fading.
 --
 -- EclipseF.Sun                      Table containing frame data for sun.
 --   Dark                            If true then the Sun is not lit.
 --   Frame                           Child of MoonBorder. Used to hide/show the sun.
 --   Border                          Child of OffsetFrame. Used to show a visible border for sun.
 --   StatusBar                       Child of Sun.Frame.  Statusbar containing the visible texture.
---   FadeOut                         Animation group for fadeout.
---   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
+--   Fade                            Animation group for fading.
 --
 -- EclipseF.Bar                      Table containing the frame for the bar.
 --   Frame                           Child of BarBorder. Used to hide/show the bar.
@@ -79,14 +77,12 @@ local C_PetBattles, UIParent =
 -- EclipseF.Lunar                    Table containing the lunar statusbar.
 --   Dark                            If true then the StatusBarLunar is not lit.
 --   Frame                           Child of BarBorder.  This texture fills the lunar side of the bar.
---   FadeOut                         Animation group for fadeout.
---   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
+--   Fade                            Animation group for fading.
 --
 -- EclipseF.Solar
 --   Dark                            If true then the StatusBarSolar is not lit.
 --   Frame                           Child of BarBorder.  This texture fills the solar side of the bar.
---   FadeOut                         Animation group for fadeout.
---   FadeOutA                        Animation that contains the fade out. This animation is a child of FadeOut.
+--   Fade                            Animation group for fading.
 --
 -- EclipseF.Slider                   Table containing the frame data for the slider.
 --   Frame                           Child of OffsetFrame. Used to hide/show the slider.
@@ -104,16 +100,12 @@ local C_PetBattles, UIParent =
 --
 -- RotateBar                         Table containing data for the bar rotation.
 --
--- LastEclipseDirection
--- LastEclipse
--- LastEclipsePower
--- LastPredictedSpells               These four values keep track if there is a change in the eclipse bar.
 --
 -- Eclipse bar frame layout:
 --
--- SolarBuff                         SpellID for the solar buff.
--- LunarBuff                         SpellID for the lunar buff.
--- CABuff                            SpellID for Celestial Alignment buff.
+-- SolarAura                         SpellID for the solar aura.
+-- LunarAura                         SpellID for the lunar aura.
+-- CAAura                            SpellID for Celestial Alignment aura.
 -- SoTF                              Soul of the forest talent number. Used to check to see if the player has this
 --                                   talent active.
 -- SoTFPower                         Amount of power soul of the forest gives.
@@ -150,11 +142,11 @@ local C_PetBattles, UIParent =
 -- Powertype constants
 local PowerEclipse = PowerTypeToNumber['ECLIPSE']
 
-local SolarBuff = 48517
-local LunarBuff = 48518
-local CABuff = 112071    -- Celestial Alignment
+local SolarAura = 48517
+local LunarAura = 48518
+local CAAura = 112071    -- Celestial Alignment
 local SoTF = 10  -- Soul of the forest talent number.
-local SoTFPower = 20 -- Amount of power soul of the forest gives.
+local SoTFPower = 20 -- Amount of power that soul of the forest gives.
 
 -- Predicted spell ID constants.
 local SpellWrath     = 5176
@@ -219,48 +211,51 @@ GUB.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- This checks to see if the spell should be tracked for casting by predictedspells.
+-- Sets UnitBarF.PredictedSpell
+--
 -- If Celestial Alignment is active at the end of the cast then the spell
 -- will generate no energy and cause no energize event.
 --
--- So the function checks to see if the spell will finish without a CA buff.  If
--- so then it gets added to be tracked by predictedspell otherwise it tells
--- predictedspell system not to track it.
---
--- Setting SpellID to -1 tells it not to add the spell to be tracked.
---
--- This function also updates the bar when predicted gets changed.
+-- So the function checks to see if the spell will finish without a CA aura.
+-- If the spell will finish before CA drops off then the PredictedSpell is set
+-- to the spellID otherwise its set to 0.
 -------------------------------------------------------------------------------
-local function CheckSpell(SpellID, CastTime, Message)
+local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
+  local PredictedSpell = 0
+
   if SpellID < 0 then
     if Message == 'start' then
       SpellID = abs(SpellID)
 
-      -- Check for Celestial Alignment buff.  Will the buff drop off before spell
+      -- Check for Celestial Alignment aura.  Will the aura drop off before spell
       -- is done casting?
-      local Spell, TimeLeft = Main:CheckAura('o', CABuff)
+      local Spell, TimeLeft = Main:CheckAura('o', CAAura)
       if Spell then
         if CastTime < TimeLeft then
-          SpellID = -1
+          PredictedSpell = SpellID
         end
+      else
+        PredictedSpell = SpellID
       end
-      return SpellID
     end
   end
 
-  -- afterstart, end, failed.
+  -- Set PredictedSpell
+  UnitBarF.PredictedSpell = PredictedSpell
+
+  -- afterstart, end, failed, energize.
   -- Show the predicted power changes on the bar.
-  UnitBarsF.EclipseBar:Update()
+  UnitBarF:Update()
 end
 
 -------------------------------------------------------------------------------
 -- Set Wrath, Starfire, Starsurge. Since 'energize' is being used the energize
 -- spell has to be added as well.
 -------------------------------------------------------------------------------
-Main:SetPredictedSpells(SpellWrath,     'energize', CheckSpell)
-Main:SetPredictedSpells(SpellStarfire,  'energize', CheckSpell)
-Main:SetPredictedSpells(SpellStarsurge, 'energize', CheckSpell)
-Main:SetPredictedSpells(SpellEnergize,  'energize', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellWrath,     'energize', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellStarfire,  'energize', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellStarsurge, 'energize', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellEnergize,  'energize', CheckSpell)
 
 --*****************************************************************************
 --
@@ -440,44 +435,40 @@ end
 --
 -- Hides/Shows the sun and moon
 --
--- usage: EclipseBarHide(EF, Frame, FadeOutTime, Hide)
+-- usage: EclipseBarHide(EF, Frame, Hide, , FadeInTime, FadeOutTime)
 --
 -- EF          EclipseFrame contains the frame data for the slider.
 -- Frame       Frame to hide or show.  Can be 'Sun' or 'Moon'
 -- Hide        If true frame is hidden else shown.
 -- FadeOutTime if > 0 then fadeout animation will be used.
---             if -1 then all fadeout animation will be canceled.
+-- FadeInTime  if > 0 then fadein animation will be used.
 -------------------------------------------------------------------------------
-local function EclipseBarHide(EF, Frame, Hide, FadeOutTime)
+local function EclipseBarHide(EF, Frame, Hide, FadeInTime, FadeOutTime)
 
   --Get frame.
   local SliderF = EF[Frame]
   local Frame = SliderF.Frame
 
-  if FadeOutTime == -1 then
-    if SliderF.Dark then
-      Main:Animation(Frame.FadeOut, 'stop')
-      Frame:Hide()
-    end
+  if Hide ~= SliderF.Dark then
+    if Hide then
 
-  elseif not Hide and SliderF.Dark then
-    if FadeOutTime > 0 then
-
-      -- Finish animation if it's playing.
-      Main:Animation(Frame.FadeOut, 'stop')
-    end
-    Frame:Show()
-    SliderF.Dark = false
-
-  elseif Hide and not SliderF.Dark then
-    if FadeOutTime > 0 then
-
-      -- Fade out the soul shard then hide it.
-      Main:Animation(Frame.FadeOut, 'play', function() Frame:Hide() end)
+      -- Fade out the frame then hide it.
+      if FadeOutTime > 0 then
+        Frame.Fade:SetAnimation('out')
+      else
+        Frame:Hide()
+      end
+      SliderF.Dark = true
     else
-      Frame:Hide()
+
+      -- Fade in the frame then show it
+      if FadeInTime > 0 then
+        Frame.Fade:SetAnimation('in')
+      else
+        Frame:Show()
+      end
+      SliderF.Dark = false
     end
-    SliderF.Dark = true
   end
 end
 
@@ -568,9 +559,11 @@ end
 --
 -- Update the eclipse bar power, sun, and moon.
 --
--- usage: Update(Event, Unit, PowerType)
+-- Usage: Update(Event, Unit, PowerType)
 --
--- Event     'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   if not self.Visible then
@@ -584,31 +577,25 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     return
   end
 
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
-
   local UB = self.UnitBar
   local Gen = UB.General
   local PredictedPower = Gen.PredictedPower
 
   local EclipsePower = UnitPower('player', PowerEclipse)
   local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
-  local SpellID = Main:CheckAura('o', SolarBuff, LunarBuff)
-  local Eclipse = SpellID == SolarBuff and 1 or SpellID == LunarBuff and -1 or 0
+  local SpellID = Main:CheckAura('o', SolarAura, LunarAura)
+  local Eclipse = SpellID == SolarAura and 1 or SpellID == LunarAura and -1 or 0
   local EclipseDirection = GetEclipseDirection()
 
-  -- Update EclipseDirection on maxpower or nil or none.
---  if abs(EclipsePower) == EclipseMaxPower or EclipsePower == 0 or EclipseDirection == nil then
---    EclipseDirection = ED
---  end
   local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
-  local PredictedSpells = PredictedPower and Main:GetPredictedSpell() > 0 and 1 or 0
 
   local EF = self.EclipseF
 
   local IndicatorHideShow = Gen.IndicatorHideShow
+  local FadeInTime = Gen.EclipseFadeInTime
   local FadeOutTime = Gen.EclipseFadeOutTime
   local BarHalfLit = Gen.BarHalfLit
+  local HideSlider = Gen.HideSlider
   local PredictedEclipse = Gen.PredictedEclipse
   local PredictedBarHalfLit = Gen.PredictedBarHalfLit
 
@@ -620,7 +607,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   local PEclipse = nil
 
   -- Check hide slider option.
-  if PredictedPower and Gen.PredictedHideSlider then
+  if HideSlider then
     EF.Slider.Frame:Hide()
   else
     EF.Slider.Frame:Show()
@@ -639,7 +626,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     PEclipsePowerType = EclipsePowerType
     PEclipse = Eclipse
 
-    SpellID = Main:GetPredictedSpell()
+    SpellID = self.PredictedSpell or 0
 
     if SpellID ~= 0 then
       Value = PredictedSpellValue[SpellID]
@@ -668,10 +655,13 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
 
   -- Display the eclipse power.
   Value = nil
-  if Gen.PredictedPowerText then
+
+  -- if PC is true then we had predicted power.
+  if PC and Gen.PredictedPowerText then
     Value = PEclipsePower
-  end
-  if Gen.PowerText and Value == nil then
+
+  -- Otherwise get current power.
+  elseif Gen.PowerText then
     Value = EclipsePower
   end
   if Value then
@@ -684,33 +674,20 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   if PredictedEclipse and PEclipse ~= nil then
     Eclipse = PEclipse
   end
-  EclipseBarHide(EF, 'Sun', Eclipse ~= 1, FadeOutTime)
-  EclipseBarHide(EF, 'Moon', Eclipse ~= -1, FadeOutTime)
+  EclipseBarHide(EF, 'Sun', Eclipse ~= 1, FadeInTime, FadeOutTime)
+  EclipseBarHide(EF, 'Moon', Eclipse ~= -1, FadeInTime, FadeOutTime)
 
   -- Use PEclipseDirection if BarHalfLit and PredictedBarHalfLit is true and there is PEclispeDirection.
   if BarHalfLit and PredictedBarHalfLit and PEclipseDirection ~= nil then
     EclipseDirection = PEclipseDirection
   end
-  EclipseBarHide(EF, 'Lunar', BarHalfLit and EclipseDirection == 'sun', FadeOutTime)
-  EclipseBarHide(EF, 'Solar', BarHalfLit and EclipseDirection == 'moon', FadeOutTime)
+  EclipseBarHide(EF, 'Lunar', BarHalfLit and EclipseDirection == 'sun', FadeInTime, FadeOutTime)
+  EclipseBarHide(EF, 'Solar', BarHalfLit and EclipseDirection == 'moon', FadeInTime, FadeOutTime)
 
   self.IsActive = true
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the eclipse bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:CancelAnimation()
-  local EF = self.EclipseF
-  EclipseBarHide(EF, 'Moon', false, -1)
-  EclipseBarHide(EF, 'Sun', false, -1)
-  EclipseBarHide(EF, 'Lunar', false, -1)
-  EclipseBarHide(EF, 'Solar', false, -1)
 end
 
 --*****************************************************************************
@@ -772,7 +749,7 @@ end
 --
 -- Sets different parts of the eclipsebar.
 --
--- Usage: SetAttr(Object, Attr, Eclipse)
+-- Usage: SetAttr(Object, Attr, Eclipse...)
 --        SetAttr('ppower')
 --
 -- Object       Object being changed:
@@ -789,14 +766,14 @@ end
 --               'padding'   Amount of padding set to the object.
 --               'texture'   One or more textures set to the object.
 --               'strata'    Frame strata for the object.
--- Eclipse      Which part of the eclispe bar being changed
+-- Eclipse...   Which part of the eclispe bar being changed
 --               'moon'      Apply changes to the moon.
 --               'sun'       Apply changes to the sun.
 --               'bar'       Apply changes to the bar.
 --               'slider'    Apply changes to the slider.
 --               'Indicator' Apply changes to the predicted slider.
 --              If Eclipse is nil then only frame scale, frame strata, or text can be changed.
---              Eclipse can have more than one paramater.  So to do moon and sun you would do ('moon', 'sun').
+--              Eclipse can have more than one argument.  So to do moon and sun you would do ('moon', 'sun').
 --
 -- NOTE: To apply one attribute to all objects. Object must be nil.
 --       To apply all attributes to one object. Attr must be nil.
@@ -813,7 +790,7 @@ function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, ...)
 
   -- Set predicted power settings.
   if Object == nil or Object == 'ppower' then
-    Main:SetPredictedSpells(UB.General.PredictedPower, 'EclipseBar')
+    Main:SetSpellTracker(self, UB.General.PredictedPower)
   end
 
   -- Text (StatusBar.Txt).
@@ -876,18 +853,18 @@ function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, ...)
           StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
           StatusBar:GetStatusBarTexture():SetHorizTile(false)
           StatusBar:GetStatusBarTexture():SetVertTile(false)
-          StatusBar:SetOrientation(Bar.FillDirection)
+          StatusBar:SetOrientation('HORIZONTAL')
           StatusBar:SetRotatesTexture(Bar.RotateTexture)
         else
           StatusBarLunar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureLunar))
           StatusBarSolar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureSolar))
           StatusBarLunar:GetStatusBarTexture():SetHorizTile(false)
           StatusBarLunar:GetStatusBarTexture():SetVertTile(false)
-          StatusBarLunar:SetOrientation(Bar.FillDirection)
+          StatusBarLunar:SetOrientation('HORIZONTAL')
           StatusBarLunar:SetRotatesTexture(Bar.RotateTexture)
           StatusBarSolar:GetStatusBarTexture():SetHorizTile(false)
           StatusBarSolar:GetStatusBarTexture():SetVertTile(false)
-          StatusBarSolar:SetOrientation(Bar.FillDirection)
+          StatusBarSolar:SetOrientation('HORIZONTAL')
           StatusBarSolar:SetRotatesTexture(Bar.RotateTexture)
         end
       end
@@ -947,6 +924,7 @@ function GUB.UnitBarsF.EclipseBar:SetLayout()
   local SunOffsetY = Gen.SunOffsetY
   local MoonOffsetX = Gen.MoonOffsetX
   local MoonOffsetY = Gen.MoonOffsetY
+  local FadeInTime = Gen.EclipseFadeInTime
   local FadeOutTime = Gen.EclipseFadeOutTime
   local SunWidth = Bar.Sun.SunWidth
   local SunHeight = Bar.Sun.SunHeight
@@ -1057,11 +1035,17 @@ function GUB.UnitBarsF.EclipseBar:SetLayout()
   OffsetFrame:SetWidth(BorderWidth)
   OffsetFrame:SetHeight(BorderHeight)
 
-  -- Set the duration of the fade out for sun, moon, lunar and solar.
-  Frame1.FadeOutA:SetDuration(FadeOutTime)
-  Frame3.FadeOutA:SetDuration(FadeOutTime)
-  EF.Lunar.Frame.FadeOutA:SetDuration(FadeOutTime)
-  EF.Solar.Frame.FadeOutA:SetDuration(FadeOutTime)
+  -- Set the duration of the fade in/out for sun, moon, lunar and solar.
+  Frame1.Fade:SetDuration('in', FadeInTime)
+  Frame3.Fade:SetDuration('in', FadeInTime)
+  EF.Lunar.Frame.Fade:SetDuration('in', FadeInTime)
+  EF.Solar.Frame.Fade:SetDuration('in', FadeInTime)
+
+  Frame1.Fade:SetDuration('out', FadeOutTime)
+  Frame3.Fade:SetDuration('out', FadeOutTime)
+  EF.Lunar.Frame.Fade:SetDuration('out', FadeOutTime)
+  EF.Solar.Frame.Fade:SetDuration('out', FadeOutTime)
+
 
   -- Set all attributes.
   self:SetAttr(nil, nil, 'moon', 'bar', 'sun', 'slider', 'indicator')
@@ -1176,22 +1160,11 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   EclipseFrame.Sun.Dark = true
   SunFrame:Hide()
 
-  -- Create fadeout for Sun, Moon, Lunar, and Solar.
-  local FadeOut, FadeOutA = Main:CreateFade(MoonFrame, 'out')
-  MoonFrame.FadeOut = FadeOut
-  MoonFrame.FadeOutA = FadeOutA
-
-  FadeOut, FadeOutA = Main:CreateFade(SunFrame, 'out')
-  SunFrame.FadeOut = FadeOut
-  SunFrame.FadeOutA = FadeOutA
-
-  FadeOut, FadeOutA = Main:CreateFade(BarLunar, 'out')
-  BarLunar.FadeOut = FadeOut
-  BarLunar.FadeOutA = FadeOutA
-
-  FadeOut, FadeOutA = Main:CreateFade(BarSolar, 'out')
-  BarSolar.FadeOut = FadeOut
-  BarSolar.FadeOutA = FadeOutA
+  -- Create fade for Sun, Moon, Lunar, and Solar.
+  MoonFrame.Fade = Main:CreateFade(UnitBarF, MoonFrame)
+  SunFrame.Fade = Main:CreateFade(UnitBarF, SunFrame)
+  BarLunar.Fade = Main:CreateFade(UnitBarF, BarLunar)
+  BarSolar.Fade = Main:CreateFade(UnitBarF, BarSolar)
 
   -- Save the name for tooltips.
   Main:SetTooltip(MoonBorder,  UB.Name, MouseOverDesc)
@@ -1238,9 +1211,9 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.EclipseBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_AURA', self.Update, 'player')
-  Main:RegEvent(Enable, self, 'UNIT_POWER', self.Update, 'player')
-  Main:RegEvent(Enable, self, 'ECLIPSE_DIRECTION_CHANGE', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_AURA', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'ECLIPSE_DIRECTION_CHANGE', self.Update, 'player')
 end
 
 
