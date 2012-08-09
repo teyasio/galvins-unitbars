@@ -72,6 +72,11 @@ local PredictedSpellValue = {
   [SpellCobraShot]  = 14,
 }
 
+local SteadyFocusAura = 53220
+
+-- Amount of focus that gets added on to SteadyShot.
+local SteadyFocusBonus = 3
+
 -------------------------------------------------------------------------------
 -- HapFunction
 --
@@ -116,26 +121,47 @@ HapFunction('StatusCheck', Main.StatusCheck)
 --
 -- Calls update on cast end
 -------------------------------------------------------------------------------
-local function CheckSpell(SpellID, CastTime, Message)
-  if SpellID < 0 then
-    if Message == 'start' then
+local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
+  SpellID = abs(SpellID)
+  if Message == 'start' then
+    local PredictedPower = PredictedSpellValue[SpellID]
 
-      -- If the spell is starting to cast then queue it.
-      return abs(SpellID)
-    else
+    -- Check for steady focus.  Will the aura drop off before steadyshot is finished casting.
+    if SpellID == SpellSteadyShot then
+      local Spell, TimeLeft = Main:CheckAura('o', SteadyFocusAura)
+      if Spell then
 
-      -- Spell is done casting.  Update the power.
-      UnitBarsF.PlayerPower:Update()
+        -- Add bonus focus if buff will be up by the time the cast is finished.
+        if CastTime < TimeLeft then
+          PredictedPower = PredictedPower + SteadyFocusBonus
+        end
+      end
     end
+
+    -- Check for two piece bonus tier 13. hunters only.
+    if Main:GetSetBonus(13) >= 2 then
+      PredictedPower = PredictedPower * 2
+    end
+
+    -- Save predicted focus.
+    UnitBarF.PredictedPower = PredictedPower
+  else
+
+    -- Set predictedfocus to zero.
+    UnitBarF.PredictedPower = 0
   end
+
+  -- Remove
+  -- Spell is done casting.  Update the power.
+  UnitBarF:Update()
 end
 
 -------------------------------------------------------------------------------
 -- Set Steady shot and cobra shot for predicted power.
 -- Set a callback that will update the power bar when ever either of these spells are casting.
 -------------------------------------------------------------------------------
-Main:SetPredictedSpells(SpellSteadyShot, 'casting', CheckSpell)
-Main:SetPredictedSpells(SpellCobraShot,  'casting', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellSteadyShot, 'casting', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellCobraShot,  'casting', CheckSpell)
 
 --*****************************************************************************
 --
@@ -166,6 +192,7 @@ end
 
 local function SetStatusBarValue(UnitBarF, CurrValue, MaxValue, PredictedValue)
   local StatusBar = UnitBarF.StatusBar
+
   StatusBar:SetMinMaxValues(0, MaxValue)
   StatusBar:SetValue(CurrValue)
 
@@ -226,31 +253,23 @@ end
 -- Updates the health of the current player or target
 --
 -- Usage: UpdateHealthBar(self, Event, Unit)
---
--- Event      'change' then the bar will only get updated if there is a change.
--- Unit       player, target, pet, etc
+
+-- self         UnitBarF contains the health bar to display.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
-
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
 
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
 
   local Gen = self.UnitBar.General
-  local PredictedHealing = Gen and Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
+  local PredictedHealing = UnitGetIncomingHeals(Unit) or 0
   local Bar = self.UnitBar.Bar
   local PredictedBar = self.PredictedBar
 
@@ -317,14 +336,8 @@ end
 local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
 
   -- Convert string powertype into number.
@@ -349,21 +362,9 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     return
   end
 
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
-
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
-  local Gen = self.UnitBar.General
-
-  -- Get predicted power for hunters only.
-  local PredictedPower = Gen and Gen.PredictedPower and Unit == 'player' and PlayerClass == 'HUNTER' and
-                         PredictedSpellValue[Main:GetPredictedSpell()] or 0
-
-  -- Check for two piece bonus hunters only.
-  if PlayerClass == 'HUNTER' and PredictedPower > 0 and Main:GetSetBonus(13) >= 2 then
-    PredictedPower = PredictedPower * 2
-  end
+  local PredictedPower = self.PredictedPower or 0
 
   local Bar = self.UnitBar.Bar
   local Color = Bar.Color[PowerType]
@@ -423,17 +424,6 @@ end
 function GUB.UnitBarsF.ManaPower:Update(Event)
   UpdatePowerBar(self, Event, 'player', 'MANA')
 end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Usage: CancelAnimation()
---
--- Cancels all animation playing in the combo bar.
--------------------------------------------------------------------------------
-HapFunction('CancelAnimation', function()
-  -- do nothing.
-end)
 
 --*****************************************************************************
 --
@@ -523,7 +513,7 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Set predicted power settings.
   if self.BarType == 'PlayerPower' and PlayerClass == 'HUNTER' and (Object == nil or Object == 'ppower') then
-    Main:SetPredictedSpells(Gen.PredictedPower, 'PlayerPower')
+    Main:SetSpellTracker(self, Gen.PredictedPower)
   end
 
   -- Background (Border).
@@ -556,6 +546,7 @@ HapFunction('SetAttr', function(self, Object, Attr)
       StatusBar:GetStatusBarTexture():SetHorizTile(false)
       StatusBar:GetStatusBarTexture():SetVertTile(false)
       StatusBar:SetOrientation(Bar.FillDirection)
+      StatusBar:SetReverseFill(Bar.ReverseFill)
       StatusBar:SetRotatesTexture(Bar.RotateTexture)
 
       local PredictedBarTexture = Bar.PredictedBarTexture
@@ -567,6 +558,7 @@ HapFunction('SetAttr', function(self, Object, Attr)
       PredictedBar:GetStatusBarTexture():SetHorizTile(false)
       PredictedBar:GetStatusBarTexture():SetVertTile(false)
       PredictedBar:SetOrientation(Bar.FillDirection)
+      PredictedBar:SetReverseFill(Bar.ReverseFill)
       PredictedBar:SetRotatesTexture(Bar.RotateTexture)
     end
 
@@ -586,6 +578,15 @@ HapFunction('SetAttr', function(self, Object, Attr)
       PredictedBar:ClearAllPoints()
       PredictedBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
       PredictedBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
+
+      -- Update the statusbars to reflect change.
+      local Value = StatusBar:GetValue()
+      local Value2 = PredictedBar:GetValue()
+
+      StatusBar:SetValue(Value - 1)
+      StatusBar:SetValue(Value)
+      PredictedBar:SetValue(Value2 - 1)
+      PredictedBar:SetValue(Value2)
     end
     if Attr == nil or Attr == 'size' then
       self:SetSize(Bar.HapWidth, Bar.HapHeight)
@@ -696,14 +697,14 @@ end
 --*****************************************************************************
 
 local function RegEventHealth(Enable, UnitBarF, ...)
-  Main:RegEvent(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION', UpdateHealthBar, ...)
-  Main:RegEvent(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT', UpdateHealthBar, ...)
-  Main:RegEvent(Enable, UnitBarF, 'UNIT_MAXHEALTH',       UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION', UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT', UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',       UpdateHealthBar, ...)
 end
 
 local function RegEventPower(Enable, UnitBarF, ...)
-  Main:RegEvent(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, ...)
-  Main:RegEvent(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
 end
 
 function GUB.UnitBarsF.PlayerHealth:Enable(Enable)

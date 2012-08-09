@@ -64,20 +64,13 @@ GUB.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Lights or darkens combo point boxes.
 --
--- Usage: UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
+-- Usage: UpdateComboPoints(ComboBarF, ComboPoints, FinishFade)
 --
 -- ComboPointF      ComboBar containing combo points to update.
 -- ComboPoints      Updates the combo points based on the combopoints.
--- FinishFadeOut    If true then any fadeout animation currently playing
---                  will be stopped.
---                  If nil or false then does nothing.
 -------------------------------------------------------------------------------
-local function UpdateComboPoints(ComboBarF, ComboPoints, FinishFadeOut)
+local function UpdateComboPoints(ComboBarF, ComboPoints)
   local ComboBar = ComboBarF.ComboBar
-  if FinishFadeOut then
-    ComboBar:StopFade(0, ComboBox)
-    return
-  end
 
   for ComboIndex = 1, MaxComboPoints do
     if ComboIndex <= ComboPoints then
@@ -93,19 +86,14 @@ end
 --
 -- Usage: Update(Event)
 --
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ComboBar:Update(Event)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 and (Event == nil or Event == 'change') or true then
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
-
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
 
   -- Get the combo points.
   local ComboPoints = GetComboPoints('player', 'target')
@@ -125,15 +113,6 @@ function GUB.UnitBarsF.ComboBar:Update(Event)
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the combo bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.ComboBar:CancelAnimation()
-  UpdateComboPoints(self, 0, true)
 end
 
 --*****************************************************************************
@@ -226,7 +205,6 @@ function GUB.UnitBarsF.ComboBar:SetAttr(Object, Attr)
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'texture' then
         ComboBar:SetTexture(ComboIndex, ComboBox, Bar.StatusBarTexture)
-        ComboBar:SetFillDirection(ComboIndex, ComboBox, Bar.FillDirection)
         ComboBar:SetRotateTexture(ComboIndex, ComboBox, Bar.RotateTexture)
       end
       if Attr == nil or Attr == 'color' then
@@ -246,7 +224,7 @@ function GUB.UnitBarsF.ComboBar:SetAttr(Object, Attr)
   -- Forground (Statusbar).
   if Object == nil or Object == 'bar' then
     if Attr == nil or Attr == 'padding' then
-      ComboBar:SetTexturePadding(0, ComboBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+      ComboBar:SetStatusBarPadding(0, ComboBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
     end
   end
 end
@@ -266,10 +244,11 @@ function GUB.UnitBarsF.ComboBar:SetLayout()
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fadeout
+  -- Set padding and rotation and fade.
   ComboBar:SetPadding(0, Gen.ComboPadding)
   ComboBar:SetAngle(Gen.ComboAngle)
-  ComboBar:SetFadeOutTime(0, ComboBox, Gen.ComboFadeOutTime)
+  ComboBar:SetFadeTime(0, ComboBox, 'in', Gen.ComboFadeInTime)
+  ComboBar:SetFadeTime(0, ComboBox, 'out', Gen.ComboFadeOutTime)
 
   -- Set size
   ComboBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
@@ -291,7 +270,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
 
   -- Create the combo bar.
-  local ComboBar = Bar:CreateBar(ScaleFrame, Anchor, MaxComboPoints)
+  local ComboBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxComboPoints)
 
   for ComboIndex = 1, MaxComboPoints do
 
@@ -323,6 +302,6 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.ComboBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_COMBO_POINTS', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_COMBO_POINTS', self.Update, 'player')
 end
 

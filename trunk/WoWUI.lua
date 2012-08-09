@@ -269,10 +269,12 @@ local function SetControlEnabled(self, Value)
     SetGreyedOut(self.SliderMaxLabel, 'font', not Value)
     SetGreyedOut(self.SliderLabel, 'font', not Value)
     local SliderEditBoxFrame = self.SliderEditBoxFrame
+
     SetGreyedOut(SliderEditBoxFrame, 'font', not Value)
     SliderEditBoxFrame:EnableMouse(Value)
     SliderEditBoxFrame:ClearFocus()
   end
+
   -- Else its a panel button.
   if Value then
     self:Enable()
@@ -346,6 +348,7 @@ function GUB.WoWUI:CreateSelectButton(Parent, Type, Label, Point, ParentPoint, O
 
     -- Set width to match string for mouse over.
     SelectButtonFrame:SetWidth(24 + SelectButtonLabel:GetStringWidth())
+
   elseif Type == 'radio' then
     SelectButtonBg:SetWidth(16)
     SelectButtonBg:SetHeight(16)
@@ -535,7 +538,7 @@ end
 -------------------------------------------------------------------------------
 -- CreatePanelButton
 --
--- Creates as a button that can be clicked on.  Like 'cancel' and 'ok' buttons.
+-- Creates a button that can be clicked on.  Like 'cancel' and 'ok' buttons.
 --
 -- Usage: Frame = CreatePanelButton(Parent, Label, Point, ParentPoint, OffsetX, OffsetY, Width, ExecuteFn)
 --
@@ -553,6 +556,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.WoWUI:CreatePanelButton(Parent, Label, Point, ParentPoint, OffsetX, OffsetY, Width, ExecuteFn)
   local PanelButtonFrame = CreateFrame('Button', nil, Parent, 'UIPanelButtonTemplate')
+
   if ParentPoint ~= '' then
     PanelButtonFrame:SetPoint(Point, Parent, ParentPoint, OffsetX, OffsetY)
   else

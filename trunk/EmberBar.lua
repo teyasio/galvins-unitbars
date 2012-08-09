@@ -60,7 +60,6 @@ local C_PetBattles, UIParent =
 -- EmberFire                         Fire texture shown after the ember is filled.
 --
 -- MaxPowerPerEmber                  Amount of power for each ember.
--- CurrentNumEmbers                  Contains the current number of embers the player has.
 --
 -- BarOffsetX, BarOffsetY            Offset the whole bar within the border.
 -------------------------------------------------------------------------------
@@ -69,8 +68,6 @@ local MaxPowerPerEmber = MAX_POWER_PER_EMBER
 
 -- Powertype constants
 local PowerEmber = PowerTypeToNumber['BURNING_EMBERS']
-
-local CurrentNumEmbers = nil
 
 -- Ember Texture constants
 local EmberBox = 10
@@ -138,8 +135,10 @@ local function UpdateBurningEmbers(EmberBarF, EmberPower, NumEmbers)
   for EmberIndex = 1, NumEmbers do
 
     -- Fill the ember.
-    EmberBar:SetTextureFill(EmberIndex, EmberBox, EmberPower / MaxPowerPerEmber)
-    EmberBar:SetTextureFill(EmberIndex, EmberFill, EmberPower / MaxPowerPerEmber)
+    local Value = EmberPower / MaxPowerPerEmber
+
+    EmberBar:SetFill(EmberIndex, EmberBox, Value)
+    EmberBar:SetFill(EmberIndex, EmberFill, Value)
 
     -- Check to light ember up.
     if EmberPower >= MaxPowerPerEmber then
@@ -160,21 +159,17 @@ end
 --
 -- Update the ember bar.
 --
--- usage: Update(Event)
+-- Usage: Update(Event, Unit, PowerType)
 --
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerEmber
@@ -184,9 +179,6 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
     return
   end
 
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
-
   local EmberPower = UnitPower('player', PowerEmber, true)
   local MaxEmberPower = UnitPowerMax('player', PowerEmber, true)
   local NumEmbers = floor(MaxEmberPower / MaxPowerPerEmber)
@@ -195,32 +187,24 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   NumEmbers = NumEmbers > 0 and NumEmbers or MaxEmbers - 1
 
   -- Check for max ember change
-  if NumEmbers ~= CurrentNumEmbers then
-    CurrentNumEmbers = NumEmbers
+  if NumEmbers ~= self.NumEmbers then
 
     -- Change the number of boxes in the bar.
     self.EmberBar:SetNumBoxes(NumEmbers)
 
     -- Update the layout to reflect the change.
     self:SetLayout()
+
+    self.NumEmbers = NumEmbers
   end
 
   UpdateBurningEmbers(self, EmberPower, NumEmbers)
 
-    -- Set this IsActive flag
-  self.IsActive = EmberPower ~= 10
+  -- Set the IsActive flag
+  self.IsActive = EmberPower ~= MaxPowerPerEmber
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the ember bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.EmberBar:CancelAnimation()
-  -- do nothing.
 end
 
 --*****************************************************************************
@@ -290,11 +274,22 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
+  local Bar = UB.Bar
   local Border = self.Border
+
+  -- Reverse fill option.
+  if Object == nil or Object == 'bar' then
+    if Attr == nil or Attr == 'texture' then
+      local ReverseFill = Bar.ReverseFill
+      EmberBar:SetReverseFill(0, EmberBox, ReverseFill)
+
+      -- Set reverse fill for texture mode as well.
+      EmberBar:SetReverseFill(0, EmberFill, ReverseFill)
+    end
+  end
 
   -- Check if we're in boxmode.
   if UB.General.BoxMode then
-    local Bar = UB.Bar
     local BarFiery = UB.BarFiery
     local Background = UB.Background
     local Padding = Bar.Padding
@@ -353,8 +348,8 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        EmberBar:SetTexturePadding(0, EmberBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
-        EmberBar:SetTexturePadding(0, EmberFieryBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        EmberBar:SetStatusBarPadding(0, EmberBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        EmberBar:SetStatusBarPadding(0, EmberFieryBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -385,13 +380,19 @@ function GUB.UnitBarsF.EmberBar:SetLayout()
   -- Get the unitbar data.
   local UB = self.UnitBar
   local Gen = self.UnitBar.General
+  local FieryEmberFadeInTime = Gen.FieryEmberFadeInTime
+  local FieryEmberFadeOutTime = Gen.FieryEmberFadeOutTime
 
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fadeout
+  -- Set padding and rotation and fade.
   EmberBar:SetPadding(0, Gen.EmberPadding)
   EmberBar:SetAngle(Gen.EmberAngle)
+  EmberBar:SetFadeTime(0, EmberFieryBox, 'in', FieryEmberFadeInTime)
+  EmberBar:SetFadeTime(0, EmberFieryBox, 'out', FieryEmberFadeOutTime)
+  EmberBar:SetFadeTime(0, EmberFire, 'in', FieryEmberFadeInTime)
+  EmberBar:SetFadeTime(0, EmberFire, 'out', FieryEmberFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -450,7 +451,7 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
 
   -- Create the emberbar.
-  local EmberBar = Bar:CreateBar(ScaleFrame, Anchor, MaxEmbers)
+  local EmberBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxEmbers)
 
   for EmberIndex = 1, MaxEmbers do
 
@@ -473,8 +474,10 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
       EmberBar:SetTexCoord(EmberIndex, TextureNumber, ED.Left, ED.Right, ED.Top, ED.Bottom)
 
       -- Set texture size.
-      EmberBar:SetTextureSize(EmberIndex, TextureNumber, ED.Width, ED.Height,
-                              ED.Point, ED.OffsetX, ED.OffsetY)
+      EmberBar:SetTextureSize(EmberIndex, TextureNumber, ED.Width, ED.Height)
+
+      -- Set texure point.
+      EmberBar:SetTexturePoint(EmberIndex, TextureNumber, ED.Point, ED.OffsetX, ED.OffsetY)
     end
 
     -- Show the ember background and fill
@@ -511,7 +514,7 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.EmberBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
 
 

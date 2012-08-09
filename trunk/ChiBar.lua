@@ -36,17 +36,6 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 local C_PetBattles, UIParent =
       C_PetBattles, UIParent
 
-
--- Locals
-
--- UnitBarF = UnitBarsF[]
---
--- UnitBarF.UnitBar                  Reference to the unitbar data for the shadow bar.
--- UnitBarF.ShadowBar                Contains the shadow bar displayed on screen.
---
--- ShadowData                        Contains all the data for the shadow bar.
---
-
 -------------------------------------------------------------------------------
 -- Locals
 
@@ -77,8 +66,6 @@ local PowerChi = PowerTypeToNumber['LIGHT_FORCE']
 local OrbBox = 10
 local OrbDark = 1
 local OrbLight = 2
-
-local CurrentNumOrbs = nil
 
 local ChiData = {
   Texture = [[Interface\PlayerFrame\MonkUI]],
@@ -113,21 +100,13 @@ GUB.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Glows or darkens the shadow orbs
 --
--- Usage: UpdateChiOrbs(ChiBarF, Orbs, FinishFadeOut)
+-- Usage: UpdateChiOrbs(ChiBarF, Orbs, FinishFade)
 --
 -- ChiBarF       Chi bar containing orbs to update.
--- Orbs             Total amount of orbs to glow.
--- FinishFadeOut    If true then any fadeout animation currently playing
---                  will be stopped.
---                  If nil or false then does nothing.
+-- Orbs          Total amount of orbs to glow.
 -------------------------------------------------------------------------------
-local function UpdateChiOrbs(ChiBarF, Orbs, NumOrbs, FinishFadeOut)
+local function UpdateChiOrbs(ChiBarF, Orbs, NumOrbs, FinishFade)
   local ChiBar = ChiBarF.ChiBar
-  if FinishFadeOut then
-    ChiBar:StopFade(0, OrbBox)
-    ChiBar:StopFade(0, OrbLight)
-    return
-  end
 
   for OrbIndex = 1, NumOrbs do
 
@@ -149,21 +128,17 @@ end
 --
 -- Update the number of chi orbs of the player
 --
--- usage: Update(Event)
+-- Usage: Update(Event, Unit, PowerType)
 --
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
 
   PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerChi
@@ -173,9 +148,6 @@ function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     return
   end
 
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
-
   local Orbs = UnitPower('player', PowerChi)
   local NumOrbs = UnitPowerMax('player', PowerChi)
 
@@ -183,14 +155,16 @@ function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   NumOrbs = NumOrbs > 0 and NumOrbs or MaxChiOrbs - 1
 
   -- Check for max soulshard change
-  if NumOrbs ~= CurrentNumOrbs then
-    CurrentNumOrbs = NumOrbs
+  if NumOrbs ~= self.NumOrbs then
+    local ChiBar = self.ChiBar
 
     -- Change the number of boxes in the bar.
-    self.ChiBar:SetNumBoxes(NumOrbs)
+    ChiBar:SetNumBoxes(NumOrbs)
 
     -- Update the layout to reflect the change.
     self:SetLayout()
+
+    self.NumOrbs = NumOrbs
   end
 
   UpdateChiOrbs(self, Orbs, NumOrbs)
@@ -200,15 +174,6 @@ function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Cancels all animation playing in the chi bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.ChiBar:CancelAnimation()
-  UpdateChiOrbs(self, 0, MaxChiOrbs, true)
 end
 
 -------------------------------------------------------------------------------
@@ -303,7 +268,6 @@ function GUB.UnitBarsF.ChiBar:SetAttr(Object, Attr)
       if Object == nil or Object == 'bar' then
         if Attr == nil or Attr == 'texture' then
           ChiBar:SetTexture(OrbIndex, OrbBox, Bar.StatusBarTexture)
-          ChiBar:SetFillDirection(OrbIndex, OrbBox, Bar.FillDirection)
           ChiBar:SetRotateTexture(OrbIndex, OrbBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
@@ -323,7 +287,7 @@ function GUB.UnitBarsF.ChiBar:SetAttr(Object, Attr)
     -- Forground (Statusbar).
     if Object == nil or Object == 'bar' then
       if Attr == nil or Attr == 'padding' then
-        ChiBar:SetTexturePadding(0, OrbBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
+        ChiBar:SetStatusBarPadding(0, OrbBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
       end
     end
   else
@@ -354,17 +318,19 @@ function GUB.UnitBarsF.ChiBar:SetLayout()
   -- Get the unitbar data.
   local UB = self.UnitBar
   local Gen = self.UnitBar.General
+  local ChiFadeInTime = Gen.ChiFadeInTime
+  local ChiFadeOutTime = Gen.ChiFadeOutTime
 
   -- Set all attributes.
   self:SetAttr(nil, nil)
 
-  -- Set padding and rotation and fade times.
+  -- Set padding and rotation and fade.
   ChiBar:SetPadding(0, Gen.ChiPadding)
   ChiBar:SetAngle(Gen.ChiAngle)
-  ChiBar:SetFadeOutTime(0, OrbBox, Gen.ChiFadeOutTime)
-  ChiBar:SetFadeOutTime(0, OrbLight, Gen.ChiFadeOutTime)
-  ChiBar:SetFadeInTime(0, OrbBox, Gen.ChiFadeInTime)
-  ChiBar:SetFadeInTime(0, OrbLight, Gen.ChiFadeInTime)
+  ChiBar:SetFadeTime(0, OrbBox, 'in', ChiFadeInTime)
+  ChiBar:SetFadeTime(0, OrbLight, 'in', ChiFadeInTime)
+  ChiBar:SetFadeTime(0, OrbBox, 'out', ChiFadeOutTime)
+  ChiBar:SetFadeTime(0, OrbLight, 'out', ChiFadeOutTime)
 
   -- Check for box mode.
   if Gen.BoxMode then
@@ -372,6 +338,9 @@ function GUB.UnitBarsF.ChiBar:SetLayout()
     -- Set size
     ChiBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
     ChiBar:SetBoxScale(1)
+
+    -- Stop any fading animation.
+    ChiBar:StopFade(0, OrbBox)
 
     -- Hide/show Box mode.
     ChiBar:HideTextureFrame(0, OrbDark)
@@ -390,6 +359,9 @@ function GUB.UnitBarsF.ChiBar:SetLayout()
     ChiBar:SetBoxScale(Gen.ChiSize)
     ChiBar:SetTextureScale(0, OrbDark, ChiScale)
     ChiBar:SetTextureScale(0, OrbLight, ChiScale)
+
+    -- Stop any fading animation.
+    ChiBar:StopFade(0, OrbLight)
 
     -- Hide/show Texture mode.
     ChiBar:ShowTextureFrame(0, OrbDark)
@@ -418,7 +390,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local ColorAllNames = {}
 
   -- Create the chibar.
-  local ChiBar = Bar:CreateBar(ScaleFrame, Anchor, MaxChiOrbs)
+  local ChiBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxChiOrbs)
 
   for OrbIndex = 1, MaxChiOrbs do
 
@@ -438,14 +410,17 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 
       -- Set the size of the texture
       if TextureNumber == OrbLight then
-        ChiBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height, SD.Point, 0, 0)
+        ChiBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height)
       else
-        ChiBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height, SD.Point, 0, 0)
+        ChiBar:SetTextureSize(OrbIndex, TextureNumber, SD.Width, SD.Height)
       end
+
+      -- Set the texture point.
+      ChiBar:SetTexturePoint(OrbIndex, TextureNumber, SD.Point)
     end
 
      -- Set and save the name for tooltips for each chi orb.
-    local Name = strconcat('Chi Orb ', OrbIndex)
+    local Name = 'Chi Orb ' .. OrbIndex
 
     ChiBar:SetTooltip(OrbIndex, Name, MouseOverDesc)
 
@@ -472,6 +447,6 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.ChiBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
 

@@ -76,8 +76,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- UnitBarsParent
 --   Anchor
---     FadeOut
---     FadeOutA
+--     Fade
 --     ScaleFrame
 --       <Unitbar frames start here>
 --     SelectFrame
@@ -98,9 +97,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --   SelectFrame          - Child of Anchor.  Places a colored border around a selected frame used for the alignment tool.
 --                          Its frame level is always the highest since it doesn't get scaled and needs to appear
 --                          on the top most level.
---   FadeOut              - Child of anchor. Animation group for fadeout.
---   FadeOutA             - Child of FadeOut. This contains the animation to fade out a bar.  Anything attached to the Anchor frame
---                          will get faded out.
+--   Fade                 - Table containing the fading animation groups/methods.  The groups are a child of Anchor.
 --
 --
 -- UnitBarsF has methods which make changing the state of a bar easier.  This is done in the form of
@@ -109,12 +106,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- List of UninBarsF methods:
 --
---   CancelAnimation()    - Some bars have alpha animations.  If a childframe has an alpha animation fadeout/fadein being
---                          played and its parent also has an animation fadeout being played at the same time.  The
---                          child can get stuck in a transparent state.  Only way to fix is to reload ui.  This is a bug
---                          in the wow ui.  The work around is when a bar is to be hidden which would trigger a fadeout.
---                          The code calls this method to cancel any fadeout animations currently in play.  Then fadeout the
---                          bar.
 --   Update()             - This is how information from the server gets to the bar.
 --   StatusCheck()        - All bars have flags that determin if a bar should be visible in combat or never shown.
 --                          When this gets called the bar checks the flags to see if the bar should change its state.
@@ -134,12 +125,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 --   WasEnabled           - True or false.  Flag used to keep track of enable/disable by EnableUnitBars()
 --   Visible              - True or false.  If true then the bar is visible otherwise hidden.
---   WaitTime             - Amount of time to wait before updating the bar again. Used by CreateUnitBarTimers().
---   LastTime             - Last time the bars Update() function was called. Updated by the bars Update() function.
---                          Used by CreateUnitBarTimers().
---                          This was created so when a bar gets updated thru an event, it wont get updated right away
---                          in CreateUnitBarsTimers() unless the WaitTime has elapsed.
---   IsActive             - True, false, or 0.  If true the bar is considered to be doing something, otherwise doing nothing.
+--   IsActive             - True, false, or 0.
 --                            True   The bar is considered to be doing something.
 --                            False  The bar is not active.
 --                            0      The bar is waiting to be active again.  If the flag is checked by StatusCheck() and is false.
@@ -159,8 +145,9 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- UnitBar mod upvalues/tables.
 --
 -- Defaults               - The default unitbar table.  Used for first time initialization.
+-- DefaultFadeInTime      - Default fade in time for all bars and objects.
+-- DefaultFadeOutTime     - Default fade out time for all bars and objects.
 -- CooldownBarTimerDelay  - Delay for the cooldown timer bar measured in times per second.
--- UnitBarDelay           - Used by CreateUnitBarTimers(). Tells the timer how often to call the function to update each bar.
 -- PowerColorType           Table used by InitializeColors()
 -- PowerTypeToNumber      - Table to convert a string powertype into a number.
 -- Backdrop                 This contains a Backdrop table that has texture path names.  Since this addon uses
@@ -190,16 +177,22 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- SelectMode             - true or false.  If true then bars can be left or right clicked on to select.
 --                                          Otherwise nothing happens.
 --
--- BgTexure               - Default background texture for the backdrop and all bars.
--- BdTexture              - Default border texture for the backdrop and all bars.
--- StatusBarTexure        - Default bar texture for the health and power bars.
+-- DefaultBgTexture       - Default background texture for the backdrop and all bars.
+-- DefaultBdTexture       - Default border texture for the backdrop and all bars.
+-- DefaultStatusBarTexture- Default bar texture for the health and power bars.
 --
 -- PointCalc              - Table used by CalcSetPoint() to return a location inside a parent frame.
 --
 -- GetTextValuePercentFn  - Contains the function to do percent calculations. Gets set by
 --                          GetTextValues() and called by SetTextValue().
 --
--- RegEventFrames         - Table used by RegisterEvent() and UnregisterEvent() functions
+-- RegEventFrames         - Table used by RegEvent()
+--
+-- Thousands              - Contains the digit group delimeter based on language.
+-- BillionFormat
+-- MillionFormat
+-- ThousandFormat         - Used by NumberToDigitGroups()
+--
 --
 -- UnitBar table data structure.
 -- This data is used in the root of the unitbar data table and applies to all bars.  Accessed by UnitBar.Key.
@@ -212,7 +205,9 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- HideTooltips           - True or false. If true tooltips are not shown when mousing over unlocked bars.
 -- HideTooltipsDesc       - True or false. If true the descriptions inside the tooltips will not be shown when mousing over
 --                                         unlocked bars.
+-- ReverseFading          - True of false. If true then transition from fading in one direction then going to the other is smooth.
 -- FadeOutTime            - Time in seconds before a bar completely goes hidden.
+-- FadeInTime             - Time in seconds before a bar completely becomes visible.
 -- Px, Py                 - The current location of the UnitBarsParent on the screen.
 --
 --
@@ -220,15 +215,13 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 --   Name                 - Name of the bar.
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
---   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars has this.
+--   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this.
 --   UsedByClass          - If a bar doesn't have this key then any class can use the bar and be any spec or no spec.
---                          Contains the data for HideNotUsable flag.  Not all unitbars has this. This is also used for Enable Bar Options.
+--                          Contains the data for HideNotUsable flag.  Not all unitbars use this. This is also used for Enable Bar Options.
 --                          Example1: {DRUID = '1234'}
 --                            Class has to be druid and any of the 4 specs can be used.
 --                          Example2: {DRUID = '12', DEATHKNIGHT = ''}
 --                            Class has to be druid or deathknight.  Spec 1 or 2 on the druid has to be used. Deathknight, spec isn't checked.
---
---  WaitTime              - Used for UnitBarsF. See UnitBarsF values.
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
 --   Status               - Table that contains a list of flags marked as true or false.
@@ -236,13 +229,13 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --                          bar should do. Flags with a higher priority override flags with a lower.
 --                          Flags from highest priority to lowest.
 --                            HideNotUsable    Disables and hides the unitbar if the bar is not usable
---                                             by class, specialization, stance or form, etc.
+--                                             by class and/or specialization.
 --                                             Not everybar has this flag.  If one is present then
 --                                             the bar has a UsedByClass table.
 --                            HideWhenDead     Hide the unitbar when the player is dead.
 --                            HideInVehicle    Hide the unitbar if in a vehicle.
 --                            HideInPetBattle  Hide the unitbar if in a pet battle.
---                            HideNotActive    Hide the unitbar if its not active.
+--                            HideNotActive    Hide the unitbar if its not active. Only checked out of combat.
 --                            HideNoCombat     Hide the unitbar when not in combat.
 -- Other                  - For anything not related mostly this will be for scale and maybe alpha
 --   Scale                - Sets the scale of the unitbar frame.
@@ -274,7 +267,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- UnitBars health and power fields
 --   General
---     PredictedHealth    - True or false.  Used by health bars only, except Pet Health.
+--     PredictedHealth    - True or false.  Used by health bars only.
 --                                          If true then predicted health will be shown.
 --     PredictedPower     - True or false.  Used by Player Power for hunters only.
 --                                          If true predicted power will be shown.
@@ -288,6 +281,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --                                          class color otherwise uses the normal color.
 --     HapWidth, HapHeight- The current width and height.
 --     FillDirection      - Direction to the fill the bar in 'HORIZONTAL' or 'VERTICAL'.
+--     ReverseFill        - If true then the bar fills in the opposite direction.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
 --                                          If false no rotation takes place.
 --     PaddingAll         - If true then padding can be set with one value otherwise four.
@@ -341,7 +335,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     EnergizeTime       - Time in seconds to show the energize border for.
 --     RuneSwap           - True or false.  If true runes can be dragged and dropped to swap positions. Otherwise
 --                                          nothing happens when a rune is dropped on another rune.
---     CooldownDrawEdge   - True or false.  If true a line is drawn on the clock face cooldown animation.
 --     CooldownBarDrawEdge- True or false.  If true a line is draw on the cooldown bar edge animation.
 --     CooldownAnimation  - True or false.  If true cooldown animation is shown otherwise false.
 --     CooldownText       - True or false.  If true then cooldown text gets displayed.
@@ -371,6 +364,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     RuneWidth          - Width of the cooldown bar.
 --     RuneHeight         - Height of the cooldown bar.
 --     FillDirection      - Changes the fill direction. 'VERTICAL' or 'HORIZONTAL'.
+--     ReverseFill        - If true then the bar fills in the opposite direction.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
 --                                          If false no rotation takes place.
 --     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
@@ -393,6 +387,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --   General
 --     ComboPadding       - The amount of space in pixels between each combo point box.
 --     ComboAngle         - Angle in degrees in which way the bar will be displayed.
+--     ComboFadeInTime    - Time in seconds for a combo point to become visible.
 --     ComboFadeOutTime   - Time in seconds for a combo point to go invisible.
 --
 --   Background
@@ -410,7 +405,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --                                          If false then each combo box can be set a different color.
 --     BoxWidth           - The width of each combo point box.
 --     BoxHeight          - The height of each combo point box.
---     FillDirection      - Currently not used.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
 --                                          If false no rotation takes place.
 --     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
@@ -427,6 +421,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     HolySize           - Size of the holy rune with and height.  Not used in Box Mode.
 --     HolyPadding        - Amount of space between each holy rune.  Works in both modes.
 --     HolyScale          - Scale of the rune without changing the holy bar size. Not used in box mode.
+--     HolyFadeInTime     - Amount of time in seconds before a holy rune is lit. Works in both modes.
 --     HolyFadeOutTime    - Amount of time in seconds before a holy rune goes dark.  Works in both modes.
 --     HolyAngle          - Angle in degrees in which way the bar will be displayed.
 --
@@ -448,7 +443,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --                                          Only works in box mode.
 --     BoxWidth           - Width of each holy rune box.
 --     BoxHeight          - Height of each holy rune box.
---     FillDirection      - Currently not used.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
 --                                          If false no rotation takes place.
 --     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
@@ -461,8 +455,10 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- Shardbar fields        Same as Holybar fields except for the following:
 --                          Uses 4 colors.
--- EmberBar fields        Same as ShardBar fields except for the following:
---                          no fadeout time.
+-- EmberBar fields        Same as ShardBar fields
+--
+-- ChiBar fields          Same as ShardBar fields except for the following:
+--                          Uses 5 colors.
 --
 -- DemonicBar fields
 --   General
@@ -478,7 +474,8 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     Advanced           - True or false.  If true then you change the size of the bar in small steps.
 --     BoxWidth           - Width of the bar in box mode.
 --     BoxHeight          - Height of the bar in box mode.
---     FillDirection      - Direction of fill in box mode.
+--     FillDirection      - Direction of fill in box mode.  Works in both modes.
+--     ReverseFill        - If true then the bar fills in the opposite direction.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
 --                                          If false no rotation takes place.
 --     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
@@ -496,8 +493,10 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     SliderInside       - True or false.  If true the slider is kept inside the bar is slides on.
 --                                          Otherwise the slider box will appear a little out side
 --                                          when it reaches edges of the bar.
+--     HideSlider         - True or false.  If true then the slider is hidden.
 --     BarHalfLit         - True or false.  If true only half of the bar is lit based on the direction the slider is going in.
 --     PowerText          - True or false.  If true then eclipse power text will be shown.
+--     PredictedPowerText - True or false.  If true then predicted power is shown instead.
 --     EclipseAngle       - Angle in degrees in which the bar will be displayed.
 --     SliderDirection    - if 'HORIZONTAL' slider will move left to right and right to left.
 --                          if 'VERTICAL' slider will move top to bottom and bottom to top.
@@ -505,10 +504,11 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     IndicatorHideShow  - 'showalways' the indicator will never auto hide.
 --                          'hidealways' the indicator will never be shown.
 --                          'none'       default.
---     PredictedHideSlider- True or false.  If true then hide the slider when predicted power is on.
 --     PredictedEclipse   - True or false.  If true then show an eclipse proc based on predicted power.
---     PredictedHalfLit   - True or false.  Same as BarHalfLit except it is based on predicted power
---     PredictedPowerText - True or false.  If true predicted power text is shown in place of power text.
+--     PredictedBarHalfLit- True or false.  Same as BarHalfLit except it is based on predicted power.
+--                                          BarHalfLit has to be true for this to be enabled.
+--     EclipseFadeInTime  - Amount of time in seconds for bar half lit, sun, and moon to fade in.
+--     EclipseFadeOutTime - Amount of time in seconds for bar half lit, sun, and moon to fade out.
 --
 --   Background
 --     Moon, Sun, Bar,
@@ -520,7 +520,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 --   Bar
 --     All fields have the following:
---       FillDirection    - Currently not used.
 --       RotateTexture    - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
 --                                          If false no rotation takes place.
 --       PaddingAll       - True or false.  If true then padding can be set with one value otherwise four.
@@ -556,61 +555,63 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- Predicted Power
+-- Spell tracker
 --
 -- Keeps track of spells casting.
 --
--- PredictedSpellEvent       - Used by SetPredictedSpell().
---                             Converts an event from CombatLogUnfiltered()/SpellCasting() to one of the following:
---                               EventSpellStart
---                               EventSpellSucceeded
---                               EventSpellEnergize
---                               EventSpellMissed
---                               EventSpellFailed
+-- SpellTrackerEvent        - Used by TrackSpell().
+--                            Converts an event from CombatLogUnfiltered() and/or SpellCasting() to one of the following:
+--                              EventSpellStart
+--                              EventSpellSucceeded
+--                              EventSpellEnergize
+--                              EventSpellMissed
+--                              EventSpellFailed
 --
--- PredictedSpellMessage     - Used by SetPredictedSpell()
---                             Used with EventSpellFailed.  If the Message is not found in the table.
---                             then the spell is considered failed.
--- PredictedSpellsTimeout     - Used by ModifyCastingSpell()
---                             Amount of time before clearing the casting spell.
+-- SpellTrackerMessage      - Used by TrackSpell()
+--                            Used with EventSpellFailed.  If the Message is not found in the table.
+--                            then the spell is considered failed.
 --
--- PredictedSpellsTime        - Used by ModifyCastingSpell(), CheckPredictedSpellsTimeout()
---                             Keeps track of the time based on PredictedSpellsTimeout. When time is reached
---                             the casting spell is removed.
+-- SpellTrackerTimeout      - Used by ModifySpellTracker()
+--                            Amount of time before clearing the casting spell.
 --
--- PredictedSpellsTimer       - Used by SetPredictedSpells(), ModifyCastingSpell()
---                             Timer handle for CheckPredictedSpellsTimeout()
+-- SpellTrackerTime         - Used by ModifySpellTracker(), CheckSpellTrackerTimeout()
+--                            Keeps track of the time based on SpellTrackerTimeout. When time is reached
+--                            the casting spell is removed.
 --
--- PredictedSpellsActive     - Used by SetPredictedSeplls(), HideUnitBar()
---                             If true then predictedspells is turned on, otherwise its off.
+-- SpellTrackerTimer        - Used by SetSpellTracker(), ModifySpellTracker()
+--                            Timer handle for CheckSpellTrackerTimeout()
 --
--- PredictedSpellCasting     - Used by ModifyCastingSpell(), CheckPredictedSpellsTimeout(),
---                                     GetPredictedSpells(), SetPredictedSpell()
---   SpellID                   Spell that is casting
+-- SpellTrackerActive       - Table used by SetSpellTracker(), SetSpellTrackerActive(), HideUnitBar()
+--                            Keeps track of which bar has spell tracking turned off or on.
+--                            Also keeps track of which bar is using the spell tracker.
+--
+-- SpellTrackerCasting      - Used by ModifySpellTracker(), CheckSpellTrackerTimeout(), TrackSpell()
+--   SpellID                   Spell that is being cast.
 --   LineID                    LineID of Spell
 --   CastTime                  Amount of time for the spell to finish casting in seconds.
+--   Fn                        Call back function.
+--   UnitBarF                  Bar that is using the SpellID.
 --
--- PredictedSpells[SpellID]  - Used by SetPredictedSpells(), SetPredictedSpell()
+-- TrackedSpell[SpellID]    - Used by SetSpellTracker(), TrackSpell()
 --   SpellID                   SpellID to search for.
 --   EndOn                       'energize' the spell will be cleared on an energize event.
 --                               'casting'  the spell will be cleared when the spell ends due to success, failed, etc.
---   Fn                        This gets called when a spell starts casting, then on end, and on energize.
---                             Fn(SpellID, CastTime, Message)
+--   Fn                     -  This gets called when a spell starts casting, then on end, and on energize.
+--                             Fn(UnitBarF, SpellID, CastTime, Message)
 --                               Message
 --                                 'start'  Gets called on spell cast start.
---                                   on 'start' you can return -1 to not add the spell to be tracked.
---                                   see EclipseBar.lua on how this is done.
---                                 'afterstart'  Gets called right after 'cast start'.
 --                                 'end'    Gets called on spell success.
 --                                 'failed' Gets called if the spell didn't complete.
---                                 'timeout' Gets called by CheckPredictedSpellsTimeout() if the spell timed out.
+--                                 'timeout' Gets called by CheckSpellTrackerTimeout() if the spell timed out.
 --                               CastTime  The amount of time to cast the spell in seconds.
---                               SpellID is always negative on 'start', 'afterstart', 'end', or 'failed'
+--                               SpellID is always negative on 'start', 'end', or 'failed'
+--                               UnitBarF  Unitbar that is using the spell tracker.
+--   UnitBarF               -  Bar that is using the SpellID.
 --
 --
--- NOTE: See the notes on each of the predicted power functions for more details.  Also
+-- NOTE: See the notes on each of the spell tracker functions for more details.  Also
 --       See Eclipse.lua on how this is used.
---       PredictedSpells will turn its self off if the frame its being used on is hidden.
+--       The spell tracker will turn its self off if the frame its being used on is hidden.
 --       Will turn back on when frame is shown.  Assuming the system wasn't turned off before hand.
 --
 -------------------------------------------------------------------------------
@@ -631,12 +632,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --                               Used by GetSetBonus()
 --
 -- NOTE: See Eclipse.lua on how this is used.
--------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
--- SetTimer
---
--- Calls functions based on a delay.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -666,6 +661,52 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- and when things change.  Check bottom of this file on hows it used.
 -- Options:ShareData() is included as well.
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Fading Animation
+--
+-- Handles all the micromanaging of fading bars in and out based on a rule set.
+-- If the bar is fading out, then no animations are played on the children.
+-- So if you have a combo point fading out, and the bar starts to fade out.
+-- Then the combo point will stop fading.  If a new combo point tries
+-- to fade while the bar is fading, then the combo point will not fade.
+--
+-- These rules prevent the parent and children from fading at the same time.
+-- If this were to happen then the alpha state of a texture/frame can get
+-- stuck and reloading UI is the only way to fix it.
+--
+-- If a frame or texture is currently fading, its fading can be reversed
+-- without having to stop the fade, just SetAnimation() to change it and
+-- it will pick up from where it left off.
+--
+--
+-- FadingAnimation      Table used by CreateFade() and SetAnimation().
+--                      Keeps track of every animation and what bar is using them.
+--
+-- FadingAnimation
+--   [UnitBarF]                    - To keep track of what bar is using fading.
+--     Total                       - Total number of fading animation groups in use.
+--     [Index] = Fade              - Array element containing the fade animation group.
+
+
+-- Fade                       - Animation group for fading.
+--   FadeA                    - Animation for fading.
+--   UnitBarF                 - Unitbar that is using the animation.
+--   Object                   - Parent of the animation group.
+--   Action                   - if false no animation playing.
+--                              'in' currently fading in.
+--                              'out' currently fading out.
+--   Parent                   - If true then its a parent fade.
+--   DurationIn               - Time in seconds for fade in.
+--   DurationOut              - Time in seconds for fade out.
+
+--
+-- Read the notes on CreateFade() on what methods to use in Fade.
+--
+-- Fade methods
+--   SetDuration()
+--   SetAnimation()
+-------------------------------------------------------------------------------
 local AlignmentTooltipDesc = 'Right mouse button to align'
 
 local InCombat = false
@@ -693,11 +734,10 @@ local EquipmentSetRegisterEvent = false
 local PSelectedUnitBarF = nil
 local SelectMode = false
 
-local PredictedSpellsTimeout = 7
-local PredictedSpellsTime = nil
-local PredictedSpellsTimer = nil
-local PredictedSpellsActive = false
-local PredictedSpellsBarType = nil
+local SpellTrackerTimeout = 7
+local SpellTrackerTime = nil
+local SpellTrackerTimer = nil
+local SpellTrackerActive = {}
 
 local EventSpellStart       = 1
 local EventSpellSucceeded   = 2
@@ -705,21 +745,80 @@ local EventSpellEnergize    = 3
 local EventSpellMissed      = 4
 local EventSpellFailed      = 5
 
+local SpellTrackerCasting = {
+  SpellID = 0,
+  LineID = -1,
+  Time = 0,
+  CastTime = 0,
+}
+
+local SpellTrackerEvent = {
+  UNIT_SPELLCAST_START       = EventSpellStart,
+  UNIT_SPELLCAST_SUCCEEDED   = EventSpellSucceeded,
+  SPELL_ENERGIZE             = EventSpellEnergize,
+  SPELL_MISSED               = EventSpellMissed,
+  SPELL_CAST_FAILED          = EventSpellFailed,
+}
+
+local SpellTrackerMessage = {         -- These variables are blizzard globals. Must be used for foreign languages.
+  [SPELL_FAILED_NOT_READY]         = 1, -- SPELL_FAILED_NOT_READY
+  [SPELL_FAILED_SPELL_IN_PROGRESS] = 1, -- SPELL_FAILED_SPELL_IN_PROGRESS
+}
+
+local TrackedSpell = {}
+
+local PointCalc = {
+        TOPLEFT     = {x = 0,   y = 0},
+        TOP         = {x = 0.5, y = 0},
+        TOPRIGHT    = {x = 1,   y = 0},
+        LEFT        = {x = 0,   y = 0.5},
+        CENTER      = {x = 0.5, y = 0.5},
+        RIGHT       = {x = 1,   y = 0.5},
+        BOTTOMLEFT  = {x = 0,   y = 1},
+        BOTTOM      = {x = 0.5, y = 1},
+        BOTTOMRIGHT = {x = 1,   y = 1}
+      }
+
+-- letter before ID is only to format the data here making it easier to read.
+local EquipmentSet = {
+
+-- Balanced druid set, ID, Normal, Heroic (tier 12)
+  a1  = {[71108] = 12, [71497] = 12}, -- helmet
+  a3  = {[71111] = 12, [71500] = 12}, -- shoulders
+  a5  = {[71110] = 12, [71499] = 12}, -- chest
+  a7  = {[71109] = 12, [71498] = 12}, -- legs
+  a10 = {[71107] = 12, [71496] = 12}, -- gloves
+
+-- Hunter set, ID, LFR, Normal, Heroic (tier 13)
+  b1  = {[78793] = 13, [77030] = 13, [78698] = 13}, -- helmet
+  b3  = {[78832] = 13, [77032] = 13, [78737] = 13}, -- shoulders
+  b5  = {[78756] = 13, [77028] = 13, [78661] = 13}, -- chest
+  b7  = {[78804] = 13, [77031] = 13, [78709] = 13}, -- legs
+  b10 = {[78769] = 13, [77029] = 13, [78674] = 13}, -- gloves
+}
+
+local EquipmentSetBonus = {}
+
+local RegEventFrames = {}
+
+local FadingAnimation = {}
+
 local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
-local UnitBarDelay = 1 -- Once per second. (1000 ms)
 
 local UnitBarsParent = nil
 local UnitBars = nil
 
-local BgTexture = 'Blizzard Tooltip'
-local BdTexture = 'Blizzard Tooltip'
-local StatusBarTexture = 'Blizzard'
+local DefaultBgTexture = 'Blizzard Tooltip'
+local DefaultBdTexture = 'Blizzard Tooltip'
+local DefaultStatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
 local UBFontType = 'Friz Quadrata TT'
+local DefaultFadeOutTime = 1
+local DefaultFadeInTime = 0.30
 
 local Backdrop = {
-  bgFile   = LSM:Fetch('background', BgTexture), -- background texture
-  edgeFile = LSM:Fetch('border', BdTexture),     -- border texture
+  bgFile   = LSM:Fetch('background', DefaultBgTexture), -- background texture
+  edgeFile = LSM:Fetch('border', DefaultBdTexture),     -- border texture
   tile = true,      -- True to repeat the background texture to fill the frame, false to scale it.
   tileSize = 16,    -- Size (width or height) of the square repeating background tiles (in pixels).
   edgeSize = 12,    -- Thickness of edge segments and square size of edge corners (in pixels).
@@ -770,14 +869,15 @@ local Defaults = {
     HideTooltips = false,
     HideTooltipsDesc = false,
     AlignmentToolEnabled = true,
-    FadeOutTime = 1.0,
+    ReverseFading = true,
+    FadeInTime = DefaultFadeInTime,
+    FadeOutTime = DefaultFadeOutTime,
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
       Enabled = true,
-      WaitTime = 1,
-      x = 0,
-      y = 150,
+      x = -200,
+      y = 230,
       Status = {
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -795,8 +895,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -809,11 +909,12 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-        PredictedBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
+        PredictedBarTexture = DefaultStatusBarTexture,
         ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
@@ -865,9 +966,8 @@ local Defaults = {
     PlayerPower = {
       Name = 'Player Power',
       Enabled = true,
-      WaitTime = 1,
-      x = 0,
-      y = 120,
+      x = -200,
+      y = 200,
       Status = {
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -885,8 +985,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -899,11 +999,12 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-        PredictedBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
+        PredictedBarTexture = DefaultStatusBarTexture,
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
@@ -954,9 +1055,8 @@ local Defaults = {
       Name = 'Target Health',
       Enabled = true,
       BarVisible = function() return HasTarget end,
-      WaitTime = 1,
-      x = 0,
-      y = 90,
+      x = -200,
+      y = 170,
       Status = {
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -974,8 +1074,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -988,11 +1088,12 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-        PredictedBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
+        PredictedBarTexture = DefaultStatusBarTexture,
         ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
@@ -1045,9 +1146,8 @@ local Defaults = {
       Name = 'Target Power',
       Enabled = true,
       BarVisible = function() return HasTarget end,
-      WaitTime = 1,
-      x = 0,
-      y = 60,
+      x = -200,
+      y = 140,
       Status = {
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1062,8 +1162,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1076,10 +1176,11 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
         TextType = {
@@ -1129,9 +1230,8 @@ local Defaults = {
       Name = 'Focus Health',
       Enabled = true,
       BarVisible = function() return HasFocus end,
-      WaitTime = 1,
-      x = 0,
-      y = 30,
+      x = -200,
+      y = 110,
       Status = {
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1149,8 +1249,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1163,11 +1263,12 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
-        PredictedBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
+        PredictedBarTexture = DefaultStatusBarTexture,
         ClassColor = false,
         Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
@@ -1220,9 +1321,8 @@ local Defaults = {
       Name = 'Focus Power',
       Enabled = true,
       BarVisible = function() return HasFocus end,
-      WaitTime = 1,
-      x = 0,
-      y = 0,
+      x = -200,
+      y = 80,
       Status = {
         HideWhenDead    = true,
         HideInVehicle   = true,
@@ -1237,8 +1337,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1251,10 +1351,11 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
         TextType = {
@@ -1305,9 +1406,8 @@ local Defaults = {
       Enabled = true,
       BarVisible = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
-      WaitTime = 1,
-      x = 0,
-      y = -30,
+      x = -200,
+      y = 50,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1316,6 +1416,9 @@ local Defaults = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      General = {
+        PredictedHealth = true,
+      },
       Other = {
         Scale = 1,
         FrameStrata = 'MEDIUM',
@@ -1323,8 +1426,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1337,11 +1440,14 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
+        PredictedBarTexture = DefaultStatusBarTexture,
         Color = {r = 0, g = 1, b = 0, a = 1},
+        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
         TextType = {
@@ -1392,9 +1498,8 @@ local Defaults = {
       Enabled = true,
       BarVisible = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
-      WaitTime = 1,
-      x = 0,
-      y = -60,
+      x = -200,
+      y = 20,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1410,8 +1515,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1424,10 +1529,11 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
         TextType = {
@@ -1482,9 +1588,8 @@ local Defaults = {
                          PlayerClass == 'MONK' and PlayerSpecialization == MonkMistWeaverSpec ) and
                        PlayerPowerType ~= 0 end, -- 0 = Mana
       UsedByClass = {DRUID = '', MONK = '2'},
-      WaitTime = 1,
-      x = 0,
-      y = -90,
+      x = -200,
+      y = -10,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1500,8 +1605,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1514,10 +1619,11 @@ local Defaults = {
         HapWidth = 170,
         HapHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = StatusBarTexture,
+        StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
         TextType = {
@@ -1567,9 +1673,8 @@ local Defaults = {
       Name = 'Rune Bar',
       Enabled = true,
       UsedByClass = {DEATHKNIGHT = ''},
-      WaitTime = 1,
       x = 0,
-      y = -120,
+      y = 229,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1618,8 +1723,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1643,6 +1748,7 @@ local Defaults = {
         RuneWidth = 40,
         RuneHeight = 25,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -1700,9 +1806,8 @@ local Defaults = {
       Enabled = true,
       BarVisible = function() return HasTarget end,
       UsedByClass = {ROGUE = '', DRUID = '1234'},
-      WaitTime = 1,
       x = 0,
-      y = -150,
+      y = 201,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1714,7 +1819,8 @@ local Defaults = {
       General = {
         ComboAngle = 90,
         ComboPadding = 5,
-        ComboFadeOutTime = 1,
+        ComboFadeInTime = DefaultFadeInTime,
+        ComboFadeOutTime = DefaultFadeOutTime,
       },
       Other = {
         Scale = 1,
@@ -1724,8 +1830,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1745,7 +1851,6 @@ local Defaults = {
         ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
-        FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -1765,9 +1870,8 @@ local Defaults = {
       Name = 'Holy Bar',
       Enabled = true,
       UsedByClass = {PALADIN = ''},
-      WaitTime = 1,
       x = 0,
-      y = -180,
+      y = 171,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1781,7 +1885,8 @@ local Defaults = {
         HolySize = 1,
         HolyPadding = -2,
         HolyScale = 1,
-        HolyFadeOutTime = 1,
+        HolyFadeInTime = DefaultFadeInTime,
+        HolyFadeOutTime = DefaultFadeOutTime,
         HolyAngle = 90
       },
       Other = {
@@ -1792,8 +1897,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1813,7 +1918,6 @@ local Defaults = {
         ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
-        FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -1833,9 +1937,8 @@ local Defaults = {
       Name = 'Shard Bar',
       Enabled = true,
       UsedByClass = {WARLOCK = '1'},
-      WaitTime = 1,
       x = 0,
-      y = -215,
+      y = 134,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1849,7 +1952,8 @@ local Defaults = {
         ShardSize = 1,
         ShardPadding = 10,
         ShardScale = 0.80,
-        ShardFadeOutTime = 1,
+        ShardFadeInTime = DefaultFadeInTime,
+        ShardFadeOutTime = DefaultFadeOutTime,
         ShardAngle = 90
       },
       Other = {
@@ -1860,8 +1964,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1880,7 +1984,6 @@ local Defaults = {
         ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
-        FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -1899,9 +2002,8 @@ local Defaults = {
       Name = 'Demonic Bar',
       Enabled = true,
       UsedByClass = {WARLOCK = '2'},
-      WaitTime = 1,
-      x = -200,
-      y = -215,
+      x = 0,
+      y = 98,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -1920,8 +2022,8 @@ local Defaults = {
       Background = {
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -1934,12 +2036,14 @@ local Defaults = {
         BoxWidth = 150,
         BoxHeight = 24,
         FillDirection = 'HORIZONTAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0.627, g = 0.298, b = 827, a = 1},
-        ColorMeta = {r = 0.752, g = 0.439, b = 0.909, a = 1},
+        MetaStatusBarTexture = GUBStatusBarTexture,
+        Color = {r = 0.627, g = 0.298, b = 1, a = 1},
+        MetaColor = {r = 0.922, g = 0.549, b = 0.972, a = 1},
       },
       Text = {
         TextType = {
@@ -1989,9 +2093,8 @@ local Defaults = {
       Name = 'Ember Bar',
       Enabled = true,
       UsedByClass = {WARLOCK = '3'},
-      WaitTime = 1,
-      x = -200,
-      y = -215,
+      x = 0,
+      y = 60,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -2006,6 +2109,8 @@ local Defaults = {
         EmberPadding = 5,
         EmberScale = 1,
         EmberAngle = 90,
+        FieryEmberFadeInTime = DefaultFadeInTime,
+        FieryEmberFadeOutTime = DefaultFadeOutTime,
       },
       Other = {
         Scale = 1,
@@ -2015,8 +2120,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -2036,6 +2141,7 @@ local Defaults = {
         BoxWidth = 25,
         BoxHeight = 34,
         FillDirection = 'VERTICAL',
+        ReverseFill = false,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2066,9 +2172,8 @@ local Defaults = {
       Enabled = true,
       BarVisible = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) end,
       UsedByClass = {DRUID = '1'},
-      WaitTime = 0.333,
       x = 0,
-      y = -250,
+      y = 11,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -2079,18 +2184,19 @@ local Defaults = {
       },
       General = {
         SliderInside = true,
+        HideSlider = false,
         BarHalfLit = false,
-        PowerText = false,
+        PowerText = true,
         EclipseAngle = 90,
         SliderDirection = 'HORIZONTAL',
-        EclipseFadeOutTime = 1,
+        EclipseFadeInTime = DefaultFadeInTime,
+        EclipseFadeOutTime = DefaultFadeOutTime,
         SunOffsetX = 0,
         SunOffsetY = 0,
         MoonOffsetX = 0,
         MoonOffsetY = 0,
         PredictedPower = false,
         IndicatorHideShow = 'none',
-        PredictedHideSlider = false,
         PredictedEclipse = true,
         PredictedBarHalfLit = false,
         PredictedPowerText = true,
@@ -2103,8 +2209,8 @@ local Defaults = {
         Moon = {
           PaddingAll = true,
           BackdropSettings = {
-            BgTexture = BgTexture,
-            BdTexture = BdTexture,
+            BgTexture = DefaultBgTexture,
+            BdTexture = DefaultBdTexture,
             BgTile = false,
             BgTileSize = 16,
             BdSize = 12,
@@ -2115,8 +2221,8 @@ local Defaults = {
         Sun = {
           PaddingAll = true,
           BackdropSettings = {
-            BgTexture = BgTexture,
-            BdTexture = BdTexture,
+            BgTexture = DefaultBgTexture,
+            BdTexture = DefaultBdTexture,
             BgTile = false,
             BgTileSize = 16,
             BdSize = 12,
@@ -2127,8 +2233,8 @@ local Defaults = {
         Bar = {
           PaddingAll = true,
           BackdropSettings = {
-            BgTexture = BgTexture,
-            BdTexture = BdTexture,
+            BgTexture = DefaultBgTexture,
+            BdTexture = DefaultBdTexture,
             BgTile = false,
             BgTileSize = 16,
             BdSize = 12,
@@ -2139,8 +2245,8 @@ local Defaults = {
         Slider = {
           PaddingAll = true,
           BackdropSettings = {
-            BgTexture = BgTexture,
-            BdTexture = BdTexture,
+            BgTexture = DefaultBgTexture,
+            BdTexture = DefaultBdTexture,
             BgTile = false,
             BgTileSize = 16,
             BdSize = 12,
@@ -2151,8 +2257,8 @@ local Defaults = {
         Indicator = {
           PaddingAll = true,
           BackdropSettings = {
-            BgTexture = BgTexture,
-            BdTexture = BdTexture,
+            BgTexture = DefaultBgTexture,
+            BdTexture = DefaultBdTexture,
             BgTile = false,
             BgTileSize = 16,
             BdSize = 12,
@@ -2166,7 +2272,6 @@ local Defaults = {
           Advanced = false,
           MoonWidth = 25,
           MoonHeight = 25,
-          FillDirection = 'HORIZONTAL',
           RotateTexture = false,
           PaddingAll = true,
           Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2177,7 +2282,6 @@ local Defaults = {
           Advanced = false,
           SunWidth = 25,
           SunHeight = 25,
-          FillDirection = 'HORIZONTAL',
           RotateTexture = false,
           PaddingAll = true,
           Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2188,7 +2292,6 @@ local Defaults = {
           Advanced = false,
           BarWidth = 170,
           BarHeight = 25,
-          FillDirection = 'HORIZONTAL',
           RotateTexture = false,
           PaddingAll = true,
           Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2202,7 +2305,6 @@ local Defaults = {
           SunMoon = true,
           SliderWidth = 16,
           SliderHeight = 20,
-          FillDirection = 'HORIZONTAL',
           RotateTexture = false,
           PaddingAll = true,
           Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2214,7 +2316,6 @@ local Defaults = {
           SunMoon = false,
           IndicatorWidth = 16,
           IndicatorHeight = 20,
-          FillDirection = 'HORIZONTAL',
           RotateTexture = false,
           PaddingAll = true,
           Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2242,9 +2343,8 @@ local Defaults = {
       Name = 'Shadow Bar',
       Enabled = true,
       UsedByClass = {PRIEST = '3'},
-      WaitTime = 1,
-      x = -200,
-      y = -215,
+      x = 161,
+      y = 60,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -2258,7 +2358,8 @@ local Defaults = {
         ShadowSize = 1,
         ShadowPadding = 1,
         ShadowScale = 1,
-        ShadowFadeOutTime = 1,
+        ShadowFadeInTime = DefaultFadeInTime,
+        ShadowFadeOutTime = DefaultFadeOutTime,
         ShadowAngle = 90
       },
       Other = {
@@ -2269,8 +2370,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -2288,7 +2389,6 @@ local Defaults = {
         ColorAll = false,
         BoxWidth = 38,
         BoxHeight = 37,
-        FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2306,9 +2406,8 @@ local Defaults = {
       Name = 'Chi Bar',
       Enabled = true,
       UsedByClass = {MONK = ''},
-      WaitTime = 1,
-      x = -200,
-      y = -215,
+      x = 161,
+      y = 98,
       Status = {
         HideNotUsable   = true,
         HideWhenDead    = true,
@@ -2322,8 +2421,8 @@ local Defaults = {
         ChiSize = 1,
         ChiPadding = 5,
         ChiScale = 1,
-        ChiFadeOutTime = 1,
-        ChiFadeInTime = 0.5,
+        ChiFadeInTime = DefaultFadeInTime,
+        ChiFadeOutTime = DefaultFadeOutTime,
         ChiAngle = 90
       },
       Other = {
@@ -2334,8 +2433,8 @@ local Defaults = {
         ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
-          BgTexture = BgTexture,
-          BdTexture = BdTexture,
+          BgTexture = DefaultBgTexture,
+          BdTexture = DefaultBdTexture,
           BgTile = false,
           BgTileSize = 16,
           BdSize = 12,
@@ -2355,7 +2454,6 @@ local Defaults = {
         ColorAll = false,
         BoxWidth = 30,
         BoxHeight = 30,
-        FillDirection = 'HORIZONTAL',
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
@@ -2371,63 +2469,6 @@ local Defaults = {
       },
     },
   },
-}
-
-local PointCalc = {
-        TOPLEFT     = {x = 0,   y = 0},
-        TOP         = {x = 0.5, y = 0},
-        TOPRIGHT    = {x = 1,   y = 0},
-        LEFT        = {x = 0,   y = 0.5},
-        CENTER      = {x = 0.5, y = 0.5},
-        RIGHT       = {x = 1,   y = 0.5},
-        BOTTOMLEFT  = {x = 0,   y = 1},
-        BOTTOM      = {x = 0.5, y = 1},
-        BOTTOMRIGHT = {x = 1,   y = 1}
-      }
-
--- letter before ID is only to format the data here making it easier to read.
--- its ignored
-local EquipmentSet = {
-
--- Balanced druid set, ID, Normal, Heroic (tier 12)
-  a1  = {[71108] = 12, [71497] = 12}, -- helmet
-  a3  = {[71111] = 12, [71500] = 12}, -- shoulders
-  a5  = {[71110] = 12, [71499] = 12}, -- chest
-  a7  = {[71109] = 12, [71498] = 12}, -- legs
-  a10 = {[71107] = 12, [71496] = 12}, -- gloves
-
--- Hunter set, ID, LFR, Normal, Heroic (tier 13)
-  b1  = {[78793] = 13, [77030] = 13, [78698] = 13}, -- helmet
-  b3  = {[78832] = 13, [77032] = 13, [78737] = 13}, -- shoulders
-  b5  = {[78756] = 13, [77028] = 13, [78661] = 13}, -- chest
-  b7  = {[78804] = 13, [77031] = 13, [78709] = 13}, -- legs
-  b10 = {[78769] = 13, [77029] = 13, [78674] = 13}, -- gloves
-}
-
-local EquipmentSetBonus = {}
-
-local PredictedSpellEvent = {
-  UNIT_SPELLCAST_START       = EventSpellStart,
-  UNIT_SPELLCAST_SUCCEEDED   = EventSpellSucceeded,
-  SPELL_ENERGIZE             = EventSpellEnergize,
-  SPELL_MISSED               = EventSpellMissed,
-  SPELL_CAST_FAILED          = EventSpellFailed,
-}
-
-local PredictedSpellMessage = {         -- These variables are blizzard globals. Must be used for foreign languages.
-  [SPELL_FAILED_NOT_READY]         = 1, -- SPELL_FAILED_NOT_READY
-  [SPELL_FAILED_SPELL_IN_PROGRESS] = 1, -- SPELL_FAILED_SPELL_IN_PROGRESS
-}
-
-local PredictedSpells = {}
-
-local RegEventFrames = {}
-
-local PredictedSpellCasting = {
-  SpellID = 0,
-  LineID = -1,
-  Time = 0,
-  CastTime = 0,
 }
 
 local PowerTypeToNumber = {
@@ -2479,7 +2520,7 @@ end
 --
 -- Action       'unregister' or 'register'
 -- EventType    'main'             Registers the main events for the mod.
---              'predictedspell'   Registers events for predicted spells.
+--              'spelltracker'     Registers events for spell tracker.
 --              'setbonus'         Registers events for equipment set bonus
 -------------------------------------------------------------------------------
 local function RegisterEvents(Action, EventType)
@@ -2507,10 +2548,10 @@ local function RegisterEvents(Action, EventType)
 
     -- Rest of the events are defined at the end of each lua file for the bars.
 
-  elseif EventType == 'predictedspells' then
+  elseif EventType == 'spelltracker' then
     local Flag = Action == 'register'
 
-    -- register events for predicted spells.
+    -- register events for spell tracker.
     Main:RegEvent(Flag, 'COMBAT_LOG_EVENT_UNFILTERED', GUB.CombatLogUnfiltered)
     Main:RegEvent(Flag, 'UNIT_SPELLCAST_START',        GUB.SpellCasting, 'player')
     Main:RegEvent(Flag, 'UNIT_SPELLCAST_SUCCEEDED',    GUB.SpellCasting, 'player')
@@ -2565,58 +2606,44 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- RegEvent
+-- RegEvent/RegEventFrame
 --
 -- Registers an event to call a function.
 --
 -- Usage: RegEvent(Reg, Event, Fn, Units)
---        RegEvent(Reg, Frame, Event, Fn, Units)
+--        RegEventFrame(Reg, Frame, Event, Fn, Units)
 --
--- Reg    If true then event gets registered otherwise unregistered.
---
--- If Units is specified then it uses RegisterUnitEvent instead.
+-- Reg      If true then event gets registered otherwise unregistered.
+-- Event    Event to register
+-- Fn       Function to call when event fires.
+-- Units    1 or 2 units. The event only fires if its unit matches.
 -------------------------------------------------------------------------------
-function GUB.Main:RegEvent(Reg, Value1, Value2, Value3, ...)
-  local Frame = nil
-  local Event = nil
-  local Fn = nil
-
-  if type(Value1) == 'string' then
-    Frame = nil
-    Event = Value1
-    Fn = Value2
+function GUB.Main:RegEventFrame(Reg, Frame, Event, Fn, ...)
+  if Reg then
+    if ... then
+      Frame:RegisterUnitEvent(Event, ...)
+    else
+      Frame:RegisterEvent(Event)
+    end
+    Frame:SetScript('OnEvent', Fn)
   else
-    Frame = Value1
-    Event = Value2
-    Fn = Value3
+    Frame:UnregisterEvent(Event)
   end
+end
 
-  -- Find if this event already has an event frame.
-  -- Use frame if one was passed instead.
-  local F = Frame or RegEventFrames[Event]
-  if F == nil then
+function GUB.Main:RegEvent(Reg, Event, Fn, ...)
+
+  -- Get frame based on Fn.
+  local Frame = RegEventFrames[Fn]
+
+  -- Create a new frame if one wasn't found.
+  if Frame == nil then
 
     -- Create a new event frame for this event
-    F = CreateFrame('Frame')
-    RegEventFrames[Event] = F
+    Frame = CreateFrame('Frame')
+    RegEventFrames[Fn] = Frame
   end
-
-  if Reg then
-    if Frame and ... or Frame == nil then
-
-      -- if units specified then use RegisterUnitEvent.
-      if Frame then
-        F:RegisterUnitEvent(Event, ...)
-      else
-        F:RegisterUnitEvent(Event, Value3, ...)
-      end
-    else
-      F:RegisterEvent(Event)
-    end
-    F:SetScript('OnEvent', Fn)
-  else
-    F:UnregisterEvent(Event)
-  end
+  Main:RegEventFrame(Reg, Frame, Event, Fn, ...)
 end
 
 -------------------------------------------------------------------------------
@@ -2781,7 +2808,7 @@ end
 -- Status   If true then the talent is chosen, otherwise false.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckTalent(Index)
-  local _, _, _, _, Active, _ = GetTalentInfo(Index, nil, nil)
+  local _, _, _, _, Active = GetTalentInfo(Index, nil, nil)
   return Active
 end
 
@@ -2866,7 +2893,7 @@ local function GetHighestFrameLevel(IgnoreFrame, ...)
   local function GetHighestLevel(FrameLevel, ...)
     local Found = false
 
-    -- Search the one or more frames.
+    -- Search one or more frames.
     for i = 1, select('#', ...) do
       local Frame = select(i, ...)
 
@@ -3150,7 +3177,7 @@ end
 -- TimerFn  Function to be added. If nil then the timer will be stopped.
 --
 -- NOTE:  TimerFn will be called as TimerFn(Frame, Elapsed) from AnimationGroup in StartTimer()
---        See CheckPredictedSpellsTimeout() on how this is used.
+--        See CheckSpellTrackerTimeout() on how this is used.
 --
 --        To reduce garbage.  Only a new StartTimer() will get created when a new table is passed.
 --
@@ -3269,175 +3296,218 @@ end
 --
 -- Usage: Found, [TimeLeft] = CheckAura(Condition, ...)
 --
--- Condition    'a' for 'and' or 'o' for 'or'.  If 'a' is specified then all
---              auras have to be active.  If 'o' then only one of the auras needs
---              to be active.
--- ...          One or more auras specified as a SpellID.
---
--- Found        Returns true if condition 'a' is used and all auras were found.
---              Returns the SpellID of the aura found if condition 'o' is used.
--- TimeLeft     If 'o' was used then the amount of time the buff has left is
---              returned along for the SpellID.  See EclipseBar.lua how this is done.
+
+-- Condition    - 'a' and.
+--                   All auras must be found.
+--                'o' or.
+--                   Only one of the auras need to be found.
+-- Found        - If 'a' is used.
+--                Returns true if the aura was found. Or false.
+--                If 'o' is used.
+--                Returns the SpellID of the aura found or nil if no aura was found.
+-- TimeLeft     - Time left on aura.  -1 if aura doesn't have a time left.
+--                This only gets returned when using the 'o' option.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckAura(Condition, ...)
   local Name = nil
   local SpellID = 0
   local MaxSpellID = select('#', ...)
   local Found = 0
-  local i = 1
+  local AuraIndex = 1
+
   repeat
-    local Name, _, _, _, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', i)
+    local Name, _, _, _, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', AuraIndex)
     if Name then
+
+      -- Search for the aura against the list of auras passed.
       for i = 1, MaxSpellID do
         if SpellID == select(i, ...) then
           Found = Found + 1
           break
         end
       end
+
+      -- When using the 'o' option then return on the first found aura.
       if Condition == 'o' and Found > 0 then
-        return SpellID, ExpiresIn - GetTime()
+        if ExpiresIn == 0 then
+          return SpellID, -1
+        else
+          return SpellID, ExpiresIn - GetTime()
+        end
       end
     end
-    i = i + 1
+    AuraIndex = AuraIndex + 1
   until Name == nil or Found == MaxSpellID
-  return Found == MaxSpellID
+  if Condition == 'a' then
+    return Found == MaxSpellID
+  end
 end
 
 -------------------------------------------------------------------------------
--- CheckPredictedSpellsTimeout
+-- CheckSpellTrackerTimeout
 --
 -- Timer that watches to timeout the current casting spell.
 -------------------------------------------------------------------------------
-local function CheckPredictedSpellsTimeout(self, Elapsed)
+local function CheckSpellTrackerTimeout(self, Elapsed)
 
-  -- Check for predicted spell time out.
-  if PredictedSpellsTime > 0 then
-    PredictedSpellsTime = PredictedSpellsTime - Elapsed
+  -- Check for spell tracker time out.
+  if SpellTrackerTime > 0 then
+    SpellTrackerTime = SpellTrackerTime - Elapsed
   else
-    local SpellID = PredictedSpellCasting.SpellID
-    local CastTime = PredictedSpellCasting.CastTime
-    local Fn = PredictedSpellCasting.Fn
+    local SpellID = SpellTrackerCasting.SpellID
+    local CastTime = SpellTrackerCasting.CastTime
+    local Fn = SpellTrackerCasting.Fn
+    local UnitBarF = SpellTrackerCasting.UnitBarF
 
-    self.ModifyCastingSpell('remove')
+    self.ModifySpellTracker('remove')
 
     if Fn then
-      Fn(SpellID, CastTime, 'timeout')
+      Fn(UnitBarF, SpellID, CastTime, 'timeout')
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- ModifyCastingSpell
+-- ModifySpellTracker
 --
--- Adds or Remove a spell that is casting.
+-- Adds or Remove a spell from the spell tracker.
 --
--- usage ModifyCastingSpell(Action, SpellID, LineID, CastTime, Fn)
+-- Usage: ModifySpellTracker(Action, UnitBarF, SpellID, LineID, CastTime, Fn)
 --
--- Action   'remove' or 'add'
+-- Action     'remove' or 'add'
 --            'add'    will add the current spell to casting.
 --            'remove' will remove the current casting spell.
---
--- SpellID     The spell to add.
--- LineID      LineID to add.
--- CastTime    Amount of time it takes to cast the spell.
--- Fn          Function to call when timeout happens.
+-- UnitBarF   Bar that is using the SpellID.
+-- SpellID    The spell to add.
+-- LineID     LineID to add.
+-- CastTime   Amount of time it takes to cast the spell.
+-- Fn         Function to call when timeout happens.
 -------------------------------------------------------------------------------
-local function ModifyCastingSpell(Action, SpellID, LineID, CastTime, Fn)
+local function ModifySpellTracker(Action, UnitBarF, SpellID, LineID, CastTime, Fn)
 
   -- Stop the timeout checker.
-  Main:SetTimer(PredictedSpellsTimer, nil)
+  Main:SetTimer(SpellTrackerTimer, nil)
 
   if Action == 'add' then
-    PredictedSpellCasting.SpellID = SpellID
-    PredictedSpellCasting.LineID = LineID
-    PredictedSpellCasting.CastTime = CastTime
-    PredictedSpellCasting.Fn = Fn
+    SpellTrackerCasting.SpellID = SpellID
+    SpellTrackerCasting.LineID = LineID
+    SpellTrackerCasting.CastTime = CastTime
+    SpellTrackerCasting.Fn = Fn
+    SpellTrackerCasting.UnitBarF = UnitBarF
 
     -- Set timeout
-    PredictedSpellsTime = PredictedSpellsTimeout - 1 -- Takes one second for timer to start ticking.
+    SpellTrackerTime = SpellTrackerTimeout - 1 -- Takes one second for timer to start ticking.
 
     -- Start the timeout checker.
-    Main:SetTimer(PredictedSpellsTimer, 1, CheckPredictedSpellsTimeout)
+    Main:SetTimer(SpellTrackerTimer, 1, CheckSpellTrackerTimeout) -- Call timer once per second.
 
   elseif Action == 'remove' then
-    PredictedSpellCasting.SpellID = 0
-    PredictedSpellCasting.LineID = -1
-    PredictedSpellCasting.CastTime = 0
-    PredictedSpellCasting.Fn = nil
+    SpellTrackerCasting.SpellID = 0
+    SpellTrackerCasting.LineID = -1
+    SpellTrackerCasting.CastTime = 0
+    SpellTrackerCasting.Fn = nil
+    SpellTrackerCasting.UnitBarF = nil
   end
 end
 
-------------------------------------------------------------------------------
--- GetPredictedSpell
---
--- Returns a predicted powerID.
---
--- usage: SpellID = GetPredictedSpell()
---
--- SpellID      Returns the spell ID or 0 for no spell.
 -------------------------------------------------------------------------------
-function GUB.Main:GetPredictedSpell()
-  return PredictedSpellCasting.SpellID
-end
-
--------------------------------------------------------------------------------
--- SetPredictedSpellsActive
+-- SetSpellTrackerActive
 --
--- Turns predicted spells on or off.
+-- Turns spell tracking on or off.
 --
--- Usage: SetPredictedSpellsActive(BarType, Action)
+-- Usage: SetSpellTrackerActive(UnitBarF, Action)
 --
--- BarType   If BarType matches with what was set in SetPredictedSpells() then
+-- UnitBarF  If this matches with what was set in SetSpellTracker() then
 --           Action won't be ignored.
--- Action    True or False.  If true then predictedspells if turned on otherwise off.
+-- Action    True or False.  If true then the spell tracker is turned on.
+--                           if false then the spell tracker is only turned off when there are no
+--                           other bars using it.
+--           'register'
+--           'unregister'    registers and unregisters the events for spell tracking.  But doesn't
+--                           set the active state.  Used internally by HideUnitBar()
+--
+-- NOTES:  If the bar is hidden and the Action is true, then spell tracking wont be enabled
+--         until the bar is visible again.
 -------------------------------------------------------------------------------
-local function SetPredictedSpellsActive(BarType, Action)
-  if BarType == PredictedSpellsBarType then
-    if Action then
-      RegisterEvents('register' , 'predictedspells')
-    else
-      RegisterEvents('unregister' , 'predictedspells')
+local function SetSpellTrackerActive(UnitBarF, Action)
 
-      -- Remove any casting spell left over.
-      ModifyCastingSpell('remove')
+  -- Check to see if the unitbar was already defined in SetSpellTracker()
+  if SpellTrackerActive[UnitBarF] ~= nil then
+    if type(Action) == 'boolean' then
+      SpellTrackerActive[UnitBarF] = Action
+    else
+      Action = Action == 'register'
+    end
+
+    -- Only register events if the bar is not hidden.
+    if Action and not UnitBarF.Hidden then
+      RegisterEvents('register' , 'spelltracker')
+
+    elseif not Action then
+
+      -- Check to see if any other bars are using the spell tracker
+      -- that are not hidden
+      local Found = false
+      for UBF, Active in pairs(SpellTrackerActive) do
+        if UnitBarF ~= UBF and Active and not UBF.Hidden then
+          Found = true
+          break
+        end
+      end
+      if not Found then
+        RegisterEvents('unregister' , 'spelltracker')
+
+        -- Remove any spell being tracked.
+        ModifySpellTracker('remove')
+      end
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- SetPredictedSpells
+-- SetSpellTracker
 --
--- Adds a spellID to the list for predicted spells.
--- Can also turn off or on predicted spells.
+-- Adds a spellID to the list for spell tracking.
+-- Can also turn off or on the spell tracker or reset it.
 --
--- Usage: SetPredictedSpells(SpellID, EndOn, Fn)
---        SetPredictedSpells(true or false, BarType)
+-- Usage: SetSpellTracker(UnitBarF, SpellID, EndOn, Fn)
+--        SetSpellTracker(UnitBarF, true or false)
+--        SetSpellTracker('reset')
 --
+-- UnitBarF      The type of bar the SpellID will be used with.
 -- SpellID       ID of the spell to track.
 -- EndOn         Tells how the spell will end.
---               'casting' means the spell will be cleared when the spell was stopped, cancled, succedded, etc.
---               'energize' means the spell will end on energize event.
--- Fn            See SetPredictedSpell() and Eclipse.lua on how Fn() is used.
+--               'casting' means the spell will be cleared when the spell was stopped, cancled, succeeded, etc.
+--               'energize' means the spell will end on an energize event.
+-- Fn            See TrackSpell() and Eclipse.lua on how Fn() is used.
 --
--- BarType       Type of bar the spells will be used with.  This is needed for hiding/showing by HideUnitBar()
 -- true          Turn on predicted power.
 -- false         Turn off predicted power.
 --
--- NOTE:   When using endon 'energize' you must add the energize spellID as well otherwise
---         the predictedspell system will not see the energize event.  See EclipseBar.lua how this is set up.
+-- 'reset'       Sets all the bars active status to false and unregisters tracker events.
+--
+-- NOTE:   When using endon 'energize' you must add the energize spellID as well. Otherwise
+--         the spell tracker will not see the energize event.  See EclipseBar.lua how this is set up.
 -------------------------------------------------------------------------------
-function GUB.Main:SetPredictedSpells(SpellID, EndOn, Fn)
-  if type(SpellID) ~= 'boolean' then
-    local PS = {EndOn = EndOn, Fn = Fn}
-    PredictedSpells[SpellID] = PS
-  else
-    if PredictedSpellsTimer == nil then
-      PredictedSpellsTimer = CreateFrame('Frame')
-      PredictedSpellsTimer.ModifyCastingSpell = ModifyCastingSpell
+function GUB.Main:SetSpellTracker(UnitBarF, SpellID, EndOn, Fn)
+  if UnitBarF == 'reset' then
+    for UBF, v in pairs(SpellTrackerActive) do
+      SpellTrackerActive[UBF] = false
     end
-    PredictedSpellsBarType = EndOn
-    PredictedSpellsActive = SpellID
-    SetPredictedSpellsActive(PredictedSpellsBarType, PredictedSpellsActive)
+
+  -- Add spell to be tracked.
+  elseif type(SpellID) ~= 'boolean' then
+    local PS = {EndOn = EndOn, Fn = Fn, UnitBarF = UnitBarF}
+    TrackedSpell[SpellID] = PS
+    SpellTrackerActive[UnitBarF] = false
+  else
+
+    -- Set the active status, also create timer if doesn't exist.
+    if SpellTrackerTimer == nil then
+      SpellTrackerTimer = CreateFrame('Frame')
+      SpellTrackerTimer.ModifySpellTracker = ModifySpellTracker
+    end
+    SetSpellTrackerActive(UnitBarF, SpellID)  -- SpellID is true or false when used here.
   end
 end
 
@@ -3514,18 +3584,20 @@ end
 --
 -- Creates a frame that gets placed on the edge of the bar.
 --
--- Usage: SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, Width, Height)
+-- Usage: SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, ReverseFill, Width, Height)
 --
 -- StatusBar     Statusbar containing the cooldownbar timer.
 -- EdgeFrame     Frame containing objects to be displayed.
 -- FillDirection 'HORIZONTAL' left to right, 'VERTICAL' bottom to top.
+-- ReverseFill   True   left to right or bottom to top.
+--               False  right to left or top to bottom.
 -- Width         Width set to EdgeFrame
 -- Height        Height set to EdgeFrame
 --
 -- If EdgeFrame is nil then no EdgeFrame will be shown or the existing EdgeFrame
 -- will be removed.
 -------------------------------------------------------------------------------
-function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, Width, Height)
+function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, ReverseFill, Width, Height)
   if EdgeFrame then
     EdgeFrame:Hide()
 
@@ -3535,6 +3607,7 @@ function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, W
 
     StatusBar.EdgeFrame = EdgeFrame
     StatusBar.FillDirection = FillDirection
+    StatusBar.ReverseFill = ReverseFill
   else
 
     -- Hide the old edgeframe
@@ -3584,12 +3657,18 @@ function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
         if EdgeFrame then
           if self.FillDirection == 'HORIZONTAL' then
             local x = TimeElapsed / Duration * self:GetWidth()
+            if self.ReverseFill then
+              x = self:GetWidth() - x
+            end
             if x ~= LastX then
               EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
               LastX = x
             end
           else
             local y = TimeElapsed / Duration * self:GetHeight()
+            if self.ReverseFill then
+              y = self:GetHeight() - y
+            end
             if y ~= LastY then
               EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
               LastY = y
@@ -3819,69 +3898,279 @@ function GUB.Main:RestoreRelativePoints(Frame)
 end
 
 -------------------------------------------------------------------------------
--- CreateFade
+-- FinishAnimation
 --
--- Creates a fadeout or fadein animation group
+-- Finishes a fading animation or skips to the end of one.
 --
--- Usage Fade, FadeA = CreateFade(Frame, Action)
+-- Subfunction of SetAnimation()
 --
--- Frame       Frame that the fadeout is being created for.
--- Action      If 'out' then fading out, if 'in then fading in.
+-- Usage: FinishAnimation(self, NewAction)
 --
--- Fade        The fade animation group.
--- FadeA       The fade animation.
+-- self       Animation group to finish (Fade)
+-- NewAction  If specified will use this instead of self.Action
+--            Must be 'in' or 'out' or nil.
 -------------------------------------------------------------------------------
-function GUB.Main:CreateFade(Frame, Action)
+local function FinishAnimation(self, NewAction)
+  local Object = self.Object
+  local Action = NewAction or self.Action
 
-  -- Create an animation for fade out.
-  local FadeOut = Frame:CreateAnimationGroup()
-  local FadeOutA = FadeOut:CreateAnimation('Alpha')
+  self:SetScript('OnFinished', nil)
+  self:Stop()
 
-  -- Set the animation group values.
-  FadeOut:SetLooping('NONE')
-  FadeOutA:SetChange(Action == 'out' and -1 or Action == 'in' and 1)
-  FadeOutA:SetOrder(1)
-
-  return FadeOut, FadeOutA
+  -- Hide or show the object based on action.
+  if Action == 'in' then
+    Object:Show()
+    Object:SetAlpha(1)
+  else
+    Object:Hide()
+    Object:SetAlpha(1)
+  end
+  self.Action = false
 end
 
 -------------------------------------------------------------------------------
--- Animation
+-- PlayAnimation
 --
--- Stops or plays an animation.
+-- Plays a fading animation.
 --
--- Usage: Animation(AG, Action, Fn)
+-- Subfunction of SetAnimation()
 --
--- AG        Animation Group to start or finish.
--- Action    'play'  Starts a new animation group then calls Fn when the
---                    animation is done.  Gets ignored if an existing animation is playing.
---           'stop' Stops the animation.
--- Fn        Function to call when used with 'play'.  If set to nil then its ignored.
+-- Usage: PlayAnimation(Fade, Action, ReverseFade)
+--
+-- Fade          Animation group to play.
+-- Action        Must be 'in' or 'out'
+-- ReverseFade   If true then the Fade passed must be currently fading.
+--               The fading will get reversed.
 -------------------------------------------------------------------------------
-function GUB.Main:Animation(AG, Action, Fn)
+local function PlayAnimation(Fade, Action, ReverseFade)
+  local Object = Fade.Object
+  local FadeA = Fade.FadeA
+  local Duration = 0
+  local Change = 0
 
-  -- Stop animation if its playing
-  if AG:IsPlaying() then
-    if Action == 'stop' then
+  -- Set up for reverse fading.
+  if ReverseFade then
+    Action = Fade.Action == 'in' and 'out' or 'in'
+  else
 
-      -- Disable the animation script.
-      AG:SetScript('OnFinished', nil)
-      AG:Stop()
+    -- else set up for a new fade.
+    Object:Show()
+    if Action == 'in' then
+      Object:SetAlpha(0)
+    end
+  end
+
+  -- Get change and duration.
+  if Action == 'in' then
+    Change = 1
+    Duration = Fade.DurationIn
+  else
+    Change = -1
+    Duration = Fade.DurationOut
+  end
+
+  -- Set up for reverse fade.  This will reverse the current fade.
+  if ReverseFade then
+    local Alpha = Fade.Object:GetAlpha()
+
+    Fade:Stop()
+    Fade.Object:SetAlpha(Alpha)
+
+    if Action == 'in' then
+      Alpha = 1 - Alpha
+    end
+    Duration = Alpha * Duration
+  else
+
+    -- Starting a new fade, set the script.
+    Fade:SetScript('OnFinished', FinishAnimation)
+  end
+
+  -- Set and play the fade.
+  FadeA:SetChange(Change)
+  FadeA:SetDuration(Duration)
+  Fade:Play()
+  Fade.Action = Action
+end
+
+-------------------------------------------------------------------------------
+-- SetAnimation  (fade method)
+--
+-- Stop or starts fading.
+--
+-- Usage:  Fade:SetAnimation(Action)
+--
+-- self        Animation group (Fade)
+-- Action      'in'       Starts fading animation in. Stops any old animation first or reverses.
+--             'out'      Starts fading animation out. Stops any old animation first or reverses.
+--             'stop'     Stops fading animation and calls Fn
+--             'stopall'  Stops all animation.
+--
+-- NOTE:  The perpose of this function is to never let a child frame fade in or out
+--        while the parent is fading.  If this were to happen the alpha state of
+--        a frame can get stuck and only a /console reloadui can fix it.
+--        Blizzard please fix this, thanks.
+--
+--        A parent fade will only play but will stop all child animations first.
+--        The current child fade animation will skip to the end instead of playing.
+--        Child fades will not play if the parent is fading.  Instead they'll skip to the
+--        end of their animation right away.
+--
+--        Fading can be reversed by doing SetAnimation() in the opposite direction
+--        on a fade already playing.
+-------------------------------------------------------------------------------
+local function SetAnimation(self, Action)
+  local ReverseFade = false
+  local FadeAction = self.Action
+
+  -- Stop or play the fade.
+  if Action == 'stop' then
+    if FadeAction then
+      FinishAnimation(self)
     end
     return
   end
-  if Action == 'play' then
-    AG:SetScript('OnFinished', function(self)
+  if Action == 'in' or Action == 'out' or Action == 'stop' then
+    if FadeAction then
+      if FadeAction ~= Action then
 
-                                 -- Call the function Fn when finished.
-                                 if Fn then
-                                   Fn()
-                                 end
-                                 self:SetScript('OnFinished', nil)
-                               end )
+        -- Fade already playing, reverse fade if unitbar options is set.
+        if UnitBars.ReverseFading then
+          ReverseFade = true
+        else
+          FinishAnimation(self)
+        end
+      else
 
-    AG:Play()
+        -- Return since the same type of fade is already playing.
+        return
+      end
+    end
   end
+
+  -- Search for parent or children fading.
+  local StopAll = Action == 'stopall'
+  local NotParent = not self.Parent
+  local FA = FadingAnimation[self.UnitBarF]
+
+  for Index = 1, FA.Total do
+    local Fade = FA[Index]
+    if Fade.Action then
+
+      -- Stop all animation if stopall is set.
+      if StopAll then
+        FinishAnimation(Fade)
+
+      elseif Fade.Parent == NotParent then
+
+        -- If parent is fading then stop all children animations.
+        if self.Parent then
+          FinishAnimation(Fade)
+        else
+
+          -- End current animation since the parent is fading, and return.
+          -- Since Fade is not playing we need to specify an action.
+          FinishAnimation(self, Action)
+          return
+        end
+      end
+    end
+  end
+
+  -- Return if stopall.
+  if StopAll then
+    return
+  end
+
+  -- Play the fading animation. in or out.
+  PlayAnimation(self, Action, ReverseFade)
+end
+
+-------------------------------------------------------------------------------
+-- SetDuration   (Fade method)
+--
+-- Sets the time in seconds that it will take for fading.
+--
+-- Usage: Fade:SetDuration(Action, Seconds)
+--
+-- self       Animation group (fade)
+-- Seconds    Time in seconds.
+-- Action     'in' for for fading in duration.
+--            'out' for fading out duration.
+--
+-- NOTE:  The change doesn't change the current fading animation only new ones.
+-------------------------------------------------------------------------------
+local function SetDuration(self, Action, Seconds)
+
+  -- Cant use zero for duration.
+  Seconds = Seconds == 0 and 0.01 or Seconds
+
+  -- Set the duration for in/out.
+  if Action == 'in' then
+    self.DurationIn = Seconds
+  else
+    self.DurationOut = Seconds
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CreateFade
+--
+-- Create a fadein or fadeout animation.
+--
+-- Usage:  Fade = CreateFade(UnitBarF, Object, Parent)
+--
+-- UnitBarF   One or more fade animations being created under this bar.
+-- Object     Must be a frame or texture.
+-- Parent     If true then the fading animation is considered to belong to
+--            the parent frame. Otherwise leave this nil.
+--
+-- Fade       Animation containing all the info needed to fade in or out.
+--            See notes at top of the file for breakdown of this table.
+--
+-- List of methods used with fade
+--
+-- Fade:SetDuration('in' or 'out', Seconds)
+-- Fade:SetAnimation('in' or 'out' or 'stop' or 'stopall')
+--
+-- See notes above on how each one is used.
+-------------------------------------------------------------------------------
+function GUB.Main:CreateFade(UnitBarF, Object, Parent)
+
+  -- Create an animation for fading.
+  local Fade = Object:CreateAnimationGroup()
+  local FadeA = Fade:CreateAnimation('Alpha')
+
+  -- Set the animation group values.
+  Fade:SetLooping('NONE')
+  FadeA:SetOrder(1)
+  FadeA:SetDuration(0)
+
+  Fade.FadeA = FadeA
+  Fade.UnitBarF = UnitBarF
+  Fade.Object = Object
+  Fade.Action = false
+  Fade.Parent = Parent or false
+  Fade.DurationIn = 0.01
+  Fade.DurationOut = 0.01 -- cant set to zero otherwise be in an endless fade loop.
+
+  -- Create a new entry for the UnitBar if one doesn't exist.
+  local FA = FadingAnimation[UnitBarF]
+  if FA == nil then
+    FA = {Total = 0}
+    FadingAnimation[UnitBarF] = FA
+  end
+
+  -- Store the fade animation
+  local Total = FA.Total + 1
+  FA[Total] = Fade
+  FA.Total = Total
+
+  -- Set methods.
+  Fade.SetAnimation = SetAnimation
+  Fade.SetDuration = SetDuration
+
+  return Fade
 end
 
 -------------------------------------------------------------------------------
@@ -3895,48 +4184,47 @@ end
 -- NOTE:  Hiding a selected unitbar will deselect it.
 -------------------------------------------------------------------------------
 local function HideUnitBar(UnitBarF, HideBar)
-  local FadeOut = UnitBarF.FadeOut
+  local Fade = UnitBarF.Fade
   local Anchor = UnitBarF.Anchor
 
-  if HideBar and not UnitBarF.Hidden then
+  if HideBar ~= UnitBarF.Hidden then
+    if HideBar then
 
-    -- Disable PredictedSpells if active.
-    if PredictedSpellsActive then
-      SetPredictedSpellsActive(UnitBarF.BarType, false)
-    end
+      -- Disable TrackingSpells if active.
+      if SpellTrackerActive[UnitBarF] then
 
-    -- Deselect a unitbar if selected.
-    if UnitBarF == PSelectedUnitBarF then
-      PSelectedUnitBarF = nil
-    end
-    SelectUnitBar(UnitBarF, 'clear')
+        -- Disable spell tracking for this bar.
+        SetSpellTrackerActive(UnitBarF, 'unregister')
+      end
 
-    -- Cancel any animations playing inside this bar.
-    UnitBarF:CancelAnimation()
-
-    if UnitBars.FadeOutTime > 0 then
+      -- Deselect a unitbar if selected.
+      if UnitBarF == PSelectedUnitBarF then
+        PSelectedUnitBarF = nil
+      end
+      SelectUnitBar(UnitBarF, 'clear')
 
       -- Start the animation fadeout.
-      Main:Animation(FadeOut, 'play', function() Anchor:Hide() end)
+      if UnitBars.FadeOutTime > 0 then
+        Fade:SetAnimation('out')
+      else
+        Anchor:Hide()
+      end
+      UnitBarF.Hidden = true
     else
-      Anchor:Hide()
+      UnitBarF.Hidden = false
+
+      -- Start the animation fadein.
+      if UnitBars.FadeInTime > 0 then
+        Fade:SetAnimation('in')
+      else
+        Anchor:Show()
+      end
+
+      -- Enable TrackingSpells if active.
+      if SpellTrackerActive[UnitBarF] then
+        SetSpellTrackerActive(UnitBarF, 'register')
+      end
     end
-    UnitBarF.Hidden = true
-
-  elseif not HideBar and UnitBarF.Hidden then
-
-    -- Enable PredictedSpells if active.
-    if PredictedSpellsActive then
-      SetPredictedSpellsActive(UnitBarF.BarType, true)
-    end
-
-    if UnitBars.FadeOutTime > 0 then
-
-      -- Finish the animation fade out if its still playing.
-      Main:Animation(FadeOut, 'stop')
-    end
-    Anchor:Show()
-    UnitBarF.Hidden = false
   end
 end
 
@@ -3998,7 +4286,7 @@ function GUB.Main:StatusCheck(Event)
       -- Get the idle status based on HideNotActive when not in combat.
       elseif not InCombat and Status.HideNotActive then
         local IsActive = self.IsActive
-        Visible = type(IsActive) == 'boolean' and IsActive
+        Visible = IsActive == true
 
         -- if not visible then set IsActive to watch for activity.
         if not Visible then
@@ -4040,14 +4328,14 @@ function GUB.Main:UnitBarTooltip(Hide)
 end
 
 -------------------------------------------------------------------------------
--- SetPredictedSpell
+-- TrackSpell
 --
 -- Subfunction of CombatLogUnfiltered()
 -- Subfunction of SpellCasting()
 --
--- Sets the predicted spell based on events from CombatLogUnfiltered() and SpellCasting().
+-- Sets the spell to be tracked based on events from CombatLogUnfiltered() and SpellCasting().
 --
--- Usage: SetPredictedSpell(Event, SpellID, LineID, Message)
+-- Usage: TrackSpell(Event, SpellID, LineID, Message)
 --
 -- Event        Event from CombatlogUnfiltered() or SpellCasting().
 -- SpellID      SpellID of the spell.
@@ -4055,91 +4343,86 @@ end
 -- Message      Message from combatlog.
 --
 -- NOTES:
---         Timeouts are used so only events SPELL_DAMAGE, SPELL_MISS, and SPELL_ENERGIZE needs to be tracked.
+--         Timeouts are used so only events SPELL_MISS and SPELL_ENERGIZE needs to be tracked.
 --         If one of those events didn't happen, then the timeout will remove the spell.
 --
---         See the notes at the top of the file about Predicted Spells.
+--         See the notes at the top of the file about the spell tracker.
 --
 --         Fn() can get called 3 times.
---         Fn(SpellID, CastTime, Message)
---           Message = 'start'  Gets called on spell cast start.
---                        on 'start' you can return -1 to not add the spell to be tracked.
---                        see EclipseBar.lua on how this is done.
---                   = 'afterstart'  Gets called right after the spell starts casting.
---                   = 'end'    Gets called on spell success.
---                   = 'failed' Gets called if the spell didn't complete.
---                   = 'timeout' Gets called by CheckPredictedSpellsTimeout() if the spell timed out.
+--         Fn(SpellID, CastTime, Message, UnitBarF)
+--           Message = 'start'   Gets called on spell cast start.
+--                   = 'end'     Gets called on spell success.
+--                   = 'failed'  Gets called if the spell didn't complete.
+--                   = 'timeout' Gets called by CheckSpellTrackerTimeout() if the spell timed out.
 --           CastTime  The amount of time to cast the spell in seconds.
---           SpellID is always negative on 'start', 'end', 'afterstart', or 'failed'
+--           SpellID   is always negative on 'start', 'end', or 'failed'
+--           UnitBarF  Type of bar that SpellID was defined with in SetSpellTracker()
 --
 --           If its energize then the message comes from the server.
 -------------------------------------------------------------------------------
-local function SetPredictedSpell(Event, TimeStamp, SpellID, LineID, Message)
-  local PSE = PredictedSpellEvent[Event]
+local function TrackSpell(Event, TimeStamp, SpellID, LineID, Message)
+  local PSE = SpellTrackerEvent[Event]
 
   if PSE ~= nil then
-    local PS = PredictedSpells[SpellID]
+    local PS = TrackedSpell[SpellID]
 
     -- Check for valid spellID.
     if PS ~= nil then
-      local Flight = PS.Flight
-      local Fn = PS.Fn
-      local CastTime = 0
+      local UnitBarF = PS.UnitBarF
 
-      -- Detect start cast.
-      if PSE == EventSpellStart then
+      -- Check to see if spell tracker is active for this bar.
+      if SpellTrackerActive[UnitBarF] then
+        local Flight = PS.Flight
+        local Fn = PS.Fn
+        local CastTime = 0
 
-        -- Get cast time for spell.
-        local _, _, _, _, _, _, CastTime, _, _ = GetSpellInfo(SpellID)
+        -- Detect start cast.
+        if PSE == EventSpellStart then
 
-        -- Turn CastTime info seconds.
-        CastTime = CastTime / 1000
+          -- Get cast time for spell.
+          local _, _, _, _, _, _, CastTime = GetSpellInfo(SpellID)
 
-        -- Call Fn if Fn returns -1 then don't add the spell.
-        if Fn then
-          SpellID = Fn(-SpellID, CastTime, 'start')
-        end
-        if SpellID > -1 then
+          -- Turn CastTime into seconds.
+          CastTime = CastTime / 1000
 
-          -- Set casting spell.
-          ModifyCastingSpell('add', SpellID, LineID, CastTime, Fn)
-        end
+          -- Call Fn.
+          if Fn then
+            Fn(UnitBarF, -SpellID, CastTime, 'start')
+          end
 
-        if Fn then
-          Fn(-SpellID, CastTime, 'afterstart')
-        end
-      else
-        CastTime = PredictedSpellCasting.CastTime
-      end
-
-      -- Remove casting spell or a failed casting spell.
-      if PSE == EventSpellSucceeded and LineID == PredictedSpellCasting.LineID or
-         PSE == EventSpellFailed and PredictedSpellMessage[Message] == nil then
-
-        if PS.EndOn == 'casting' or PSE == EventSpellFailed then
-          ModifyCastingSpell('remove')
+          -- Set spell to be tracked.
+          ModifySpellTracker('add', UnitBarF, SpellID, LineID, CastTime, Fn)
+        else
+          CastTime = SpellTrackerCasting.CastTime
         end
 
-        -- Call Fn if one was set
-        if Fn then
-          if PSE == EventSpellFailed then
-            Fn(-SpellID, CastTime, 'failed')
-          else
-            Fn(-SpellID, CastTime, 'end')
+        -- Remove casting spell or a failed casting spell.
+        if PSE == EventSpellSucceeded and LineID == SpellTrackerCasting.LineID or
+           PSE == EventSpellFailed and SpellTrackerMessage[Message] == nil then
+
+          if PS.EndOn == 'casting' or PSE == EventSpellFailed then
+            ModifySpellTracker('remove')
+          end
+
+          -- Call Fn if one was set
+          if Fn then
+            if PSE == EventSpellFailed then
+              Fn(UnitBarF, -SpellID, CastTime, 'failed')
+            elseif PS.EndOn == 'casting' then
+              Fn(UnitBarF, -SpellID, CastTime, 'end')
+            end
           end
         end
-      end
 
-      if PSE == EventSpellEnergize or PSE == EventSpellMissed then
+        if PSE == EventSpellEnergize or PSE == EventSpellMissed then
+          if PS.EndOn == 'energize' or PSE == EventSpellMissed then
+            ModifySpellTracker('remove')
+          end
 
-        -- Remove casting spell if SpellID > 0
-        if PS.EndOn == 'energize' or PSE == EventSpellMissed then
-          ModifyCastingSpell('remove')
-        end
-
-        -- call Fn on energize.
-        if PSE == EventSpellEnergize and Fn then
-          Fn(SpellID, CastTime, Message)
+          -- call Fn on energize.
+          if PSE == EventSpellEnergize and Fn then
+            Fn(UnitBarF, SpellID, CastTime, Message)
+          end
         end
       end
     end
@@ -4165,11 +4448,11 @@ end
 -------------------------------------------------------------------------------
 function GUB:CombatLogUnfiltered(Event, TimeStamp, CombatEvent, HideCaster, SourceGUID, SourceName, SourceFlags, DestGUID, DestName, DestFlags, ...)
 
-  -- Predicted spell for player only.
+  -- track spell for player only.
   if SourceGUID == PlayerGUID then
 
     -- Pass spellID and Message.
-    SetPredictedSpell(CombatEvent, TimeStamp, select(3, ...), nil, select(6, ...))
+    TrackSpell(CombatEvent, TimeStamp, select(3, ...), nil, select(6, ...))
   end
 end
 
@@ -4180,8 +4463,8 @@ end
 -------------------------------------------------------------------------------
 function GUB:SpellCasting(Event, Unit, Name, Rank, LineID, SpellID)
 
-  -- Predicted spell for player only.
-  SetPredictedSpell(Event, nil, SpellID, LineID, '')
+  -- track spell for player only.
+  TrackSpell(Event, nil, SpellID, LineID, '')
 end
 
 -------------------------------------------------------------------------------
@@ -4350,6 +4633,7 @@ end
 -- IsLocked
 -- IsClamped
 -- FadeOutTime
+-- FadeInTime
 -------------------------------------------------------------------------------
 function GUB.Main:UnitBarsSetAllOptions()
   local ATOFrame = Options.ATOFrame
@@ -4361,13 +4645,22 @@ function GUB.Main:UnitBarsSetAllOptions()
 
   -- Apply the settings.
   for _, UBF in pairs(UnitBarsF) do
-    UBF:EnableMouseClicks(not UnitBars.IsLocked)
-    UBF.Anchor:SetClampedToScreen(UnitBars.IsClamped)
+    local IsLocked, IsClamped = UnitBars.IsLocked, UnitBars.IsClamped
+
+    UBF:EnableMouseClicks(not IsLocked)
+    UBF.Anchor:SetClampedToScreen(IsClamped)
   end
-  if UnitBars.FadeOutTime then
-    for _, UBF in pairs(UnitBarsF) do
-      UBF.FadeOutA:SetDuration(UnitBars.FadeOutTime)
-    end
+
+  local FadeOutTime = UnitBars.FadeOutTime
+
+  for _, UBF in pairs(UnitBarsF) do
+    UBF.Fade:SetDuration('out', FadeOutTime)
+  end
+
+  local FadeInTime = UnitBars.FadeInTime
+
+  for _, UBF in pairs(UnitBarsF) do
+    UBF.Fade:SetDuration('in', FadeInTime)
   end
 end
 
@@ -4400,8 +4693,10 @@ local function SetUnitBarsLayout()
   UnitBarsParent:SetHeight(1)
 
   -- Hide the alignment control panel and turn off selectmode
-  SelectMode = false
   Options.ATOFrame:Hide()
+
+  -- Reset the spell tracker.
+  Main:SetSpellTracker('reset')
 
   for BarType, UnitBarF in pairs(UnitBarsF) do
     local UB = UnitBars[BarType]
@@ -4410,8 +4705,7 @@ local function SetUnitBarsLayout()
     local SelectFrame = UnitBarF.SelectFrame
 
     -- Stop any old fade animation for this unitbar.
-    UnitBarF:CancelAnimation()
-    Main:Animation(UnitBarF.FadeOut, 'stop')
+    UnitBarF.Fade:SetAnimation('stopall')
 
     -- Set the anchor position and size.
     Anchor:ClearAllPoints()
@@ -4430,9 +4724,6 @@ local function SetUnitBarsLayout()
     -- Set a reference in the unitbar frame to UnitBars[BarType] and Anchor.
     UnitBarF.UnitBar = UB
     Anchor.UnitBar = UB
-
-    -- Set the layout for the bar.
-    UnitBarF:SetLayout()
 
     -- Set the IsActive flag to false.
     UnitBarF.IsActive = false
@@ -4454,6 +4745,9 @@ local function SetUnitBarsLayout()
 
     -- Hide the frame.
     UnitBarF.Anchor:Hide()
+
+    -- Set the layout for the bar.
+    UnitBarF:SetLayout()
   end
 end
 
@@ -4492,19 +4786,6 @@ local function CreateUnitBars(UnitBarDB)
     -- Create the scale frame.
     local ScaleFrame = CreateFrame('Frame', nil, Anchor)
 
-    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
-      HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
-    else
-      GUB[BarType]:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
-    end
-
-    -- Create an animation for fade out.
-    local FadeOut, FadeOutA = Main:CreateFade(Anchor, 'out')
-
-    -- Save the animation to the unitbar frame.
-    UnitBarF.FadeOut = FadeOut
-    UnitBarF.FadeOutA = FadeOutA
-
     -- Save the bartype.
     UnitBarF.BarType = BarType
 
@@ -4530,9 +4811,14 @@ local function CreateUnitBars(UnitBarDB)
     -- Add a SetSize function.
     UnitBarF.SetSize = SetUnitBarSize
 
-    -- Add time fields.
-    UnitBarF.WaitTime = UB.WaitTime
-    UnitBarF.LastTime = 0
+    -- Create an animation for fade in/out.  Make this a parent fade.
+    UnitBarF.Fade = Main:CreateFade(UnitBarF, Anchor, true)
+
+    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
+      HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+    else
+      GUB[BarType]:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+    end
   end
 end
 
@@ -4711,6 +4997,9 @@ function GUB:OnEnable()
   -- Update all the unitbars according to the new data.
   SetUnitBarsLayout()
 
+  -- Set the unitbars global settings
+  Main:UnitBarsSetAllOptions()
+
   -- Set up the scripts.
   UnitBarsSetScript(true)
 
@@ -4719,9 +5008,6 @@ function GUB:OnEnable()
 
   -- Initialize the events.
   RegisterEvents('register', 'main')
-
-  -- Set the unitbars global settings
-  Main:UnitBarsSetAllOptions()
 
   -- Set the unitbars status and show the unitbars.
   GUB:UnitBarsUpdateStatus()
@@ -4733,15 +5019,4 @@ function GUB:OnEnable()
 --@end-do-not-package@
 end
 
-function GUB:OnDisable()
 
-  -- Disable all the scripts.
-  UnitBarsSetScript(false)
-
-  -- Hide all the bars.
-  for _, UBF in pairs(UnitBarsF) do
-    UBF.Anchor:Hide()
-  end
-
-  -- All registered events automatically get disabled by ace3.
-end

@@ -557,18 +557,9 @@ end
 function GUB.UnitBarsF.RuneBar:Update(Event, ...)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible then
-    if self.IsActive == 0 then
-      if Event == nil then
-        return
-      end
-    else
-      return
-    end
+  if not self.Visible and self.IsActive ~= 0 then
+    return
   end
-
-  -- Set the time the bar was updated.
-  self.LastTime = GetTime()
 
   -- Get the rune frame.
   local RuneID = select(1, ...)
@@ -607,17 +598,6 @@ function GUB.UnitBarsF.RuneBar:Update(Event, ...)
 
   -- Do a status check.
   self:StatusCheck()
-end
-
--------------------------------------------------------------------------------
--- CancelAnimation    UnitBarsF function
---
--- Usage: CancelAnimation()
---
--- Cancels all animation playing in the combo bar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.RuneBar:CancelAnimation()
-  -- do nothing.
 end
 
 --*****************************************************************************
@@ -694,12 +674,18 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
 
   -- Get the unitbar data.
   local UB = self.UnitBar
-  local Energize = UB.General.Energize
-  local Background = UB.Background
+  local Gen = UB.General
   local Bar = UB.Bar
-  local Padding = Bar.Padding
   local Text = UB.Text
+  local Background = UB.Background
+  local Energize = Gen.Energize
+  local Padding = Bar.Padding
   local FontSettings = Text.FontSettings
+  local BarDrawEdge = Gen.CooldownBarDrawEdge
+  local FillDirection = Bar.FillDirection
+  local ReverseFill = Bar.ReverseFill
+  local RuneHeight = Bar.RuneHeight
+  local RuneWidth = Bar.RuneWidth
 
   local RuneMode = UB.General.RuneMode
   local RuneF = self.RuneF
@@ -741,13 +727,31 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
       -- Forground (Statusbar).
       if Object == nil or Object == 'bar' then
         local RuneCooldownBar = RF.RuneCooldownBar
+        local CooldownEdgeFrame = RF.CooldownEdgeFrame
 
         if Attr == nil or Attr == 'texture' then
           RuneCooldownBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
           RuneCooldownBar:GetStatusBarTexture():SetHorizTile(false)
           RuneCooldownBar:GetStatusBarTexture():SetVertTile(false)
           RuneCooldownBar:SetOrientation(Bar.FillDirection)
+          RuneCooldownBar:SetReverseFill(Bar.ReverseFill)
           RuneCooldownBar:SetRotatesTexture(Bar.RotateTexture)
+
+          -- Set the cooldownbar edge frame based on fill direction.
+          -- 0.57142 is a scale calculation to be sure the spark is always the right size.
+          if BarDrawEdge then
+            if Bar.FillDirection == 'HORIZONTAL' then
+              RF.CooldownEdge:SetTexCoord(0, 1, 0, 1)
+              Main:SetCooldownBarEdgeFrame(RuneCooldownBar, CooldownEdgeFrame, FillDirection, ReverseFill,
+                                           CooldownBarSparkTexture.Width, RuneHeight / 0.57142)
+            else
+              RF.CooldownEdge:SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0)
+              Main:SetCooldownBarEdgeFrame(RuneCooldownBar, CooldownEdgeFrame, FillDirection, ReverseFill,
+                                           RuneWidth / 0.57142, CooldownBarSparkTexture.Height)
+            end
+          else
+            Main:SetCooldownBarEdgeFrame(RuneCooldownBar, nil)
+          end
         end
         if Attr == nil or Attr == 'color' then
           local BarColor = nil
@@ -831,8 +835,6 @@ function GUB.UnitBarsF.RuneBar:SetLayout()
   local RuneMode = Gen.RuneMode
   local Padding = Gen.RunePadding
   local RuneSize = Gen.RuneSize
-  local DrawEdge = Gen.CooldownDrawEdge
-  local BarDrawEdge = Gen.CooldownBarDrawEdge
   local Angle = Gen.BarModeAngle
   local RunePosition = Gen.RunePosition
   local RuneOffsetX = Gen.RuneOffsetX
@@ -840,7 +842,6 @@ function GUB.UnitBarsF.RuneBar:SetLayout()
 
   local RuneHeight = UB.Bar.RuneHeight
   local RuneWidth = UB.Bar.RuneWidth
-  local FillDirection = UB.Bar.FillDirection
 
   local RuneLocation = UB.RuneLocation
   local x = 0
@@ -986,9 +987,6 @@ function GUB.UnitBarsF.RuneBar:SetLayout()
 
       -- Update the cooldown size.
       SetCooldownSize(RF.Cooldown, RuneSize)
-
-      -- Set the draw edge.
-  --    RF.Cooldown:SetDrawEdge(DrawEdge and 1 or 0)
     end
 
     -- Cooldown mode with or without rune.
@@ -1025,22 +1023,6 @@ function GUB.UnitBarsF.RuneBar:SetLayout()
 
       -- Show the cooldown bar
       RF.RuneCooldownBarFrame:Show()
-
-      -- Set the cooldownbar edge frame based on fill direction.
-      -- 0.57142 is a scale calculation to be sure the spark is always the right size.
-      if BarDrawEdge then
-        if FillDirection == 'HORIZONTAL' then
-          RF.CooldownEdge:SetTexCoord(0, 1, 0, 1)
-          Main:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, RF.CooldownEdgeFrame, FillDirection,
-                                               CooldownBarSparkTexture.Width, RuneHeight / 0.57142)
-        else
-          RF.CooldownEdge:SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0)
-          Main:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, RF.CooldownEdgeFrame, FillDirection,
-                                               RuneWidth / 0.57142, CooldownBarSparkTexture.Height)
-        end
-      else
-        Main:SetCooldownBarEdgeFrame(RF.RuneCooldownBar, nil)
-      end
     end
 
     -- Refresh the rune texture incase it changed server side after the reload ui.
@@ -1276,6 +1258,6 @@ end
 --*****************************************************************************
 
 function GUB.UnitBarsF.RuneBar:Enable(Enable)
-  Main:RegEvent(Enable, self, 'RUNE_POWER_UPDATE', self.Update)
-  Main:RegEvent(Enable, self, 'RUNE_TYPE_UPDATE', self.Update)
+  Main:RegEventFrame(Enable, self, 'RUNE_POWER_UPDATE', self.Update)
+  Main:RegEventFrame(Enable, self, 'RUNE_TYPE_UPDATE', self.Update)
 end
