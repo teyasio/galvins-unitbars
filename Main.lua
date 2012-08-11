@@ -4997,11 +4997,11 @@ function GUB:OnEnable()
   -- Update all the unitbars according to the new data.
   SetUnitBarsLayout()
 
-  -- Set the unitbars global settings
-  Main:UnitBarsSetAllOptions()
-
   -- Set up the scripts.
   UnitBarsSetScript(true)
+
+  -- Set the unitbars global settings
+  Main:UnitBarsSetAllOptions()
 
   -- Enable unit bars.
   Main:EnableUnitBars()
