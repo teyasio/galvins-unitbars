@@ -1583,10 +1583,9 @@ local Defaults = {
       Name = 'Druid or Monk Mana',
       Enabled = true,
       BarVisible = function()
-                     return
-                       ( PlayerClass == 'DRUID' and ( PlayerStance ==  CatForm or PlayerStance == BearForm ) or
-                         PlayerClass == 'MONK' and PlayerSpecialization == MonkMistWeaverSpec ) and
-                       PlayerPowerType ~= 0 end, -- 0 = Mana
+                     return  -- PlayerPowerType 0 is mana
+                       (PlayerClass == 'DRUID' or PlayerClass == 'MONK') and PlayerPowerType ~= 0
+                     end,
       UsedByClass = {DRUID = '', MONK = '2'},
       x = -200,
       y = -10,
@@ -1805,7 +1804,7 @@ local Defaults = {
       Name = 'Combo Bar',
       Enabled = true,
       BarVisible = function() return HasTarget end,
-      UsedByClass = {ROGUE = '', DRUID = '1234'},
+      UsedByClass = {ROGUE = '', DRUID = ''},
       x = 0,
       y = 201,
       Status = {
@@ -3969,28 +3968,34 @@ local function PlayAnimation(Fade, Action, ReverseFade)
     Duration = Fade.DurationOut
   end
 
-  -- Set up for reverse fade.  This will reverse the current fade.
-  if ReverseFade then
-    local Alpha = Fade.Object:GetAlpha()
-
-    Fade:Stop()
-    Fade.Object:SetAlpha(Alpha)
-
-    if Action == 'in' then
-      Alpha = 1 - Alpha
-    end
-    Duration = Alpha * Duration
+  -- Check for zero duration.
+  if Duration == 0 then
+    FinishAnimation(Fade, Action)
   else
 
-    -- Starting a new fade, set the script.
-    Fade:SetScript('OnFinished', FinishAnimation)
-  end
+    -- Set up for reverse fade.  This will reverse the current fade.
+    if ReverseFade then
+      local Alpha = Fade.Object:GetAlpha()
 
-  -- Set and play the fade.
-  FadeA:SetChange(Change)
-  FadeA:SetDuration(Duration)
-  Fade:Play()
-  Fade.Action = Action
+      Fade:Stop()
+      Fade.Object:SetAlpha(Alpha)
+
+      if Action == 'in' then
+        Alpha = 1 - Alpha
+      end
+      Duration = Alpha * Duration
+    else
+
+      -- Starting a new fade, set the script.
+      Fade:SetScript('OnFinished', FinishAnimation)
+    end
+
+    -- Set and play the fade.
+    FadeA:SetChange(Change)
+    FadeA:SetDuration(Duration)
+    Fade:Play()
+    Fade.Action = Action
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -4030,7 +4035,7 @@ local function SetAnimation(self, Action)
     end
     return
   end
-  if Action == 'in' or Action == 'out' or Action == 'stop' then
+  if Action == 'in' or Action == 'out' then
     if FadeAction then
       if FadeAction ~= Action then
 
@@ -4102,9 +4107,6 @@ end
 -------------------------------------------------------------------------------
 local function SetDuration(self, Action, Seconds)
 
-  -- Cant use zero for duration.
-  Seconds = Seconds == 0 and 0.01 or Seconds
-
   -- Set the duration for in/out.
   if Action == 'in' then
     self.DurationIn = Seconds
@@ -4151,8 +4153,8 @@ function GUB.Main:CreateFade(UnitBarF, Object, Parent)
   Fade.Object = Object
   Fade.Action = false
   Fade.Parent = Parent or false
-  Fade.DurationIn = 0.01
-  Fade.DurationOut = 0.01 -- cant set to zero otherwise be in an endless fade loop.
+  Fade.DurationIn = 0
+  Fade.DurationOut = 0
 
   -- Create a new entry for the UnitBar if one doesn't exist.
   local FA = FadingAnimation[UnitBarF]
@@ -4204,21 +4206,13 @@ local function HideUnitBar(UnitBarF, HideBar)
       SelectUnitBar(UnitBarF, 'clear')
 
       -- Start the animation fadeout.
-      if UnitBars.FadeOutTime > 0 then
-        Fade:SetAnimation('out')
-      else
-        Anchor:Hide()
-      end
+      Fade:SetAnimation('out')
       UnitBarF.Hidden = true
     else
       UnitBarF.Hidden = false
 
       -- Start the animation fadein.
-      if UnitBars.FadeInTime > 0 then
-        Fade:SetAnimation('in')
-      else
-        Anchor:Show()
-      end
+      Fade:SetAnimation('in')
 
       -- Enable TrackingSpells if active.
       if SpellTrackerActive[UnitBarF] then
@@ -4246,8 +4240,9 @@ function GUB.Main:StatusCheck(Event)
     local Spec = UB.UsedByClass[PlayerClass]
 
     Visible = false
+
     -- Check if class found, then check spec.
-    if Spec and PlayerSpecialization and (Spec == '' or strfind(Spec, PlayerSpecialization)) then
+    if Spec and (Spec == '' or PlayerSpecialization and strfind(Spec, PlayerSpecialization)) then
       Visible = true
     end
   end

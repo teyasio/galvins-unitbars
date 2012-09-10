@@ -450,11 +450,12 @@ local function EclipseBarHide(EF, Frame, Hide, FadeInTime, FadeOutTime)
   local Frame = SliderF.Frame
 
   if Hide ~= SliderF.Dark then
+    local Fade = Frame.Fade
     if Hide then
 
       -- Fade out the frame then hide it.
-      if FadeOutTime > 0 then
-        Frame.Fade:SetAnimation('out')
+      if Fade then
+        Fade:SetAnimation('out')
       else
         Frame:Hide()
       end
@@ -462,8 +463,8 @@ local function EclipseBarHide(EF, Frame, Hide, FadeInTime, FadeOutTime)
     else
 
       -- Fade in the frame then show it
-      if FadeInTime > 0 then
-        Frame.Fade:SetAnimation('in')
+      if Fade then
+        Fade:SetAnimation('in')
       else
         Frame:Show()
       end
