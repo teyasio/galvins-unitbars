@@ -589,10 +589,11 @@ function BarDB:HideTexture(BoxNumber, TextureNumber)
     local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
 
     if not Texture.Hidden then
-      if Texture.FadeOutTime > 0 then
+      local Fade = Texture.Fade
+      if Fade then
 
         -- Fadeout the texture frame then hide it.
-        Texture.Fade:SetAnimation('out')
+        Fade:SetAnimation('out')
       else
         Texture:Hide()
       end
@@ -611,10 +612,11 @@ function BarDB:ShowTexture(BoxNumber, TextureNumber)
     local _, _, _, Texture = NextBar(self, BoxNumber, TextureNumber)
 
     if Texture.Hidden then
-      if Texture.FadeInTime > 0 then
+      local Fade = Texture.Fade
+      if Fade then
 
         -- Fade in the texture.
-        Texture.Fade:SetAnimation('in')
+        Fade:SetAnimation('in')
       else
         Texture:Show()
       end
