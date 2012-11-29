@@ -60,7 +60,7 @@ local C_PetBattles, UIParent =
 local MaxChiOrbs = 5
 
 -- Powertype constants
-local PowerChi = PowerTypeToNumber['LIGHT_FORCE']
+local PowerChi = PowerTypeToNumber['CHI']
 
 -- shadow orbs Texture constants
 local OrbBox = 10
