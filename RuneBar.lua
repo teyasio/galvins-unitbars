@@ -23,8 +23,8 @@ local pcall, pairs, ipairs, type, select, next, print, sort =
       pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
@@ -420,12 +420,13 @@ end
 --
 -- Start a rune cooldown onevent timer.
 --
--- Usage: StartRuneCooldown(RuneF, StartTime, Duration, RuneReady)
+-- Usage: StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize)
 --
 -- RuneF      A cooldown will be started for this runeframe.
 -- StartTime  Start time for the cooldown.
 -- Duration   Duration of the cooldown.
 -- RuneReady  If true all cooldown timers are stopped, otherwise they're started.
+-- Energize   If true then creates a colored border around the frame.
 -------------------------------------------------------------------------------
 local function EndRuneEnergize(self, Elapsed)
   local RuneF = self.RuneF
@@ -678,7 +679,6 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
   local Bar = UB.Bar
   local Text = UB.Text
   local Background = UB.Background
-  local Energize = Gen.Energize
   local Padding = Bar.Padding
   local FontSettings = Text.FontSettings
   local BarDrawEdge = Gen.CooldownBarDrawEdge
@@ -704,15 +704,13 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
       -- Background (Border).
       if Object == nil or Object == 'bg' then
         local RuneCooldownBarFrame = RF.RuneCooldownBarFrame
-        local BgColor = nil
+        local BgColor = Background.Color
 
-        -- Get all color if ColorAll is true.
-        if Background.ColorAll then
-          BgColor = Background.Color
-        else
+        -- Get all color if All is true.
+        if not BgColor.All then
 
           -- Get color based on runetype
-          BgColor = Background.Color[RuneColorIndex]
+          BgColor = BgColor[RuneColorIndex]
         end
 
         if Attr == nil or Attr == 'backdrop' then
@@ -754,15 +752,13 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
           end
         end
         if Attr == nil or Attr == 'color' then
-          local BarColor = nil
+          local BarColor = Bar.Color
 
-          -- Get all color if ColorAll is true.
-          if Bar.ColorAll then
-            BarColor = Bar.Color
-          else
+          -- Get all color if All is true.
+          if not BarColor.All then
 
             -- Get color based on runetype
-            BarColor = Bar.Color[RuneColorIndex]
+            BarColor = BarColor[RuneColorIndex]
           end
           RuneCooldownBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
         end
@@ -776,15 +772,13 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
       -- Texture
       if Object == nil or Object == 'texture' then
         if Attr == nil or Attr == 'color' then
-          local EnergizeColor = nil
+          local EnergizeColor = Gen.ColorEnergize
 
-          -- Get all color if ColorAll is true.
-          if Energize.ColorAll then
-            EnergizeColor = Energize.Color
-          else
+          -- Get all color if All is true.
+          if not EnergizeColor.All then
 
             -- Get color based on runetype
-            EnergizeColor = Energize.Color[RuneColorIndex]
+            EnergizeColor = EnergizeColor[RuneColorIndex]
           end
           RF.RuneCooldownBarEnergizeFrame:SetBackdropBorderColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
           RF.RuneBorderEnergize:SetVertexColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
@@ -800,15 +794,13 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
         Main:SetFontString(Txt, FontSettings)
       end
       if Attr == nil or Attr == 'color' then
-        local TextColor = nil
+        local TextColor = Text.Color
 
-        -- Get all color if ColorAll is true.
-        if Text.ColorAll then
-          TextColor = Text.Color
-        else
+        -- Get all color if All is true.
+        if not TextColor.All then
 
           -- Get color based on runetype
-          TextColor = Text.Color[RuneColorIndex]
+          TextColor = TextColor[RuneColorIndex]
         end
         Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
       end

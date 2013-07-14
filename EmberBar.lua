@@ -23,8 +23,8 @@ local pcall, pairs, ipairs, type, select, next, print, sort =
       pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
@@ -43,9 +43,12 @@ local C_PetBattles, UIParent =
 --
 -- UnitBarF.UnitBar                  Reference to the unitbar data for the ember bar.
 -- UnitBarF.EmberBar                 Contains the ember bar displayed on screen.
+-- UnitBarF.GreenFire                This key is made inside of Update(). Used with GreenFireAuto or GreenFire
+--                                   option setting.  Used by Update() and SetAttr()
 --
 -- EmberData                         Contains all the data for the ember bar texture.
 --   Texture                         Path name to the texture file.
+--   TextureGreen                    Same as Texture except its green themed.
 --   TextureWidth, TextureHeight     Box size and size of the TextureFrame for texture mode.
 --   [TextureType]
 --     Point                         Texture point within the TextureFrame.
@@ -62,9 +65,12 @@ local C_PetBattles, UIParent =
 -- MaxPowerPerEmber                  Amount of power for each ember.
 --
 -- BarOffsetX, BarOffsetY            Offset the whole bar within the border.
+--
+-- EmberBarIsGreen                   If true the warlock has green.
 -------------------------------------------------------------------------------
 local MaxEmbers = 4
 local MaxPowerPerEmber = MAX_POWER_PER_EMBER
+local WarlockGreenFire = WARLOCK_GREEN_FIRE
 
 -- Powertype constants
 local PowerEmber = PowerTypeToNumber['BURNING_EMBERS']
@@ -81,6 +87,7 @@ local BarOffsetY = 2
 
 local EmberData = {
   Texture = [[Interface\PlayerFrame\Warlock-DestructionUI]],
+  TextureGreen = [[Interface\PlayerFrame\Warlock-DestructionUI-Green]],
 
   -- TextureFrame size.
   TextureWidth = 36, TextureHeight = 39 + 3,
@@ -111,6 +118,33 @@ local EmberData = {
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
 GUB.UnitBarsF.EmberBar.StatusCheck = GUB.Main.StatusCheck
+
+
+--*****************************************************************************
+--
+-- Emberbar utility
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- EmberBarSetGreen
+--
+-- Changes ember bar to green or back to original
+--
+-- Usage: (true or false)
+--
+-- True     Bar will have a green theme.
+-- False    Bar will have an original theme.
+-------------------------------------------------------------------------------
+local function EmberBarSetGreen(EmberBar, Green)
+  for EmberIndex = 1, MaxEmbers do
+    for TextureNumber, ED in ipairs(EmberData) do
+
+      EmberBar:SetTexture(EmberIndex, TextureNumber, Green and EmberData.TextureGreen or EmberData.Texture)
+
+    end
+  end
+end
 
 --*****************************************************************************
 --
@@ -198,6 +232,14 @@ function GUB.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
     self.NumEmbers = NumEmbers
   end
 
+  -- Check for green fire if auto is set
+  local Gen = self.UnitBar.General
+  local GreenFire = Gen.GreenFireAuto and IsSpellKnown(WarlockGreenFire) or Gen.GreenFire
+  if self.GreenFire ~= GreenFire then
+    self.GreenFire = GreenFire
+    self:SetLayout()
+  end
+
   UpdateBurningEmbers(self, EmberPower, NumEmbers)
 
   -- Set the IsActive flag
@@ -277,6 +319,10 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
   local Bar = UB.Bar
   local Border = self.Border
 
+  -- if GreenFire option is true then use that, otherwise use the GreenFireAuto set
+  -- from Update()
+  local GreenFire = self.GreenFire
+
   -- Reverse fill option.
   if Object == nil or Object == 'bar' then
     if Attr == nil or Attr == 'texture' then
@@ -299,13 +345,11 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
 
       -- Background (Border).
       if Object == nil or Object == 'bg' then
-        local BgColor = nil
+        local BgColor = Background[GreenFire and 'ColorGreen' or 'Color']
 
-        -- Get all color if ColorAll is true.
-        if Background.ColorAll then
-          BgColor = Background.Color
-        else
-          BgColor = Background.Color[EmberIndex]
+        -- Get all color if All is true.
+        if not BgColor.All then
+          BgColor = BgColor[EmberIndex]
         end
 
         if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
@@ -325,22 +369,18 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
           EmberBar:SetRotateTexture(EmberIndex, EmberFieryBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
-          local BarColor = nil
-          local BarFieryColor = nil
+          local Color = Bar[GreenFire and 'ColorGreen' or 'Color']
+          local ColorFiery = Bar[GreenFire and 'ColorFieryGreen' or 'ColorFiery']
 
-          -- Get all color if ColorAll is true.
-          if Bar.ColorAll then
-            BarColor = Bar.Color
-          else
-            BarColor = Bar.Color[EmberIndex]
+          -- Get all color if All is true.
+          if not Color.All then
+            Color = Color[EmberIndex]
           end
-          if BarFiery.ColorAll then
-            BarFieryColor = BarFiery.Color
-          else
-            BarFieryColor = BarFiery.Color[EmberIndex]
+          if not ColorFiery.All then
+            ColorFiery = ColorFiery[EmberIndex]
           end
-          EmberBar:SetColor(EmberIndex, EmberBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-          EmberBar:SetColor(EmberIndex, EmberFieryBox, BarFieryColor.r, BarFieryColor.g, BarFieryColor.b, BarFieryColor.a)
+          EmberBar:SetColor(EmberIndex, EmberBox, Color.r, Color.g, Color.b, Color.a)
+          EmberBar:SetColor(EmberIndex, EmberFieryBox, ColorFiery.r, ColorFiery.g, ColorFiery.b, ColorFiery.a)
         end
       end
     end
@@ -360,10 +400,21 @@ function GUB.UnitBarsF.EmberBar:SetAttr(Object, Attr)
     if Object == nil or Object == 'bg' then
       local Border = self.Border
 
-      local BgColor = UB.Background.Color
+      local BgColor = GreenFire and UB.Background.ColorGreen or UB.Background.Color
 
       if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
         EmberBar:SetBackdrop(nil, UB.Background.BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+      end
+    end
+
+    -- Green option
+    if Object == nil or Object == 'bar' then
+      if Attr == nil or Attr == 'texture' then
+        for EmberIndex = 1, MaxEmbers do
+          for TextureNumber, ED in ipairs(EmberData) do
+            EmberBar:SetTexture(EmberIndex, TextureNumber, GreenFire and EmberData.TextureGreen or EmberData.Texture)
+          end
+        end
       end
     end
   end
