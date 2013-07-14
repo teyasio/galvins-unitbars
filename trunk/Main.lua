@@ -51,8 +51,8 @@ local pcall, pairs, ipairs, type, select, next, print, sort =
       pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
@@ -346,21 +346,20 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     RuneOffsetY        - Offset Y from RunePosition.
 --
 --     Energize           - Table used for energize borders.
---       ColorAll         - True or false.  If true then all energize borders use the same color.
---       Color            - Color used for all the energize borders when ColorAll is true.
---       Color[1 to 8]    - Colors used for each energize border when ColorAll is false.
+--       Color            - Color used for all the energize borders when Color.All is true.
+--         All            - True or false.  If true then all energize borders use the same color.
+--       Color[1 to 8]    - Colors used for each energize border when Color.All is false.
 --
 --   Background           - Only used for cooldown bars.
---     ColorAll           - True or false. If true then all cooldown bars use the same color.
 --     PaddingAll         - True or false. If true then padding can be set with one value otherwise four.
 --     BackdropSettings   - Contains the settings for background, border, and padding for each cooldown bar.
 --                          This is used for cooldown bars only.
---     Color              - Color used for all the cooldown bars when ColorAll is true
---     Color[1 to 8]      - Colors used for each cooldown bar when ColorAll is false.
+--     Color              - Color used for all the cooldown bars when Color.All is true
+--       All              - True or false. If true then all cooldown bars use the same color.
+--     Color[1 to 8]      - Colors used for each cooldown bar when Color.All is false.
 --
 --   Bar                  - Only used for cooldown bars.
 --     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     ColorAll           - True or false.  If true then all cooldown bars use the same color.
 --     RuneWidth          - Width of the cooldown bar.
 --     RuneHeight         - Height of the cooldown bar.
 --     FillDirection      - Changes the fill direction. 'VERTICAL' or 'HORIZONTAL'.
@@ -371,12 +370,13 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     Padding            - The amount of pixels to be added or subtracted from the bar texture.
 --     StatusBarTexture   - Texture for the cooldown bar.
 --     Color              - Current color of the cooldown bar.
+--       All              - True or false.  If true then all cooldown bars use the same color.
 --
 --   Text
---     ColorAll           - True or false.  If true then all the combo boxes are set to one color.
---                                          If false then each combo box can be set a different color.
 --     FontSettings       - Contains the settings for the text.
 --     Color              - Current color of the text for the bar.
+--       All              - True or false.  If true then all the combo boxes are set to one color.
+--                                          If false then each combo box can be set a different color.
 --
 --   RuneBarOrder         - The order the runes are displayed from left to right in barmode.
 --                          RuneBarOrder[Rune slot 1 to 6] = The rune frame on screen.
@@ -391,18 +391,16 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     ComboFadeOutTime   - Time in seconds for a combo point to go invisible.
 --
 --   Background
---     ColorAll           - True or false.  If true then all the combo boxes are set to one color.
---                        - True or false.  If false then each combo box can be set a different color.
 --     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
 --     BackdropSettings   - Contains the settings for background, border, and padding for each combo point box.
 --     Color              - Contains just one background color for all the combo point boxes.
---                          Only works when ColorAll is true.
+--       All              - True or false.  If true then all the combo boxes are set to one color.
+--                                          If false then each combo box can be set a different color.
+--                          Only works when Color.All is true.
 --     Color[1 to 5]      - Contains the background colors of all the combo point boxes.
 --
 --   Bar
 --     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     ColorAll           - True or false.  If true then all the combo boxes are set to one color.
---                                          If false then each combo box can be set a different color.
 --     BoxWidth           - The width of each combo point box.
 --     BoxHeight          - The height of each combo point box.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
@@ -411,7 +409,9 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     Padding            - Amount of padding on the forground of each combo point box.
 --     StatusbarTexture   - Texture used for the forground of each combo point box.
 --     Color              - Contains just one bar color for all the combo point boxes.
---                        - Only works when ComboColorAll is true.
+--       All              - True or false.  If true then all the combo boxes are set to one color.
+--                                          If false then each combo box can be set a different color.
+--                        - Only works when Color.All is true.
 --     Color[1 to 5]      - Contains the bar colors of all the combo point boxes.
 --
 --
@@ -426,21 +426,17 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     HolyAngle          - Angle in degrees in which way the bar will be displayed.
 --
 --   Background
---     ColorAll           - True or false.  If true then all the holy rune boxes are set to one color.
---                                          If false then each holy rune box can be set a different color.
---                                          Only works in box mode.
 --     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
 --     BackdropSettings   - Contains the settings for background, border, and padding for each holy rune box.
 --                          When in box mode each holy box uses this setting.
 --     Color              - Contains just one background color for all the holy rune boxes.
---                          Only works when ColorAll is true.
+--       All              - True or false.  If true then all the holy rune boxes are set to one color.
+--                                          If false then each holy rune box can be set a different color.
+--                                          Only works in box mode.
 --     Color[1 to 3]      - Contains the background colors of all the holy rune boxes.
 --
 --   Bar
 --     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     ColorAll           - True or false.  If true then all the holy rune boxes are set to one color.
---                                          If false then each holy rune box can be set a different color.
---                                          Only works in box mode.
 --     BoxWidth           - Width of each holy rune box.
 --     BoxHeight          - Height of each holy rune box.
 --     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
@@ -449,7 +445,8 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     Padding            - Amount of padding on the forground of each holy rune box.
 --     StatusbarTexture   - Texture used for the forground of each holy rune box.
 --     Color              - Contains just one bar color for all the holy rune boxes.
---                          Only works when ComboColorAll is true.
+--       All              - True or false.  If true then all the holy rune boxes are set to one color.
+--                                          If false then each holy rune box can be set a different color.
 --     Color[1 to 3]      - Contains the bar colors of all the holy rune boxes.
 --
 --
@@ -1699,19 +1696,17 @@ local Defaults = {
         RunePosition = 'LEFT',
         RuneOffsetX = 0,
         RuneOffsetY = 0,
-        Energize = {
-          ColorAll = false,
-          Color = {
-            r = 1, g = 0, b = 0, a = 1,               -- All runes
-            [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
-            [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
-            [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-            [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-            [5] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
-            [6] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
-            [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
-            [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
-          },
+        ColorEnergize = {
+          All = false,
+          r = 1, g = 0, b = 0, a = 1,               -- All runes
+          [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
+          [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
+          [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
+          [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
+          [5] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
+          [6] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
+          [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+          [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
         },
       },
       Other = {
@@ -1719,7 +1714,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -1730,6 +1724,7 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0, g = 0, b = 0, a = 1,                                     -- All runes
           [1] = {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- Blood
           [2] = {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- Blood
@@ -1743,7 +1738,6 @@ local Defaults = {
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         RuneWidth = 40,
         RuneHeight = 25,
         FillDirection = 'HORIZONTAL',
@@ -1753,6 +1747,7 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 1, g = 0, b = 0, a = 1,               -- All runes
           [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
           [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
@@ -1765,7 +1760,6 @@ local Defaults = {
         },
       },
       Text = {
-        ColorAll = false,
         FontSettings = {
           FontType = UBFontType,
           FontSize = 16,
@@ -1778,6 +1772,7 @@ local Defaults = {
           ShadowOffset = 0,
         },
         Color = {
+          All = false,
           r = 1, g = 1, b = 1, a = 1,               -- All runes
           [1] = {r = 1, g = 1, b = 1, a = 1},       -- Blood
           [2] = {r = 1, g = 1, b = 1, a = 1},       -- Blood
@@ -1826,7 +1821,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -1837,6 +1831,7 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0, g = 0, b = 0, a = 1,
           [1] = {r = 0, g = 0, b = 0, a = 1},
           [2] = {r = 0, g = 0, b = 0, a = 1},
@@ -1847,7 +1842,6 @@ local Defaults = {
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
         RotateTexture = false,
@@ -1855,6 +1849,7 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 1, g = 0, b = 0, a = 1,
           [1] = {r = 1, g = 0, b = 0, a = 1},
           [2] = {r = 1, g = 0, b = 0, a = 1},
@@ -1893,7 +1888,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -1904,6 +1898,7 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0.5, g = 0.5, b = 0.5, a = 1,
           [1] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
           [2] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
@@ -1914,7 +1909,6 @@ local Defaults = {
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
         RotateTexture = false,
@@ -1922,6 +1916,7 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 1, g = 0.705, b = 0, a = 1,
           [1] = {r = 1, g = 0.705, b = 0, a = 1},
           [2] = {r = 1, g = 0.705, b = 0, a = 1},
@@ -1960,7 +1955,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -1971,6 +1965,7 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0.329, g = 0.172, b = 0.337, a = 1,
           [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
           [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
@@ -1980,7 +1975,6 @@ local Defaults = {
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         BoxWidth = 40,
         BoxHeight = 25,
         RotateTexture = false,
@@ -1988,6 +1982,7 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 0.980, g = 0.517, b = 1, a = 1,
           [1] = {r = 0.980, g = 0.517, b = 1, a = 1},
           [2] = {r = 0.980, g = 0.517, b = 1, a = 1},
@@ -2104,6 +2099,8 @@ local Defaults = {
       },
       General = {
         BoxMode = false,
+        GreenFire = false,
+        GreenFireAuto = true,
         EmberSize = 1,
         EmberPadding = 5,
         EmberScale = 1,
@@ -2116,7 +2113,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -2127,16 +2123,24 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0.180, g = 0.047, b = 0.031, a = 1,
           [1] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
           [2] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
           [3] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
           [4] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
         },
+        ColorGreen = {
+          All = false,
+          r = 0.043, g = 0.188, b = 0, a = 1,
+          [1] = {r = 0.043, g = 0.188, b = 0, a = 1},
+          [2] = {r = 0.043, g = 0.188, b = 0, a = 1},
+          [3] = {r = 0.043, g = 0.188, b = 0, a = 1},
+          [4] = {r = 0.043, g = 0.188, b = 0, a = 1},
+        },
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         BoxWidth = 25,
         BoxHeight = 34,
         FillDirection = 'VERTICAL',
@@ -2147,21 +2151,36 @@ local Defaults = {
         StatusBarTexture = GUBStatusBarTexture,
         FieryStatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 1, g = 0.325, b = 0 , a = 1,
           [1] = {r = 1, g = 0.325, b = 0 , a = 1},
           [2] = {r = 1, g = 0.325, b = 0 , a = 1},
           [3] = {r = 1, g = 0.325, b = 0 , a = 1},
           [4] = {r = 1, g = 0.325, b = 0 , a = 1},
         },
-      },
-      BarFiery = {  -- Color for fiery embers.
-        ColorAll = false,
-        Color = {
+        ColorFiery = {
+          All = false,
           r = 0.941, g = 0.690, b = 0.094, a = 1,
           [1] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
           [2] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
           [3] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
           [4] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
+        },
+        ColorGreen = {
+          All = false,
+          r = 0.203, g = 0.662, b = 0, a = 1,
+          [1] = {r = 0.203, g = 0.662, b = 0, a = 1},
+          [2] = {r = 0.203, g = 0.662, b = 0, a = 1},
+          [3] = {r = 0.203, g = 0.662, b = 0, a = 1},
+          [4] = {r = 0.203, g = 0.662, b = 0, a = 1},
+        },
+        ColorFieryGreen = {
+          All = false,
+          r = 0, g = 1, b = 0.078, a = 1,
+          [1] = {r = 0, g = 1, b = 0.078, a = 1},
+          [2] = {r = 0, g = 1, b = 0.078, a = 1},
+          [3] = {r = 0, g = 1, b = 0.078, a = 1},
+          [4] = {r = 0, g = 1, b = 0.078, a = 1},
         },
       },
     },
@@ -2366,7 +2385,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -2377,6 +2395,7 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0.329, g = 0.172, b = 0.337, a = 1,
           [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
           [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
@@ -2385,7 +2404,6 @@ local Defaults = {
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         BoxWidth = 38,
         BoxHeight = 37,
         RotateTexture = false,
@@ -2393,6 +2411,7 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 0.729, g = 0.466, b = 1, a = 1,
           [1] = {r = 0.729, g = 0.466, b = 1, a = 1},
           [2] = {r = 0.729, g = 0.466, b = 1, a = 1},
@@ -2429,7 +2448,6 @@ local Defaults = {
         FrameStrata = 'MEDIUM',
       },
       Background = {
-        ColorAll = false,
         PaddingAll = true,
         BackdropSettings = {
           BgTexture = DefaultBgTexture,
@@ -2440,6 +2458,7 @@ local Defaults = {
           Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         },
         Color = {
+          All = false,
           r = 0.113, g = 0.192, b = 0.188, a = 1,
           [1] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
           [2] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
@@ -2450,7 +2469,6 @@ local Defaults = {
       },
       Bar = {
         Advanced = false,
-        ColorAll = false,
         BoxWidth = 30,
         BoxHeight = 30,
         RotateTexture = false,
@@ -2458,6 +2476,7 @@ local Defaults = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
+          All = false,
           r = 0.407, g = 0.764, b = 0.670, a = 1,
           [1] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
           [2] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
@@ -2530,6 +2549,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UNIT_ENTERED_VEHICLE',          GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_EXITED_VEHICLE',           GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_DISPLAYPOWER',             GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_MAXPOWER',                 GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_DISABLED',         GUB.UnitBarsUpdateStatus)

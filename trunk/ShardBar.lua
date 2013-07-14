@@ -23,8 +23,8 @@ local pcall, pairs, ipairs, type, select, next, print, sort =
       pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
@@ -253,13 +253,11 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
 
       -- Background (Border).
       if Object == nil or Object == 'bg' then
-        local BgColor = nil
+        local BgColor = Background.Color
 
-        -- Get all color if ColorAll is true.
-        if Background.ColorAll then
-          BgColor = Background.Color
-        else
-          BgColor = Background.Color[ShardIndex]
+        -- Get all color if All is true.
+        if not BgColor.All then
+          BgColor = BgColor[ShardIndex]
         end
 
         if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
@@ -274,13 +272,11 @@ function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
           ShardBar:SetRotateTexture(ShardIndex, ShardBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
-          local BarColor = nil
+          local BarColor = Bar.Color
 
-          -- Get all color if ColorAll is true.
-          if Bar.ColorAll then
-            BarColor = Bar.Color
-          else
-            BarColor = Bar.Color[ShardIndex]
+          -- Get all color if All is true.
+          if not BarColor.All then
+            BarColor = BarColor[ShardIndex]
           end
           ShardBar:SetColor(ShardIndex, ShardBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
         end

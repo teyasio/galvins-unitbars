@@ -23,8 +23,8 @@ local pcall, pairs, ipairs, type, select, next, print, sort =
       pcall, pairs, ipairs, type, select, next, print, sort
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
@@ -154,7 +154,7 @@ function GUB.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   -- Set default value if NumShards returns zero.
   NumOrbs = NumOrbs > 0 and NumOrbs or MaxChiOrbs - 1
 
-  -- Check for max soulshard change
+  -- Check for max chi change
   if NumOrbs ~= self.NumOrbs then
     local ChiBar = self.ChiBar
 
@@ -250,13 +250,11 @@ function GUB.UnitBarsF.ChiBar:SetAttr(Object, Attr)
 
       -- Background (Border).
       if Object == nil or Object == 'bg' then
-        local BgColor = nil
+        local BgColor = Background.Color
 
-        -- Get all color if ColorAll is true.
-        if Background.ColorAll then
-          BgColor = Background.Color
-        else
-          BgColor = Background.Color[OrbIndex]
+        -- Get all color if All is true.
+        if not BgColor.All then
+          BgColor = BgColor[OrbIndex]
         end
 
         if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
@@ -271,13 +269,11 @@ function GUB.UnitBarsF.ChiBar:SetAttr(Object, Attr)
           ChiBar:SetRotateTexture(OrbIndex, OrbBox, Bar.RotateTexture)
         end
         if Attr == nil or Attr == 'color' then
-          local BarColor = nil
+          local BarColor = Bar.Color
 
-          -- Get all color if ColorAll is true.
-          if Bar.ColorAll then
-            BarColor = Bar.Color
-          else
-            BarColor = Bar.Color[OrbIndex]
+          -- Get all color if All is true.
+          if not BarColor.All then
+            BarColor = BarColor[OrbIndex]
           end
           ChiBar:SetColor(OrbIndex, OrbBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
         end
