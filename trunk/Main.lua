@@ -29,6 +29,7 @@ GUB.EclipseBar = {}
 GUB.ShadowBar = {}
 GUB.ChiBar = {}
 GUB.Options = Options
+GUB.ProfileChanging = false
 
 -------------------------------------------------------------------------------
 -- Setup Ace3
@@ -45,16 +46,18 @@ local MistsVersion = select(4, GetBuildInfo()) >= 50000
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
+local UnitName, UnitGetIncomingHeals, GetRealmName =
+      UnitName, UnitGetIncomingHeals, GetRealmName
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -104,6 +107,10 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- UnitBarsF[BarType]:MethodCall().  BarType is used through out the mod.  Its the type of bar being referenced.
 -- Search thru the code to see how these are used.
 --
+--
+-- GUB.ProfileUpdate      - If true the mod is currently in the process of changing the profile.
+--                          If false no profile changing. This is currently set by a profilechange, reset defaults, and copypaste.
+--
 -- List of UninBarsF methods:
 --
 --   Update()             - This is how information from the server gets to the bar.
@@ -148,8 +155,8 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- DefaultFadeInTime      - Default fade in time for all bars and objects.
 -- DefaultFadeOutTime     - Default fade out time for all bars and objects.
 -- CooldownBarTimerDelay  - Delay for the cooldown timer bar measured in times per second.
--- PowerColorType           Table used by InitializeColors()
--- PowerTypeToNumber      - Table to convert a string powertype into a number.
+-- PowerColorType         - Table used by InitializeColors()
+-- ConvertPowerType       - Table to convert a string powertype into a number or back into a number.
 -- Backdrop                 This contains a Backdrop table that has texture path names.  Since this addon uses
 --                          shared media.  Texture names need to be converted into path names.  So ConvertBackdrop()
 --                          needs to be called.  ConvertBackdrop then sets this table to a real backdrop table that
@@ -183,9 +190,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- PointCalc              - Table used by CalcSetPoint() to return a location inside a parent frame.
 --
--- GetTextValuePercentFn  - Contains the function to do percent calculations. Gets set by
---                          GetTextValues() and called by SetTextValue().
---
 -- RegEventFrames         - Table used by RegEvent()
 --
 -- Thousands              - Contains the digit group delimeter based on language.
@@ -213,7 +217,11 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- Fields found in all unitbars:
 --
+--   _DC = 0              - This can appear anywhere in the table.  It's used by CopyUnitBar().  If this key is found
+--                          in the source and destination during a copy.  It will deepcopy the table instead. Even if the table
+--                          being copied is inside of a larger table that has the _DC tag.  Then it will still get deep copied.
 --   Name                 - Name of the bar.
+--   UnitType             - Type of unit: 'player', 'pet', 'focus', 'target'
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
 --   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this.
 --   UsedByClass          - If a bar doesn't have this key then any class can use the bar and be any spec or no spec.
@@ -244,16 +252,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- Tables used in any unitbar:
 --
--- FontSettings           - Standard container for setting a font. Used by SetFontString()
---   FontType             - Type of font to use.
---   FontSize             - Size of the font.
---   FontStyle            - Contains flags seperated by a comma: MONOCHROME, OUTLINE, THICKOUTLINE
---   FontHAlign           - Horizontal alignment.  LEFT  CENTER  RIGHT
---   Position             - Position relative to the font's parent.  Can be one of the 9 standard setpoints.
---   Width                - Field width for the font.
---   OffsetX              - Horizontal offset position of the frame.
---   OffsetY              - Vertical offset position of the frame.
---   ShadowOffset         - Number of pixels to move the shadow towards the bottom right of the font.
 --
 -- BackdropSettings       - Backdrop settings table. Must be converted into a backdrop before using.
 --   BgTexture            - Name of the background textured in sharedmedia.
@@ -264,6 +262,29 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --   Padding
 --     Left, Right,
 --     Top, Bottom        - Positive values go inwards, negative values outward.
+--
+-- Text                   - Text settings used for displaying numerical or string.
+--   Multi                  If key is not present then
+--                          Custom, Layout, ValueName, ValueType is not used and doesn't need to be in the table.
+--   [x]                  - Each array element is a text line (fontstring).
+--                          If mutli is false then [1] is used.
+--
+--     Custom             - If true a user inputed layout is used instead of one being automatically generated.
+--     Layout             - Layout used in string.format for displaying the values.
+--     ValueName          - An array of strings that tell what each position will display.
+--     ValueType          - Tells how the value will be displayed.
+--
+--     FontType           - Type of font to use.
+--     FontSize           - Size of the font.
+--     FontStyle          - Contains flags seperated by a comma: MONOCHROME, OUTLINE, THICKOUTLINE
+--     FontHAlign         - Horizontal alignment.  LEFT  CENTER  RIGHT
+--     Position           - Position relative to the font's parent.  Can be one of the 9 standard setpoints.
+--     Width              - Field width for the font.
+--     OffsetX            - Horizontal offset position of the frame.
+--     OffsetY            - Vertical offset position of the frame.
+--     ShadowOffset       - Number of pixels to move the shadow towards the bottom right of the font.
+--     Color              - Color of the text.  This also supports 'color all' for bars like runebar.
+--
 --
 -- UnitBars health and power fields
 --   General
@@ -293,30 +314,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     Color[PowerType]   - This array is for powerbars only.  By default they're loaded from
 --                          blizzards default colors.
 --   Text
---     TextType
---       Custom           - True or false.  If true then a user custom layout is specified otherwise the
---                                          default layout is used.
---       Layout           - Layout to display the text, this can vary depending on the ValueType.
---                          If this is set to zero nothing will get displayed.
---       MaxValues        - Maximum number of values to be displayed on the bar.
---       ValueName        - Table containing which value to be displayed.
---                            ValueNames:
---                              'current'        - Current Value of the health or power bar.
---                              'maximum'        - Maximum Value of the health or power bar.
---                              'predicted'      - Predicted value of the health or power bar.
---                                                 Not all bars support predicted.
---       ValueType        - Type of value to be displayed based on the ValueName.
---                            ValueTypes:
---                              'whole'             - Whole number
---                              'whole_dgroups'     - Whole number in digit groups 999,999,999
---                              'percent'           - Percentage
---                              'thousands'         - In thousands 999.9k
---                              'millions'          - In millions  999.9m
---                              'short'             - In thousands or millions depending on the value.
---                              'none'              - No value gets displayed
---     FontSettings       - Contains the settings for the text.
---     Color              - Current color of the text for the bar.
---   Text2                - Same as Text, provides a second text frame.
 --
 --
 -- Runebar fields
@@ -373,10 +370,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --       All              - True or false.  If true then all cooldown bars use the same color.
 --
 --   Text
---     FontSettings       - Contains the settings for the text.
---     Color              - Current color of the text for the bar.
---       All              - True or false.  If true then all the combo boxes are set to one color.
---                                          If false then each combo box can be set a different color.
 --
 --   RuneBarOrder         - The order the runes are displayed from left to right in barmode.
 --                          RuneBarOrder[Rune slot 1 to 6] = The rune frame on screen.
@@ -482,7 +475,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     ColorMeta          - Color of the bar when in metamorphosis for box mode.
 --
 --   Text
---   Text2                - Same as the ones for health and power bars.
 --
 --
 -- Eclipsebar fields
@@ -543,8 +535,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --       ColorSolar       - Color of the StatusBarTextureSolar.
 --
 --   Text
---     FontSettings       - Contains the settings for the text.
---     Color              - Current color of the text for the bar.
 --
 --
 -- ShadowBar fields       - Same as shardbar fields except for:
@@ -655,7 +645,9 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- Other parts of the mod if needed can have a BarType:ShareData() function.
 -- This is used to pass upvalues to other parts of the mod.
 -- If this function exists it'll be called. ShareData gets called during runtime
--- and when things change.  Check bottom of this file on hows it used.
+-- and when the profile changes and during intialization.  Check bottom of this file
+-- on hows it used.
+--
 -- Options:ShareData() is included as well.
 -------------------------------------------------------------------------------
 
@@ -684,8 +676,8 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --   [UnitBarF]                    - To keep track of what bar is using fading.
 --     Total                       - Total number of fading animation groups in use.
 --     [Index] = Fade              - Array element containing the fade animation group.
-
-
+--
+--
 -- Fade                       - Animation group for fading.
 --   FadeA                    - Animation for fading.
 --   UnitBarF                 - Unitbar that is using the animation.
@@ -703,6 +695,44 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- Fade methods
 --   SetDuration()
 --   SetAnimation()
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Font Strings
+--
+-- Handles all text output for any bar that needs to display a value.
+--
+-- Fontstring object returned by Main:CreateFontString
+--
+--
+-- FontStrings            A hash table used for font highlight.
+--  [BarType]             Fontstring are contained under each barname.
+--    [x]                 Array. Most bars just have one fontstring object.  But some like the rune bar have 6.
+--                        This will contain the fontstring object created by Main:CreateFontString()
+--
+--
+-- Fontstring (FS)
+--   BarType              The bar that the font string is being used by.
+--   Parent               The frame the font will be displayed on.
+--   TextFrame[]          An array of frames the font string uses to set size and a border for highlight.
+--                        This frame is a child of Parent
+--   Layer                The graphics layer the fontstring uses.
+--   Multi                If not nil then the fontstring can have more than one also known as text lines.
+--   NumStrings           For speed for the SetValue() function.  Contains how many fontstrings are currently
+--                        being used.
+--   [x]                  If multi is not nil then more than 1 array element can be created for each fontstring.
+--                        Otherwise FS[1] is the primary fontstring.
+--
+--
+-- Fontstring methods
+--   PercentFn            Calculation function for taking min and max and getting a percentage.
+--                        Some bars calculate percentage differently so this offers the flexability.
+--   Modify               Add or remove fontstrings or values.
+--   SetFont              Set the font attributes such as size, fieldwidth, etc.
+--   SetColor             Set the font color.
+--   SetValue             Setting a value causes the value to be displayed on screen.
+--
+-- NOTES: See Main:CreateFontString() for details.
 -------------------------------------------------------------------------------
 local AlignmentTooltipDesc = 'Right mouse button to align'
 
@@ -725,11 +755,11 @@ local BearForm = BEAR_FORM
 local MonkMistWeaverSpec = SPEC_MONK_MISTWEAVER
 
 local Initialized = false
-local GetTextValuePercentFn = nil
 
 local EquipmentSetRegisterEvent = false
 local PSelectedUnitBarF = nil
 local SelectMode = false
+local FontStrings = {}
 
 local SpellTrackerTimeout = 7
 local SpellTrackerTime = nil
@@ -794,6 +824,15 @@ local EquipmentSet = {
   b10 = {[78769] = 13, [77029] = 13, [78674] = 13}, -- gloves
 }
 
+local ValueLayout = {
+  whole = '%d',
+  whole_dgroups = '%s',
+  percent = '%d%%',
+  thousands = '%.fk',
+  millions = '%.1fm',
+  short = '%s',
+}
+
 local EquipmentSetBonus = {}
 
 local RegEventFrames = {}
@@ -809,7 +848,7 @@ local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBdTexture = 'Blizzard Tooltip'
 local DefaultStatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
-local UBFontType = 'Friz Quadrata TT'
+local UBFontType = 'Arial Narrow'
 local DefaultFadeOutTime = 1
 local DefaultFadeInTime = 0.30
 
@@ -841,6 +880,20 @@ local SelectFrameBorder = {
   }
 }
 
+local FontStringBorder = {
+  bgFile   = '',
+  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+  tile = true,
+  tileSize = 16,
+  edgeSize = 6,
+  insets = {
+    left = 4 ,
+    right = 4,
+    top = 4,
+    bottom = 4
+  }
+}
+
 local FontSettings = {  -- for debugging
   FontType = UBFontType,
   FontSize = 16,
@@ -848,6 +901,7 @@ local FontSettings = {  -- for debugging
   FontHAlign = 'CENTER',
   Position = 'CENTER',
   Width = 200,
+  Height = 18,
   OffsetX = 0,
   OffsetY = 0,
   ShadowOffset = 0,
@@ -865,6 +919,7 @@ local Defaults = {
     IsClamped = true,
     HideTooltips = false,
     HideTooltipsDesc = false,
+    HideTextHighlight = false,
     AlignmentToolEnabled = true,
     ReverseFading = true,
     FadeInTime = DefaultFadeInTime,
@@ -872,6 +927,7 @@ local Defaults = {
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
+      UnitType = 'player',
       Enabled = true,
       x = -200,
       y = 230,
@@ -917,51 +973,34 @@ local Defaults = {
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Player Power
     PlayerPower = {
       Name = 'Player Power',
+      UnitType = 'player',
       Enabled = true,
       x = -200,
       y = 200,
@@ -1005,51 +1044,34 @@ local Defaults = {
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Target Health
     TargetHealth = {
       Name = 'Target Health',
+      UnitType = 'target',
       Enabled = true,
       BarVisible = function() return HasTarget end,
       x = -200,
@@ -1096,51 +1118,34 @@ local Defaults = {
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Target Power
     TargetPower = {
       Name = 'Target Power',
+      UnitType = 'target',
       Enabled = true,
       BarVisible = function() return HasTarget end,
       x = -200,
@@ -1180,51 +1185,34 @@ local Defaults = {
         StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Focus Health
     FocusHealth = {
       Name = 'Focus Health',
+      UnitType = 'focus',
       Enabled = true,
       BarVisible = function() return HasFocus end,
       x = -200,
@@ -1271,51 +1259,34 @@ local Defaults = {
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Focus Power
     FocusPower = {
       Name = 'Focus Power',
+      UnitType = 'focus',
       Enabled = true,
       BarVisible = function() return HasFocus end,
       x = -200,
@@ -1355,51 +1326,34 @@ local Defaults = {
         StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Pet Health
     PetHealth = {
       Name = 'Pet Health',
+      UnitType = 'pet',
       Enabled = true,
       BarVisible = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
@@ -1447,51 +1401,34 @@ local Defaults = {
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Pet Power
     PetPower = {
       Name = 'Pet Power',
+      UnitType = 'pet',
       Enabled = true,
       BarVisible = function() return HasPet end,
       UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
@@ -1533,51 +1470,34 @@ local Defaults = {
         StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- Mana Power
     ManaPower = {
       Name = 'Druid or Monk Mana',
+      UnitType = 'player',
       Enabled = true,
       BarVisible = function()
                      return  -- PlayerPowerType 0 is mana
@@ -1622,46 +1542,28 @@ local Defaults = {
         StatusBarTexture = DefaultStatusBarTexture,
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          Position = 'RIGHT',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- RuneBar
@@ -1698,15 +1600,15 @@ local Defaults = {
         RuneOffsetY = 0,
         ColorEnergize = {
           All = false,
-          r = 1, g = 0, b = 0, a = 1,               -- All runes
-          [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
-          [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
-          [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-          [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-          [5] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
-          [6] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
-          [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
-          [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+          r = 1, g = 0, b = 0, a = 1,         -- All runes
+          {r = 1, g = 0, b = 0, a = 1},       -- 1 Blood
+          {r = 1, g = 0, b = 0, a = 1},       -- 2 Blood
+          {r = 0, g = 1, b = 0, a = 1},       -- 3 Unholy
+          {r = 0, g = 1, b = 0, a = 1},       -- 4 Unholy
+          {r = 0, g = 0.7, b = 1, a = 1},     -- 5 Frost
+          {r = 0, g = 0.7, b = 1, a = 1},     -- 6 Frost
+          {r = 1, g = 0, b = 1, a = 1},       -- 7 Death
+          {r = 1, g = 0, b = 1, a = 1},       -- 8 Death
         },
       },
       Other = {
@@ -1725,15 +1627,15 @@ local Defaults = {
         },
         Color = {
           All = false,
-          r = 0, g = 0, b = 0, a = 1,                                     -- All runes
-          [1] = {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- Blood
-          [2] = {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- Blood
-          [3] = {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- Unholy
-          [4] = {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- Unholy
-          [5] = {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- Frost
-          [6] = {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- Frost
-          [7] = {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- Death
-          [8] = {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- Death
+          r = 0, g = 0, b = 0, a = 1,                               -- All runes
+          {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- 1 Blood
+          {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- 2 Blood
+          {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- 3 Unholy
+          {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- 4 Unholy
+          {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 5 Frost
+          {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 6 Frost
+          {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 7 Death
+          {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 8 Death
         },
       },
       Bar = {
@@ -1748,50 +1650,52 @@ local Defaults = {
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
           All = false,
-          r = 1, g = 0, b = 0, a = 1,               -- All runes
-          [1] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
-          [2] = {r = 1, g = 0, b = 0, a = 1},       -- Blood
-          [3] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-          [4] = {r = 0, g = 1, b = 0, a = 1},       -- Unholy
-          [5] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
-          [6] = {r = 0, g = 0.7, b = 1, a = 1},     -- Frost
-          [7] = {r = 1, g = 0, b = 1, a = 1},       -- Death
-          [8] = {r = 1, g = 0, b = 1, a = 1},       -- Death
+          r = 1, g = 0, b = 0, a = 1,         -- All runes
+          {r = 1, g = 0, b = 0, a = 1},       -- 1 Blood
+          {r = 1, g = 0, b = 0, a = 1},       -- 2 Blood
+          {r = 0, g = 1, b = 0, a = 1},       -- 3 Unholy
+          {r = 0, g = 1, b = 0, a = 1},       -- 4 Unholy
+          {r = 0, g = 0.7, b = 1, a = 1},     -- 5 Frost
+          {r = 0, g = 0.7, b = 1, a = 1},     -- 6 Frost
+          {r = 1, g = 0, b = 1, a = 1},       -- 7 Death
+          {r = 1, g = 0, b = 1, a = 1},       -- 8 Death
         },
       },
       Text = {
-        FontSettings = {
+        { -- 1
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
-          Width = 200,
+          Width = 25,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {
+            All = false,
+            r = 1, g = 1, b = 1, a = 1,         -- All runes
+            {r = 1, g = 1, b = 1, a = 1},       -- 1 Blood
+            {r = 1, g = 1, b = 1, a = 1},       -- 2 Blood
+            {r = 1, g = 1, b = 1, a = 1},       -- 3 Unholy
+            {r = 1, g = 1, b = 1, a = 1},       -- 4 Unholy
+            {r = 1, g = 1, b = 1, a = 1},       -- 5 Frost
+            {r = 1, g = 1, b = 1, a = 1},       -- 6 Frost
+            {r = 1, g = 1, b = 1, a = 1},       -- 7 Death
+            {r = 1, g = 1, b = 1, a = 1},       -- 8 Death
+          },
         },
-        Color = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,               -- All runes
-          [1] = {r = 1, g = 1, b = 1, a = 1},       -- Blood
-          [2] = {r = 1, g = 1, b = 1, a = 1},       -- Blood
-          [3] = {r = 1, g = 1, b = 1, a = 1},       -- Unholy
-          [4] = {r = 1, g = 1, b = 1, a = 1},       -- Unholy
-          [5] = {r = 1, g = 1, b = 1, a = 1},       -- Frost
-          [6] = {r = 1, g = 1, b = 1, a = 1},       -- Frost
-          [7] = {r = 1, g = 1, b = 1, a = 1},       -- Death
-          [8] = {r = 1, g = 1, b = 1, a = 1},       -- Death
-        },
-      },
-      RuneBarOrder = {[1] = 1, [2] = 2, [3] = 5, [4] = 6, [5] = 3, [6] = 4},
+      },           -- 1  2  3  4  5  6
+      RuneBarOrder = {1, 2, 5, 6, 3, 4},
       RuneLocation = {
-        [1] = {x = '', y = ''},
-        [2] = {x = '', y = ''},
-        [3] = {x = '', y = ''},
-        [4] = {x = '', y = ''},
-        [5] = {x = '', y = ''},
-        [6] = {x = '', y = ''},
+        {x = '', y = ''},  -- 1
+        {x = '', y = ''},  -- 2
+        {x = '', y = ''},  -- 3
+        {x = '', y = ''},  -- 4
+        {x = '', y = ''},  -- 5
+        {x = '', y = ''},  -- 6
       },
     },
 -- ComboBar
@@ -1833,11 +1737,11 @@ local Defaults = {
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,
-          [1] = {r = 0, g = 0, b = 0, a = 1},
-          [2] = {r = 0, g = 0, b = 0, a = 1},
-          [3] = {r = 0, g = 0, b = 0, a = 1},
-          [4] = {r = 0, g = 0, b = 0, a = 1},
-          [5] = {r = 0, g = 0, b = 0, a = 1},
+          {r = 0, g = 0, b = 0, a = 1},  -- 1
+          {r = 0, g = 0, b = 0, a = 1},  -- 2
+          {r = 0, g = 0, b = 0, a = 1},  -- 3
+          {r = 0, g = 0, b = 0, a = 1},  -- 4
+          {r = 0, g = 0, b = 0, a = 1},  -- 5
         },
       },
       Bar = {
@@ -1851,11 +1755,11 @@ local Defaults = {
         Color = {
           All = false,
           r = 1, g = 0, b = 0, a = 1,
-          [1] = {r = 1, g = 0, b = 0, a = 1},
-          [2] = {r = 1, g = 0, b = 0, a = 1},
-          [3] = {r = 1, g = 0, b = 0, a = 1},
-          [4] = {r = 1, g = 0, b = 0, a = 1},
-          [5] = {r = 1, g = 0, b = 0, a = 1},
+          {r = 1, g = 0, b = 0, a = 1}, -- 1
+          {r = 1, g = 0, b = 0, a = 1}, -- 2
+          {r = 1, g = 0, b = 0, a = 1}, -- 3
+          {r = 1, g = 0, b = 0, a = 1}, -- 4
+          {r = 1, g = 0, b = 0, a = 1}, -- 5
         }
       }
     },
@@ -1900,11 +1804,11 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.5, g = 0.5, b = 0.5, a = 1,
-          [1] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-          [2] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-          [3] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-          [4] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-          [5] = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 1
+          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 2
+          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 3
+          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 4
+          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 5
         },
       },
       Bar = {
@@ -1918,11 +1822,11 @@ local Defaults = {
         Color = {
           All = false,
           r = 1, g = 0.705, b = 0, a = 1,
-          [1] = {r = 1, g = 0.705, b = 0, a = 1},
-          [2] = {r = 1, g = 0.705, b = 0, a = 1},
-          [3] = {r = 1, g = 0.705, b = 0, a = 1},
-          [4] = {r = 1, g = 0.705, b = 0, a = 1},
-          [5] = {r = 1, g = 0.705, b = 0, a = 1},
+          {r = 1, g = 0.705, b = 0, a = 1}, -- 1
+          {r = 1, g = 0.705, b = 0, a = 1}, -- 2
+          {r = 1, g = 0.705, b = 0, a = 1}, -- 3
+          {r = 1, g = 0.705, b = 0, a = 1}, -- 4
+          {r = 1, g = 0.705, b = 0, a = 1}, -- 5
         },
       },
     },
@@ -1967,10 +1871,10 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.329, g = 0.172, b = 0.337, a = 1,
-          [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
-          [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
-          [3] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
-          [4] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
         },
       },
       Bar = {
@@ -1984,10 +1888,10 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.980, g = 0.517, b = 1, a = 1,
-          [1] = {r = 0.980, g = 0.517, b = 1, a = 1},
-          [2] = {r = 0.980, g = 0.517, b = 1, a = 1},
-          [3] = {r = 0.980, g = 0.517, b = 1, a = 1},
-          [4] = {r = 0.980, g = 0.517, b = 1, a = 1},
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
         },
       },
     },
@@ -2040,46 +1944,28 @@ local Defaults = {
         MetaColor = {r = 0.922, g = 0.549, b = 0.972, a = 1},
       },
       Text = {
-        TextType = {
-          Custom = false,
-          Layout = '%d%%',
-          MaxValues = 1,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
+        _DC = 0,
+
+        Multi = 1,
+        { -- 1
+          Custom    = false,
+          Layout    = '%d%%',
+          ValueName = {'current'},
+          ValueType = {'percent'},
+
           FontType = UBFontType,
-          FontSize = 11,
-          FontStyle = 'OUTLINE',
-          FontHAlign = 'CENTER',
-          Position = 'CENTER',
-          Width = 200,
-          OffsetX = 0,
-          OffsetY = -1,
-          ShadowOffset = 0,
-        },
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text2 = {
-        TextType = {
-          Custom = false,
-          Layout = '',
-          MaxValues = 0,
-          ValueName = {'current', 'maximum', 'current'},
-          ValueType = {'percent', 'whole',   'none'},
-        },
-        FontSettings = {
-          FontType = UBFontType,
-          FontSize = 11,
+          FontSize = 16,
           FontStyle = 'NONE',
           FontHAlign = 'CENTER',
-          Position = 'RIGHT',
+          FontVAlign = 'MIDDLE',
+          Position = 'CENTER',
           Width = 200,
+          Height = 18,
           OffsetX = 0,
-          OffsetY = -1,
+          OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1},
       },
     },
 -- EmberBar
@@ -2125,18 +2011,18 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.180, g = 0.047, b = 0.031, a = 1,
-          [1] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
-          [2] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
-          [3] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
-          [4] = {r = 0.180, g = 0.047, b = 0.031, a = 1},
+          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 1
+          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 2
+          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 3
+          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 4
         },
         ColorGreen = {
           All = false,
           r = 0.043, g = 0.188, b = 0, a = 1,
-          [1] = {r = 0.043, g = 0.188, b = 0, a = 1},
-          [2] = {r = 0.043, g = 0.188, b = 0, a = 1},
-          [3] = {r = 0.043, g = 0.188, b = 0, a = 1},
-          [4] = {r = 0.043, g = 0.188, b = 0, a = 1},
+          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 1
+          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 2
+          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 3
+          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 4
         },
       },
       Bar = {
@@ -2153,34 +2039,34 @@ local Defaults = {
         Color = {
           All = false,
           r = 1, g = 0.325, b = 0 , a = 1,
-          [1] = {r = 1, g = 0.325, b = 0 , a = 1},
-          [2] = {r = 1, g = 0.325, b = 0 , a = 1},
-          [3] = {r = 1, g = 0.325, b = 0 , a = 1},
-          [4] = {r = 1, g = 0.325, b = 0 , a = 1},
+          {r = 1, g = 0.325, b = 0 , a = 1}, -- 1
+          {r = 1, g = 0.325, b = 0 , a = 1}, -- 2
+          {r = 1, g = 0.325, b = 0 , a = 1}, -- 3
+          {r = 1, g = 0.325, b = 0 , a = 1}, -- 4
         },
         ColorFiery = {
           All = false,
           r = 0.941, g = 0.690, b = 0.094, a = 1,
-          [1] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
-          [2] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
-          [3] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
-          [4] = {r = 0.941, g = 0.690, b = 0.094, a = 1},
+          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 1
+          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 2
+          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 3
+          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 4
         },
         ColorGreen = {
           All = false,
           r = 0.203, g = 0.662, b = 0, a = 1,
-          [1] = {r = 0.203, g = 0.662, b = 0, a = 1},
-          [2] = {r = 0.203, g = 0.662, b = 0, a = 1},
-          [3] = {r = 0.203, g = 0.662, b = 0, a = 1},
-          [4] = {r = 0.203, g = 0.662, b = 0, a = 1},
+          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
+          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
+          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
+          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
         },
         ColorFieryGreen = {
           All = false,
           r = 0, g = 1, b = 0.078, a = 1,
-          [1] = {r = 0, g = 1, b = 0.078, a = 1},
-          [2] = {r = 0, g = 1, b = 0.078, a = 1},
-          [3] = {r = 0, g = 1, b = 0.078, a = 1},
-          [4] = {r = 0, g = 1, b = 0.078, a = 1},
+          {r = 0, g = 1, b = 0.078, a = 1}, -- 1
+          {r = 0, g = 1, b = 0.078, a = 1}, -- 2
+          {r = 0, g = 1, b = 0.078, a = 1}, -- 3
+          {r = 0, g = 1, b = 0.078, a = 1}, -- 4
         },
       },
     },
@@ -2342,18 +2228,20 @@ local Defaults = {
         },
       },
       Text = {
-        FontSettings = {
+        { -- 1
           FontType = UBFontType,
           FontSize = 16,
           FontStyle = 'OUTLINE',
           FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
           Position = 'CENTER',
-          Width = 200,
+          Width = 50,
+          Height = 18,
           OffsetX = 0,
           OffsetY = 0,
           ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
         },
-        Color = {r = 1, g = 1, b = 1, a = 1}
       },
     },
 -- ShadowBar
@@ -2397,9 +2285,9 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.329, g = 0.172, b = 0.337, a = 1,
-          [1] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
-          [2] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
-          [3] = {r = 0.329, g = 0.172, b = 0.337, a = 1},
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
         },
       },
       Bar = {
@@ -2413,9 +2301,9 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.729, g = 0.466, b = 1, a = 1,
-          [1] = {r = 0.729, g = 0.466, b = 1, a = 1},
-          [2] = {r = 0.729, g = 0.466, b = 1, a = 1},
-          [3] = {r = 0.729, g = 0.466, b = 1, a = 1},
+          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 1
+          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 2
+          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 3
         },
       },
     },
@@ -2460,11 +2348,11 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.113, g = 0.192, b = 0.188, a = 1,
-          [1] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
-          [2] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
-          [3] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
-          [4] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
-          [5] = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 1
+          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 2
+          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 3
+          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 4
+          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 5
         },
       },
       Bar = {
@@ -2478,25 +2366,29 @@ local Defaults = {
         Color = {
           All = false,
           r = 0.407, g = 0.764, b = 0.670, a = 1,
-          [1] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
-          [2] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
-          [3] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
-          [4] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
-          [5] = {r = 0.407, g = 0.764, b = 0.670, a = 1},
+          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 1
+          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 2
+          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 3
+          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 4
+          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
         },
       },
     },
   },
 }
 
-local PowerTypeToNumber = {
+local ConvertPowerType = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
   SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, CHI = 12,
-  SHADOW_ORBS = 13, BURNING_EMBERS = 14, DEMONIC_FURY = 15
+  SHADOW_ORBS = 13, BURNING_EMBERS = 14, DEMONIC_FURY = 15,
+  [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY', [6] = 'RUNIC_POWER',
+  [7] = 'SOUL_SHARDS', [8] = 'ECLIPSE', [9] = 'HOLY_POWER', [12] = 'CHI',
+  [13] = 'SHADOW_ORBS', [14] = 'BURNING_EMBERS', [15] = 'DEMONIC_FURY',
 }
 
+
 local PowerColorType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6
+  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
 }
 
 -- Constants used in NumberToDigitGroups
@@ -2509,7 +2401,7 @@ local ThousandFormat = '%s%d' .. Thousands..'%03d'
 GUB.LSM = LSM
 GUB.Defaults = Defaults
 GUB.PowerColorType = PowerColorType
-GUB.PowerTypeToNumber = PowerTypeToNumber
+GUB.ConvertPowerType = ConvertPowerType
 GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 
 -------------------------------------------------------------------------------
@@ -2520,7 +2412,7 @@ GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 do
   local Index = 0
   for BarType, UB in pairs(Defaults.profile) do
-    if type(UB) == 'table' then
+    if type(UB) == 'table' and UB.Name then
       Index = Index + 1
       local UBFTable = CreateFrame('Frame')
       UnitBarsF[BarType] = UBFTable
@@ -2599,8 +2491,9 @@ local function InitializeColors()
       if BarType == 'PlayerPower' or BarType == 'TargetPower' or
          BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'ManaPower' then
         local Bar = UB.Bar
+
         Bar.Color = Bar.Color or {}
-        Bar.Color[PowerType] = {r = r, g = g, b = b, a = 1}
+        Bar.Color[PCT] = {r = r, g = g, b = b, a = 1}
       end
     end
   end
@@ -2611,6 +2504,7 @@ local function InitializeColors()
     for BarType, UB in pairs(UnitBars) do
       if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
         local Bar = UB.Bar
+
         Bar.Color = Bar.Color or {}
         Bar.Color[Class] = {r = r, g = g, b = b, a = 1}
       end
@@ -2695,52 +2589,85 @@ local function NumberToDigitGroups(Value)
 end
 
 -------------------------------------------------------------------------------
--- GetShortTextValue
+-- FontSetHighlight
 --
--- Takes a number and returns it in a shorter format for formatted text.
+-- Places a highlight rectangle around all the text of all bars.  And allows
+-- one to be highlighted in addition to the existing ones.
 --
--- Usage: Value2 = GetShortTextValue(Value)
+-- Usage: FontSetHighlight(BarType or 'on' or 'off', TextIndex)
 --
--- Value       Number to convert for formatted text.
---
--- Value2      Formatted text made from Value.
+-- 'on'       Put a white rectangle around all the fonts used by all bars.
+-- 'off'      Turns off all the rectangles.
+-- BarType    'on' must already be set.  This will highlight the bar of bartype
+--            with a green rectangle.
+-- TextIndex  The text line in the bar to highlight.
 -------------------------------------------------------------------------------
-local function GetShortTextValue(Value)
-  if Value < 1000 then
-    return format('%s', Value)
-  elseif Value < 1000000 then
-    return format('%.fk', Value / 1000)
-  else
-    return format('%.1fm', Value / 1000000)
+function GUB.Main:FontSetHighlight(BarType, TextIndex)
+  local HideTextHighlight = UnitBars.HideTextHighlight
+
+  -- Iterate thru fontstrings
+  for BT, FSA in pairs(FontStrings) do
+
+    -- Iterate thru the fontstring array.
+    for _, FS in ipairs(FSA) do
+      local NumStrings = #FS.Text
+
+
+      for Index, TF in ipairs(FS.TextFrame) do
+        local r, g, b, a = 1, 1, 1, 0
+
+        if not HideTextHighlight then
+
+          -- Check if fontstring is active.
+          if Index <= NumStrings then
+
+            -- if on default to white.
+            if BarType == 'on' then
+              a = 1
+
+            -- if off hide all borders.
+            elseif BarType == 'off' then
+              a = 0
+
+            -- match bartype and text index then set it to green.
+            -- if bartype matches but not the index then set to white.
+            elseif FS.BarType == BarType and TextIndex == Index then
+              r, g, b, a = 0, 1, 0, 1
+            else
+              a = 1
+            end
+          end
+        end
+        TF:SetBackdropBorderColor(r, g, b, a)
+        TF:SetBackdropColor(0, 0, 0, 0)
+      end
+    end
   end
 end
 
 -------------------------------------------------------------------------------
--- GetTextValue
+-- FontGetValue
 --
--- Returns either CurrValue or MaxValue based on the ValueName and ValueType
+--  Subfunction of FontSetValue()
 --
--- Usage: Value = GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
+--  Usage: Value = FontGetValue(FS, ValueName, ValueType)
 --
--- ValueName        Must be 'current', 'maximum', or 'predicted'.
--- ValueType        The type of value, see texttype in main.lua for a list.
--- CurrValue        Values to be used.
--- MaxValue         Values to be used.
--- PredictedValue   Predicted health or power value.  If nil won't be used.
+--  FS          FS object created by Main:CreateFontString()
+--  ValueName   Table containing what each value is.
+--  ValueType   Table containing what each value will become.
 --
--- Value            The value returned based on the ValueName and ValueType.
---                  Can be a string or number.
+--  Value       Value returned based on ValueType
 -------------------------------------------------------------------------------
-local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, PredictedValue)
-  local Value = nil
+local function FontGetValue(FS, ValueName, ValueType)
+  local Value = FS[ValueName]
 
-  -- Get the value based on ValueName
-  if ValueName == 'current' then
-    Value = CurrValue
-  elseif ValueName == 'maximum' then
-    Value = MaxValue
-  elseif ValueName == 'predicted' then
-    Value = PredictedValue or 0
+  -- return if nil
+  if Value == nil then
+    return nil
+  end
+
+  if ValueName == 'unitname' or ValueName == 'realmname' or ValueName == 'unitnamerealm' then
+    return Value
   end
 
   if ValueType == 'whole' then
@@ -2748,70 +2675,394 @@ local function GetTextValue(ValueName, ValueType, CurrValue, MaxValue, Predicted
   elseif ValueType == 'whole_dgroups' then
     return NumberToDigitGroups(Value)
   elseif ValueType == 'percent' and Value > 0 then
+    local MaxValue = FS.maximum
+
     if MaxValue == 0 then
       return 0
     else
-      return GetTextValuePercentFn(Value, MaxValue)
+      return FS.PercentFn(Value, MaxValue)
     end
   elseif ValueType == 'thousands' then
     return Value / 1000
   elseif ValueType == 'millions' then
     return Value / 1000000
   elseif ValueType == 'short' then
-    return GetShortTextValue(Value)
+    if Value >= 10000000 then
+      return format('%.1fm', Value / 1000000)
+    elseif Value >= 1000000 then
+      return format('%.2fm', Value / 1000000)
+    elseif Value >= 100000 then
+      return format('%.0fk', Value / 1000)
+    elseif Value >= 10000 then
+      return format('%.1fk', Value / 1000)
+    else
+      return format('%s', Value)
+    end
   else
     return 0
   end
 end
 
 -------------------------------------------------------------------------------
--- SetTextValues
+-- FontSetValue (method for Font)
 --
--- Sets one or more values on a fontstring based on the text type settings
+-- Usage: FS:SetValue(Curr, Max, Predicted, UnitTypeNameRealm)
 --
--- Usage: returnOK, msg = SetTextValues(TextType, FontString, CurrValue, PercentFn, MaxValue, PredictedValue)
---
--- TextType         Contains the data from UB.Text.TextType
--- FontString       Contains the font string to display data on.
--- PercentFn        Function containing the percentage formula.  The function gets passed the min/max values.
---                  and must return the result.
--- CurrValue        Current value.  Used for percentage.
--- MaxValue         Maximum value.  Used for percentage.
--- PredictedValue   Predicted health or power value.  Set value to nil if you have no predicted value to set.
---
--- returnOK         If any errors happend then this flag will not be nill
--- msg              Error message returned.
+-- Curr               Minimum Value
+-- Maximum            Maximum Value
+-- Predicted          Predicted Value
+-- UnitTypeNameRealm  For unit name and realm name.
 -------------------------------------------------------------------------------
+local function FontSetValue2(FontString, Layout, Value1, Value2, Value3, Value4,Value5, Value6)
+  FontString:SetFormattedText(Layout, Value1, Value2, Value3, Value4, Value5, Value6)
+end
 
--- Use recursion to build a parameter list to pass back to setformat.
-local function GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position, ...)
-  if Position > 0 then
-    local Type = ValueType[Position]
-    if Type ~= 'none' then
-      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1,
-                           GetTextValue(ValueName[Position], Type, CurrValue, MaxValue, PredictedValue), ...)
+local function FontSetValue(self, Current, Maximum, Predicted, UnitTypeNameRealm)
+  local FS = self
+  local TextFrame = FS.TextFrame
+
+  -- if not multi then set current value as a string and return
+  if FS.Multi == nil then
+    FS[1]:SetText(Current)
+  else
+    FS.current = Current or 0
+    FS.maximum = Maximum or 0
+    FS.predicted = Predicted or 0
+    if UnitTypeNameRealm then
+      local Name, Realm = UnitName(UnitTypeNameRealm)
+      Name = Name or ''
+      Realm = Realm or ''
+
+      FS.unitname = Name
+      FS.realmname = Realm
+      if Realm ~= '' then
+        Realm = '-' .. Realm
+      end
+      FS.unitnamerealm = Name .. Realm
+    end
+
+    local Text = FS.Text
+
+    for Index = 1, FS.NumStrings do
+      local FontString = FS[Index]
+      local TS = Text[Index]
+      local TF = TextFrame[Index]
+
+      local ValueName = TS.ValueName
+      local ValueType = TS.ValueType
+      local NumValues = #ValueName
+
+      -- Display the font string
+      local ReturnOK, Msg = pcall(FontSetValue2, FontString, TS.Layout,
+                                  NumValues > 0 and FontGetValue(FS, ValueName[1], ValueType[1]) or nil,
+                                  NumValues > 1 and FontGetValue(FS, ValueName[2], ValueType[2]) or nil,
+                                  NumValues > 2 and FontGetValue(FS, ValueName[3], ValueType[3]) or nil,
+                                  NumValues > 3 and FontGetValue(FS, ValueName[4], ValueType[4]) or nil,
+                                  NumValues > 4 and FontGetValue(FS, ValueName[5], ValueType[5]) or nil,
+                                  NumValues > 5 and FontGetValue(FS, ValueName[6], ValueType[6]) or nil)
+      if not ReturnOK then
+        FontString:SetFormattedText('Err (%d)', Index)
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- FontGetLayout
+--
+-- Subfunction of FontModify
+--
+-- Returns a new layout based on the Value name and value type.
+--
+-- Usage: Layout = FontGetLayout(ValueName, ValueType)
+--
+-- ValueName      Array containing the names.
+-- ValueType      Array containing the types.
+--
+-- Layout         String containing the new layout.
+-------------------------------------------------------------------------------
+local function FontGetLayout(ValueName, ValueType)
+  local LastName = nil
+  local Sep = ''
+  local SepFlag = false
+
+  local Layout = ''
+
+  for NameIndex, Name in ipairs(ValueName) do
+    local Type = ValueType[NameIndex]
+    local NameLayout = nil
+
+    if strfind(Name, 'name') then
+      NameLayout = '%s'
     else
-      return GetTextValues(ValueName, ValueType, CurrValue, MaxValue, PredictedValue, Position - 1, ...)
+      NameLayout = ValueLayout[Type]
+    end
+
+    -- Add a '/' between current and maximum.
+    if NameIndex > 1 then
+      if not SepFlag and (LastName == 'current' and Name == 'maximum' or
+                          LastName == 'maximum' and Name == 'current') then
+        Sep = ' / '
+        SepFlag = true
+      else
+        Sep = ' '
+      end
+    end
+
+    LastName = Name
+    Layout = Layout .. Sep .. NameLayout
+  end
+
+  return Layout
+end
+
+-------------------------------------------------------------------------------
+-- FontUpdate
+--
+-- Subfunction of FontSetColor(), FontSetFont(), Main:CreateFontString()
+--
+-- If the profile changes this will update the fontstring to the new profile.
+--
+-- Usage   FontUpdate(FS)
+--
+-- FS     FontString object
+-------------------------------------------------------------------------------
+local function FontUpdate(FS)
+  local Text = nil
+
+  if FS.UB ~= UnitBars or GUB.ProfileUpdate then
+    FS.UB = UnitBars
+    Text = UnitBars[FS.BarType].Text
+    FS.Text = Text
+    local Multi = Text.Multi
+    local DefaultTextSettings = Defaults.profile[FS.BarType].Text[1]
+
+    -- Since Text is dynamic we need to make sure no values are missing.
+    -- If they are they'll be copied from defaults.
+    for _, TS in ipairs(Text) do
+      Main:CopyMissingTableValues(DefaultTextSettings, TS)
+
+      -- Update the layout if not in custom mode.
+      if not TS.Custom and Multi then
+        TS.Layout = FontGetLayout(TS.ValueName, TS.ValueType)
+      end
     end
   else
-    return ...
+    Text = FS.Text
+  end
+
+  local Parent = FS.Parent
+  local TextFrame = FS.TextFrame
+  local Layer = FS.Layer
+
+  -- Add font strings if needed
+  for Index, TS in ipairs(Text) do
+    if FS[Index] == nil then
+      local TF = CreateFrame('Frame', nil, Parent)
+
+      TF:SetBackdrop(FontStringBorder)
+      TF:SetBackdropBorderColor(1, 1, 1, 0)
+      TF:SetBackdropColor(0, 0, 0, 0)
+      TF:SetSize(TS.Width, TS.Height)
+
+      TextFrame[Index] = TF
+      local FontString = TF:CreateFontString(nil, Layer)
+
+      FontString:SetAllPoints(TF)
+      FS[Index] = FontString
+    end
+  end
+
+  local NumStrings = #Text
+
+  -- Erase font string data no longer used.
+  for Index = NumStrings + 1, FS.NumStrings or 0 do
+    FS[Index]:SetText('')
+  end
+
+  FS.NumStrings = NumStrings
+end
+
+-------------------------------------------------------------------------------
+-- FontSetColor (method for Font)
+--
+-- Usage: FS:SetColor(ColorIndex)
+--
+-- ColorIndex only used for color tables that support the 'all' feature.
+-------------------------------------------------------------------------------
+local function FontSetColor(self, ColorIndex)
+  FontUpdate(self)
+
+  local FS = self
+  local Text = FS.Text
+
+  for Index, TS in ipairs(Text) do
+    local Color = TS.Color
+
+    if Color.All ~= nil and not Color.All then
+      Color = Color[ColorIndex]
+    end
+    FS[Index]:SetTextColor(Color.r, Color.g, Color.b, Color.a)
   end
 end
 
-local function SetTextValues2(TextType, FontString, CurrValue, MaxValue, PredictedValue)
-  local MaxValues = TextType.MaxValues
+-------------------------------------------------------------------------------
+-- FontSetFont (method for Font)
+--
+-- Sets a fontstring attributes so it can be used.
+--
+-- Usage: FS:SetFont()
+-------------------------------------------------------------------------------
+local function FontSetFont(self)
+  local FS = self
+  local TextFrame = FS.TextFrame
+  local Parent = FS.Parent
 
-  if MaxValues > 0 then
-    FontString:SetFormattedText(TextType.Layout,
-      GetTextValues(TextType.ValueName, TextType.ValueType, CurrValue, MaxValue, PredictedValue, MaxValues))
-  else
-    FontString:SetText('')
+  FontUpdate(FS)
+
+  for Index, TS in ipairs(FS.Text) do
+    local FontString = FS[Index]
+    local TF = TextFrame[Index]
+
+    FontString:SetFont(LSM:Fetch('font', TS.FontType), TS.FontSize, TS.FontStyle)
+    FontString:SetJustifyV('CENTER')
+    FontString:SetJustifyH(TS.FontHAlign)
+    FontString:SetJustifyV(TS.FontVAlign)
+    FontString:SetShadowOffset(TS.ShadowOffset, -TS.ShadowOffset)
+
+    TF:ClearAllPoints()
+    TF:SetPoint('CENTER', Parent, TS.Position, TS.OffsetX, TS.OffsetY)
+    TF:SetSize(TS.Width, TS.Height)
+
+    if FontString:GetText() == nil then
+      FontString:SetText('')
+    end
   end
 end
 
-function GUB.Main:SetTextValues(TextType, FontString, PercentFn, CurrValue, MaxValue, PredictedValue)
-  GetTextValuePercentFn = PercentFn
-  return pcall(SetTextValues2, TextType, FontString, CurrValue, MaxValue, PredictedValue)
+-------------------------------------------------------------------------------
+-- FontModify (method for Font)
+--
+-- Add or remove text or values in each string.
+--
+-- Usage:  FS:Modify('string', 'add', TextIndex, ValueIndex, Name, Type)
+--         FS:Modify('string', 'remove', TextIndex)
+--         FS:Modify('textsettings', 'add' or 'remove' or 'change', TextIndex, ValueIndex, [Name, Type])
+--
+-- 'textsettings'    Modify the values displayed.
+-- 'string'          Modify the number of font strings displayed.
+-- 'add'             Will add a new font string or textsetting.
+-- 'remove'          Will remove an old font string or textsetting.
+-- 'change'          Only used with 'textsettings'.
+-- Name              If nil then not applied. Only used with 'add' or 'change'
+-- Type              If nil then not applied. Only used with 'add' or 'change'
+-- TextIndex         Which textsettings to modify.
+-- ValueIndex        Which value to modify in textsettings.
+-------------------------------------------------------------------------------
+local function FontModify(self, Object, Action, TextIndex, ValueIndex, Name, Type)
+  local FS = self
+  local Text = FS.Text
+  local Color = 'Color%s'
+
+  if Object == 'string' then
+    local NumTextSettings = #Text
+
+    if Action == 'add' then
+
+      -- Copy first text setting from defaults into text table.
+      Text[NumTextSettings + 1] = Main:DeepCopy(Defaults.profile[FS.BarType].Text[1])
+
+      -- New fontstring will be created if needed by FS:SetFont() below.
+    elseif Action == 'remove' then
+      if NumTextSettings > 1 then
+
+        -- Delete the text setting.
+        tremove(Text, TextIndex)
+
+        -- Clear any text on screen from this removed fontstring.
+        FS[NumTextSettings]:SetText('')
+      end
+    end
+    FS:SetFont()
+    FS:SetColor()
+
+  elseif Object == 'textsettings' then
+    local TS = Text[TextIndex]
+    local ValueName = TS.ValueName
+    local ValueType = TS.ValueType
+    local NumValues = #ValueName
+
+    if Action == 'remove' and NumValues > 0 then
+      tremove(ValueName, ValueIndex)
+      tremove(ValueType, ValueIndex)
+    end
+    if Action == 'change' then
+      NumValues = ValueIndex - 1
+    end
+    if Action == 'add' or Action == 'change' then
+      if Name then
+        ValueName[NumValues + 1] = Name
+      end
+      if Type then
+        ValueType[NumValues + 1] = Type
+      end
+    end
+
+    -- Update the layout if not in custom mode.
+    if not TS.Custom then
+      TS.Layout = FontGetLayout(ValueName, ValueType)
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CreateFontString
+--
+-- Creates a font string that can be displayed on screen.
+--
+-- Usage:  FS = CreateFontString(BarType, TextFrame, Layer, PercentFn)
+--
+-- BarType         Bar that the fontstring will belong to.
+-- TextFrame       Frame that will have text displayed on.
+-- Layer           Grahics layer to display the text on.
+-- PercentFn       Function used to calculate percentage.
+--
+-- FS              Font String object
+--                   FS:SetFontString()
+--                   FS:SetColor()
+--                   FS:SetValue()
+--                   FS:Modify()
+--                   FS:SetValue()
+-------------------------------------------------------------------------------
+function GUB.Main:CreateFontString(BarType, Parent, Layer, PercentFn)
+  local FS = {}
+  local Text = UnitBars[BarType].Text
+
+  -- Add font string to the FontStrings table.
+  if FontStrings[BarType] == nil then
+    FontStrings[BarType] = {}
+  end
+  local FSS = FontStrings[BarType]
+
+  FSS[#FSS + 1] = FS
+
+  FS.BarType = BarType
+  FS.Text = Text
+  FS.Parent = Parent
+  FS.TextFrame = {}
+  FS.Layer = Layer
+  FS.Multi = Text.Multi
+
+  -- Create new font strings.
+  FontUpdate(FS)
+
+  FS.PercentFn = PercentFn
+  FS.Modify = FontModify
+  FS.SetFont = FontSetFont
+  FS.SetColor = FontSetColor
+  FS.SetValue = FontSetValue
+
+  return FS
 end
 
 -------------------------------------------------------------------------------
@@ -3742,6 +3993,106 @@ function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
 end
 
 -------------------------------------------------------------------------------
+-- TableForEach()
+--
+-- Like table.foreach except shows the details of all sub tables.
+--
+-- usage: TableForEach(Table)
+-------------------------------------------------------------------------------
+function GUB.Main:TableForEach(Table, Path)
+  if Path == nil then
+    Path = '.'
+  end
+
+  for k, v in pairs(Table) do
+    if type(v) == 'table' then
+      print(Path .. '.' .. k .. ' = ', v)
+
+      Main:TableForEach(v, Path .. '.' .. k)
+    else
+      print(Path .. '.' .. k .. ' = ', v)
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CompareTables
+--
+-- Debugging tool.  This will compare two tables. And show a tablepath of
+-- what was not found or mismatched.
+--
+-- Usage CheckUnitBars(Default.profile, UnitBars)
+-------------------------------------------------------------------------------
+local function CompareTables(Source, Dest, Path)
+  if Path == nil then
+    Path = '.'
+  end
+
+  for k, v in pairs(Source) do
+    local d = Dest[k]
+    local ts = type(v)
+
+    if d == nil then
+      print('Not Found:', Path .. '.' .. k)
+    elseif ts == 'table' then
+
+      -- Subtable found keep checking.
+      CompareTables(v, d, Path .. '.' .. k)
+    elseif ts ~= type(d) then
+      print('Mismatch:', Path .. '.' .. k, '|source = ' .. ts .. ' Dest = ' .. type(d))
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetVP
+--
+-- Gets a value or a table from a table based on BarType
+--
+-- Usage: Value, DC = GetVP(BarType, TablePath)
+--
+-- BarType      Table of bartype
+-- TablePath    String delimited by a '.'  Example 'table.1' = table[1] or 'table.subtable' = table['subtable']
+--
+-- Value        Table or value returned
+-- DC           If true then a _DC tag was found
+--
+-- Notes:  If nil is found at anytime then a nil is returned.
+--         If TablePath is '' or nil then UnitBars[BarType] is returned.
+-------------------------------------------------------------------------------
+function GUB.Main:GetVP(BarType, TablePath)
+  local Value = UnitBars[BarType]
+  local DC = false
+  TablePath = TablePath and TablePath or ''
+
+  while true do
+    if Value._DC then
+      DC = true
+    end
+
+    if TablePath ~= '' then
+      local Index = strfind(TablePath, '.', 1, true) or #TablePath + 1
+      local Key = strsub(TablePath, 1, Index - 1)
+
+      -- Convert Key into an integer, else leave it as a string.
+      local Array = tonumber(Key)
+      Value = Value[Array and Array or Key]
+
+      if type(Value) ~= 'table' then
+        break
+      end
+
+      -- Not at end of path yet.
+      TablePath = strsub(TablePath, Index + 1)
+    else
+      break
+    end
+  end
+
+  return Value, DC
+end
+
+-------------------------------------------------------------------------------
 -- DeepCopy
 --
 -- Copies a table and any subtables
@@ -3768,30 +4119,91 @@ function GUB.Main:DeepCopy(t)
 end
 
 -------------------------------------------------------------------------------
--- CopyTableValues
+-- CopyMissingTableValues
 --
--- Copies all the values and sub table values of one table to another.
+-- Copies the values that exist in the source but not in the destination.
+-- Array indexes are skipped.
 --
--- Usage: CopyTableValues(Source, Dest)
+-- Usage: CopyMissingTableValues(Source, Dest)
 --
 -- Source    The source table you're copying data from.
 -- Dest      The destination table the data is being copied to.
---
--- NOTE: The source and dest tables must have the same keys.
 -------------------------------------------------------------------------------
-function GUB.Main:CopyTableValues(Source, Dest)
+function GUB.Main:CopyMissingTableValues(Source, Dest)
   for k, v in pairs(Source) do
-    if type(v) == 'table' then
+    local d = Dest[k]
+    local ts = type(v)
 
-      -- Make sure value is not nil.
-      if Dest[k] ~= nil then
-        Main:CopyTableValues(v, Dest[k])
+    -- Key not found in destination so copy from source.
+    if d == nil then
+
+      -- if table then copy entire table and all subtables over.
+      if ts == 'table' then
+        Dest[k] = Main:DeepCopy(v)
+
+      -- skip the copy if its an array index.
+      elseif type(k) ~= 'number' then
+        Dest[k] = v
       end
+    elseif ts == 'table' then
 
-    -- Check to see if key exists in destination before setting value
-    elseif Dest[k] ~= nil then
-      Dest[k] = v
+      -- keep searching for missing values in the sub table.
+      Main:CopyMissingTableValues(v, d)
     end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CopyTableValues
+--
+-- Copies all the data from one unitbar to another based on the TablePath
+--
+-- Usage: CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
+--
+-- Source            BarType or Table
+-- Dest              BarType or Table
+-- SourceTablePath   Path leading to the table or value to copy for source
+-- DestTablePath     Path leading to the table or value to copy for destination
+--
+-- NOTE:  If the _DC tag is found anywhere along the tablepath then a deep
+--        copy will be done instead.
+--        If path is not found in either source or dest no copy is done.
+-------------------------------------------------------------------------------
+local function CopyTableValues(Source, Dest, DC)
+  if DC then
+
+    -- Empty table and deep copy
+    for k, v in pairs(Dest) do
+      Dest[k] = nil
+    end
+  end
+  for k, v in pairs(Source) do
+    local d = Dest[k]
+    local ts = type(v)
+
+    if ts == type(d) or DC then
+      if ts == 'table' then
+
+        if DC then
+          Dest[k] = Main:DeepCopy(v)
+        else
+
+          -- normal copy.
+          CopyTableValues(v, d)
+        end
+      else
+        Dest[k] = v
+      end
+    end
+  end
+end
+
+function GUB.Main:CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
+  local Source, SourceDC = Main:GetVP(Source, SourceTablePath)
+  local Dest, DestDC = Main:GetVP(Dest, DestTablePath)
+
+  if Source and Dest then
+    CopyTableValues(Source, Dest, SourceDC and DestDC)
   end
 end
 
@@ -3860,26 +4272,6 @@ function GUB.Main:ConvertBackdrop(Bd)
   Insets.bottom = Padding.Bottom
 
   return Backdrop
-end
-
--------------------------------------------------------------------------------
--- SetFontString
---
--- Set new settings to fontstring.
---
--- Usage: GUB.Main:SetFontString(FontString, FS)
---
--- FontString        Fontstring object.
--- FS                Reference to the FontSettings table.
--------------------------------------------------------------------------------
-function GUB.Main:SetFontString(FontString, FS)
-  FontString:SetFont(LSM:Fetch('font', FS.FontType), FS.FontSize, FS.FontStyle)
-  FontString:ClearAllPoints()
-  FontString:SetPoint('CENTER', FontString:GetParent(), FS.Position, FS.OffsetX, FS.OffsetY)
-  FontString:SetWidth(FS.Width)
-  FontString:SetJustifyH(FS.FontHAlign)
-  FontString:SetJustifyV('CENTER')
-  FontString:SetShadowOffset(FS.ShadowOffset, -FS.ShadowOffset)
 end
 
 -------------------------------------------------------------------------------
@@ -4653,6 +5045,11 @@ end
 function GUB.Main:UnitBarsSetAllOptions()
   local ATOFrame = Options.ATOFrame
 
+  -- Update text highlight only when options window is open
+  if Options.Open then
+    Main:FontSetHighlight('on')
+  end
+
   -- Update alignment tool status.
   if UnitBars.IsLocked or not UnitBars.AlignmentToolEnabled then
     Options.ATOFrame:Hide()
@@ -4907,9 +5304,8 @@ end
 -------------------------------------------------------------------------------
 local function ShareData()
   for BarType, UBF in pairs(UnitBarsF) do
-    local Fn = UBF.ShareData
-    if Fn then
-      Fn(UnitBars, PlayerClass, PlayerPowerType)
+    if UBF.ShareData then
+      UBF:ShareData(UnitBars, PlayerClass, PlayerPowerType)
     end
   end
   Options:ShareData(UnitBars, PlayerClass, PlayerPowerType)
@@ -4919,6 +5315,7 @@ end
 -- Profile management
 -------------------------------------------------------------------------------
 function GUB:ProfileChanged(Event, Database, NewProfileKey)
+  GUB.ProfileUpdate = true
 
   -- set Unitbars to the new database.
   UnitBars = Database.profile
@@ -4927,6 +5324,8 @@ function GUB:ProfileChanged(Event, Database, NewProfileKey)
   ShareData()
 
   GUB:OnEnable()
+
+  GUB.ProfileUpdate = false
 end
 
 -------------------------------------------------------------------------------
@@ -5028,9 +5427,10 @@ function GUB:OnEnable()
   GUB:UnitBarsUpdateStatus()
 
 --@do-not-package@
-  GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-  GUBdataf = UnitBarsF
-  GUBdata = UnitBars
+--  CompareTables(UnitBars, Defaults.profile)
+--  GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+--  GUBdataf = UnitBarsF
+--  GUBdata = UnitBars
 --@end-do-not-package@
 end
 

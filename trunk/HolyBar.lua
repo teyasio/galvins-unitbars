@@ -10,23 +10,23 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -62,7 +62,7 @@ local C_PetBattles, UIParent =
 local MaxHolyRunes = 5
 
 -- Powertype constants
-local PowerHoly = PowerTypeToNumber['HOLY_POWER']
+local PowerHoly = ConvertPowerType['HOLY_POWER']
 
 -- Holyrune Texture constants
 local RuneBox = 1
@@ -75,31 +75,31 @@ local HolyData = {
   -- TextureFrame size.
   BoxWidth = 42 + 8, BoxHeight = 31,
   DarkColor = {r = 0.15, g = 0.15, b = 0.15, a = 1},
-  [1] = {
+  { -- 1
     Point = 'CENTER',
     OffsetX = 1, OffsetY = 0,
     Width = 36 + 5, Height = 22 + 5,
     Left = 0.00390625, Right = 0.14453125, Top = 0.78906250, Bottom = 0.96093750
   },
-  [2] = {
+  { -- 2
     Point = 'CENTER',
     OffsetX = 1, OffsetY = 0,
     Width = 31 + 14, Height = 17 + 14,
     Left = 0.15234375, Right = 0.27343750, Top = 0.78906250, Bottom = 0.92187500
   },
-  [3] = {
+  { -- 3
     Point = 'CENTER',
     OffsetX = 0, OffsetY = 0,
     Width = 27 + 10 , Height = 21 + 10,
     Left = 0.28125000, Right = 0.38671875, Top = 0.64843750, Bottom = 0.81250000
   },
-  [4] = {  -- Rune1 texture that's rotated.
+  { -- 4 Rune1 texture that's rotated.
     Point = 'CENTER',
     OffsetX = -1, OffsetY = 0,
     Width = 36 + 5, Height = 17 + 12,
     Left = 0.14453125, Right = 0.00390625, Top = 0.78906250, Bottom = 0.96093750
   },
-  [5] = {  -- Rune2 texture that's rotated.
+  { -- 5 Rune2 texture that's rotated.
     Point = 'CENTER',
     OffsetX = -1, OffsetY = 0,
     Width = 31 + 14, Height = 17 + 14,
@@ -160,7 +160,7 @@ function GUB.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
     return
   end
 
-  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerHoly
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerHoly
 
   -- Return if not the correct powertype.
   if PowerType ~= PowerHoly then

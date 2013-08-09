@@ -10,23 +10,23 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -60,7 +60,7 @@ local C_PetBattles, UIParent =
 local MaxShadowOrbs = 3
 
 -- Powertype constants
-local PowerShadow = PowerTypeToNumber['SHADOW_ORBS']
+local PowerShadow = ConvertPowerType['SHADOW_ORBS']
 
 -- shadow orbs Texture constants
 local OrbBox = 10
@@ -141,7 +141,7 @@ function GUB.UnitBarsF.ShadowBar:Update(Event, Unit, PowerType)
     return
   end
 
-  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerShadow
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerShadow
 
   -- Return if not the correct powertype.
   if PowerType ~= PowerShadow then

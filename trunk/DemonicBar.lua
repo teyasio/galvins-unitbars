@@ -10,23 +10,23 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -76,7 +76,7 @@ local C_PetBattles, UIParent =
 -------------------------------------------------------------------------------
 
 -- Powertype constants
-local PowerDemonicFury = PowerTypeToNumber['DEMONIC_FURY']
+local PowerDemonicFury = ConvertPowerType['DEMONIC_FURY']
 
 local FuryBox = 10
 local FuryBoxMeta = 11
@@ -188,15 +188,7 @@ local function UpdateDemonicFury(DemonicBarF, DemonicFury, CurrValue, MaxValue)
   DemonicBar:SetFill(1, FuryBarMeta, DemonicFury)
 
     -- Update display values.
-  local returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text.TextType, DemonicBarF.Txt, PercentFn, CurrValue, MaxValue)
-  if not returnOK then
-    DemonicBarF.Txt:SetText('Layout Err Text')
-  end
-
-  returnOK, msg = Main:SetTextValues(DemonicBarF.UnitBar.Text2.TextType, DemonicBarF.Txt2, PercentFn, CurrValue, MaxValue)
-  if not returnOK then
-    DemonicBarF.Txt2:SetText('Layout Err Text2')
-  end
+  DemonicBarF.FS:SetValue(CurrValue, MaxValue, 0, 'player')
 end
 
 -------------------------------------------------------------------------------
@@ -217,7 +209,7 @@ function GUB.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
     return
   end
 
-  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerDemonicFury
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerDemonicFury
 
   -- Return if not the correct powertype.
   if PowerType ~= PowerDemonicFury then
@@ -395,31 +387,15 @@ function GUB.UnitBarsF.DemonicBar:SetAttr(Object, Attr)
     end
   end
 
-  -- Text (self.Txt).
+  -- Text (self.FS).
   if Object == nil or Object == 'text' then
-    local Txt = self.Txt
+    local FS = self.FS
 
-    local TextColor = UB.Text.Color
-
-    if Attr == nil or Attr == 'font' then
-      Main:SetFontString(Txt, UB.Text.FontSettings)
-    end
     if Attr == nil or Attr == 'color' then
-      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+      FS:SetColor()
     end
-  end
-
-  -- Text2 (self.Txt2).
-  if Object == nil or Object == 'text2' then
-    local Txt = self.Txt2
-
-    local TextColor = UB.Text2.Color
-
     if Attr == nil or Attr == 'font' then
-      Main:SetFontString(Txt, UB.Text2.FontSettings)
-    end
-    if Attr == nil or Attr == 'color' then
-      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+      FS:SetFont()
     end
   end
 end
@@ -516,9 +492,8 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     DemonicBar:SetTexturePoint(1, TextureNumber, DD.Point, DD.OffsetX, DD.OffsetY)
   end
 
-  -- Create Txt and Txt2 for displaying power.
-  UnitBarF.Txt = DemonicBar:CreateFontString()
-  UnitBarF.Txt2 = DemonicBar:CreateFontString()
+  -- Create fonst string displaying power.
+  UnitBarF.FS = DemonicBar:CreateFontString('OVERLAY', PercentFn)
 
   -- Show textures.
   DemonicBar:ShowTexture(1, FuryBox)
