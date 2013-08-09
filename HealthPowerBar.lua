@@ -11,23 +11,23 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 local UnitBarsF = GUB.UnitBarsF
 local LSM = GUB.LSM
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -58,9 +58,9 @@ local C_PetBattles, UIParent =
 local PlayerClass = nil
 
 -- Powertype constants
-local PowerMana = PowerTypeToNumber['MANA']
-local PowerEnergy = PowerTypeToNumber['ENERGY']
-local PowerFocus = PowerTypeToNumber['FOCUS']
+local PowerMana = ConvertPowerType['MANA']
+local PowerEnergy = ConvertPowerType['ENERGY']
+local PowerFocus = ConvertPowerType['FOCUS']
 
 -- Predicted spell ID constants.
 local SpellSteadyShot = 56641
@@ -101,7 +101,7 @@ end
 --
 -- NOTE: See Main.lua on how this is called.
 -------------------------------------------------------------------------------
-HapFunction('ShareData', function(UB, PC, PPT)
+HapFunction('ShareData', function(self, UB, PC, PPT)
   PlayerClass = PC
 end)
 
@@ -123,6 +123,7 @@ HapFunction('StatusCheck', Main.StatusCheck)
 -------------------------------------------------------------------------------
 local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
   SpellID = abs(SpellID)
+
   if Message == 'start' then
     local PredictedPower = PredictedSpellValue[SpellID]
 
@@ -180,31 +181,11 @@ Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellCobraShot,  'casting', CheckSpe
 -- CurrValue       Current value to set.
 -- MaxValue        Maximum value to set.
 -- PredictedValue  Predicted health or power.
---
--- Note: If there's an error in setting the text value then an error message will
---       be set instead.
 -------------------------------------------------------------------------------
 
 -- Used by SetTextValues to calculate percentage.
 local function PercentFn(Value, MaxValue)
   return ceil(Value / MaxValue * 100)
-end
-
-local function SetStatusBarValue(UnitBarF, CurrValue, MaxValue, PredictedValue)
-  local StatusBar = UnitBarF.StatusBar
-
-  StatusBar:SetMinMaxValues(0, MaxValue)
-  StatusBar:SetValue(CurrValue)
-
-  local returnOK, msg = Main:SetTextValues(UnitBarF.UnitBar.Text.TextType, UnitBarF.Txt, PercentFn, CurrValue, MaxValue, PredictedValue)
-  if not returnOK then
-    UnitBarF.Txt:SetText('Layout Err Text')
-  end
-
-  returnOK, msg = Main:SetTextValues(UnitBarF.UnitBar.Text2.TextType, UnitBarF.Txt2, PercentFn, CurrValue, MaxValue, PredictedValue)
-  if not returnOK then
-    UnitBarF.Txt2:SetText('Layout Err Text2')
-  end
 end
 
 --*****************************************************************************
@@ -267,16 +248,16 @@ local function UpdateHealthBar(self, Event, Unit)
 
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
-
   local Gen = self.UnitBar.General
-  local PredictedHealing = UnitGetIncomingHeals(Unit) or 0
+  local PredictedHealing = Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
   local Bar = self.UnitBar.Bar
   local PredictedBar = self.PredictedBar
+  local StatusBar = self.StatusBar
 
   -- Get the class color if classcolor flag is true.
   local Color = Bar.Color
   if Bar.ClassColor then
-    local Class = select(2, UnitClass(Unit))
+    local _, Class = UnitClass(Unit)
     if Class ~= nil then
       Color = Color[Class]
     end
@@ -294,8 +275,10 @@ local function UpdateHealthBar(self, Event, Unit)
   end
 
   -- Set the color and display the value.
-  self.StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  SetStatusBarValue(self, CurrValue, MaxValue, PredictedHealing)
+  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
+  StatusBar:SetMinMaxValues(0, MaxValue)
+  StatusBar:SetValue(CurrValue)
+  self.FS:SetValue(CurrValue, MaxValue, PredictedHealing, Unit)
 
   -- Set the IsActive flag.
   self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
@@ -341,7 +324,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   end
 
   -- Convert string powertype into number.
-  PowerType2 = PowerTypeToNumber[PowerType2]
+  PowerType2 = ConvertPowerType[PowerType2]
 
   local PowerType = nil
 
@@ -362,14 +345,17 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     return
   end
 
+  local UB = self.UnitBar
+  local Bar = UB.Bar
+  local Gen = UB.General
+
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
-  local PredictedPower = self.PredictedPower or 0
+  local PredictedPower = Gen and Gen.PredictedPower and (self.PredictedPower or 0) or 0
 
-  local Bar = self.UnitBar.Bar
-  local Color = Bar.Color[PowerType]
-
+  local Color = Bar.Color[ConvertPowerType[PowerType]]
   local PredictedBar = self.PredictedBar
+  local StatusBar = self.StatusBar
 
   -- Set the color and display the predicted health.
   local PredictedColor = Bar.PredictedColor
@@ -383,8 +369,10 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   end
 
   -- Set the color and display the value.
-  self.StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  SetStatusBarValue(self, CurrValue, MaxValue, PredictedPower)
+  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
+  StatusBar:SetMinMaxValues(0, MaxValue)
+  StatusBar:SetValue(CurrValue)
+  self.FS:SetValue(CurrValue, MaxValue, PredictedPower, Unit)
 
   -- Set the IsActive flag.
   local IsActive = false
@@ -480,8 +468,7 @@ end)
 -- Object       Object being changed:
 --               'bg'        for background (Border).
 --               'bar'       for forground (StatusBar).
---               'text'      for text (StatusBar.Txt).
---               'text2'     for text2 (StatusBar.Txt2).
+--               'text'      for text (StatusBar.FS).
 --               'ppower'    for predicted power.
 --               'frame'     for the frame.
 -- Attr         Type of attribute being applied to object:
@@ -507,12 +494,13 @@ HapFunction('SetAttr', function(self, Object, Attr)
   -- Get the unitbar data.
   local UB = self.UnitBar
   local Gen = UB.General
+  local BarType = self.BarType
 
   -- Check scale and strata for 'frame'
   Main:UnitBarSetAttr(self, Object, Attr)
 
   -- Set predicted power settings.
-  if self.BarType == 'PlayerPower' and PlayerClass == 'HUNTER' and (Object == nil or Object == 'ppower') then
+  if BarType == 'PlayerPower' and PlayerClass == 'HUNTER' and (Object == nil or Object == 'ppower') then
     Main:SetSpellTracker(self, Gen.PredictedPower)
   end
 
@@ -538,7 +526,6 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
     local Bar = UB.Bar
     local Padding = Bar.Padding
-    local BarColor = Bar.Color
     local PredictedColor = Bar.PredictedColor
 
     if Attr == nil or Attr == 'texture' then
@@ -563,7 +550,31 @@ HapFunction('SetAttr', function(self, Object, Attr)
     end
 
     if Attr == nil or Attr == 'color' then
-      StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+      local BarColor = nil
+
+      -- Get the Unit and then Powertype for power bars.
+      if strfind(BarType, 'Power') then
+        local PowerType = UnitPowerType(UB.UnitType)
+
+        if PowerType then
+          BarColor = Bar.Color[ConvertPowerType[PowerType]]
+        end
+
+      -- Get the class color on bars that support it.
+      else
+        BarColor = Bar.Color
+        if Bar.ClassColor then
+          local _, Class = UnitClass(UB.UnitType)
+
+          if Class ~= nil then
+            BarColor = Bar.Color[Class]
+          end
+        end
+      end
+
+      if BarColor then
+        StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+      end
     end
 
     if PredictedColor and ( Attr == nil or Attr == 'pcolor' ) then
@@ -596,31 +607,16 @@ HapFunction('SetAttr', function(self, Object, Attr)
 
   -- Text (StatusBar.Txt).
   if Object == nil or Object == 'text' then
-    local Txt = self.Txt
+    local FS = self.FS
 
-    local TextColor = UB.Text.Color
-
-    if Attr == nil or Attr == 'font' then
-      Main:SetFontString(Txt, UB.Text.FontSettings)
-    end
     if Attr == nil or Attr == 'color' then
-      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+      FS:SetColor()
+    end
+    if Attr == nil or Attr == 'font' then
+      FS:SetFont()
     end
   end
 
-  -- Text2 (StatusBar.Txt2).
-  if Object == nil or Object == 'text2' then
-    local Txt = self.Txt2
-
-    local TextColor = UB.Text2.Color
-
-    if Attr == nil or Attr == 'font' then
-      Main:SetFontString(Txt, UB.Text2.FontSettings)
-    end
-    if Attr == nil or Attr == 'color' then
-      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
-    end
-  end
 end)
 
 -------------------------------------------------------------------------------
@@ -664,8 +660,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   local PredictedBar = CreateFrame('StatusBar', nil, Border)
 
-  local Txt = StatusBar:CreateFontString(nil, 'OVERLAY')
-  local Txt2 = StatusBar:CreateFontString(nil, 'OVERLAY')
+  local FS = Main:CreateFontString(UnitBarF.BarType, StatusBar, 'OVERLAY', PercentFn)
 
   -- Set the border to always be the same size as the anchor.
   Border:SetAllPoints(Anchor)
@@ -686,8 +681,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   UnitBarF.Border = Border
   UnitBarF.StatusBar = StatusBar
   UnitBarF.PredictedBar = PredictedBar
-  UnitBarF.Txt = Txt
-  UnitBarF.Txt2 = Txt2
+  UnitBarF.FS = FS
 end
 
 --*****************************************************************************

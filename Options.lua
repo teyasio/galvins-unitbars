@@ -19,15 +19,16 @@ local HelpText = GUB.Help.HelpText
 
 -- localize some globals.
 local _
-local strupper, strlower, format, tonumber, strconcat, strfind, gsub, strsub, min, max =
-      strupper, strlower, format, tonumber, strconcat, strfind, gsub, strsub, min, max
+local strupper, strlower, format, tonumber, strconcat, strfind, strmatch, gsub, strsub, min, max =
+      strupper, strlower, format, tonumber, strconcat, strfind, strmatch, gsub, strsub, min, max
 local ipairs, pairs, type =
       ipairs, pairs, type
-local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
-      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print
+local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip =
+      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip
 -------------------------------------------------------------------------------
 -- Locals
 --
+-- Options.Open                  If true then the options window is opened. Otherwise closed.
 -- MainOptionsFrame              Main options frame used by this addon.
 -- ProfilesOptionsFrame          Used to show the profile settings in the blizzard
 --                               options tree.
@@ -38,9 +39,11 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 -- ProfileOptions                Options for the profiles.
 -- GUB.Options.ATOFrame          Contains the alignment tool options window.
 --
--- CapCopyUB                     Used for copy/paste. Contains the UnitBar data being copied.
--- CapCopyName                   Used for copy/paste. Contains the bars name of the data being copied.
--- CapCopyKey                    Used for copy/paste. Contains the unitbar key for copying.
+-- CapBarType                    Used for copy/paste. Contains the BarType of the bar being copied.
+-- CapName                       Used for copy/paste. Contains the bars name of the data being copied.
+-- CapTablePath                  Used for copy/paste. Contains the table path to be copied.
+-- CapType                       Used for copy/paste. Type of data being copied.
+-- CapButtons                    Used for copy/paste. Table containing the buttons for copy and pasting.
 --
 -- SetFunctions                  Table used to save and call functions thru SetFunction()
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
@@ -48,14 +51,14 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print =
 -- FontHAlignDropDown            Table used for the dialog drop down for font horizontal alignment.
 -- ValueTypeDropdown             Table used for the dialog drop down for Health and power text type.
 -- ValueNameDropdown             Table used for the dialog drop down for health and power text type.
--- ValueNameDropdownPredicted    Same as above except used for bars that support predicted value.
--- MaxValuesDropdown             Tanle used for the dialog drop down for Health and power text type.
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -- RuneEnergizeDropdown          Table used for changing rune energize.
 -- IndicatorDropdown             Table used to for the indicator for predicted power.
 -- FrameStrataDropdown           Table used for changing the frame strats for any unitbar.
+-- ACDOnHideFrame                Frame used for when the options window is closed.
 -------------------------------------------------------------------------------
+local AceConfigRegistery = LibStub('AceConfigRegistry-3.0')
 
 -- Addon Constants
 local AddonName = GetAddOnMetadata(MyAddon, 'Title')
@@ -67,6 +70,7 @@ local AddonSlashName = MyAddon
 
 local SetFunctions = {}
 local O = {}
+local ACDOnHideFrame = CreateFrame('Frame', nil)
 
 local OptionsToGUBFrame = nil
 local MainOptionsFrame = nil
@@ -81,13 +85,18 @@ local UnitBars = nil
 local PlayerClass = nil
 local PlayerPowerType = nil
 
-local CapCopyUB = nil
-local CapCopyName = nil
-local CapCopyKey = nil
+local CapBarType = nil
+local CapName = nil
+local CapTablePath = nil
+local CapType = nil
+local CapButtons = nil
 
 local O = {
   FadeOutTime = 5,
   FadeInTime = 1,
+
+  MaxTextLines = 4,
+  MaxValueNames = 6,
 
   FontOffsetXMin = -150,
   FontOffsetXMax = 150,
@@ -106,6 +115,8 @@ local O = {
   UnitBarFontSizeMax = 64,
   UnitBarFontFieldWidthMin = 20,
   UnitBarFontFieldWidthMax = 400,
+  UnitBarFontFieldHeightMin = 10,
+  UnitBarFontFieldHeightMax = 200,
   UnitBarScaleMin = 0.10,
   UnitBarScaleMax = 4,
   UnitBarWidthMin = 10,
@@ -217,7 +228,6 @@ local O = {
   ChiBarAngleMax = 360,
 }
 
-
 local FontStyleDropdown = {
   NONE = 'None',
   OUTLINE = 'Outline',
@@ -233,6 +243,12 @@ local FontHAlignDropdown = {
   RIGHT = 'Right'
 }
 
+local FontVAlignDropdown = {
+  TOP = 'Top',
+  MIDDLE = 'Middle',
+  BOTTOM = 'Bottom',
+}
+
 local PositionDropdown = {
   LEFT = 'Left',
   RIGHT = 'Right',
@@ -245,42 +261,52 @@ local PositionDropdown = {
   CENTER = 'Center'
 }
 
-local ValueTypeDropdown = {
-  none = 'No value',
-  whole = 'Whole',
-  whole_dgroups = 'Whole (Digit Groups)',
-  percent = 'Percentage',
-  thousands = 'Thousands',
-  millions = 'Millions',
-  short = 'Short',
-}
-
-local MaxValuesDropdown = {
-  [0] = 'None',
-  [1] = '1',
-  [2] = '2',
-  [3] = '3',
-}
-
 local ValueNameDropdown = {
-  current = 'Current Value',
-  maximum = 'Maximum Value',
+  'Current Value',       -- 1
+  'Maximum Value',       -- 2
+  'Predicted Value',     -- 3
+  'Unit Name',           -- 4
+  'Realm Name',          -- 5
+  'Unit Name and Realm', -- 6
 }
 
-local ValueNameDropdownPredicted = {
-  current = 'Current Value',
-  maximum = 'Maximum Value',
-  predicted = 'Predicted Value',
+local ValueTypeDropdown = {
+  'Whole',                -- 1
+  'Short',                -- 2
+  'Thousands',            -- 3
+  'Millions',             -- 4
+  'Whole (Digit Groups)', -- 5
+  'Percentage',           -- 6
 }
 
-local TextTypeLayout = {
-  none = '',
-  whole = '%d',
-  whole_dgroups = '%s',
-  percent = '%d%%',
-  thousands = '%.fk',
-  millions = '%.1fm',
-  short = '%s',
+local ConvertValueName = {
+  current          = 1,
+  maximum          = 2,
+  predicted        = 3,
+  unitname         = 4,
+  realmname        = 5,
+  unitnamerealm    = 6,
+  'current',       -- 1
+  'maximum',       -- 2
+  'predicted',     -- 3
+  'unitname',      -- 4
+  'realmname',     -- 5
+  'unitnamerealm', -- 6
+}
+
+local ConvertValueType = {
+  whole                    = 1,
+  short                    = 2,
+  thousands                = 3,
+  millions                 = 4,
+  whole_dgroups            = 5,
+  percent                  = 6,
+  'whole',                -- 1
+  'short',                -- 2
+  'thousands',            -- 3
+  'millions',             -- 4
+  'whole_dgroups',        -- 5
+  'percent',              -- 6
 }
 
 local DirectionDropdown = {
@@ -308,14 +334,14 @@ local IndicatorDropdown = {
 }
 
 local FrameStrataDropdown = {
-  [1] = 'Background',
-  [2] = 'Low',
-  [3] = 'Medium (default)',
-  [4] = 'High',
-  [5] = 'Dialog',
-  [6] = 'Full Screen',
-  [7] = 'Full Screen Dialog',
-  [8] = 'Tooltip',
+  'Background',
+  'Low',
+  'Medium (default)',
+  'High',
+  'Dialog',
+  'Full Screen',
+  'Full Screen Dialog',
+  'Tooltip',
 }
 
 local ConvertFrameStrata = {
@@ -327,14 +353,14 @@ local ConvertFrameStrata = {
   FULLSCREEN        = 6,
   FULLSCREEN_DIALOG = 7,
   TOOLTIP           = 8,
-  [1] = 'BACKGROUND',
-  [2] = 'LOW',
-  [3] = 'MEDIUM',
-  [4] = 'HIGH',
-  [5] = 'DIALOG',
-  [6] = 'FULLSCREEN',
-  [7] = 'FULLSCREEN_DIALOG',
-  [8] = 'TOOLTIP',
+  'BACKGROUND',           -- 1
+  'LOW',                  -- 2
+  'MEDIUM',               -- 3
+  'HIGH',                 -- 4
+  'DIALOG',               -- 5
+  'FULLSCREEN',           -- 6
+  'FULLSCREEN_DIALOG',    -- 7
+  'TOOLTIP',              -- 8
 }
 
 --*****************************************************************************
@@ -342,6 +368,23 @@ local ConvertFrameStrata = {
 -- Options creation/setting
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- HideTooltip
+--
+-- Hides the tooltip based on a boolean value. Boolean value gets returned.
+-- Used in for buttons that get disabled so the tooltip will close.
+--
+-- Usage: HideTooltip(true or false)
+--
+-- If true then tooltip is hidden, otherwise nothing is done.
+-------------------------------------------------------------------------------
+local function HideTooltip(Action)
+  if Action then
+    GameTooltip:Hide()
+  end
+  return Action
+end
 
 -------------------------------------------------------------------------------
 -- SetFunction
@@ -461,12 +504,36 @@ end
 -- Order         Order number
 -- Table         Table for the spacer
 -------------------------------------------------------------------------------
-local function CreateSpacer(Order)
+local function CreateSpacer(Order, Width)
   return {
     type = 'description',
     name = '',
     order = Order,
+    width = Width or 'full',
   }
+
+end
+
+-------------------------------------------------------------------------------
+-- OnOptions
+--
+-- Subfunction of CreateToGUBOptions()
+--
+-- Gets called when options is opened then again when closed.
+--
+-- Usage: OnOptions(Action)
+--
+-- Action     'open' then the options window was just opened.
+--            'close' Options window was closed.
+-------------------------------------------------------------------------------
+local function OnOptions(Action)
+  if Action == 'open' then
+    Main:FontSetHighlight('on')
+    GUB.Options.Open = true
+  else
+    Main:FontSetHighlight('off')
+    GUB.Options.Open = false
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -492,8 +559,21 @@ local function CreateToGUBOptions(Order, Name, Desc)
                HideUIPanel(GameMenuFrame)
              end
 
+             -- Call OnOptions() for open
+             OnOptions('open')
+
              -- Open a movable options frame.
-             LibStub('AceConfigDialog-3.0'):Open(AddonOptionsName)
+             local ACD = LibStub('AceConfigDialog-3.0')
+             ACD:Open(AddonOptionsName)
+
+             -- Set the OnHideFrame's frame parent to AceConfigDialog's options frame.
+             ACDOnHideFrame:SetParent(ACD.OpenFrames[AddonOptionsName].frame)
+
+             -- When hidden call OnOptions() for close.
+             ACDOnHideFrame:SetScript('OnHide', function()
+                                                  ACDOnHideFrame:SetScript('OnHide', nil)
+                                                  OnOptions('close')
+                                                end)
            end,
   }
   return ToGUBOptions
@@ -589,7 +669,7 @@ end --]]
 -- Subfunction of CreateTextOptions()
 -- Subfunction of CreateRuneBarOptions()
 --
--- Usage: ColorAllOptions = CreateColorAllOptions(BarType, TableName, ColorTable, Object, Order, Name)
+-- Usage: ColorAllOptions = CreateColorAllOptions(BarType, TablePath, Object, Order, Name)
 --
 -- BarType       Type of options being created.
 -- Object        Used for SetAttr().
@@ -601,12 +681,12 @@ end --]]
 --
 -- ColorAllOptions  Options table for the bartype.
 -------------------------------------------------------------------------------
-local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Order, Name)
+local function CreateColorAllOptions(BarType, TablePath, Object, Order, Name)
   local UBF = UnitBarsF[BarType]
   local ColorAllNames = UBF.ColorAllNames
 
   -- Get max colors
-  local MaxColors = #UBF.UnitBar[TableName][ColorTable]
+  local MaxColors = #Main:GetVP(BarType, TablePath)
 
   local ColorAllOptions = {
     type = 'group',
@@ -624,7 +704,7 @@ local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Ord
 
                -- Check for greenfire.
                if BarType == 'EmberBar' then
-                 local GreenFire = strfind(ColorTable, 'Green')
+                 local GreenFire = strfind(TablePath, 'Green')
                  if GreenFire == nil and UBF.GreenFire or
                     GreenFire and not UBF.GreenFire then
                    return true
@@ -635,7 +715,7 @@ local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Ord
     dialogInline = true,
     get = function(Info)
             local ColorIndex = tonumber(Info[#Info])
-            local c = UBF.UnitBar[TableName][ColorTable]
+            local c = Main:GetVP(BarType, TablePath)
 
             if ColorIndex > 0 then
               c = c[ColorIndex]
@@ -644,7 +724,7 @@ local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Ord
           end,
     set = function(Info, r, g, b, a)
             local ColorIndex = tonumber(Info[#Info])
-            local c = UBF.UnitBar[TableName][ColorTable]
+            local c = Main:GetVP(BarType, TablePath)
 
             if ColorIndex > 0 then
               c = c[ColorIndex]
@@ -662,10 +742,10 @@ local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Ord
         order = 1,
         desc = 'If checked, everything can be set to one color',
         get = function()
-                return UBF.UnitBar[TableName][ColorTable].All
+                return Main:GetVP(BarType, TablePath).All
               end,
         set = function(Info, Value)
-                UBF.UnitBar[TableName][ColorTable].All = Value
+                Main:GetVP(BarType, TablePath).All = Value
 
                 -- Refresh colors when changing between all and normal.
                 UBF:SetAttr(Object, 'color')
@@ -678,7 +758,7 @@ local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Ord
         hasAlpha = true,
         desc = 'Set everything to one color',
         hidden = function()
-                   return not UBF.UnitBar[TableName][ColorTable].All
+                   return not Main:GetVP(BarType, TablePath).All
                  end,
       },
       Spacer = CreateSpacer(3),
@@ -695,7 +775,7 @@ local function CreateColorAllOptions(BarType, TableName, ColorTable, Object, Ord
     ColorOption.order = c + 3
     ColorOption.hasAlpha = true
     ColorOption.hidden = function()
-                          return UBF.UnitBar[TableName][ColorTable].All
+                          return Main:GetVP(BarType, TablePath).All
                         end
 
     -- Add it to the options table
@@ -908,11 +988,11 @@ local function CreateBackgroundOptions(BarType, TableName, Order, Name)
   -- Add color all options for background.
   if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
      BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
-    BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'Background', 'Color', 'bg', 2, 'Color')
+    BackgroundOptions.args.BgColors = CreateColorAllOptions(BarType, 'Background.Color', 'bg', 2, 'Color')
 
     -- Add colorgreen background for emberbar.
     if BarType == 'EmberBar' then
-      BackgroundOptions.args.BgColorsGreen = CreateColorAllOptions(BarType, 'Background', 'ColorGreen', 'bg', 2, 'Color')
+      BackgroundOptions.args.BgColorsGreen = CreateColorAllOptions(BarType, 'Background.ColorGreen', 'bg', 2, 'Color')
     end
   end
 
@@ -1021,236 +1101,38 @@ local function CreateBackgroundOptions(BarType, TableName, Order, Name)
 end
 
 -------------------------------------------------------------------------------
--- CreateTextOptions
+-- CreateTextFontOptions
 --
--- Creates text options for a unitbar.
+-- Creats font options to control color, size, etc for text.
 --
--- Subfunction of CreateUnitBarOptions()
+-- Subfunction of CreateTextOptions()
 --
--- Usage: TextOptions CreateTextOptions(BarType, Object, Order, Name)
+-- Usage: CreateTextOptions(BarType, TextOptions, TxtLine, Order)
 --
--- BarType               Type options being created.
--- Order                 Order number.
--- Object                Can be 'text' or 'text2'
--- Name                  Name text
---
--- TextOptions     Options table for background options.
+-- BarType       Bar the text options belongs to
+-- TextOptions   Font options will be inserted into this table.
+-- TxtLine       Used to convert TextOptions.name to number.
+-- Order         Positions on the options panel.
 -------------------------------------------------------------------------------
-local function CreateTextOptions(BarType, Object, Order, Name)
+local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
   local UBF = UnitBarsF[BarType]
-
-  -- Set the object.
-  local UnitBarTable = gsub(Object, '%a', strupper, 1)
-
-  local TextOptions = {
-    type = 'group',
-    name = Name,
-    order = Order,
-    args = {},
-  }
-
-  -- Add text type if its not a runebar and eclipsebar.
-  if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
-    TextOptions.args.TextType = {
-      type = 'group',
-      name = 'Text Type',
-      dialogInline = true,
-      order = 1,
-      get = function(Info)
-              local UBT = UBF.UnitBar[UnitBarTable].TextType
-              local St = Info[#Info]
-              local Index = tonumber(strsub(St, -1))
-
-              if Index then
-                return UBT[strsub(St, 1, -2)][Index]
-              else
-                return UBT[St]
-              end
-            end,
-      set = function(Info, Value)
-              local UBT = UBF.UnitBar[UnitBarTable].TextType
-              local St = Info[#Info]
-              local Index = tonumber(strsub(St, -1))
-
-              if Index then
-                UBT[strsub(St, 1, -2)][Index] = Value
-              else
-                UBT[St] = Value
-              end
-
-              -- Create the layout.
-              if not UBT.Custom then
-                local MaxValues = UBT.MaxValues
-                local ValueType = UBT.ValueType
-                local ValueName = UBT.ValueName
-
-                local n = 0
-                local SepFlag = false
-                local LastName = nil
-                local CurName = nil
-                local Sep = '  '
-                local TTL = nil
-
-                UBT.Layout = ''
-                for i, v in ipairs(ValueType) do
-                  if i <= MaxValues then
-                    if n > 0 then
-                      Sep = '  '
-                    else
-                      Sep = ''
-                    end
-                    if v ~= 'none' then
-                      CurName = ValueName[i]
-                      if LastName and not SepFlag then
-                        if LastName == 'current' and CurName == 'maximum' or
-                           LastName == 'maximum' and CurName == 'current' then
-                          Sep = ' / '
-                          SepFlag = true
-                        end
-                      end
-                      LastName = CurName
-                      local TTL = TextTypeLayout[v]
-                      if TTL then
-                        UBT.Layout = strconcat(UBT.Layout, Sep, TTL)
-                        n = n + 1
-                      end
-                    end
-                  end
-                end
-              end
-
-              -- Update the bar.
-              UBF:Update()
-            end,
-      args = {
-        MaxValues = {
-          type = 'select',
-          order = 1,
-          name = 'Max Values',
-          values = MaxValuesDropdown,
-          style = 'dropdown',
-          desc = 'Sets how many values to be shown',
-        },
-        Spacer = CreateSpacer(2),
-        ValueName1 = {
-          type = 'select',
-          order = 3,
-          name = 'Value Name 1',
-          hidden = function()
-                     return UBF.UnitBar[UnitBarTable].TextType.MaxValues < 1
-                   end,
-          values = ValueNameDropdownPredicted,
-          style = 'dropdown',
-          desc = 'Pick the name of the value to show',
-        },
-        ValueType1 = {
-          type = 'select',
-          name = '',
-          order = 4,
-          name = 'Value Type 1',
-          values = ValueTypeDropdown,
-          hidden = function()
-                     return UBF.UnitBar[UnitBarTable].TextType.MaxValues < 1
-                   end,
-          style = 'dropdown',
-          desc = 'Changes how the value is shown',
-        },
-        Spacer2 = CreateSpacer(5),
-        ValueName2 = {
-          type = 'select',
-          order = 6,
-          name = 'Value Name 2',
-          hidden = function()
-                     return UBF.UnitBar[UnitBarTable].TextType.MaxValues < 2
-                   end,
-          values = ValueNameDropdownPredicted,
-          style = 'dropdown',
-          desc = 'Pick the name of the value to show',
-        },
-        ValueType2 = {
-          type = 'select',
-          name = '',
-          order = 7,
-          name = 'Value Type 2',
-          values = ValueTypeDropdown,
-          hidden = function()
-                     return UBF.UnitBar[UnitBarTable].TextType.MaxValues < 2
-                   end,
-          style = 'dropdown',
-          desc = 'Changes how the value is shown',
-        },
-        Spacer3 = CreateSpacer(8),
-        ValueName3 = {
-          type = 'select',
-          order = 9,
-          name = 'Value Name 3',
-          hidden = function()
-                     return UBF.UnitBar[UnitBarTable].TextType.MaxValues < 3
-                   end,
-          values = ValueNameDropdownPredicted,
-          style = 'dropdown',
-          desc = 'Pick the name of the value to show',
-        },
-        ValueType3 = {
-          type = 'select',
-          name = '',
-          order = 10,
-          name = 'Value Type 3',
-          values = ValueTypeDropdown,
-          hidden = function()
-                     return UBF.UnitBar[UnitBarTable].TextType.MaxValues < 3
-                   end,
-          style = 'dropdown',
-          desc = 'Changes how the value is shown',
-        },
-        Spacer4 = CreateSpacer(100),
-        Custom = {
-          type = 'toggle',
-          name = 'Custom Layout',
-          order = 101,
-          desc = 'If checked, the layout can be changed',
-        },
-        Layout = {
-          type = 'description',
-          order = 102,
-          name = function()
-                   return strconcat('|cFFFFFF00 Layout:|r ', UBF.UnitBar[UnitBarTable].TextType.Layout)
-                 end,
-          fontSize = 'large',
-        },
-        CustomLayout = {
-          type = 'input',
-          name = 'Custom Layout',
-          order = 103,
-          multiline = false,
-          hidden = function()
-                     return not UBF.UnitBar[UnitBarTable].TextType.Custom
-                   end,
-          get = function()
-                  return UBF.UnitBar[UnitBarTable].TextType.Layout
-                end,
-          set = function(Info, Value)
-                  UBF.UnitBar[UnitBarTable].TextType.Layout = Value
-
-                  -- Update the bar.
-                  UBF:Update()
-                end,
-        },
-      },
-    }
-  end
 
   TextOptions.args.Font = {
     type = 'group',
-    name = 'Font',
+    name = function()
+
+             -- highlight the text in green.
+             Main:FontSetHighlight(BarType, TxtLine[TextOptions.name])
+             return 'Font'
+           end,
     dialogInline = true,
-    order = 2,
+    order = Order + 1,
     get = function(Info)
-            return UBF.UnitBar[UnitBarTable].FontSettings[Info[#Info]]
+            return UBF.UnitBar.Text[TxtLine[TextOptions.name]][Info[#Info]]
           end,
     set = function(Info, Value)
-            UBF.UnitBar[UnitBarTable].FontSettings[Info[#Info]] = Value
-            UBF:SetAttr(Object, 'font')
+            UBF.UnitBar.Text[TxtLine[TextOptions.name]][Info[#Info]] = Value
+            UBF:SetAttr('text', 'font')
           end,
     args = {
       FontType = {
@@ -1267,71 +1149,97 @@ local function CreateTextOptions(BarType, Object, Order, Name)
         style = 'dropdown',
         values = FontStyleDropdown,
         },
-      FontHAlign = {
-        type = 'select',
-        name = 'Horizontal Alignment',
-        order = 3,
-        style = 'dropdown',
-        values = FontHAlignDropdown,
-      },
-      FontSize = {
-        type = 'range',
-        name = 'Size',
-        order = 4,
-        min = O.UnitBarFontSizeMin,
-        max = O.UnitBarFontSizeMax,
-        step = 1,
-      },
+      Spacer10 = CreateSpacer(10),
       Width = {
         type = 'range',
         name = 'Field Width',
-        order = 5,
+        order = 11,
         min = O.UnitBarFontFieldWidthMin,
         max = O.UnitBarFontFieldWidthMax,
         step = 1,
       },
-      Position = {
-        type = 'select',
-        name = 'Position',
-        order = 6,
-        style = 'dropdown',
-        values = PositionDropdown,
+      Height = {
+        type = 'range',
+        name = 'Field Height',
+        order = 12,
+        min = O.UnitBarFontFieldHeightMin,
+        max = O.UnitBarFontFieldHeightMax,
+        step = 1,
+      },
+      Spacer20 = CreateSpacer(20),
+      FontSize = {
+        type = 'range',
+        name = 'Size',
+        order = 21,
+        min = O.UnitBarFontSizeMin,
+        max = O.UnitBarFontSizeMax,
+        step = 1,
+      },
+      Spacer30 = CreateSpacer(30),
+      Location = {
+        type = 'group',
+        name = 'Location',
+        dialogInline = true,
+        order = 31,
+        args = {
+          FontHAlign = {
+            type = 'select',
+            name = 'Horizontal Alignment',
+            order = 1,
+            style = 'dropdown',
+            values = FontHAlignDropdown,
+          },
+          FontVAlign = {
+            type = 'select',
+            name = 'Vertical Alignment',
+            order = 2,
+            style = 'dropdown',
+            values = FontVAlignDropdown,
+          },
+          Position = {
+            type = 'select',
+            name = 'Position',
+            order = 3,
+            style = 'dropdown',
+            values = PositionDropdown,
+          },
+        },
       },
     },
   }
 
   -- Add color all text option for the runebar only.
   if BarType == 'RuneBar' then
-    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'Text', 'Color', 'text', 2, 'Color')
+    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'Text.1.Color', 'text', Order, 'Color')
   else
     TextOptions.args.Font.args.TextColor = {
       type = 'color',
       name = 'Color',
-      order = 7,
+      order = 22,
       hasAlpha = true,
       get = function()
-              local c = UBF.UnitBar[UnitBarTable].Color
+              local c = UBF.UnitBar.Text[TxtLine[TextOptions.name]].Color
               return c.r, c.g, c.b, c.a
             end,
       set = function(Info, r, g, b, a)
-              local c = UBF.UnitBar[UnitBarTable].Color
+              local c = UBF.UnitBar.Text[TxtLine[TextOptions.name]].Color
               c.r, c.g, c.b, c.a = r, g, b, a
-              UBF:SetAttr(Object, 'color')
+              UBF:SetAttr('text', 'color')
             end,
     }
   end
 
-  TextOptions.args.Offsets = {
+  TextOptions.args.Font.args.Offsets = {
     type = 'group',
     name = 'Offsets',
     dialogInline = true,
-    order = 3,
+    order = 41,
     get = function(Info)
-            return UBF.UnitBar[UnitBarTable].FontSettings[Info[#Info]]
+            return UBF.UnitBar.Text[TxtLine[TextOptions.name]][Info[#Info]]
           end,
     set = function(Info, Value)
-            UBF.UnitBar[UnitBarTable].FontSettings[Info[#Info]] = Value
-            UBF:SetAttr(Object, 'font')
+            UBF.UnitBar.Text[TxtLine[TextOptions.name]][Info[#Info]] = Value
+            UBF:SetAttr('text', 'font')
           end,
     args = {
       OffsetX = {
@@ -1360,6 +1268,399 @@ local function CreateTextOptions(BarType, Object, Order, Name)
       },
     },
   }
+end
+
+-------------------------------------------------------------------------------
+-- CreateTextValueOptions
+--
+-- Creates dynamic drop down options for text value names and types
+--
+-- Subfunction of CreateTextOptions()
+--
+-- Usage: CreateTextValueOptions(BarType, TL, TxtLine, Order)
+--
+-- BarType        Options will be added for this bar.
+-- TL             Current Text Line options being used.
+-- TxtLine        Used to retrieve what text line number is being used.
+-- Order          Order number in the options frame.
+-- ValueIndex     Used for recursive calls to add more value options.
+-------------------------------------------------------------------------------
+local function ModifyTextValueOptions(VOA, Action, ValueName, ValueIndex)
+  local ValueNameKey = format('ValueName%s', ValueIndex)
+  local ValueTypeKey = format('ValueType%s', ValueIndex)
+
+  if Action == 'add' then
+    VOA[ValueNameKey] = {
+      type = 'select',
+      name = format('Value Name %s', ValueIndex),
+      values = ValueNameDropdown,
+      order = 10 * ValueIndex + 1,
+    }
+    VOA[ValueTypeKey] = {
+      type = 'select',
+      name = format('Value Type %s', ValueIndex),
+      values = ValueTypeDropdown,
+      order = 10 * ValueIndex + 2,
+      disabled = function()
+                   return strfind(ValueName[ValueIndex], 'name') ~= nil
+                 end,
+    }
+    VOA[format('Spacer%s', 10 * ValueIndex + 3)] = CreateSpacer(10 * ValueIndex + 3)
+
+  elseif Action == 'remove' then
+    VOA[format('ValueName%s', ValueIndex)] = nil
+    VOA[format('ValueType%s', ValueIndex)] = nil
+    VOA[format('Spacer%s', 10 * ValueIndex + 3)] = nil
+  end
+end
+
+local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
+  local UBF = UnitBarsF[BarType]
+  local UB = UnitBars[BarType]
+
+  local Text = UB.Text[TxtLine[TL.name]]
+  local ValueName = Text.ValueName
+  local ValueType = Text.ValueType
+  local NumValues = 0
+  local MaxValueNames = O.MaxValueNames
+  local VOA = nil
+
+  TL.args.Value = {
+    type = 'group',
+    name = 'Value',
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local St = Info[#Info]
+            local ValueIndex = tonumber(strsub(St, 10))
+
+            if strfind(St, 'Name') then
+              return ConvertValueName[ValueName[ValueIndex]]
+            elseif strfind(St, 'Type') then
+              return ConvertValueType[ValueType[ValueIndex]]
+            end
+          end,
+    set = function(Info, Value)
+            local St = Info[#Info]
+            local ValueIndex = tonumber(strsub(St, 10))
+
+            if strfind(St, 'Name') then
+              UBF.FS:Modify('textsettings', 'change', TxtLine[TL.name], ValueIndex, ConvertValueName[Value], nil)
+            elseif strfind(St, 'Type') then
+
+              UBF.FS:Modify('textsettings', 'change', TxtLine[TL.name], ValueIndex, nil, ConvertValueType[Value])
+            end
+
+            -- Update the layout to update all changes.
+            UBF:SetLayout()
+            UBF:Update()
+          end,
+    args = {
+      Layout = {
+        type = 'input',
+        name = function()
+                 if UBF.UnitBar.Text[TxtLine[TL.name]].Custom then
+                   return 'Custom Layout'
+                 else
+                   return 'Layout'
+                 end
+               end,
+        order = 1,
+        multiline = true,
+        width = 'double',
+        desc = 'To customize the layout change it here',
+        get = function()
+                return gsub(UBF.UnitBar.Text[TxtLine[TL.name]].Layout, '|', '||')
+              end,
+        set = function(Info, Value)
+                UBF.UnitBar.Text[TxtLine[TL.name]].Custom = true
+                UBF.UnitBar.Text[TxtLine[TL.name]].Layout = gsub(Value, '||', '|')
+
+                -- Update the bar.
+                UBF:Update()
+              end,
+      },
+      Spacer2 = CreateSpacer(2),
+      RemoveValue = {
+        type = 'execute',
+        name = 'Remove',
+        order = 3,
+        width = 'half',
+        desc = 'Remove a value',
+        disabled = function()
+
+                     -- Hide the tooltip since the button will be disabled.
+                     return HideTooltip(NumValues == 0)
+                   end,
+        func = function()
+                 ModifyTextValueOptions(VOA, 'remove', ValueName, NumValues)
+
+                 -- remove last value type.
+                 UBF.FS:Modify('textsettings', 'remove', TxtLine[TL.name], NumValues)
+                 NumValues = NumValues - 1
+
+                 -- Update the the bar to reflect changes
+                 UBF:Update()
+               end,
+      },
+      AddValue = {
+        type = 'execute',
+        name = 'Add',
+        order = 4,
+        width = 'half',
+        desc = 'Add another value',
+        disabled = function()
+
+                     -- Hide the tooltip since the button will be disabled.
+                     return HideTooltip(NumValues == MaxValueNames)
+                   end,
+        func = function()
+                 NumValues = NumValues + 1
+                 ModifyTextValueOptions(VOA, 'add', ValueName, NumValues)
+
+                 -- Add a new value setting.
+                 UBF.FS:Modify('textsettings', 'add', TxtLine[TL.name], NumValues, 'current', 'whole' )
+
+                 -- Update the the bar to reflect changes
+                 UBF:Update()
+               end,
+      },
+      Spacer5 = CreateSpacer(5, 'half'),
+      ExitCustomLayout = {
+        type = 'execute',
+        name = 'Exit',
+        order = 6,
+        width = 'half',
+        hidden = function()
+                   return HideTooltip(not UBF.UnitBar.Text[TxtLine[TL.name]].Custom)
+                 end,
+        desc = 'Exit custom layout mode',
+        func = function()
+                 local TextLine = TxtLine[TL.name]
+                 UBF.UnitBar.Text[TextLine].Custom = false
+
+                 -- Call modify to reset layout without changing the text settings.
+                 UBF.FS:Modify('textsettings', 'change', TextLine, NumValues)
+
+                 UBF:Update()
+               end,
+      },
+      Spacer7 = CreateSpacer(7),
+    },
+  }
+
+  VOA = TL.args.Value.args
+
+  -- Add additional value options if needed
+  for Index, _ in ipairs(ValueName) do
+    ModifyTextValueOptions(VOA, 'add', ValueName, Index)
+    NumValues = Index
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CreateTextLineOptions
+--
+-- Creates a new set of options for a textline, each one will have a new number.
+--
+-- Subfunction of CreateTextOptions()
+--
+-- Usage: CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+--
+-- BarType           Bar the options will be added for.
+-- TextLineOptions   Used for recursive calls. On recursive calls more
+--                   options are inserted into this table.
+-- TxtLine           Used to convert TextLineOptions.name into a number.
+-------------------------------------------------------------------------------
+local function CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+  local UBF = UnitBarsF[BarType]
+  local UB = UnitBars[BarType]
+
+  local TL = nil
+  local TextLine = 0
+  local TextLineKey = ''
+  local MaxTextLines = O.MaxTextLines
+  local NumValues = 0
+  local Line = 'Line%s'
+  local LineName = 'Line %s'
+
+  if TextLineOptions == nil then
+    TextLineOptions = {}
+  end
+
+  -- Find a new text line.
+  while true do
+    TextLine = TextLine + 1
+    TextLineKey = format(Line, TextLine)
+
+    if TextLineOptions[TextLineKey] == nil then
+      TL = {
+        type = 'group',
+        name = format(LineName, TextLine),
+        order = 10,
+        args = {},
+      }
+      TextLineOptions[TextLineKey] = TL
+      break
+    end
+  end
+
+  if TxtLine == nil then
+    TxtLine = {}
+  end
+
+  -- Set the txtline table with the current text line number.
+  if TxtLine[TL.name] == nil then
+    TxtLine[TL.name] = TextLine
+  end
+
+  -- Check to see if another text line needs to be created.
+  if UB.Text[TextLine + 1] ~= nil then
+    CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+  end
+
+  TL.args = {
+    RemoveTextLine = {
+      type = 'execute',
+      name = 'Remove',
+      width = 'half',
+      order = 1,
+      name = function()
+               return format('- Line %s', TxtLine[TL.name])
+             end,
+      desc = function()
+               return format('Remove Text Line %s', TxtLine[TL.name])
+             end,
+      disabled = function()
+                 local TextLine = TxtLine[TL.name]
+
+                 -- Hide the tooltip since the button will be disabled.
+                 return HideTooltip(TextLine == 1 and TextLineOptions[format(Line, TextLine + 1)] == nil)
+               end,
+      confirm = function()
+                  return format('Remove Text Line %s ?', TxtLine[TL.name])
+                end,
+      func = function()
+               local Index = TxtLine[TL.name]
+
+               -- Remove the font string.
+               UBF.FS:Modify('string', 'remove', Index)
+
+               -- Delete the curent text line options and move all others down one.
+               local TL = ''
+               local TLO = nil
+               local TextLineKey = ''
+
+               repeat
+                 TLO = TextLineOptions[format(Line, Index + 1)]
+
+                 if TLO ~= nil then
+                   TextLineKey = format(Line, Index)
+
+                   TextLineOptions[TextLineKey] = TLO
+                   TextLineOptions[TextLineKey].name = format(LineName, Index)
+
+                   Index = Index + 1
+                 end
+               until TLO == nil
+
+               -- Delete the last text line.
+               TextLineOptions[format(Line, Index)] = nil
+
+               -- Update the the bar to reflect changes
+               UBF:Update()
+             end,
+    },
+    AddTextLine = {
+      type = 'execute',
+      order = 2,
+      name = function()
+               return format('+ Line %s', TxtLine[TL.name] + 1)
+             end,
+      desc = function()
+               return format('Add Text Line %s', TxtLine[TL.name] + 1)
+             end,
+      width = 'half',
+      disabled = function()
+                 local TextLine = TxtLine[TL.name]
+
+                 -- Hide the tooltip since the button will be disabled.
+                 return HideTooltip(TextLine == MaxTextLines or TextLineOptions[format(Line, TextLine + 1)] ~= nil)
+               end,
+      func = function()
+
+               -- Add a new font string
+               UBF.FS:Modify('string', 'add')
+
+               -- Add options for new text line.
+               CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+
+               -- Update the the bar to reflect changes
+               UBF:Update()
+             end,
+    },
+    Seperator = {
+      type = 'header',
+      name = '',
+      order = 3,
+    },
+  }
+
+  -- Add text value options to TextLineOptions
+  CreateTextValueOptions(BarType, TL, TxtLine, 4)
+
+  -- Add text font options.
+  CreateTextFontOptions(BarType, TL, TxtLine, 5)
+
+  return TextLineOptions
+end
+
+
+-------------------------------------------------------------------------------
+-- CreateTextOptions
+--
+-- Creates dyanmic text options for a unitbar.
+--
+-- Subfunction of CreateUnitBarOptions()
+--
+-- Usage: TextOptions CreateTextOptions(BarType, Order, Name)
+--
+-- BarType               Type options being created.
+-- Order                 Order number.
+-- Name                  Name text
+--
+-- TextOptions     Options table for text options.
+-------------------------------------------------------------------------------
+local function CreateTextOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+  local Text = UBF.UnitBar.Text
+
+  local FunctionLabel = format('%s%s', BarType, 'CreateTextOptions')
+
+  local TextOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+  }
+  local TxtLine = {
+    [Name] = 1,
+  }
+
+  -- This will modify text options table if the profile changed.
+  SetFunction(FunctionLabel, function()
+    if UnitBars[BarType].Text.Multi then
+      TextOptions.childGroups = 'tab'
+      TextOptions.args = CreateTextLineOptions(BarType)
+    else
+      TextOptions.args = {}
+
+      -- Add text font options.
+      CreateTextFontOptions(BarType, TextOptions, TxtLine, 1)
+    end
+  end)
+
+  -- Set up the options
+  SetFunction(FunctionLabel)
 
   return TextOptions
 end
@@ -1388,20 +1689,21 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
     order = Order,
     dialogInline = true,
     get = function(Info)
-            local c = UBF.UnitBar.Bar.Color[Info.arg]
+            local c = UBF.UnitBar.Bar.Color[Info[#Info]]
             return c.r, c.g, c.b, c.a
           end,
     set = function(Info, r, g, b, a)
-            local c = UBF.UnitBar.Bar.Color[Info.arg]
+            local c = UBF.UnitBar.Bar.Color[Info[#Info]]
             c.r, c.g, c.b, c.a = r, g, b, a
 
              -- Update the bar to show the current power color change in real time.
-            UBF:Update()
+            UBF:SetAttr('bar', 'color')
           end,
     args = {},
   }
 
   -- Power types for the player power bar. '= 0' has no meaning.
+  -- These cover classes with more than one power type.
   local PlayerPower = {
     DRUID = {MANA = 0, ENERGY = 0, RAGE = 0},
     MONK  = {MANA = 0, ENERGY = 0},
@@ -1415,26 +1717,25 @@ local function CreatePowerColorsOptions(BarType, Order, Name)
 
   local ClassPowerType = PlayerPower[PlayerClass]
 
-  for PowerTypeSt, PowerType in pairs(PowerColorType) do
-    local n = gsub(strlower(PowerTypeSt), '%a', strupper, 1)
+  for PowerTypeName, PowerType in pairs(PowerColorType) do
+    local n = gsub(strlower(PowerTypeName), '%a', strupper, 1)
 
     local Width = 'half'
-    if PowerTypeSt == 'RUNIC_POWER' then
+    if PowerTypeName == 'RUNIC_POWER' then
       n = 'Runic Power'
       Width = 'normal'
     end
 
-    if AllColor or BarType == 'ManaPower' and PowerTypeSt == 'MANA' or
+    if AllColor or BarType == 'ManaPower' and PowerTypeName == 'MANA' or
                    BarType ~= 'ManaPower' and
-                     ( ClassPowerType and ClassPowerType[PowerTypeSt] or
+                     ( ClassPowerType and ClassPowerType[PowerTypeName] or
                        PowerType == PlayerPowerType ) then
-      PCOA[PowerTypeSt] = {
+      PCOA[PowerTypeName] = {
         type = 'color',
         name = n,
         order = PowerType,
         width = Width,
         hasAlpha = true,
-        arg = PowerType,
       }
     end
   end
@@ -1460,9 +1761,9 @@ end
 local function CreateClassColorOptions(BarType, Order, Name)
   local UBF = UnitBarsF[BarType]
   local ClassColorMenu = {
-    [1]  = 'DEATHKNIGHT', [2]  = 'DRUID',  [3] = 'HUNTER', [4] = 'MAGE',  [5]  = 'MONK',
-    [6]  = 'PALADIN',     [7]  = 'PRIEST', [8] = 'PRIEST', [9] = 'ROGUE', [10] = 'SHAMAN',
-    [11] = 'WARLOCK',     [12] = 'WARRIOR'
+    'DEATHKNIGHT', 'DRUID',  'HUNTER', 'MAGE',  'MONK',
+    'PALADIN',     'PRIEST', 'PRIEST', 'ROGUE', 'SHAMAN',
+    'WARLOCK',     'WARRIOR'
   }
 
   local ClassColorOptions = {
@@ -1489,7 +1790,7 @@ local function CreateClassColorOptions(BarType, Order, Name)
             c.r, c.g, c.b, c.a = r, g, b, a
 
             -- Set the color to the bar
-            UBF:Update()
+            UBF:SetAttr('bar', 'color')
           end,
     args = {
       ClassColorToggle = {
@@ -1504,7 +1805,7 @@ local function CreateClassColorOptions(BarType, Order, Name)
                 UBF.UnitBar.Bar.ClassColor = Value
 
                 -- Refresh color when changing between class color and normal.
-                UBF:Update()
+                UBF:SetAttr('bar', 'color')
               end,
       },
       Spacer = CreateSpacer(2),
@@ -1619,7 +1920,7 @@ local function CreateBarSizeOptions(BarType, TableName, Order, BarWidthKey, BarH
   local Height = 0
 
   local BarSizeOptions = {}
-  local FunctionLabel = format('%s%s', BarType, TableName or '')
+  local FunctionLabel = format('%s%s', BarType, 'CreateBarSizeOptions')
   local ABarWidthKey = format('%s%s', 'Advanced', BarWidthKey)
   local ABarHeightKey = format('%s%s', 'Advanced', BarHeightKey)
 
@@ -1987,12 +2288,12 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   if BarType == 'RuneBar' or BarType == 'ComboBar' or BarType == 'HolyBar' or
      BarType == 'ShardBar' or BarType == 'EmberBar' or BarType == 'ShadowBar' or BarType == 'ChiBar' then
     if BarType == 'EmberBar' then
-      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'Bar', 'Color', 'bar', 2, 'Color')
-      BarOptions.args.BarColorsGreen = CreateColorAllOptions(BarType, 'Bar', 'ColorGreen', 'bar', 2, 'Color')
-      BarOptions.args.BarColorsFire = CreateColorAllOptions(BarType, 'Bar', 'ColorFiery', 'bar', 3, 'Color (fiery embers)')
-      BarOptions.args.BarColorsFireGreen = CreateColorAllOptions(BarType, 'Bar', 'ColorFieryGreen', 'bar', 3, 'Color (fiery embers)')
+      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'Bar.Color', 'bar', 2, 'Color')
+      BarOptions.args.BarColorsGreen = CreateColorAllOptions(BarType, 'Bar.ColorGreen', 'bar', 2, 'Color')
+      BarOptions.args.BarColorsFire = CreateColorAllOptions(BarType, 'Bar.ColorFiery', 'bar', 3, 'Color (fiery embers)')
+      BarOptions.args.BarColorsFireGreen = CreateColorAllOptions(BarType, 'Bar.ColorFieryGreen', 'bar', 3, 'Color (fiery embers)')
     else
-      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'Bar', 'Color', 'bar', 2, 'Color')
+      BarOptions.args.BarColors = CreateColorAllOptions(BarType, 'Bar.Color', 'bar', 2, 'Color')
     end
   end
 
@@ -2411,7 +2712,7 @@ local function CreateRuneBarOptions(BarType, Order, Name)
             max = O.RuneEnergizeTimeMax,
             step = 1,
           },
-          Color = CreateColorAllOptions(BarType, 'General', 'ColorEnergize', 'texture', 2, 'Color'),
+          Color = CreateColorAllOptions(BarType, 'General.ColorEnergize', 'texture', 2, 'Color'),
         },
       },
     },
@@ -3344,12 +3645,27 @@ end
 local function CreateCopyPasteOptions(BarType, Order)
   local UBF = UnitBarsF[BarType]
 
-  local CopyPasteOptions = nil
-  CopyPasteOptions = {
+  CapButtons = CapButtons or {
+    {Name = 'All'     , Order = 1,  All = false, Type = 'All',        TablePath = ''},
+    {Name = 'Status'  , Order = 2,  All = true,  Type = 'Status',     TablePath = 'Status'},
+    {Name = 'Other'   , Order = 3,  All = true,  Type = 'Other',      TablePath = 'Other'},
+    {Name = 'BackG'   , Order = 4,  All = true,  Type = 'Background', TablePath = 'Background'},
+    {Name = 'Bar'     , Order = 5,  All = true,  Type = 'Bar',        TablePath = 'Bar'},
+    {Name = 'All Text', Order = 6,  All = true,  Type = 'TextAll',    TablePath = 'Text'},
+    {Name = 'Text 1'  , Order = 7,  All = false, Type = 'Text',       TablePath = 'Text.1'},
+    {Name = 'Text 2'  , Order = 8,  All = false, Type = 'Text',       TablePath = 'Text.2'},
+    {Name = 'Text 3'  , Order = 9,  All = false, Type = 'Text',       TablePath = 'Text.3'},
+    {Name = 'Text 4'  , Order = 10, All = false, Type = 'Text',       TablePath = 'Text.4'},
+    {Name = 'Spacer'  , Order = 20},
+    {Name = 'Clear'   , Order = 21},
+  }
+
+  local CopyPasteOptions = {
     type = 'group',
     name = function()
-             if CapCopyName and CapCopyKey then
-               return format('Copy and Paste ( %s . %s )', CapCopyName, CapCopyKey)
+             if CapName and CapTablePath then
+
+               return format('Copy and Paste: |cffffff00%s [ %s ]|r', CapName, CapTablePath == '' and CapType or CapTablePath)
              else
                return 'Copy and Paste'
              end
@@ -3357,98 +3673,122 @@ local function CreateCopyPasteOptions(BarType, Order)
     dialogInline = true,
     order = Order,
     confirm = function(Info)
-                if Info[#Info] == 'Paste' then
-                  return format('Copy %s from %s to %s', CapCopyKey, CapCopyName, UBF.UnitBar.Name)
+                if Info[#Info] ~= 'Clear' and CapBarType then
+                  return format('Copy %s from %s to %s', CapTablePath == '' and CapType or CapTablePath, CapName, UnitBars[BarType].Name)
                 end
               end,
     func = function(Info, Value)
              local Name = Info[#Info]
-             if Name ~= 'Paste' and Name ~= 'Clear' then
 
-               -- Store the data to the clipboard.
-               CapCopyUB = UBF.UnitBar
-               CapCopyName = UBF.UnitBar.Name
-               CapCopyKey = Name
-             else
-               if Name == 'Paste' then
+             if Name ~= 'Clear' then
+               if CapBarType == nil then
+
+                 -- Store the data to the clipboard.
+                 CapBarType = BarType
+                 CapName = UBF.UnitBar.Name
+                 CapTablePath = Info.arg.TablePath
+                 CapType = Info.arg.Type
+               else
 
                  -- Save name and locaton.
                  local UB = UBF.UnitBar
                  local Name = UB.Name
                  local x, y = UB.x, UB.y
 
-                 if CapCopyKey == 'All' then
-                   Main:CopyTableValues(CapCopyUB, UBF.UnitBar)
+                 if CapType == 'All' then
+                   for _, Value in ipairs(CapButtons) do
+                     if Value.All then
+
+                       -- Copy unit bar
+                       local TablePath = Value.TablePath
+                       Main:CopyUnitBar(CapBarType, BarType, TablePath, TablePath)
+                     end
+                   end
                  else
-                   Main:CopyTableValues(CapCopyUB[CapCopyKey], UBF.UnitBar[CapCopyKey])
+                   Main:CopyUnitBar(CapBarType, BarType, CapTablePath, Info.arg.TablePath)
                  end
 
                  -- Restore name and location.
                  UB.Name = Name
                  UB.x, UB.y = x, y
 
-                 -- Update the bar.
-                 UBF:SetAttr(nil, nil)
+                 GUB.ProfileUpdate = true
+
+                 -- Update the layout.
+                 UBF:SetLayout()
+                 UBF:StatusCheck()
                  UBF:Update()
 
+                 GUB.ProfileUpdate = false
+
+                 -- Update any dynamic options.
+                 SetFunction()
                end
-               CapCopyUB = nil
-               CapCopyName = nil
-               CapCopyKey = nil
+             else
+               CapBarType = nil
+               CapName = nil
+               CapTablePath = nil
+               CapType = nil
              end
            end,
-    args = {
-      All = 1,
-      Status = 2,
-      Other = 3,
-      Background = 4,
-      Bar = 5,
-      Text = 6,
-      Text2 = 7,
-      Spacer = 10,
-      Paste = 11,
-      Clear = 12,
-    },
+
+    -- The args get converted into controls below.
+    args = {},
   }
 
-  -- Create buttons
-  local Order = 0
   local Args = CopyPasteOptions.args
-  for Key, Order in pairs(Args) do
-    if strfind(Key, 'Spacer') == nil then
-      local t = {}
 
+  for _, Value in ipairs(CapButtons) do
+    local t = {}
+    local Order = Value.Order
+    local Name = Value.Name
+
+    if Name ~= 'Spacer' then
       t.type = 'execute'
-      t.name = Key == 'Backgrnd' and 'Background' or Key
+      t.name = Name
       t.order = Order
       t.width = 'half'
-      if Key == 'Paste' then
 
-        -- Disable paste if nothing to paste or trying to paste to the source.
-        t.disabled = function()
-                       return CapCopyUB == nil or CapCopyKey ~= 'All' and
-                              ( UBF.UnitBar[CapCopyKey] == nil or CapCopyUB[CapCopyKey] == UBF.UnitBar[CapCopyKey] ) or
-                              CapCopyName == UBF.UnitBar.Name
-                     end
-      elseif Key == 'Clear' then
+      if Name == 'BackG' then
+        t.desc = 'Background'
+      end
+
+      if Name == 'Clear' then
 
         -- Disable clear if theres nothing to paste.
         t.disabled = function()
-                       return CapCopyUB == nil
+                       return HideTooltip(CapBarType == nil)
                      end
       else
+        t.arg = {Type = Value.Type, TablePath = Value.TablePath}
 
-        -- Disable the button if the source doesn't exist.
-        t.disabled = Key ~= 'All' and UBF.UnitBar[Key] == nil
+        -- Disable the button if in paste mode.
+        t.disabled = function(Info)
+                       local Disable = false
+                       local Dest = Main:GetVP(BarType, Info.arg.TablePath)
+
+                       if Dest == nil then
+                         Disable = true
+                       elseif CapBarType then
+                         if CapType ~= Info.arg.Type or Main:GetVP(CapBarType, CapTablePath) == Dest then
+                           Disable = true
+                         end
+                       end
+
+                       return HideTooltip(Disable)
+                     end
       end
-      Args[Key] = t
+      Args[Name] = t
     else
-      Args[Key] = CreateSpacer(Order)
+
+      -- create spacer
+      Args[Name] = CreateSpacer(Order)
     end
   end
 
   return CopyPasteOptions
 end
+
 
 -------------------------------------------------------------------------------
 -- CreateUnitBarOptions
@@ -3638,14 +3978,22 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                  local UB = UBF.UnitBar
                  local x, y =  UB.x, UB.y
 
-                 Main:CopyTableValues(Defaults.profile[BarType], UB)
-
+                 UB = Main:DeepCopy(Defaults.profile[BarType])
+                 UBF.UnitBar = UB
+                 UnitBars[BarType] = UB
                  UB.x, UB.y = x, y
+
+                 GUB.ProfileUpdate = true
 
                  -- Update the layout.
                  UBF:SetLayout()
                  UBF:StatusCheck()
                  UBF:Update()
+
+                 GUB.ProfileUpdate = false
+
+                 -- Update any dynamic options.
+                 SetFunction()
                end,
       },
       ResetPosition = {
@@ -3715,10 +4063,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   -- Add text options
   if BarType ~= 'ComboBar' and BarType ~= 'HolyBar' and BarType ~= 'ShardBar' and
      BarType ~= 'EmberBar' and BarType ~= 'ShadowBar' and BarType ~= 'ChiBar' then
-    UBOA.Text = CreateTextOptions(BarType, 'text', 1002, 'Text')
-    if BarType ~= 'RuneBar' and BarType ~= 'EclipseBar' then
-      UBOA.Text2 = CreateTextOptions(BarType, 'text2', 1003, 'Text2')
-    end
+
+    UBOA.Text = CreateTextOptions(BarType, 1002, 'Text')
   end
 
   return UnitBarOptions
@@ -3857,6 +4203,12 @@ local function CreateMainOptions()
                 name = 'Enable Alignment Tool',
                 order = 4,
                 desc = 'If unchecked, right clicking a unitbar will not open the alignment tool',
+              },
+              HideTextHighlight = {
+                type = 'toggle',
+                name = 'Hide Text Highlight',
+                order = 5,
+                desc = 'If checked, text will not be highlighted when options is opened',
               },
             },
           },
@@ -4015,7 +4367,7 @@ local function CreateMainOptions()
         args = {
         },
       },
-]]
+--]]
 --=============================================================================
 -------------------------------------------------------------------------------
 --    PROFILES group.

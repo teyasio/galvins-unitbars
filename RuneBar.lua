@@ -17,16 +17,16 @@ local MouseOverDesc = GUB.MouseOverDesc
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -438,7 +438,7 @@ end
 
 local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize)
   local LastTime = 0
-  local Txt = nil
+  local FS = nil
 
   RuneF.StartRuneCooldown = RuneF.StartRuneCooldown or function()
 
@@ -451,19 +451,19 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
       if Seconds < LastTime then
         LastTime = Seconds
         if Seconds < 0 then
-          Txt:SetText('')
+          FS:SetValue('')
         else
-          Txt:SetText(Seconds + 1)
+          FS:SetValue(Seconds + 1)
         end
       end
     end
   end
 
-  RuneF.StartRuneCooldown2 = RuneF.StartRuneCooldown2 or function(StartTime2, Duration2, Txt2)
+  RuneF.StartRuneCooldown2 = RuneF.StartRuneCooldown2 or function(StartTime2, Duration2, FS2)
     StartTime = StartTime2
     Duration = Duration2
     LastTime = 100
-    Txt = Txt2
+    FS = FS2
   end
 
   -- Get the options.
@@ -471,7 +471,7 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
   local HideCooldownFlash = Gen.HideCooldownFlash
   local CooldownAnimation = Gen.CooldownAnimation
   local EnergizeShow = Gen.EnergizeShow
-  Txt = RuneF.Txt
+  FS = RuneF.FS
   local RuneID = RuneF.RuneID
 
   if not RuneReady and not Energize then
@@ -487,7 +487,7 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
     -- Start text timer if cooldown text option is on.
     if Gen.CooldownText then
       RuneF.CooldownText = true
-      RuneF.StartRuneCooldown2(StartTime, Duration, Txt)
+      RuneF.StartRuneCooldown2(StartTime, Duration, FS)
 
       Main:SetTimer(RuneF, 0.25, RuneF.StartRuneCooldown)
     end
@@ -499,7 +499,7 @@ local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize
   else
 
     -- Set text to blank in case rune came off cooldown early.
-    Txt:SetText('')
+    FS:SetValue('')
 
     -- Hide cooldown flash if HideCooldownFlash is set to true.
     -- Or stop the animation if the rune came off cooldown early.
@@ -655,7 +655,7 @@ end
 -- Object       Object being changed:
 --               'bg'        for background (Border).
 --               'bar'       for forground (StatusBar).
---               'text'      for text (StatusBar.Txt).
+--               'text'      for text (StatusBar.FS).
 --               'frame'     for the frame.
 --               'texture'   for the textures used in the unitbar. (different from 'bar' and 'bg')
 -- Attr         Type of attribute being applied to object:
@@ -786,23 +786,15 @@ function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
       end
     end
 
-    -- Text (StatusBar.Text).
+    -- Text
     if Object == nil or Object == 'text' then
-      local Txt = RF.Txt
+      local FS = RF.FS
 
-      if Attr == nil or Attr == 'font' then
-        Main:SetFontString(Txt, FontSettings)
-      end
       if Attr == nil or Attr == 'color' then
-        local TextColor = Text.Color
-
-        -- Get all color if All is true.
-        if not TextColor.All then
-
-          -- Get color based on runetype
-          TextColor = TextColor[RuneColorIndex]
-        end
-        Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+        FS:SetColor(RuneColorIndex)
+      end
+      if Attr == nil or Attr == 'font' then
+        FS:SetFont()
       end
     end
   end
@@ -1065,12 +1057,13 @@ end
 --
 -- Creates one of the 4 different death knight runes.
 --
--- Usage: RuneFrame = CreateRune(RuneType, RF)
+-- Usage: RuneFrame = CreateRune(BarType, RuneType, RF)
 --
+-- BarType       Needed for Main:CreateFontString
 -- RuneType      One of the four different death knight runes.
 -- RF            RuneFrame to put the created rune into.
 -------------------------------------------------------------------------------
-local function CreateRune(RuneType, RuneF)
+local function CreateRune(BarType, RuneType, RuneF)
 
   -- Create a RuneNormalFrame for easy hiding/showing of runes.
   local RuneNormalFrame = CreateFrame('Frame', nil, RuneF)
@@ -1084,7 +1077,7 @@ local function CreateRune(RuneType, RuneF)
     -- Set the frame level so its higher than the RuneBorderFrame.
     local TxtFrame = CreateFrame('Frame', nil, RuneF)
     TxtFrame:SetAllPoints(RuneF)
-    local Txt = TxtFrame:CreateFontString(nil, 'OVERLAY')
+    local FS = Main:CreateFontString(BarType, TxtFrame, 'OVERLAY')
 
     -- Create the rune icon for the rune.
     local RuneIcon = RuneNormalFrame:CreateTexture(nil, 'BACKGROUND')
@@ -1142,8 +1135,8 @@ local function CreateRune(RuneType, RuneF)
 
   -- Set frame levels.
 
-  -- Set text to be above all.
-  TxtFrame:SetFrameLevel(RuneBorderFrame:GetFrameLevel() + 1)
+  -- Set text to be above all. Appears this has to be higher than what is set to RuneNormalFrame below.
+  TxtFrame:SetFrameLevel(RuneBorderFrame:GetFrameLevel() + 6)
 
   RuneNormalFrame:SetFrameLevel(RuneNormalFrame:GetFrameLevel() + 5)
 
@@ -1162,7 +1155,7 @@ local function CreateRune(RuneType, RuneF)
   -- Save the frames and textures.
   RuneF.RuneNormalFrame = RuneNormalFrame
   RuneF.TxtFrame = TxtFrame
-  RuneF.Txt = Txt
+  RuneF.FS = FS
   RuneF.RuneIcon = RuneIcon
   RuneF.Cooldown = Cooldown
   RuneF.RuneBorderFrame = RuneBorderFrame
@@ -1190,6 +1183,8 @@ end
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
 function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+  local BarType = UnitBarF.BarType
+
 
   -- Create the offset frame.
   local OffsetFrame = CreateFrame('Frame', nil, ScaleFrame)
@@ -1211,7 +1206,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     RF.RuneTrackingFrame = RuneTrackingFrame
 
     -- Create the rune. This math converts rune into runetype.
-    CreateRune(ceil(Rune / 2), RF)
+    CreateRune(BarType, ceil(Rune / 2), RF)
 
     -- Make the rune movable.
     RF:SetMovable(true)

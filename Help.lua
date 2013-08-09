@@ -33,18 +33,17 @@ All bars have status flags.  This tells a bar what to do based on a certain cond
    Hide not Active     Hide the bar when it's not active and out of combat.
    Hide no Combat      Hide the bar when not in combat.
 
-|cff00ff00Text Type|r
-All health and Power bars and the Demonic bar have a text type.  This lets you control how the health or power values are to be displayed.  If you do not like the default layout, you can enter your own. Click the custom control box and an input box will appear.  In this box you can enter any layout you want.
 
-The easist way to create a custom layout is to turn off custom, pick a default layout from the pull down menus.  Then click custom.  This will let you edit the default layout generated.
+|cff00ff00Text|r
+All health and Power bars and the Demonic bar support multiple text lines.  Each text line can have multiple values.  Click the add/remove buttons to add or remove values.  To add another text line click the button that has the + or - button with the name of the text line.  To add another text line beyond line 2.  Click the line 2 tab, then click the button with the + symbol.
+You can add extra text to the layout.  Just modify the layout in the edit box.  After you click accept the layout will become a custom layout.  Clicking exit will take you back to a normal layout.  You'll lose the custom layout though.
 
-You can select how many values you want to show.  Each value has two pull down menus.  The first menu tells what value you want to show.  Can be Current Value or Max Value.  The second pull down menu tells what type of value will be displayed.  If no value is selected that value will be skipped.  It's best to play around to get a feel for it.
+The layout supports world of warcraft's UI escape color codes.  The format for this is ||cAARRGGBB<text>||r.  So for example to make percentage show up in red you would do ||c00FF0000%d%%||r.  If you want a "||" to appear on the bar you'll need to use "||||||".
 
-If the layout causes an error you will see a Layout Error appear on the health or powerbar.  It will let you know if the error came from text or text2.
+If the layout causes an error you will see a layout error appear in the format of Err (text line number). So Err (2) would mean text line 2 is causing the error.
 
-You can add extra things to a custom layout.
+Here's some custom layout examples.
 
-Examples
 (%d%%) : (%d) -> (20%) : (999)
 Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 %.2fk -> 999.99k
@@ -57,7 +56,7 @@ When predicted eclipse power is turned on.  The mod will show what state the ecl
 
 
 |cff00ff00Copy and Paste|r
-To copy settings from one bar to the next. Go to the Copy and Paste options on the bar you want to copy from. Click on the type you want to copy.  Then go the Copy and Paste options on the bar you want to copy to.  Then click "Paste".  A confirmation box will pop up asking if you're sure.  Clicking "Clear" will clear the clipboard.
+Go to the copy and paste options.  Click on the button you want to copy then pick another bar in the options and click the same button to do the paste.  For text lines you can copy and paste within the same bar or to another bar.
 
 
 |cff00ff00Align Bars|r

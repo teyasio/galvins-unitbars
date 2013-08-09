@@ -18,23 +18,23 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 local UnitBarsF = GUB.UnitBarsF
 local LSM = GUB.LSM
-local PowerTypeToNumber = GUB.PowerTypeToNumber
+local ConvertPowerType = GUB.ConvertPowerType
 local MouseOverDesc = GUB.MouseOverDesc
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -96,7 +96,7 @@ local C_PetBattles, UIParent =
 --   StatusBar                       Child of IndicatorBorder. Statusbar containing the visible texture.
 --                                   This is set up so that Frame:Hide() will hide the whole Indicator.
 --
--- Txt                               Standard text data.
+-- FS                                Font string object for displaying text.
 --
 -- RotateBar                         Table containing data for the bar rotation.
 --
@@ -140,7 +140,7 @@ local C_PetBattles, UIParent =
 -------------------------------------------------------------------------------
 
 -- Powertype constants
-local PowerEclipse = PowerTypeToNumber['ECLIPSE']
+local PowerEclipse = ConvertPowerType['ECLIPSE']
 
 local SolarAura = 48517
 local LunarAura = 48518
@@ -571,7 +571,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     return
   end
 
-  PowerType = PowerType and PowerTypeToNumber[PowerType] or PowerEclipse
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerEclipse
 
   -- Return if not the correct powertype.
   if PowerType ~= PowerEclipse then
@@ -666,9 +666,9 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     Value = EclipsePower
   end
   if Value then
-    EF.Txt:SetText(abs(Value))
+    EF.FS:SetValue(abs(Value))
   else
-    EF.Txt:SetText('')
+    EF.FS:SetValue('')
   end
 
   -- Use PEclise if PredictedEclipse and PEclipse are set.
@@ -796,15 +796,13 @@ function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, ...)
 
   -- Text (StatusBar.Txt).
   if Object == nil or Object == 'text' then
-    local Txt = EclipseF.Txt
+    local FS = EclipseF.FS
 
-    local TextColor = UB.Text.Color
-
-    if Attr == nil or Attr == 'font' then
-      Main:SetFontString(Txt, UB.Text.FontSettings)
-    end
     if Attr == nil or Attr == 'color' then
-      Txt:SetTextColor(TextColor.r, TextColor.g, TextColor.b, TextColor.a)
+      FS:SetColor()
+    end
+    if Attr == nil or Attr == 'font' then
+      FS:SetFont()
     end
   end
 
@@ -1075,7 +1073,7 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     -- Create the text frame.
     local TxtBorder = CreateFrame('Frame', nil, Border)
     TxtBorder:SetAllPoints(Border)
-    local Txt = TxtBorder:CreateFontString(nil, 'OVERLAY')
+    local FS = Main:CreateFontString(UnitBarF.BarType, TxtBorder, 'OVERLAY')
 
     -- Create the offset frame.
     local OffsetFrame = CreateFrame('Frame', nil, Border)
@@ -1196,7 +1194,7 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   EclipseFrame.Indicator.Border = IndicatorBorder
   EclipseFrame.Indicator.StatusBar = Indicator
 
-  EclipseFrame.Txt = Txt
+  EclipseFrame.FS = FS
 
   -- Save the borders and Eclipse frames
   UnitBarF.Border = Border

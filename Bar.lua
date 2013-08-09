@@ -1,7 +1,7 @@
 --
 -- Bar.lua
 --
--- Allows bars to be coded easily.  Currently used by ComboBar, HolyBar, and ShardBar.
+-- Allows bars to be coded easily.
 --
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -15,16 +15,16 @@ local LSM = GUB.LSM
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort =
-      pcall, pairs, ipairs, type, select, next, print, sort
+local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
+      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitGetIncomingHeals
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
 local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
       GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -145,7 +145,7 @@ local C_PetBattles, UIParent =
 --   HideBorder/ShowBorder(nil or BoxNumber)  So in this mod. Most bars have two modes, box mode and texture mode.
 --      Sometimes we want a visible border in bar mode then hide it in box mode.  Nil means hide the border
 --      surrounding the whole bar.  If not nil then it hides or shows the border for that box instead.
---      One a border/box is hidden it can't interact with mouse or be dragged/dropped.
+--      Once a border/box is hidden it can't interact with mouse or be dragged/dropped.
 --
 -- There are more functions to use depending on what you're doing.
 -------------------------------------------------------------------------------
@@ -439,7 +439,7 @@ end
 -- Usage: SetTexture(BoxNumber, TextureNumber, TextureName)
 --
 -- FileWidth     Width in pixels of the texture file.
--- FileHeight    Width in pixels of the texture file.
+-- FileHeight    Height in pixels of the texture file.
 
 -- NOTES: TexureNumber can be any number but zero.
 --        If its a statusbar then just the name of the texture is needed.
@@ -494,16 +494,16 @@ end
 -------------------------------------------------------------------------------
 -- CreateFontString
 --
--- Usage FontString = CreateFontString(Layer, [Inherits])
+-- Usage FS = CreateFontString(Layer, PercentFn)
 --
 -- Layer          Graphic layer on which to create the font string
--- Inherits       Name of a template from which the new front string should inherit (string)
+-- PercentFn      Function used to calculate percentage on FS:SetValue()
 --
--- FontString     Font string that can be used to display text on the bar.
+-- FS             Font string object passed back from Main:CreateFontString()
 --
 -- NOTES:    The FontString gets made for the whole bar and not any of the boxes in the bar.
 -------------------------------------------------------------------------------
-function BarDB:CreateFontString(Layer, Inherits)
+function BarDB:CreateFontString(Layer, PercentFn)
   local Border = NextBar(self)
 
   local TextFrame = self.TextFrame
@@ -518,9 +518,8 @@ function BarDB:CreateFontString(Layer, Inherits)
     -- Set frame to be above all else. So text shows up.
     TextFrame:SetFrameLevel(self.TopFrameLevel + 1)
     self.TextFrame = TextFrame
-
   end
-  return TextFrame:CreateFontString(nil, Layer, Inherits)
+  return Main:CreateFontString(self.UnitBarF.BarType, TextFrame, Layer, PercentFn)
 end
 
 --=============================================================================
