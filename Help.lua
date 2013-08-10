@@ -48,7 +48,9 @@ Here's some custom layout examples.
 Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 %.2fk -> 999.99k
 
-For more information you can google stringformat for lua.
+For more information you can check out the following links:
+For Text: |Cffffff00https://www.youtube.com/watch?v=mQVCDJLrCNI|r
+UI escape codes: |Cffffff00http://www.wowwiki.com/UI_escape_sequences|r
 
 
 |cff00ff00Eclipse Bar - Predicted Power|r
@@ -65,8 +67,7 @@ All bars can be lined up for perfection. Bars can be lined either vertically or 
 You need to have bars unlocked.  To open the alignment tool you need to right click a bar.
 Once the alignment tool is open you'll need to select a primary bar by right clicking it.
 
-Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.
-Then clicking 'align' will make the changes.
+Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  Then clicking 'align' will make the changes.
 
 Left to Right: Bars will be lined up horizontally. Without changing their vertical position.
 Top to Bottom: Bars wil be lined up vertically. Without changing their horizontal position.
