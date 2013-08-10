@@ -52,7 +52,9 @@ Here's some custom layout examples.
 Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 %.2fk -> 999.99k
 
-For more information you can google stringformat for lua.
+For more information you can check out the following links:
+For Text: https://www.youtube.com/watch?v=mQVCDJLrCNI
+UI escape codes: http://www.wowwiki.com/UI_escape_sequences
 
 * Eclipse Bar - Predicted Power
 When eclipse power is turned on.  The mod will show what state the eclipse bar will be in before the cast is finished.

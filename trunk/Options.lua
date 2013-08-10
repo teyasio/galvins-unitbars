@@ -4393,9 +4393,14 @@ local function CreateMainOptions()
         order = 1,
       },
       HelpText = {
-        type = 'description',
-        name = HelpText,
+        type = 'input',
+        name = '',
         order = 2,
+        multiline = 23,
+        width = 'full',
+        get = function()
+                return HelpText
+              end,
       },
     },
   }
