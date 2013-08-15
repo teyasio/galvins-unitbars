@@ -279,6 +279,7 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     FontStyle          - Contains flags seperated by a comma: MONOCHROME, OUTLINE, THICKOUTLINE
 --     FontHAlign         - Horizontal alignment.  LEFT  CENTER  RIGHT
 --     Position           - Position relative to the font's parent.  Can be one of the 9 standard setpoints.
+--     FontPosition       - Same as Position except its relative to Position.
 --     Width              - Field width for the font.
 --     OffsetX            - Horizontal offset position of the frame.
 --     OffsetY            - Vertical offset position of the frame.
@@ -827,6 +828,9 @@ local EquipmentSet = {
 local ValueLayout = {
   whole = '%d',
   whole_dgroups = '%s',
+  thousands_dgroups = '%sk',
+  millions_dgroups = '%sm',
+  short_dgroups = '%s',
   percent = '%d%%',
   thousands = '%.fk',
   millions = '%.1fm',
@@ -988,6 +992,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1059,6 +1064,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1133,6 +1139,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1200,6 +1207,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1274,6 +1282,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1341,6 +1350,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1416,6 +1426,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1485,6 +1496,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1557,6 +1569,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -1669,6 +1682,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 25,
           Height = 18,
           OffsetX = 0,
@@ -1959,6 +1973,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 200,
           Height = 18,
           OffsetX = 0,
@@ -2235,6 +2250,7 @@ local Defaults = {
           FontHAlign = 'CENTER',
           FontVAlign = 'MIDDLE',
           Position = 'CENTER',
+          FontPosition = 'CENTER',
           Width = 50,
           Height = 18,
           OffsetX = 0,
@@ -2560,6 +2576,27 @@ function GUB.Main:RegEvent(Reg, Event, Fn, ...)
 end
 
 -------------------------------------------------------------------------------
+-- Round
+--
+-- Rounds a number down or up
+--
+-- Usage: RoundValue = Round(Value, DecimalPlaces)
+--
+-- Value           Number to be rounded.
+-- DecimalPlaces   If the number is a floating then you can specify how many
+--                 decimal places to round at.
+-- RoundValue      New value rounded.
+-------------------------------------------------------------------------------
+local function Round(Value, DecimalPlaces)
+   if DecimalPlaces then
+     local Mult = 10 ^ DecimalPlaces
+     return floor(Value * Mult + 0.5) / Mult
+   else
+     return floor(Value + 0.5)
+   end
+end
+
+-------------------------------------------------------------------------------
 -- NumberToDigitGroups
 --
 -- Takes a number and returns it in groups of three. 999,999,999
@@ -2684,8 +2721,12 @@ local function FontGetValue(FS, ValueName, ValueType)
     end
   elseif ValueType == 'thousands' then
     return Value / 1000
+  elseif ValueType == 'thousands_dgroups' then
+    return NumberToDigitGroups(Round(Value / 1000))
   elseif ValueType == 'millions' then
     return Value / 1000000
+  elseif ValueType == 'millions_dgroups' then
+    return NumberToDigitGroups(Round(Value / 1000000, 1))
   elseif ValueType == 'short' then
     if Value >= 10000000 then
       return format('%.1fm', Value / 1000000)
@@ -2697,6 +2738,18 @@ local function FontGetValue(FS, ValueName, ValueType)
       return format('%.1fk', Value / 1000)
     else
       return format('%s', Value)
+    end
+  elseif ValueType == 'short_dgroups' then
+    if Value >= 10000000 then
+      return format('%sm', NumberToDigitGroups(Round(Value / 1000000, 1)))
+    elseif Value >= 1000000 then
+      return format('%.2fm', Value / 1000000)
+    elseif Value >= 100000 then
+      return format('%.0fk', Value / 1000)
+    elseif Value >= 10000 then
+      return format('%.0fk', Value / 1000)
+    else
+      return NumberToDigitGroups(Value)
     end
   else
     return 0
@@ -2925,13 +2978,12 @@ local function FontSetFont(self)
     local TF = TextFrame[Index]
 
     FontString:SetFont(LSM:Fetch('font', TS.FontType), TS.FontSize, TS.FontStyle)
-    FontString:SetJustifyV('CENTER')
     FontString:SetJustifyH(TS.FontHAlign)
     FontString:SetJustifyV(TS.FontVAlign)
     FontString:SetShadowOffset(TS.ShadowOffset, -TS.ShadowOffset)
 
     TF:ClearAllPoints()
-    TF:SetPoint('CENTER', Parent, TS.Position, TS.OffsetX, TS.OffsetY)
+    TF:SetPoint(TS.FontPosition, Parent, TS.Position, TS.OffsetX, TS.OffsetY)
     TF:SetSize(TS.Width, TS.Height)
 
     if FontString:GetText() == nil then

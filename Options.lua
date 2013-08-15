@@ -275,8 +275,11 @@ local ValueTypeDropdown = {
   'Short',                -- 2
   'Thousands',            -- 3
   'Millions',             -- 4
-  'Whole (Digit Groups)', -- 5
-  'Percentage',           -- 6
+  'Whole (Groups)',       -- 5
+  'Short (Groups)',       -- 6
+  'Thousands (Groups)',   -- 7
+  'Millions (Groups)',    -- 8
+  'Percentage',           -- 9
 }
 
 local ConvertValueName = {
@@ -300,13 +303,19 @@ local ConvertValueType = {
   thousands                = 3,
   millions                 = 4,
   whole_dgroups            = 5,
-  percent                  = 6,
+  short_dgroups            = 6,
+  thousands_dgroups        = 7,
+  millions_dgroups         = 8,
+  percent                  = 9,
   'whole',                -- 1
   'short',                -- 2
   'thousands',            -- 3
   'millions',             -- 4
   'whole_dgroups',        -- 5
-  'percent',              -- 6
+  'short_dgroups',        -- 6
+  'thousands_dgroups',    -- 7
+  'millions_dgroups',     -- 8
+  'percent',              -- 9
 }
 
 local DirectionDropdown = {
@@ -1196,13 +1205,24 @@ local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
             style = 'dropdown',
             values = FontVAlignDropdown,
           },
+          Spacer10 = CreateSpacer(10),
           Position = {
             type = 'select',
             name = 'Position',
-            order = 3,
+            order = 11,
             style = 'dropdown',
+            desc = 'Set the font location relative to the bar',
             values = PositionDropdown,
           },
+          FontPosition = {
+            type = 'select',
+            name = 'Font Position',
+            order = 12,
+            style = 'dropdown',
+            desc = 'Set the font location relative to Position',
+            values = PositionDropdown,
+          },
+
         },
       },
     },
