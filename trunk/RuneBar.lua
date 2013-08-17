@@ -1077,7 +1077,7 @@ local function CreateRune(BarType, RuneType, RuneF)
     -- Set the frame level so its higher than the RuneBorderFrame.
     local TxtFrame = CreateFrame('Frame', nil, RuneF)
     TxtFrame:SetAllPoints(RuneF)
-    local FS = Main:CreateFontString(BarType, TxtFrame, 'OVERLAY')
+    local FS = Main:CreateFontString(BarType, TxtFrame, 10, 'OVERLAY')
 
     -- Create the rune icon for the rune.
     local RuneIcon = RuneNormalFrame:CreateTexture(nil, 'BACKGROUND')

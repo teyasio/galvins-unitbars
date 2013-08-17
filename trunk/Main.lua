@@ -826,7 +826,7 @@ local EquipmentSet = {
 }
 
 local ValueLayout = {
-  whole = '%d',
+  plain = '%s',
   whole_dgroups = '%s',
   thousands_dgroups = '%sk',
   millions_dgroups = '%sm',
@@ -984,7 +984,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1056,7 +1056,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1131,7 +1131,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1199,7 +1199,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1274,7 +1274,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1342,7 +1342,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1418,7 +1418,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1488,7 +1488,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1561,7 +1561,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1965,7 +1965,7 @@ local Defaults = {
           Custom    = false,
           Layout    = '%d%%',
           ValueName = {'current'},
-          ValueType = {'percent'},
+          ValueType = {'plain'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -2687,49 +2687,23 @@ end
 --
 --  Subfunction of FontSetValue()
 --
---  Usage: Value = FontGetValue(FS, ValueName, ValueType)
+--  Usage: Value = FontGetValue(FS, Value, ValueType)
 --
 --  FS          FS object created by Main:CreateFontString()
---  ValueName   Table containing what each value is.
---  ValueType   Table containing what each value will become.
+--  Value       Value to be modifed in some way.
+--  ValueType   Type of value.
 --
 --  Value       Value returned based on ValueType
 -------------------------------------------------------------------------------
-local function FontGetValue(FS, ValueName, ValueType)
-  local Value = FS[ValueName]
+local FontGetValue = {}
 
-  -- return if nil
-  if Value == nil then
-    return nil
-  end
-
-  if ValueName == 'unitname' or ValueName == 'realmname' or ValueName == 'unitnamerealm' then
-    return Value
-  end
-
-  if ValueType == 'whole' then
-    return Value
-  elseif ValueType == 'whole_dgroups' then
-    return NumberToDigitGroups(Value)
-  elseif ValueType == 'percent' and Value > 0 then
-    local MaxValue = FS.maximum
-
-    if MaxValue == 0 then
-      return 0
-    else
-      return FS.PercentFn(Value, MaxValue)
-    end
-  elseif ValueType == 'thousands' then
-    return Value / 1000
-  elseif ValueType == 'thousands_dgroups' then
-    return NumberToDigitGroups(Round(Value / 1000))
-  elseif ValueType == 'millions' then
-    return Value / 1000000
-  elseif ValueType == 'millions_dgroups' then
-    return NumberToDigitGroups(Round(Value / 1000000, 1))
-  elseif ValueType == 'short' then
+  local function FontGetValue_Short(FS, Value, ValueType)
     if Value >= 10000000 then
-      return format('%.1fm', Value / 1000000)
+      if ValueType == 'short_dgroups' then
+        return format('%sm', NumberToDigitGroups(Round(Value / 1000000, 1)))
+      else
+        return format('%.1fm', Value / 1000000)
+      end
     elseif Value >= 1000000 then
       return format('%.2fm', Value / 1000000)
     elseif Value >= 100000 then
@@ -2737,24 +2711,50 @@ local function FontGetValue(FS, ValueName, ValueType)
     elseif Value >= 10000 then
       return format('%.1fk', Value / 1000)
     else
-      return format('%s', Value)
+      if ValueType == 'short_dgroups' then
+        return NumberToDigitGroups(Value)
+      else
+        return format('%s', Value)
+      end
     end
-  elseif ValueType == 'short_dgroups' then
-    if Value >= 10000000 then
-      return format('%sm', NumberToDigitGroups(Round(Value / 1000000, 1)))
-    elseif Value >= 1000000 then
-      return format('%.2fm', Value / 1000000)
-    elseif Value >= 100000 then
-      return format('%.0fk', Value / 1000)
-    elseif Value >= 10000 then
-      return format('%.0fk', Value / 1000)
-    else
-      return NumberToDigitGroups(Value)
-    end
-  else
-    return 0
   end
-end
+
+  FontGetValue['short'] = FontGetValue_Short
+  FontGetValue['short_dgroups'] = FontGetValue_Short
+
+  FontGetValue['plain'] = function(FS, Value, ValueType)
+    return Value
+  end
+
+  FontGetValue['whole_dgroups'] = function(FS, Value, ValueType)
+    return NumberToDigitGroups(Value)
+  end
+
+  FontGetValue['percent'] = function(FS, Value, ValueType)
+    local MaxValue = FS.maximum
+
+    if MaxValue == 0 then
+      return 0
+    else
+      return FS.PercentFn(Value, MaxValue)
+    end
+  end
+
+  FontGetValue['thousands'] = function(FS, Value, ValueType)
+    return Value / 1000
+  end
+
+  FontGetValue['thousands_dgroups'] = function(FS, Value, ValueType)
+    return NumberToDigitGroups(Round(Value / 1000))
+  end
+
+  FontGetValue['millions'] = function(FS, Value, ValueType)
+    return Value / 1000000
+  end
+
+  FontGetValue['millions_dgroups'] = function(FS, Value, ValueType)
+    return NumberToDigitGroups(Round(Value / 1000000, 1))
+  end
 
 -------------------------------------------------------------------------------
 -- FontSetValue (method for Font)
@@ -2766,8 +2766,26 @@ end
 -- Predicted          Predicted Value
 -- UnitTypeNameRealm  For unit name and realm name.
 -------------------------------------------------------------------------------
-local function FontSetValue2(FontString, Layout, Value1, Value2, Value3, Value4,Value5, Value6)
-  FontString:SetFormattedText(Layout, Value1, Value2, Value3, Value4, Value5, Value6)
+local function FontSetValue2(FS, FontString, Layout, NumValues, ValueName, ValueType, ...)
+
+  -- if we have paramters left then get them.
+  local Name = ValueName[NumValues]
+  local Type = ValueType[NumValues]
+  local Value = FS[Name]
+
+  if NumValues > 1 then
+    if Name ~= 'none' then
+      return FontSetValue2(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, FontGetValue[Type](FS, Value, Type), ...)
+    else
+      return FontSetValue2(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, ...)
+    end
+  else
+    if Name ~= 'none' then
+      FontString:SetFormattedText(Layout, FontGetValue[Type](FS, Value, Type), ...)
+    else
+      FontString:SetFormattedText(Layout, ...)
+    end
+  end
 end
 
 local function FontSetValue(self, Current, Maximum, Predicted, UnitTypeNameRealm)
@@ -2799,20 +2817,11 @@ local function FontSetValue(self, Current, Maximum, Predicted, UnitTypeNameRealm
     for Index = 1, FS.NumStrings do
       local FontString = FS[Index]
       local TS = Text[Index]
-      local TF = TextFrame[Index]
-
       local ValueName = TS.ValueName
-      local ValueType = TS.ValueType
-      local NumValues = #ValueName
 
       -- Display the font string
-      local ReturnOK, Msg = pcall(FontSetValue2, FontString, TS.Layout,
-                                  NumValues > 0 and FontGetValue(FS, ValueName[1], ValueType[1]) or nil,
-                                  NumValues > 1 and FontGetValue(FS, ValueName[2], ValueType[2]) or nil,
-                                  NumValues > 2 and FontGetValue(FS, ValueName[3], ValueType[3]) or nil,
-                                  NumValues > 3 and FontGetValue(FS, ValueName[4], ValueType[4]) or nil,
-                                  NumValues > 4 and FontGetValue(FS, ValueName[5], ValueType[5]) or nil,
-                                  NumValues > 5 and FontGetValue(FS, ValueName[6], ValueType[6]) or nil)
+      local ReturnOK, Msg = pcall(FontSetValue2, FS, FontString, TS.Layout, #ValueName, ValueName, TS.ValueType)
+
       if not ReturnOK then
         FontString:SetFormattedText('Err (%d)', Index)
       end
@@ -2842,28 +2851,22 @@ local function FontGetLayout(ValueName, ValueType)
   local Layout = ''
 
   for NameIndex, Name in ipairs(ValueName) do
-    local Type = ValueType[NameIndex]
-    local NameLayout = nil
+    if Name ~= 'none' then
 
-    if strfind(Name, 'name') then
-      NameLayout = '%s'
-    else
-      NameLayout = ValueLayout[Type]
-    end
-
-    -- Add a '/' between current and maximum.
-    if NameIndex > 1 then
-      if not SepFlag and (LastName == 'current' and Name == 'maximum' or
-                          LastName == 'maximum' and Name == 'current') then
-        Sep = ' / '
-        SepFlag = true
-      else
-        Sep = ' '
+      -- Add a '/' between current and maximum.
+      if NameIndex > 1 then
+        if not SepFlag and (LastName == 'current' and Name == 'maximum' or
+                            LastName == 'maximum' and Name == 'current') then
+          Sep = ' / '
+          SepFlag = true
+        else
+          Sep = ' '
+        end
       end
-    end
 
-    LastName = Name
-    Layout = Layout .. Sep .. NameLayout
+      LastName = Name
+      Layout = Layout .. Sep .. (ValueLayout[ValueType[NameIndex]] or '')
+    end
   end
 
   return Layout
@@ -2907,11 +2910,13 @@ local function FontUpdate(FS)
   local Parent = FS.Parent
   local TextFrame = FS.TextFrame
   local Layer = FS.Layer
+  local TextFrameLevel = FS.TextFrameLevel
 
   -- Add font strings if needed
   for Index, TS in ipairs(Text) do
     if FS[Index] == nil then
       local TF = CreateFrame('Frame', nil, Parent)
+      TF:SetFrameLevel(TF:GetFrameLevel() + TextFrameLevel)
 
       TF:SetBackdrop(FontStringBorder)
       TF:SetBackdropBorderColor(1, 1, 1, 0)
@@ -3010,6 +3015,9 @@ end
 -- Type              If nil then not applied. Only used with 'add' or 'change'
 -- TextIndex         Which textsettings to modify.
 -- ValueIndex        Which value to modify in textsettings.
+--
+-- NOTES: When doing textsettings add.  Name and Type will get pulled from defaults.
+--        Also the ValueIndex is ignored when doing textsettings add
 -------------------------------------------------------------------------------
 local function FontModify(self, Object, Action, TextIndex, ValueIndex, Name, Type)
   local FS = self
@@ -3052,6 +3060,10 @@ local function FontModify(self, Object, Action, TextIndex, ValueIndex, Name, Typ
       NumValues = ValueIndex - 1
     end
     if Action == 'add' or Action == 'change' then
+      if Action == 'add' then
+        Name = Defaults.profile[FS.BarType].Text[1].ValueName[1]
+        Type = Defaults.profile[FS.BarType].Text[1].ValueType[1]
+      end
       if Name then
         ValueName[NumValues + 1] = Name
       end
@@ -3072,10 +3084,11 @@ end
 --
 -- Creates a font string that can be displayed on screen.
 --
--- Usage:  FS = CreateFontString(BarType, TextFrame, Layer, PercentFn)
+-- Usage:  FS = CreateFontString(BarType, Parent, TextFrameLevel, Layer, PercentFn)
 --
 -- BarType         Bar that the fontstring will belong to.
 -- TextFrame       Frame that will have text displayed on.
+-- TextFrameLevel  This is added on to the Parent for TextFrame.
 -- Layer           Grahics layer to display the text on.
 -- PercentFn       Function used to calculate percentage.
 --
@@ -3086,7 +3099,7 @@ end
 --                   FS:Modify()
 --                   FS:SetValue()
 -------------------------------------------------------------------------------
-function GUB.Main:CreateFontString(BarType, Parent, Layer, PercentFn)
+function GUB.Main:CreateFontString(BarType, Parent, TextFrameLevel, Layer, PercentFn)
   local FS = {}
   local Text = UnitBars[BarType].Text
 
@@ -3101,6 +3114,7 @@ function GUB.Main:CreateFontString(BarType, Parent, Layer, PercentFn)
   FS.BarType = BarType
   FS.Text = Text
   FS.Parent = Parent
+  FS.TextFrameLevel = Parent:GetFrameLevel() + TextFrameLevel
   FS.TextFrame = {}
   FS.Layer = Layer
   FS.Multi = Text.Multi
@@ -5064,7 +5078,6 @@ function GUB.Main:UnitBarSetAttr(UnitBarF, Object, Attr)
 
   -- Get the unitbar data.
   local UB = UnitBarF.UnitBar
-  local Border = UnitBarF.Border
 
   -- Frame.
   if Object == nil or Object == 'frame' then

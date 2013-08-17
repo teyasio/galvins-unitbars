@@ -1073,7 +1073,7 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
     -- Create the text frame.
     local TxtBorder = CreateFrame('Frame', nil, Border)
     TxtBorder:SetAllPoints(Border)
-    local FS = Main:CreateFontString(UnitBarF.BarType, TxtBorder, 'OVERLAY')
+    local FS = Main:CreateFontString(UnitBarF.BarType, TxtBorder, 10, 'OVERLAY')
 
     -- Create the offset frame.
     local OffsetFrame = CreateFrame('Frame', nil, Border)

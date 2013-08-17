@@ -494,16 +494,18 @@ end
 -------------------------------------------------------------------------------
 -- CreateFontString
 --
--- Usage FS = CreateFontString(Layer, PercentFn)
+-- Usage FS = CreateFontString(TextFrameLevel, Layer, PercentFn)
 --
--- Layer          Graphic layer on which to create the font string
--- PercentFn      Function used to calculate percentage on FS:SetValue()
+-- TextFrameLevel   Font string will display on a framelevel thats TextFrameLevel plus
+--                  the framelevel of TextFrame.
+-- Layer            Graphic layer on which to create the font string
+-- PercentFn        Function used to calculate percentage on FS:SetValue()
 --
 -- FS             Font string object passed back from Main:CreateFontString()
 --
 -- NOTES:    The FontString gets made for the whole bar and not any of the boxes in the bar.
 -------------------------------------------------------------------------------
-function BarDB:CreateFontString(Layer, PercentFn)
+function BarDB:CreateFontString(TextFrameLevel, Layer, PercentFn)
   local Border = NextBar(self)
 
   local TextFrame = self.TextFrame
@@ -519,7 +521,7 @@ function BarDB:CreateFontString(Layer, PercentFn)
     TextFrame:SetFrameLevel(self.TopFrameLevel + 1)
     self.TextFrame = TextFrame
   end
-  return Main:CreateFontString(self.UnitBarF.BarType, TextFrame, Layer, PercentFn)
+  return Main:CreateFontString(self.UnitBarF.BarType, TextFrame, TextFrameLevel, Layer, PercentFn)
 end
 
 --=============================================================================

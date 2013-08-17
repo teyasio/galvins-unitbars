@@ -660,7 +660,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   local StatusBar = CreateFrame('StatusBar', nil, Border)
   local PredictedBar = CreateFrame('StatusBar', nil, Border)
 
-  local FS = Main:CreateFontString(UnitBarF.BarType, StatusBar, 'OVERLAY', PercentFn)
+  local FS = Main:CreateFontString(UnitBarF.BarType, Border, 10, 'OVERLAY', PercentFn)
 
   -- Set the border to always be the same size as the anchor.
   Border:SetAllPoints(Anchor)
