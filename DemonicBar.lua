@@ -493,7 +493,7 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
   end
 
   -- Create fonst string displaying power.
-  UnitBarF.FS = DemonicBar:CreateFontString('OVERLAY', PercentFn)
+  UnitBarF.FS = DemonicBar:CreateFontString(10, 'OVERLAY', PercentFn)
 
   -- Show textures.
   DemonicBar:ShowTexture(1, FuryBox)

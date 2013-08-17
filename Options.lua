@@ -268,10 +268,11 @@ local ValueNameDropdown = {
   'Unit Name',           -- 4
   'Realm Name',          -- 5
   'Unit Name and Realm', -- 6
+  'None',                -- 7
 }
 
 local ValueTypeDropdown = {
-  'Whole',                -- 1
+  'Plain',                -- 1
   'Short',                -- 2
   'Thousands',            -- 3
   'Millions',             -- 4
@@ -289,16 +290,18 @@ local ConvertValueName = {
   unitname         = 4,
   realmname        = 5,
   unitnamerealm    = 6,
+  none             = 7,
   'current',       -- 1
   'maximum',       -- 2
   'predicted',     -- 3
   'unitname',      -- 4
   'realmname',     -- 5
   'unitnamerealm', -- 6
+  'none',          -- 7
 }
 
 local ConvertValueType = {
-  whole                    = 1,
+  plain                    = 1,
   short                    = 2,
   thousands                = 3,
   millions                 = 4,
@@ -307,7 +310,7 @@ local ConvertValueType = {
   thousands_dgroups        = 7,
   millions_dgroups         = 8,
   percent                  = 9,
-  'whole',                -- 1
+  'plain',                -- 1
   'short',                -- 2
   'thousands',            -- 3
   'millions',             -- 4
@@ -1315,21 +1318,20 @@ local function ModifyTextValueOptions(VOA, Action, ValueName, ValueIndex)
       name = format('Value Name %s', ValueIndex),
       values = ValueNameDropdown,
       order = 10 * ValueIndex + 1,
+      arg = ValueIndex,
     }
     VOA[ValueTypeKey] = {
       type = 'select',
       name = format('Value Type %s', ValueIndex),
       values = ValueTypeDropdown,
       order = 10 * ValueIndex + 2,
-      disabled = function()
-                   return strfind(ValueName[ValueIndex], 'name') ~= nil
-                 end,
+      arg = ValueIndex,
     }
     VOA[format('Spacer%s', 10 * ValueIndex + 3)] = CreateSpacer(10 * ValueIndex + 3)
 
   elseif Action == 'remove' then
-    VOA[format('ValueName%s', ValueIndex)] = nil
-    VOA[format('ValueType%s', ValueIndex)] = nil
+    VOA[ValueNameKey] = nil
+    VOA[ValueTypeKey] = nil
     VOA[format('Spacer%s', 10 * ValueIndex + 3)] = nil
   end
 end
@@ -1352,22 +1354,22 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
     dialogInline = true,
     get = function(Info)
             local St = Info[#Info]
-            local ValueIndex = tonumber(strsub(St, 10))
+            local ValueIndex = Info.arg
 
-            if strfind(St, 'Name') then
+            if strfind(St, 'ValueName') then
               return ConvertValueName[ValueName[ValueIndex]]
-            elseif strfind(St, 'Type') then
+            elseif strfind(St, 'ValueType') then
               return ConvertValueType[ValueType[ValueIndex]]
             end
           end,
     set = function(Info, Value)
             local St = Info[#Info]
-            local ValueIndex = tonumber(strsub(St, 10))
+            local ValueIndex = Info.arg
 
-            if strfind(St, 'Name') then
+            if strfind(St, 'ValueName') then
               UBF.FS:Modify('textsettings', 'change', TxtLine[TL.name], ValueIndex, ConvertValueName[Value], nil)
-            elseif strfind(St, 'Type') then
 
+            elseif strfind(St, 'ValueType') then
               UBF.FS:Modify('textsettings', 'change', TxtLine[TL.name], ValueIndex, nil, ConvertValueType[Value])
             end
 
@@ -1410,7 +1412,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
         disabled = function()
 
                      -- Hide the tooltip since the button will be disabled.
-                     return HideTooltip(NumValues == 0)
+                     return HideTooltip(NumValues == 1)
                    end,
         func = function()
                  ModifyTextValueOptions(VOA, 'remove', ValueName, NumValues)
@@ -1439,7 +1441,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
                  ModifyTextValueOptions(VOA, 'add', ValueName, NumValues)
 
                  -- Add a new value setting.
-                 UBF.FS:Modify('textsettings', 'add', TxtLine[TL.name], NumValues, 'current', 'whole' )
+                 UBF.FS:Modify('textsettings', 'add', TxtLine[TL.name])
 
                  -- Update the the bar to reflect changes
                  UBF:Update()
