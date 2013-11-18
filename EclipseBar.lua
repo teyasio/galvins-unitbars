@@ -16,27 +16,30 @@
 local MyAddon, GUB = ...
 
 local Main = GUB.Main
-local UnitBarsF = GUB.UnitBarsF
-local LSM = GUB.LSM
-local ConvertPowerType = GUB.ConvertPowerType
-local MouseOverDesc = GUB.MouseOverDesc
+local Bar = GUB.Bar
+
+local UnitBarsF = Main.UnitBarsF
+local LSM = Main.LSM
+local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
+      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
+local UnitName, UnitGetIncomingHeals, GetRealmName =
+      UnitName, UnitGetIncomingHeals, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -48,60 +51,19 @@ local C_PetBattles, UIParent =
 -- Locals
 
 -- UnitBarF = UnitBarsF[]
--- UnitBarF.UnitBar                  Reference to the unitbar data for the eclipse bar.
--- UnitBarF.Border                   Border frame for the eclipse bar. This helps position the offsetframe.
--- UnitBarF.OffsetFrame              Used for rotation.
 --
--- UnitBarF.EclipseF                 Table containing the frames that make up the eclipse bar.
+-- UnitBarF.BBar                     Contains the eclipse bar displayed on screen.
 --
--- Border.Anchor                     Anchor reference for moving. Only for Moon, Sun, and Bar.
---
--- EclipseF.Moon                     Table containing frame data for moon.
---   Dark                            If true the Moon is not lit.
---   Frame                           Child of MoonBorder. Used to hide/show the moon.
---   Border                          Child of OffsetFrame. Used to show a visible border for moon.
---   StatusBar                       Child of Moon.Frame.  Statusbar containing the visible texture.
---   Fade                            Animation group for fading.
---
--- EclipseF.Sun                      Table containing frame data for sun.
---   Dark                            If true then the Sun is not lit.
---   Frame                           Child of MoonBorder. Used to hide/show the sun.
---   Border                          Child of OffsetFrame. Used to show a visible border for sun.
---   StatusBar                       Child of Sun.Frame.  Statusbar containing the visible texture.
---   Fade                            Animation group for fading.
---
--- EclipseF.Bar                      Table containing the frame for the bar.
---   Frame                           Child of BarBorder. Used to hide/show the bar.
---   Border                          Child of OffsetFrame. Used to show a visible border for the bar.
---
--- EclipseF.Lunar                    Table containing the lunar statusbar.
---   Dark                            If true then the StatusBarLunar is not lit.
---   Frame                           Child of BarBorder.  This texture fills the lunar side of the bar.
---   Fade                            Animation group for fading.
---
--- EclipseF.Solar
---   Dark                            If true then the StatusBarSolar is not lit.
---   Frame                           Child of BarBorder.  This texture fills the solar side of the bar.
---   Fade                            Animation group for fading.
---
--- EclipseF.Slider                   Table containing the frame data for the slider.
---   Frame                           Child of OffsetFrame. Used to hide/show the slider.
---   Border                          Child of SliderFrame. Used to show a visible border for the slider.
---   StatusBar                       Child of SliderBorder.  Statusbar containing the visible texture.
---                                   This is set up so that Frame:Hide() will hide the whole Slider.
---
--- EclipseF.Indicator                Table containing the frame data for the indicator.
---   Frame                           Child of OffsetFrame. Used to hide/show the indicator.
---   Border                          Child of IndicatorFrame. Used to show a visible border for the indicator.
---   StatusBar                       Child of IndicatorBorder. Statusbar containing the visible texture.
---                                   This is set up so that Frame:Hide() will hide the whole Indicator.
---
--- FS                                Font string object for displaying text.
---
--- RotateBar                         Table containing data for the bar rotation.
---
---
--- Eclipse bar frame layout:
+-- BoxMode                           TextureFrame number for boxmode.  Currently no texturemode.
+-- MoonBox                           BoxFrame number for moon texture.
+-- PowerBox                          BoxFrame number for solar, lunar, slider, and indicator textures.
+-- SunBox                            BoxFrame number for sun texture.
+-- MoonSBar                          Texture number for moon texture.
+-- LunarSBar                         Texture number for lunar texture.
+-- SolarSBar                         Texture number for solar texture.
+-- SunSBar                           Texture number for sun texture.
+-- SliderSBar                        Texture number for slider texture.
+-- IndicatorSBar                     Texture number for indicator texture.
 --
 -- SolarAura                         SpellID for the solar aura.
 -- LunarAura                         SpellID for the lunar aura.
@@ -115,38 +77,28 @@ local C_PetBattles, UIParent =
 -- SpellEnergize                     SpellID for energize that come back from the server when
 --                                   Wrath, Starfire, or Starsurge is cast.
 -- PredictedSpellValue               Table containing the power that each of the spells gives.  Used for prediction.
---
---
--- ScaleFrame
---   Border
---     OffsetFrame
---       MoonBorder
---         MoonFrame
---           Moon
---       SunBorder
---         SunFrame
---           Sun
---       BarBorder
---         BarFrame
---           BarLunar
---           BarSolar
---       IndicatorFrame
---         IndicatorBorder
---           Indicator
---       SliderFrame
---         SliderBorder
---           Slider
---       TxtBorder
 -------------------------------------------------------------------------------
+local Display = false
 
 -- Powertype constants
 local PowerEclipse = ConvertPowerType['ECLIPSE']
 
+local BoxMode = 1
+local MoonBox = 1
+local PowerBox = 2
+local SunBox = 3
+local MoonSBar = 20
+local SunSBar = 21
+local LunarSBar = 30
+local SolarSBar = 31
+local SliderSBar = 40
+local IndicatorSBar = 41
+
 local SolarAura = 48517
 local LunarAura = 48518
 local CAAura = 112071    -- Celestial Alignment
-local SoTF = 10  -- Soul of the forest talent number.
-local SoTFPower = 20 -- Amount of power that soul of the forest gives.
+--local SoTF = 114107  -- Soul of the forest
+--local SoTFPower = 20 -- Amount of power that soul of the forest gives.
 
 -- Predicted spell ID constants.
 local SpellWrath     = 5176
@@ -160,49 +112,10 @@ local PredictedSpellValue = {
   [SpellStarsurge] = 20
 }
 
-local RotateBar = {
-  [90] = {  -- Left to right.
-    Frame1 = 'Moon', Point1 = 'TOPLEFT',
-    Frame2 = 'Bar',  Point2 = 'LEFT',     RelativePoint2 = 'RIGHT',
-    Frame3 = 'Sun',  Point3 = 'LEFT',     RelativePoint3 = 'RIGHT',
-    LunarPoint1 = 'TOPLEFT',     LunarRelativePoint1 = 'TOPLEFT',     LunarPadding1X = 1, LunarPadding1Y = 1,
-    LunarPoint2 = 'BOTTOMRIGHT', LunarRelativePoint2 = 'BOTTOM',      LunarPadding2X = 0, LunarPadding2Y = 1,
-    SolarPoint1 = 'TOPLEFT',     SolarRelativePoint1 = 'TOP',         SolarPadding1X = 0, SolarPadding1Y = 1,
-    SolarPoint2 = 'BOTTOMRIGHT', SolarRelativePoint2 = 'BOTTOMRIGHT', SolarPadding2X = 1, SolarPadding2Y = 1
-  },
-  [180] = { -- Top to bottom.
-    Frame1 = 'Moon', Point1 = 'TOPLEFT',
-    Frame2 = 'Bar',  Point2 = 'TOP',      RelativePoint2 = 'BOTTOM',
-    Frame3 = 'Sun',  Point3 = 'TOP',      RelativePoint3 = 'BOTTOM',
-    LunarPoint1 = 'TOPLEFT',     LunarRelativePoint1 = 'TOPLEFT',     LunarPadding1X = 1, LunarPadding1Y = 1,
-    LunarPoint2 = 'BOTTOMRIGHT', LunarRelativePoint2 = 'RIGHT',       LunarPadding2X = 1, LunarPadding2Y = 0,
-    SolarPoint1 = 'TOPLEFT',     SolarRelativePoint1 = 'LEFT',        SolarPadding1X = 1, SolarPadding1Y = 0,
-    SolarPoint2 = 'BOTTOMRIGHT', SolarRelativePoint2 = 'BOTTOMRIGHT', SolarPadding2X = 1, SolarPadding2Y = 1,
-  },
-  [270] = { -- Right to left.
-    Frame1 = 'Sun',  Point1 = 'TOPLEFT',
-    Frame2 = 'Bar',  Point2 = 'LEFT',     RelativePoint2 = 'RIGHT',
-    Frame3 = 'Moon', Point3 = 'LEFT',     RelativePoint3 = 'RIGHT',
-    LunarPoint1 = 'TOPLEFT',     LunarRelativePoint1 = 'TOP',         LunarPadding1X = 0, LunarPadding1Y = 1,
-    LunarPoint2 = 'BOTTOMRIGHT', LunarRelativePoint2 = 'BOTTOMRIGHT', LunarPadding2X = 1, LunarPadding2Y = 1,
-    SolarPoint1 = 'TOPLEFT',     SolarRelativePoint1 = 'TOPLEFT',     SolarPadding1X = 1, SolarPadding1Y = 1,
-    SolarPoint2 = 'BOTTOMRIGHT', SolarRelativePoint2 = 'BOTTOM',      SolarPadding2X = 0, SolarPadding2Y = 1,
-  },
-  [360] = { -- Bottom to top.
-    Frame1 = 'Sun',  Point1 = 'TOPLEFT',
-    Frame2 = 'Bar',  Point2 = 'TOP',      RelativePoint2 = 'BOTTOM',
-    Frame3 = 'Moon', Point3 = 'TOP',      RelativePoint3 = 'BOTTOM',
-    LunarPoint1 = 'TOPLEFT',     LunarRelativePoint1 = 'LEFT',        LunarPadding1X = 1, LunarPadding1Y = 0,
-    LunarPoint2 = 'BOTTOMRIGHT', LunarRelativePoint2 = 'BOTTOMRIGHT', LunarPadding2X = 1, LunarPadding2Y = 1,
-    SolarPoint1 = 'TOPLEFT',     SolarRelativePoint1 = 'TOPLEFT',     SolarPadding1X = 1, SolarPadding1Y = 1,
-    SolarPoint2 = 'BOTTOMRIGHT', SolarRelativePoint2 = 'RIGHT',       SolarPadding2X = 1, SolarPadding2Y = 0,
-  },
-}
-
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-GUB.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -268,12 +181,11 @@ Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellEnergize,  'energize', CheckSpel
 --
 -- Returns -1 for lunar or 1 for solar or 0 for nuetral.
 --
--- usage: EclipsePowerType = GetEclipsePowerType(EclipsePower, Direction)
+-- Power          Eclipse Power
+-- Direction      Direction the power is moving in.
 --
--- EclipsePower          Eclipse Power
--- Direction             Direction the power is moving in.
---
--- EclipsePowerType      -1 = lunar, 1 = solar, 0 = neutral
+-- Returns:
+--   EclipsePowerType      -1 = lunar, 1 = solar, 0 = neutral
 -------------------------------------------------------------------------------
 local function GetEclipsePowerType(Power, Direction)
   if Power < 0 then
@@ -294,9 +206,6 @@ end
 --
 -- Calculates different parts of the eclipse bar for prediction.
 --
--- usage: PPower, PEclipse, PPowerType, PDirection , PowerChange =
---          GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, Eclipse, SoTFActive)
---
 -- SpellID         ID of the value being added.  See GetPredictedSpell()
 -- Value           Positive value to add to Power.
 -- Power           Current eclipse power.
@@ -308,13 +217,14 @@ end
 --
 -- The returned values are based on the Value passed being added to Power.
 --
--- PPower          Value added to Power.
--- PEclipse        -1 = lunar eclipse, 1 = solar eclipse, 0 = none
--- PPowerType      -1 = lunar, 1 = solar, 0 = nuetral
--- PDirection      'moon' = lunar, 'sun' = solar, or 'none'.
--- PowerChange     If true then the SpellID actually caused a power change.
+-- Returns:
+--   PPower          Value added to Power.
+--   PEclipse        -1 = lunar eclipse, 1 = solar eclipse, 0 = none
+--   PPowerType      -1 = lunar, 1 = solar, 0 = nuetral
+--   PDirection      'moon' = lunar, 'sun' = solar, or 'none'.
+--   PowerChange     If true then the SpellID actually caused a power change.
 -------------------------------------------------------------------------------
-local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, Eclipse, SoTFActive)
+local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, Eclipse) --, SoTFActive)
   local PowerChange = false
   local OldPower = Power
 
@@ -364,17 +274,17 @@ local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Directi
   end
 
   -- Check for soul of the forest and add the correct power.
-  if SoTFActive then
+ -- if SoTFActive then
 
     -- Lost solar eclipse.
-    if OldPower > 0 and Power <= 0 then
-      Power = Power - SoTFPower
+ --   if OldPower > 0 and Power <= 0 then
+ --     Power = Power - SoTFPower
 
     -- Lost lunar eclipse.
-    elseif OldPower < 0 and Power >= 0 then
-      Power = Power + SoTFPower
-    end
-  end
+ --   elseif OldPower < 0 and Power >= 0 then
+ --     Power = Power + SoTFPower
+ --   end
+ -- end
 
   -- Calc eclipse.
   if Direction == 'moon' and Power > 0 and Power <= MaxPower or Direction == 'sun' and Power < 0 and Power >= -MaxPower then
@@ -392,86 +302,9 @@ end
 
 --*****************************************************************************
 --
--- Eclipsebar script functions (script/event)
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- EclipseBarStartMoving
---
--- If UnitBars.IsGrouped is true then the unitbar parent frame will be moved.
--- Otherwise just the eclipsebar will be moved.
--------------------------------------------------------------------------------
-local function EclipseBarStartMoving(self, Button)
-
-  -- Call the base moving function for group or anchor movement.
-  if Main.UnitBarStartMoving(self.Anchor, Button) then
-    self.UnitBarMoving = true
-  end
-end
-
--------------------------------------------------------------------------------
--- EclipseBarStopMoving
---
--- Same as above except it stops moving and saves the new coordinates.
--------------------------------------------------------------------------------
-local function EclipseBarStopMoving(self, Button)
-
-  -- Call the stop moving base function if there was a group move or anchor move.
-  if self.UnitBarMoving then
-    self.UnitBarMoving = false
-    Main.UnitBarStopMoving(self.Anchor, Button)
-  end
-end
-
---*****************************************************************************
---
 -- Eclipsebar display
 --
 --*****************************************************************************
-
--------------------------------------------------------------------------------
--- EclipseBarHide
---
--- Hides/Shows the sun and moon
---
--- usage: EclipseBarHide(EF, Frame, Hide, , FadeInTime, FadeOutTime)
---
--- EF          EclipseFrame contains the frame data for the slider.
--- Frame       Frame to hide or show.  Can be 'Sun' or 'Moon'
--- Hide        If true frame is hidden else shown.
--- FadeOutTime if > 0 then fadeout animation will be used.
--- FadeInTime  if > 0 then fadein animation will be used.
--------------------------------------------------------------------------------
-local function EclipseBarHide(EF, Frame, Hide, FadeInTime, FadeOutTime)
-
-  --Get frame.
-  local SliderF = EF[Frame]
-  local Frame = SliderF.Frame
-
-  if Hide ~= SliderF.Dark then
-    local Fade = Frame.Fade
-    if Hide then
-
-      -- Fade out the frame then hide it.
-      if Fade then
-        Fade:SetAnimation('out')
-      else
-        Frame:Hide()
-      end
-      SliderF.Dark = true
-    else
-
-      -- Fade in the frame then show it
-      if Fade then
-        Fade:SetAnimation('in')
-      else
-        Frame:Show()
-      end
-      SliderF.Dark = false
-    end
-  end
-end
 
 -------------------------------------------------------------------------------
 -- DisplayEclipseSlider
@@ -480,25 +313,31 @@ end
 --
 -- Displays a slider on the eclipse bar.
 --
--- usage: DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, PowerType)
---
--- EF           EclipseFrame contains the frame data for the slider.
 -- UB           Unitbar data that is needed to display the slider.
+-- BBar         Current Eclipsebar created by Bar:CreateBar()
 -- Slider       Name of the slider table name.
 -- Power        Current eclipse power
 -- MaxPower     Maximum eclipse power
--- Eclipse      The current eclipse state.
+-- Direction    'sun' or 'moon'
 -- PowerType    -1 = 'lunar', 1 = 'solar', 0 = neutral
 -------------------------------------------------------------------------------
-local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, PowerType)
+local function DisplayEclipseSlider(UB, BBar, KeyName, Power, MaxPower, Direction, PowerType)
 
   -- Get frame data.
   local Gen = UB.General
   local SliderDirection = Gen.SliderDirection
-  local EclipseAngle = Gen.EclipseAngle
-  local Background = UB.Background
-  local Bar = UB.Bar
-  local SliderF = EF[Slider]
+  local EclipseRotation = UB.Layout.Rotation
+  local BackgroundSlider = UB['Background' .. KeyName]
+  local BarSlider = UB['Bar' .. KeyName]
+  local BarPower = UB.BarPower
+  local BackgroundPower = UB.BackgroundPower
+  local Slider = nil
+
+  if KeyName == 'Slider' then
+    Slider = SliderSBar
+  else
+    Slider = IndicatorSBar
+  end
 
   -- Clip eclipsepower if out of range.
   if abs(Power) > MaxPower then
@@ -510,22 +349,17 @@ local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, 
   if MaxPower > 0 then
     SliderPos = Power / MaxPower
   end
-  local BdSize = Background.Bar.BackdropSettings.BdSize / 2
+  local BdSize = BackgroundPower.BackdropSettings.BdSize / 2
   local BarSize = 0
   local SliderSize = 0
 
   -- Get slider direction.
   if SliderDirection == 'VERTICAL' then
-    BarSize = Bar.Bar.BarHeight
-    SliderSize = Bar[Slider][format('%sHeight', Slider)]
+    BarSize = BarPower.Height
+    SliderSize = BarSlider.Height
   else
-    BarSize = Bar.Bar.BarWidth
-    SliderSize = Bar[Slider][format('%sWidth', Slider)]
-  end
-
-  -- Calc rotate direction.
-  if EclipseAngle == 180 or EclipseAngle == 270 then
-    SliderPos = SliderPos * -1
+    BarSize = BarPower.Width
+    SliderSize = BarSlider.Width
   end
 
   -- Check the SliderInside option.  Need to divide by 2 since we have negative to positive coordinates.
@@ -536,23 +370,23 @@ local function DisplayEclipseSlider(EF, UB, Slider, Power, MaxPower, Direction, 
   end
 
   if SliderDirection == 'VERTICAL' then
-    SliderF.Frame:SetPoint('CENTER', EF.Bar.Frame, 'CENTER', 0, SliderPos)
+    BBar:SetPointTexture(PowerBox, Slider, 'CENTER', 0, SliderPos)
   else
-    SliderF.Frame:SetPoint('CENTER', EF.Bar.Frame, 'CENTER', SliderPos, 0)
+    BBar:SetPointTexture(PowerBox, Slider, 'CENTER', SliderPos, 0)
   end
 
   -- Set slider color.
-  local SliderColor = Bar[Slider].Color
+  local BarSliderColor = BarSlider.Color
 
   -- Check for sun/moon color option.
-  if Bar[Slider].SunMoon then
+  if BarSlider.SunMoon then
     if Direction == 'sun' then
-      SliderColor = Bar.Sun.Color
+      BarSliderColor = UB.BarSun.Color
     elseif Direction == 'moon' then
-      SliderColor = Bar.Moon.Color
+      BarSliderColor = UB.BarMoon.Color
     end
   end
-  SliderF.StatusBar:SetStatusBarColor(SliderColor.r, SliderColor.g, SliderColor.b, SliderColor.a)
+  BBar:SetColorTexture(PowerBox, Slider, BarSliderColor.r, BarSliderColor.g, BarSliderColor.b, BarSliderColor.a)
 end
 
 -------------------------------------------------------------------------------
@@ -560,16 +394,16 @@ end
 --
 -- Update the eclipse bar power, sun, and moon.
 --
--- Usage: Update(Event, Unit, PowerType)
---
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
+function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   if not self.Visible then
     return
   end
+
+  local BBar = self.BBar
 
   PowerType = PowerType and ConvertPowerType[PowerType] or PowerEclipse
 
@@ -578,6 +412,7 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     return
   end
 
+  local Testing = Main.UnitBars.Testing
   local UB = self.UnitBar
   local Gen = UB.General
   local PredictedPower = Gen.PredictedPower
@@ -590,15 +425,13 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
 
   local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
 
-  local EF = self.EclipseF
-
   local IndicatorHideShow = Gen.IndicatorHideShow
   local FadeInTime = Gen.EclipseFadeInTime
   local FadeOutTime = Gen.EclipseFadeOutTime
-  local BarHalfLit = Gen.BarHalfLit
+  local PowerHalfLit = Gen.PowerHalfLit
   local HideSlider = Gen.HideSlider
   local PredictedEclipse = Gen.PredictedEclipse
-  local PredictedBarHalfLit = Gen.PredictedBarHalfLit
+  local PredictedPowerHalfLit = Gen.PredictedPowerHalfLit
 
   local Value = 0
   local PC = false
@@ -607,19 +440,35 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   local PEclipsePowerType = nil
   local PEclipse = nil
 
+  if Testing then
+    if EclipseMaxPower == 0 then
+      EclipseMaxPower = 100
+    end
+    if UB.TestMode.ShowEclipseSun then
+      EclipseDirection = 'moon'
+      EclipsePower = EclipseMaxPower
+      SpellID = SpellStarsurge
+      Eclipse = 1
+    else
+      EclipseDirection = 'sun'
+      EclipsePower = EclipseMaxPower * -1
+      SpellID = SpellStarsurge
+      Eclipse = -1
+    end
+    EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
+  end
+
+
   -- Check hide slider option.
-  if HideSlider then
-    EF.Slider.Frame:Hide()
-  else
-    EF.Slider.Frame:Show()
-    DisplayEclipseSlider(EF, UB, 'Slider', EclipsePower, EclipseMaxPower, EclipseDirection, EclipsePowerType)
+  if not HideSlider then
+    DisplayEclipseSlider(UB, BBar, 'Slider', EclipsePower, EclipseMaxPower, EclipseDirection, EclipsePowerType)
   end
 
   -- Calculate predicted power.
   if PredictedPower then
 
     -- Check to see if soul of the forest talent is active.
-    local SoTFActive = Main:CheckTalent(SoTF)
+   -- local SoTFActive = false --IsSpellKnown(SoTF)
 
     local PowerChange = false
     PEclipseDirection = EclipseDirection
@@ -627,13 +476,14 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     PEclipsePowerType = EclipsePowerType
     PEclipse = Eclipse
 
-    SpellID = self.PredictedSpell or 0
+    if not Testing then
+      SpellID = self.PredictedSpell or 0
+    end
 
     if SpellID ~= 0 then
       Value = PredictedSpellValue[SpellID]
-
       PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
-        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, PEclipse, SoTFActive)
+        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, PEclipse)--, SoTFActive)
 
       -- Set power change flag.
       if PowerChange then
@@ -643,15 +493,15 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
 
     -- Display indicator based on predicted power options.
     if PC and IndicatorHideShow ~= 'hidealways' or IndicatorHideShow == 'showalways' then
-      EF.Indicator.Frame:Show()
+      BBar:SetHiddenTexture(PowerBox, IndicatorSBar, false)
       if PC or IndicatorHideShow == 'showalways' then
-        DisplayEclipseSlider(EF, UB, 'Indicator', PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
+        DisplayEclipseSlider(UB, BBar, 'Indicator', PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
       end
     else
-      EF.Indicator.Frame:Hide()
+      BBar:SetHiddenTexture(PowerBox, IndicatorSBar, true)
     end
   else
-    EF.Indicator.Frame:Hide()
+    BBar:SetHiddenTexture(PowerBox, IndicatorSBar, true)
   end
 
   -- Display the eclipse power.
@@ -665,25 +515,27 @@ function GUB.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   elseif Gen.PowerText then
     Value = EclipsePower
   end
-  if Value then
-    EF.FS:SetValue(abs(Value))
-  else
-    EF.FS:SetValue('')
+  if not UB.Layout.HideText then
+    if Value then
+      BBar:SetValueFont(PowerBox, nil, 'number', abs(Value))
+    else
+      BBar:SetValueRawFont(PowerBox, nil, '')
+    end
   end
 
   -- Use PEclise if PredictedEclipse and PEclipse are set.
   if PredictedEclipse and PEclipse ~= nil then
     Eclipse = PEclipse
   end
-  EclipseBarHide(EF, 'Sun', Eclipse ~= 1, FadeInTime, FadeOutTime)
-  EclipseBarHide(EF, 'Moon', Eclipse ~= -1, FadeInTime, FadeOutTime)
+  BBar:SetHiddenTexture(SunBox, SunSBar, Eclipse ~= 1)
+  BBar:SetHiddenTexture(MoonBox, MoonSBar, Eclipse ~= -1)
 
-  -- Use PEclipseDirection if BarHalfLit and PredictedBarHalfLit is true and there is PEclispeDirection.
-  if BarHalfLit and PredictedBarHalfLit and PEclipseDirection ~= nil then
+  -- Use PEclipseDirection if PowerHalfLit and PredictedPowerHalfLit is true and there is PEclispeDirection.
+  if PowerHalfLit and PredictedPowerHalfLit and PEclipseDirection ~= nil then
     EclipseDirection = PEclipseDirection
   end
-  EclipseBarHide(EF, 'Lunar', BarHalfLit and EclipseDirection == 'sun', FadeInTime, FadeOutTime)
-  EclipseBarHide(EF, 'Solar', BarHalfLit and EclipseDirection == 'moon', FadeInTime, FadeOutTime)
+  BBar:SetHiddenTexture(PowerBox, LunarSBar, PowerHalfLit and EclipseDirection == 'sun')
+  BBar:SetHiddenTexture(PowerBox, SolarSBar, PowerHalfLit and EclipseDirection == 'moon')
 
   self.IsActive = true
 
@@ -702,505 +554,231 @@ end
 --
 -- This will enable or disbable mouse clicks for the eclipse bar.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:EnableMouseClicks(Enable)
-  local EF = self.EclipseF
-
-  EF.Moon.Border:EnableMouse(Enable)
-  EF.Sun.Border:EnableMouse(Enable)
-  EF.Bar.Border:EnableMouse(Enable)
-end
-
--------------------------------------------------------------------------------
--- FrameSetScript    UnitBarsF function
---
--- Set up script handlers for the eclipsebar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:FrameSetScript(Enable)
-  local EF = self.EclipseF
-
-  local function FrameSetScript(Frame, Enable)
-    if Enable then
-      Frame:SetScript('OnMouseDown', EclipseBarStartMoving)
-      Frame:SetScript('OnMouseUp', EclipseBarStopMoving)
-      Frame:SetScript('OnHide', function(self)
-                                   EclipseBarStopMoving(self)
-                                end)
-      Frame:SetScript('OnEnter', function(self)
-                                    Main.UnitBarTooltip(self, false)
-                                 end)
-      Frame:SetScript('OnLeave', function(self)
-                                    Main.UnitBarTooltip(self, true)
-                                 end)
-    else
-      Frame:SetScript('OnMouseDown', nil)
-      Frame:SetScript('OnMouseUp', nil)
-      Frame:SetScript('OnHide', nil)
-      Frame:SetScript('OnEnter', nil)
-      Frame:SetScript('OnLeave', nil)
-    end
-  end
-
-  FrameSetScript(EF.Moon.Border, Enable)
-  FrameSetScript(EF.Sun.Border, Enable)
-  FrameSetScript(EF.Bar.Border, Enable)
+function Main.UnitBarsF.EclipseBar:EnableMouseClicks(Enable)
+  self.BBar:EnableMouseClicks(0, nil, Enable)
 end
 
 -------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the eclipsebar.
---
--- Usage: SetAttr(Object, Attr, Eclipse...)
---        SetAttr('ppower')
---
--- Object       Object being changed:
---               'bg'        for background (Border).
---               'bar'       for forground (StatusBar).
---               'text'      for the text.
---               'frame'     for the frame.
---               'ppower'    for predicted power.
--- Attr         Type of attribute being applied to object:
---               'color'     Color being set to the object.
---               'backdrop'  Backdrop settings being set to the object.
---               'scale'     Scale settings being set to the object.
---               'size'      Size being set to the object.
---               'padding'   Amount of padding set to the object.
---               'texture'   One or more textures set to the object.
---               'strata'    Frame strata for the object.
--- Eclipse...   Which part of the eclispe bar being changed
---               'moon'      Apply changes to the moon.
---               'sun'       Apply changes to the sun.
---               'bar'       Apply changes to the bar.
---               'slider'    Apply changes to the slider.
---               'Indicator' Apply changes to the predicted slider.
---              If Eclipse is nil then only frame scale, frame strata, or text can be changed.
---              Eclipse can have more than one argument.  So to do moon and sun you would do ('moon', 'sun').
---
--- NOTE: To apply one attribute to all objects. Object must be nil.
---       To apply all attributes to one object. Attr must be nil.
---       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:SetAttr(Object, Attr, ...)
+function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
+  local BBar = self.BBar
 
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local EclipseF = self.EclipseF
+  if not BBar:OptionsSet() then
 
-  -- Check scale and strata for 'frame'
-  Main:UnitBarSetAttr(self, Object, Attr)
+    BBar:SetOptionData('BackgroundMoon', MoonBox)
+    BBar:SetOptionData('BackgroundSun', SunBox)
+    BBar:SetOptionData('BackgroundPower', PowerBox)
+    BBar:SetOptionData('BackgroundSlider', PowerBox, SliderSBar)
+    BBar:SetOptionData('BackgroundIndicator', PowerBox, IndicatorSBar)
+    BBar:SetOptionData('BarMoon', MoonBox,  MoonSBar)
+    BBar:SetOptionData('BarSun', SunBox, SunSBar)
+    BBar:SetOptionData('BarPower', PowerBox)
+    BBar:SetOptionData('BarSlider', PowerBox, SliderSBar)
+    BBar:SetOptionData('BarIndicator', PowerBox, IndicatorSBar)
 
-  -- Set predicted power settings.
-  if Object == nil or Object == 'ppower' then
-    Main:SetSpellTracker(self, UB.General.PredictedPower)
-  end
+    BBar:SO('Text', '_Font', function() BBar:UpdateFont(PowerBox) self:Update() end)
+    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-  -- Text (StatusBar.Txt).
-  if Object == nil or Object == 'text' then
-    local FS = EclipseF.FS
-
-    if Attr == nil or Attr == 'color' then
-      FS:SetColor()
-    end
-    if Attr == nil or Attr == 'font' then
-      FS:SetFont()
-    end
-  end
-
-  -- if Eclipse is nil then return.
-  if ... == nil then
-    return
-  end
-
-  for EclipseIndex = 1, select('#', ...) do
-
-    -- Uppercase the first character.
-    local Eclipse = gsub(select(EclipseIndex, ...), '%a', strupper, 1)
-
-    -- Get bar data.
-    local Background = UB.Background[Eclipse]
-    local Bar = UB.Bar[Eclipse]
-    local UBF = EclipseF[Eclipse]
-
-    -- Background (Border).
-    if Object == nil or Object == 'bg' then
-      local Border = UBF.Border
-      local BgColor = Background.Color
-
-      if Attr == nil or Attr == 'backdrop' then
-        Border:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
-        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+    BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
+    BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
+    BBar:SO('Layout', 'HideText',      function(v)
+      if v then
+        BBar:SetValueRawFont(PowerBox, nil, '')
+      else
+        self:Update()
       end
-      if Attr == nil or Attr == 'color' then
-        Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
+    end)
+    BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
+    BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
+    BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
+    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(MoonBox, MoonSBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(SunBox, SunSBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(PowerBox, LunarSBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(PowerBox, SolarSBar, 'in', v) end)
+    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(MoonBox, MoonSBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(SunBox, SunSBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(PowerBox, LunarSBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(PowerBox, SolarSBar, 'out', v) end)
+    BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
+    BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
+
+    BBar:SO('Background', 'BackdropSettings', function(v, UB, OD)
+      local TableName = OD.TableName
+
+      if TableName == 'BackgroundSlider' or TableName == 'BackgroundIndicator' then
+        BBar:SetBackdropTexture(OD.p1, OD.p2, v)
+      else
+        BBar:SetBackdrop(OD.p1, BoxMode, v)
       end
-    end
+    end)
+    BBar:SO('Background', 'Color',            function(v, UB, OD)
+      local TableName = OD.TableName
 
-    -- Forground (Statusbar).
-    if Object == nil or Object == 'bar' then
-      local StatusBar = UBF.StatusBar
-      local StatusBarLunar = EclipseF.Lunar.Frame
-      local StatusBarSolar = EclipseF.Solar.Frame
-      local Frame = UBF.Frame
+      if TableName == 'BackgroundSlider' or TableName == 'BackgroundIndicator' then
+        BBar:SetBackdropColorTexture(OD.p1, OD.p2, v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropColor(OD.p1, BoxMode, v.r, v.g, v.b, v.a)
+      end
+    end)
+    BBar:SO('Bar', 'StatusBarTextureLunar', function(v) BBar:SetTexture(PowerBox, LunarSBar, v) end)
+    BBar:SO('Bar', 'StatusBarTextureSolar', function(v) BBar:SetTexture(PowerBox, SolarSBar, v) end)
+    BBar:SO('Bar', 'StatusBarTexture',      function(v, UB, OD) BBar:SetTexture(OD.p1, OD.p2, v) end)
+    BBar:SO('Bar', 'RotateTexture',         function(v, UB, OD)
+      if OD.TableName == 'BarPower' then
+        BBar:SetRotateTexture(PowerBox, LunarSBar, v)
+        BBar:SetRotateTexture(PowerBox, SolarSBar, v)
 
-      local Padding = Bar.Padding
-      local BarColor = Bar.Color
-      local BarColorLunar = Bar.ColorLunar
-      local BarColorSolar = Bar.ColorSolar
+        BBar:ClearAllPointsTexture(PowerBox, LunarSBar)
+        BBar:ClearAllPointsTexture(PowerBox, SolarSBar)
+        local Padding = UB.BarPower.Padding
 
-      if Attr == nil or Attr == 'texture' then
-        if Eclipse ~= 'Bar' then
-          StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
-          StatusBar:GetStatusBarTexture():SetHorizTile(false)
-          StatusBar:GetStatusBarTexture():SetVertTile(false)
-          StatusBar:SetOrientation('HORIZONTAL')
-          StatusBar:SetRotatesTexture(Bar.RotateTexture)
+        BBar:DoOption('Bar', 'Padding')
+
+        -- Vertical
+        if v then
+          BBar:SetPointTexture(PowerBox, LunarSBar, 'TOPLEFT')
+          BBar:SetPointTexture(PowerBox, LunarSBar, 'BOTTOMRIGHT', nil, 'RIGHT')
+          BBar:SetPointTexture(PowerBox, SolarSBar, 'TOPLEFT', nil, 'LEFT')
+          BBar:SetPointTexture(PowerBox, SolarSBar, 'BOTTOMRIGHT')
         else
-          StatusBarLunar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureLunar))
-          StatusBarSolar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTextureSolar))
-          StatusBarLunar:GetStatusBarTexture():SetHorizTile(false)
-          StatusBarLunar:GetStatusBarTexture():SetVertTile(false)
-          StatusBarLunar:SetOrientation('HORIZONTAL')
-          StatusBarLunar:SetRotatesTexture(Bar.RotateTexture)
-          StatusBarSolar:GetStatusBarTexture():SetHorizTile(false)
-          StatusBarSolar:GetStatusBarTexture():SetVertTile(false)
-          StatusBarSolar:SetOrientation('HORIZONTAL')
-          StatusBarSolar:SetRotatesTexture(Bar.RotateTexture)
+          -- Horizontal
+          BBar:SetPointTexture(PowerBox, LunarSBar, 'TOPLEFT')
+          BBar:SetPointTexture(PowerBox, LunarSBar, 'BOTTOMRIGHT', nil, 'BOTTOM')
+          BBar:SetPointTexture(PowerBox, SolarSBar, 'TOPLEFT', nil, 'TOP')
+          BBar:SetPointTexture(PowerBox, SolarSBar, 'BOTTOMRIGHT')
         end
+      else
+        BBar:SetRotateTexture(OD.p1, OD.p2, v)
+      end
+    end)
+    BBar:SO('Bar', 'ColorLunar',            function(v) BBar:SetColorTexture(PowerBox, LunarSBar, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Bar', 'ColorSolar',            function(v) BBar:SetColorTexture(PowerBox, SolarSBar, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Bar', 'SunMoon',               function() self:Update() end)
+    BBar:SO('Bar', 'Color',                 function(v, UB, OD)
+      local TableName = OD.TableName
+
+      BBar:SetColorTexture(OD.p1, OD.p2, v.r, v.g, v.b, v.a)
+      if TableName == 'BarMoon' or TableName == 'BarSun' then
+        self:Update()
+      end
+    end)
+    BBar:SO('Bar', '_Size',                 function(v, UB, OD)
+      local TableName = OD.TableName
+      if OD.p1 == nil then -- temporary check until old data gets remove from eclipsebar.
+        return
       end
 
-      if Attr == nil or Attr == 'color' then
-        if Eclipse ~= 'Bar' then
-          StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+      if TableName == 'BarIndicator' or TableName == 'BarSlider' then
+        BBar:SetSizeTexture(OD.p1, OD.p2, v.Width, v.Height)
+      else
+        BBar:SetSizeTextureFrame(OD.p1, BoxMode, v.Width, v.Height)
+      end
+      self:Update()
+      Display = true
+    end)
+    BBar:SO('Bar', 'Padding',               function(v, UB, OD)
+      if OD.TableName == 'BarPower' then
+        local Rotation = UB.Layout.Rotation
+
+        -- Check for vertical
+        if UB.BarPower.RotateTexture then
+          BBar:SetPaddingTexture(PowerBox, LunarSBar, v.Left, v.Right, v.Top, 0)
+          BBar:SetPaddingTexture(PowerBox, SolarSBar, v.Left, v.Right, 0, v.Bottom)
         else
-          StatusBarLunar:SetStatusBarColor(BarColorLunar.r, BarColorLunar.g, BarColorLunar.b, BarColorLunar.a)
-          StatusBarSolar:SetStatusBarColor(BarColorSolar.r, BarColorSolar.g, BarColorSolar.b, BarColorSolar.a)
+          BBar:SetPaddingTexture(PowerBox, LunarSBar, v.Left, 0, v.Top, v.Bottom)
+          BBar:SetPaddingTexture(PowerBox, SolarSBar, 0, v.Right, v.Top, v.Bottom)
         end
+      else
+        BBar:SetPaddingTexture(OD.p1, OD.p2, v.Left, v.Right, v.Top, v.Bottom)
       end
+      Display = true
+    end)
+  end
 
-      if Attr == nil or Attr == 'padding' then
-        if Eclipse ~= 'Bar' then
-          StatusBar:ClearAllPoints()
-          StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
-          StatusBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
-        else
-          local RB = RotateBar[UB.General.EclipseAngle]
+  -- Do the option.  This will call one of the options above or all.
+  if TableName == nil or TableName == 'General' then
+    local Gen = self.UnitBar.General
 
-          StatusBarLunar:ClearAllPoints()
-          StatusBarLunar:SetPoint(RB.LunarPoint1, Frame, RB.LunarRelativePoint1,
-                                  Padding.Left * RB.LunarPadding1X, Padding.Top * RB.LunarPadding1Y)
-          StatusBarLunar:SetPoint(RB.LunarPoint2, Frame, RB.LunarRelativePoint2,
-                                  Padding.Right * RB.LunarPadding2X, Padding.Bottom * RB.LunarPadding2Y)
-          StatusBarSolar:ClearAllPoints()
-          StatusBarSolar:SetPoint(RB.SolarPoint1, Frame, RB.SolarRelativePoint1,
-                                  Padding.Left * RB.SolarPadding1X, Padding.Top * RB.SolarPadding1Y)
-          StatusBarSolar:SetPoint(RB.SolarPoint2, Frame, RB.SolarRelativePoint2,
-                                  Padding.Right * RB.SolarPadding2X, Padding.Bottom * RB.SolarPadding2Y)
-        end
-      end
-
-      if Attr == nil or Attr == 'size' then
-        Frame:SetWidth(Bar[format('%sWidth', Eclipse)])
-        Frame:SetHeight(Bar[format('%sHeight', Eclipse)])
-      end
+    if KeyName == nil or KeyName == 'HideSlider' then
+      BBar:SetHiddenTexture(PowerBox, SliderSBar, Gen.HideSlider)
     end
+    if KeyName == nil or KeyName == 'PredictedPower' then
+      Main:SetSpellTracker(self, Gen.PredictedPower)
+    end
+    self:Update()
+    Display = true
   end
-end
-
--------------------------------------------------------------------------------
--- SetLayout    UnitBarsF function
---
--- Set an eclipsebar to a new layout
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.EclipseBar:SetLayout()
-
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local Bar = UB.Bar
-  local Gen = UB.General
-
-  local EclipseAngle = Gen.EclipseAngle
-  local SunOffsetX = Gen.SunOffsetX
-  local SunOffsetY = Gen.SunOffsetY
-  local MoonOffsetX = Gen.MoonOffsetX
-  local MoonOffsetY = Gen.MoonOffsetY
-  local FadeInTime = Gen.EclipseFadeInTime
-  local FadeOutTime = Gen.EclipseFadeOutTime
-  local SunWidth = Bar.Sun.SunWidth
-  local SunHeight = Bar.Sun.SunHeight
-  local MoonWidth = Bar.Moon.MoonWidth
-  local MoonHeight = Bar.Moon.MoonHeight
-  local BarWidth = Bar.Bar.BarWidth
-  local BarHeight = Bar.Bar.BarHeight
-  local SliderWidth = Bar.Slider.SliderWidth
-  local SliderHeight = Bar.Slider.SliderHeight
-  local EF = self.EclipseF
-  local SliderFrame = EF.Slider.Frame
-  local IndicatorFrame = EF.Indicator.Frame
-  local OffsetFrame = self.OffsetFrame
-
-  local SunX, SunY = 0, 0
-  local MoonX, MoonY = 0, 0
-  local BarX, BarY = 0, 0
-  local SliderX, SliderY = 0, 0
-  local x,y = 0, 0
-  local x1,y1 = 0, 0
-  local OffsetFX = 0
-  local OffsetFY = 0
-  local BorderWidth = 0
-  local BorderHeight = 0
-
-  -- Set angle to 90 if it's invalid.
-  if RotateBar[EclipseAngle] == nil then
-    EclipseAngle = 90
-    UB.General.EclipseAngle = 90
+  if TableName == nil or TableName ~= 'General' then
+    BBar:DoOption(TableName, KeyName)
   end
 
-  -- Get rotate data.
-  local RB = RotateBar[EclipseAngle]
-
-  -- Set sun or moon.
-  local TableName = RB.Frame1
-  local F = EF[TableName]
-  local Frame1 = F.Frame
-  local MoonX = 0
-  local MoonY = 0
-  Frame1:ClearAllPoints()
-  Frame1:SetPoint(RB.Point1, OffsetFrame, 0, 0)
-  F.Border:SetAllPoints(Frame1)
-
-  -- Set the bar.
-  F = EF[RB.Frame2]
-  local Frame2 = F.Frame
-
-  -- Calculate the upper left for the bar.
-  if TableName == 'Moon' then
-    x, y = Main:CalcSetPoint(RB.RelativePoint2, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
-  else
-    x, y = Main:CalcSetPoint(RB.RelativePoint2, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
+  if Main.UnitBars.Testing then
+    self:Update()
   end
-  x1, y1 = Main:CalcSetPoint(RB.Point2, BarWidth, BarHeight, 0, 0)
 
-  BarX = x - x1
-  BarY = y - y1
-  Frame2:ClearAllPoints()
-  Frame2:SetPoint('TOPLEFT', OffsetFrame, BarX, BarY)
-  F.Border:SetAllPoints(Frame2)
-
-  -- Set the sun or moon.
-  TableName = RB.Frame3
-  F = EF[RB.Frame3]
-  local Frame3 = F.Frame
-
-  -- Caculate the upper left for sun or moon.
-  Frame3:ClearAllPoints()
-  x, y = Main:CalcSetPoint(RB.RelativePoint3, BarWidth, BarHeight, BarX, BarY)
-  if TableName == 'Moon' then
-    x1, y1 = Main:CalcSetPoint(RB.Point3, MoonWidth, MoonHeight, MoonOffsetX, MoonOffsetY)
-    MoonX = x - x1
-    MoonY = y - y1
-    Frame3:SetPoint('TOPLEFT', OffsetFrame, MoonX, MoonY)
-  else
-    x1, y1 = Main:CalcSetPoint(RB.Point3, SunWidth, SunHeight, SunOffsetX, SunOffsetY)
-    SunX = x - x1
-    SunY = y - y1
-    Frame3:SetPoint('TOPLEFT', OffsetFrame, SunX, SunY)
+  if Display then
+    BBar:Display()
+    Display = false
   end
-  F.Border:SetAllPoints(Frame3)
-
-  -- Set up the slider.
-  -- Dont clear points, Ecplise:Update() sets the point.
-  EF.Slider.Border:SetAllPoints(SliderFrame)
-
-  -- Set up the indicator.
-  -- Dont clear points, EclipseBar:Update() sets the point.
-  EF.Indicator.Border:SetAllPoints(IndicatorFrame)
-
-  -- Calculate upper left of slider for border calculation.
-  SliderX, SliderY = Main:CalcSetPoint('CENTER', BarWidth, BarHeight, -(SliderWidth / 2), SliderHeight / 2)
-  SliderX = BarX + SliderX
-  SliderY = BarY + SliderY
-
-  -- Calculate the offsets for the offsetframe, get the borderwidth and borderheight
-  x, y, BorderWidth, BorderHeight = Main:GetBorder(SunX, SunY, SunWidth, SunHeight,
-                                                               MoonX, MoonY, MoonWidth, MoonHeight,
-                                                               BarX, BarY, BarWidth, BarHeight,
-                                                               SliderX, SliderY, SliderWidth, SliderHeight)
-  OffsetFX = -x
-  OffsetFY = -y
-
-  -- Set the x, y location off the offset frame.
-  OffsetFrame:ClearAllPoints()
-  OffsetFrame:SetPoint('LEFT', OffsetFX, OffsetFY)
-  OffsetFrame:SetWidth(BorderWidth)
-  OffsetFrame:SetHeight(BorderHeight)
-
-  -- Set the duration of the fade in/out for sun, moon, lunar and solar.
-  Frame1.Fade:SetDuration('in', FadeInTime)
-  Frame3.Fade:SetDuration('in', FadeInTime)
-  EF.Lunar.Frame.Fade:SetDuration('in', FadeInTime)
-  EF.Solar.Frame.Fade:SetDuration('in', FadeInTime)
-
-  Frame1.Fade:SetDuration('out', FadeOutTime)
-  Frame3.Fade:SetDuration('out', FadeOutTime)
-  EF.Lunar.Frame.Fade:SetDuration('out', FadeOutTime)
-  EF.Solar.Frame.Fade:SetDuration('out', FadeOutTime)
-
-
-  -- Set all attributes.
-  self:SetAttr(nil, nil, 'moon', 'bar', 'sun', 'slider', 'indicator')
-
-  -- Save size data to self (UnitBarF).
-  self:SetSize(BorderWidth, BorderHeight)
 end
 
 -------------------------------------------------------------------------------
 -- CreateBar
 --
--- Usage: GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
---
 -- UnitBarF     The unitbar frame which will contain the eclipse bar.
 -- UB           Unitbar data.
--- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.EclipseBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
-  local EclipseFrame = {Moon = {}, Sun = {}, Bar = {}, Lunar = {}, Solar = {}, Slider = {}, Indicator = {}}
+function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
+  local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 3)
 
-  -- Create a border to help position the offsetframe.
-  local Border = CreateFrame('Frame', nil, ScaleFrame)
-  Border:SetAllPoints(Anchor)
+  -- Create the sun, moon, and power.
+  BBar:CreateTextureFrame(PowerBox, BoxMode, 0)
+    -- Create the lunar and solar statusbar for the bar section.
+    BBar:CreateTexture(PowerBox, BoxMode, 'statusbar', 1, LunarSBar)
+    BBar:CreateTexture(PowerBox, BoxMode, 'statusbar', 1, SolarSBar)
 
-    -- Create the text frame.
-    local TxtBorder = CreateFrame('Frame', nil, Border)
-    TxtBorder:SetAllPoints(Border)
-    local FS = Main:CreateFontString(UnitBarF.BarType, TxtBorder, 10, 'OVERLAY')
+    -- Create slider and indicator
+    BBar:CreateTexture(PowerBox, BoxMode, 'statusbar', 2, SliderSBar)
+    BBar:CreateTexture(PowerBox, BoxMode, 'statusbar', 3, IndicatorSBar)
 
-    -- Create the offset frame.
-    local OffsetFrame = CreateFrame('Frame', nil, Border)
+  BBar:CreateTextureFrame(MoonBox, BoxMode, 4)
+    BBar:CreateTexture(MoonBox, BoxMode, 'statusbar', 5, MoonSBar)
+  BBar:CreateTextureFrame(SunBox, BoxMode, 4)
+    BBar:CreateTexture(SunBox, BoxMode, 'statusbar', 5, SunSBar)
 
-  -- MOON
 
-      -- Create the visible border for the moon.
-      local MoonBorder = CreateFrame('Frame', nil, OffsetFrame)
+  -- Show all the texture frames.
+  BBar:SetHidden(0, BoxMode, false)
 
-        -- Create the moon frame.  This is used for hide/show
-        local MoonFrame = CreateFrame('Frame', nil, MoonBorder)
+  BBar:SetHiddenTexture(PowerBox, LunarSBar, true)
+  BBar:SetHiddenTexture(PowerBox, SolarSBar, true)
 
-          -- Create the statusbar for the moon.
-          local Moon = CreateFrame('StatusBar', nil, MoonFrame)
+  -- Set up the default slider/indicator positions
+  BBar:ClearAllPointsTexture(PowerBox, SliderSBar)
+  BBar:ClearAllPointsTexture(PowerBox, IndicatorSBar)
+  BBar:SetPointTexture(PowerBox, SliderSBar, 'CENTER')
+  BBar:SetPointTexture(PowerBox, IndicatorSBar, 'CENTER')
 
-  -- SUN
+  -- Create font for displaying power.
+  -- This will be displayed on the powerbar section.
+  BBar:CreateFont(PowerBox)
 
-      -- Create the visible border for the sun.
-      local SunBorder = CreateFrame('Frame', nil, OffsetFrame)
+  -- Set tooltips
+  BBar:SetTooltip(MoonBox, nil, 'Eclipse - Moon')
+  BBar:SetTooltip(SunBox, nil, 'Eclipse - Sun')
+  BBar:SetTooltip(PowerBox, nil, 'Eclipse - Power')
 
-        -- Create the sun frame.  This is used for hide/show
-        local SunFrame = CreateFrame('Frame', nil, SunBorder)
+  -- This will make all the bar objects be aligned by their sides.
+  BBar:SetJustifyBar('SIDE')
 
-          -- Create the statusbar for the sun.
-          local Sun = CreateFrame('StatusBar', nil, SunFrame)
-
-  -- BAR
-
-      -- Create the visible border for eclipse bar.
-      local BarBorder = CreateFrame('Frame', nil, OffsetFrame)
-
-        -- Create the eclipse bar for the slider.
-        local BarFrame = CreateFrame('Frame', nil, BarBorder)
-
-          -- Create the left stausbar for lunar and set it to lit.
-          local BarLunar = CreateFrame('StatusBar', nil, BarFrame)
-
-          -- Create the right stausbar for solar and set then to lit.
-          local BarSolar = CreateFrame('StatusBar', nil, BarFrame)
-
-  -- INDICATOR (predictor power)
-
-      -- create the indicator frame.
-      local IndicatorFrame = CreateFrame('Frame', nil, OffsetFrame)
-
-        -- create the indicator border.
-        local IndicatorBorder = CreateFrame('Frame', nil, IndicatorFrame)
-
-          -- create the statusbar for the indicator slider.
-          local Indicator = CreateFrame('StatusBar', nil, IndicatorBorder)
-
-  -- SLIDER
-
-      -- Create the slider frame.
-      local SliderFrame = CreateFrame('Frame', nil, OffsetFrame)
-
-        -- Create the slider border.
-        local SliderBorder = CreateFrame('Frame', nil, SliderFrame)
-
-          -- create the statusbar for slider.
-          local Slider = CreateFrame('StatusBar', nil, SliderBorder)
-
-  -- Set Frame levels
-
-  -- Set Sun and Moon to be above the bar.
-  MoonBorder:SetFrameLevel(BarLunar:GetFrameLevel() + 1)
-  SunBorder:SetFrameLevel(BarSolar:GetFrameLevel() + 1)
-
-  -- Indicator needs to be above everything but the Slider.
-  IndicatorFrame:SetFrameLevel(Sun:GetFrameLevel() + 1)
-
-  -- Slider needs to be above everything but text.
-  SliderFrame:SetFrameLevel(Indicator:GetFrameLevel() + 1)
-
-  -- Set the text to be above all.
-  TxtBorder:SetFrameLevel(Slider:GetFrameLevel() + 1)
-
-  -- Set the moon to dark.
-  EclipseFrame.Moon.Dark = true
-  MoonFrame:Hide()
-
-  -- Set the sun to dark
-  EclipseFrame.Sun.Dark = true
-  SunFrame:Hide()
-
-  -- Create fade for Sun, Moon, Lunar, and Solar.
-  MoonFrame.Fade = Main:CreateFade(UnitBarF, MoonFrame)
-  SunFrame.Fade = Main:CreateFade(UnitBarF, SunFrame)
-  BarLunar.Fade = Main:CreateFade(UnitBarF, BarLunar)
-  BarSolar.Fade = Main:CreateFade(UnitBarF, BarSolar)
-
-  -- Save the name for tooltips.
-  Main:SetTooltip(MoonBorder,  UB.Name, MouseOverDesc)
-  Main:SetTooltip(SunBorder, UB.Name, MouseOverDesc)
-  Main:SetTooltip(BarBorder, UB.Name, MouseOverDesc)
-
-  -- Save a reference to the anchor for moving.
-  MoonBorder.Anchor = Anchor
-  SunBorder.Anchor = Anchor
-  BarBorder.Anchor = Anchor
-
-  EclipseFrame.Moon.Frame = MoonFrame
-  EclipseFrame.Moon.Border = MoonBorder
-  EclipseFrame.Moon.StatusBar = Moon
-  EclipseFrame.Sun.Frame = SunFrame
-  EclipseFrame.Sun.Border = SunBorder
-  EclipseFrame.Sun.StatusBar = Sun
-  EclipseFrame.Bar.Frame = BarFrame
-  EclipseFrame.Bar.Border = BarBorder
-  EclipseFrame.Lunar.Frame = BarLunar
-  EclipseFrame.Lunar.Dark = false
-  EclipseFrame.Solar.Frame = BarSolar
-  EclipseFrame.Solar.Dark = false
-  EclipseFrame.Slider.Frame = SliderFrame
-  EclipseFrame.Slider.Border = SliderBorder
-  EclipseFrame.Slider.StatusBar = Slider
-  EclipseFrame.Indicator.Frame = IndicatorFrame
-  EclipseFrame.Indicator.Border = IndicatorBorder
-  EclipseFrame.Indicator.StatusBar = Indicator
-
-  EclipseFrame.FS = FS
-
-  -- Save the borders and Eclipse frames
-  UnitBarF.Border = Border
-  UnitBarF.TxtBorder = TxtBorder
-  UnitBarF.OffsetFrame = OffsetFrame
-  UnitBarF.EclipseF = EclipseFrame
+  UnitBarF.BBar = BBar
 end
 
 --*****************************************************************************
@@ -1209,7 +787,7 @@ end
 --
 --*****************************************************************************
 
-function GUB.UnitBarsF.EclipseBar:Enable(Enable)
+function Main.UnitBarsF.EclipseBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'UNIT_AURA', self.Update, 'player')
   Main:RegEventFrame(Enable, self, 'UNIT_POWER', self.Update, 'player')
   Main:RegEventFrame(Enable, self, 'ECLIPSE_DIRECTION_CHANGE', self.Update, 'player')

@@ -1,8 +1,7 @@
 --
 -- RuneBar.lua
 --
--- Displays a runebar similiar to blizzards runebar. The runes can be dragged and dropped
--- to change the order.
+-- Displays a runebar similiar to blizzards runebar.
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -10,25 +9,26 @@
 local MyAddon, GUB = ...
 
 local Main = GUB.Main
-local LSM = GUB.LSM
-local MouseOverDesc = GUB.MouseOverDesc
+local Bar = GUB.Bar
 
 -- localize some globals.
 local _
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
+      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
+local UnitName, UnitGetIncomingHeals, GetRealmName =
+      UnitName, UnitGetIncomingHeals, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -41,88 +41,32 @@ local C_PetBattles, UIParent =
 --
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar         Reference to the unitbar data for the runebar.
--- UnitBarF.OffsetFrame     Offset frame for rotation. This is a parent of RuneF[].
---                          This is used by SetLayoutRune()
--- UnitBarF.ColorAllNames[] List of names to be used in the color all options panel.
--- UnitBarF
---   RuneF[]                Frame array 1 to 6 that keeps all the death knight runes.
---                          This also contains the frame for the rune.
---     Anchor               Reference to the unitbar anchor for moving.
---     UnitBarF             Reference to the UnitBarF data for dragging/dropping and cooldown.
---     RuneNormalFrame      Frame to hide/show all textures/frames dealing with normal runes.
---                          Child of RuneFrame (RuneF[])
---     RuneCooldownBarFrame Frame to hide/show all cooldown bars dealing with cooldown bar runes.
---                          Child of RuneFrame (RuneF[])
---     RuneCooldownBarEnergizeFrame
---                          Frame for the energize border for the rune cooldown bar.
---                          Child of RuneCooldownBarFrame.
---     TxtFrame             Frame for text. Child of RuneFrame (RuneF[])
---     Txt                  Fontstring for the rune.  This is used for the timer text.
---     RuneIcon             The texture containing the rune.
---     RuneBorderFrame      The frame containing the rune border. Child of RuneNormalFrame
---     RuneBorder           The texture containing the rune.
---     RuneBorderEnergize   Energize texture for the rune.
---     Cooldown             The cooldown frame also plays the cooldown animation.
---     Highlight            Rune highlight frame to highlight a rune for dragging/dropping.
---     CooldownBarHighlight Cooldown bar highlight frame to highlight a bar for dragging/dropping
---     CooldownEdgeFrame    Frame that holds the spark texture in the cooldown bar.
---     CooldownEdge         CooldownEdge texture that is a child of CooldownEdgeFrame
---     Energize.RuneF       This is used by EndRuneEnergize().  For energize graphic.
---     RuneTrackingFrame    Used for dragging/dropping.
+-- UnitBarF.BBar                     Contains the holy bar displayed on screen.
+-- UnitBarF.OnCooldown               Keeps track of each rune being on cooldown.
+-- UnitBarF.EnergizeTimers           Keeps track of the amount of time to show an energize frame.
 --
---     RuneLocation         Reference to UnitBar.RuneBar.RuneLocation[Rune] table entry.
+-- Display                           Flag used to determin if a Display() call is needed.
+-- Color                             Flag used to determin if any color should be changed.
 --
---     RuneID               Number from 1 to 6. RuneID always matches the index into RuneF[].
---     RuneType             Type of rune based on the rune type constants.
+-- BarMode                           Used to show bars.
+-- RuneMode                          Used to show runes.
+-- RuneSBar                          Texture used for bars.
+-- RuneEnergizeSBar                  Border used for energize for bars.
+-- RuneTexture                       Texture used for runes.
+-- RuneBorderTexture                 Rune border used to show above the rune texture.
+-- RuneEnergizeBorder                Border to show around the rune texture for energize.
 --
--- Runebar upvalues:
+-- RuneTextureData                   Contains information for runes.
+--   Width, Height                   Width and Height of the runes.
+--   Border                          Border texture that surrounds a rune.
+--   BorderEnergize                  Same as border, except only shown during energize.
+--   RuneBlood .. RuneDeath          4 runes that make up the rune bar.
 --
--- RuneEnter                When a rune frame is being dragged over another rune frame.  This contains
---                          the number of that frame.  Equals nil if a dragged rune is not touching
---                          another rune.
---
--- MaxRunes                 Maximum number of runes.
--- RuneTexture              Contains the locations of the four death knight runes.
--- RuneBorderTexture        Contains the location for the rune border.
--- RuneHighlightTexture     Contains the highlight texture for rune dragging/dropping.
--- CooldownBarHighlightBackdrop
---                          Backdrop for highlight when using cooldown bars.
--- CooldownBarSparkTexture  Contains the spark texture to be used in cooldown bars.
--- RuneBorderTextureEnergize
---                          Contains the location of the texture for energize for runes.
--- CooldownBarEnergizeTexture
---                          Contains the location of the texture for cooldown bars.
--- RuneCooldownBarEnergizeBorder
---                          Border used for RuneCooldownBarenergizeFrame.
---
--- RuneBlood
--- RuneUnholy
--- RuneFrost
--- RuneDeath                These 4 values are used for rune id's.
---
--- Runebar frame layout: (T = texture)
---
--- ScaleFrame
---   OffsetFrame
---     RuneF
---       TxtFrame
---       RuneTrackingFrame
---       RuneNormalFrame
---         T Highlight
---         T RuneIcon
---         Cooldown    (clockface cooldown)
---         RuneBorderFrame
---           T RuneBorder
---           T RuneBorderEnergize
---       RuneCooldownBarFrame
---         RuneCooldownBar
---         RuneCooldownBarEnergizeFrame
---         CooldownEdgeFrame
---           T CooldownEdge
---         CooldownBarHighlight
+-- BarEnergizeBorder                 Backdrop used to show an energize border for the bars.
 -------------------------------------------------------------------------------
-local MouseOverDesc2 = 'Modifier + right mouse button to drag this rune'
+local MaxRunes = 6
+local Display = false
+local Color = false
 
 -- Rune type constants.
 local RuneBlood = 1
@@ -130,29 +74,35 @@ local RuneUnholy = 2
 local RuneFrost = 3
 local RuneDeath = 4
 
-local RuneEnter = nil
-local MaxRunes = 6
+local BarMode = 1
+local RuneMode = 2
 
--- Textures
-local RuneBorderTexture = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Ring]]
-local RuneBorderTextureEnergize = [[Interface\Addons\GalvinUnitBars\Textures\GUB_DeathknightRingEnergize]]
-local CooldownBarEnergizeTexture = [[Interface\Addons\GalvinUnitBars\Textures\GUB_DeathknightBarEnergize]]
+local RuneSBar = 10
+local RuneEnergizeSBar = 11
+local RuneTexture = 20
+local RuneBorderTexture = 21
+local RuneEnergizeTexture = 22
 
-local RuneHighlightTexture = RuneBorderTexture
-local CooldownBarSparkTexture = {
-        Texture = [[Interface\CastingBar\UI-CastingBar-Spark]],
-        Width = 32, Height = 32,
-      }
+local RuneName = {
+  [RuneBlood] = 'Blood Rune',
+  [RuneUnholy] = 'Unholy Rune',
+  [RuneFrost] = 'Frost Rune',
+  [RuneDeath] = 'Death Rune',
+}
 
--- Rune textures
-local RuneTexture = {
+local RuneTextureData = {
+  Width = 22, Height = 22,
+
+  Border = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Ring]],
+  BorderEnergize = [[Interface\Addons\GalvinUnitBars\Textures\GUB_DeathknightRingEnergize]],
+
   [RuneBlood]  = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Blood]],  -- 1 and 2
   [RuneUnholy] = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Unholy]], -- 3 and 4
   [RuneFrost]  = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Frost]],  -- 5 and 6
   [RuneDeath]  = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Death]]
 }
 
-local RuneCooldownBarEnergizeBorder = {
+local BarEnergizeBorder = {
   bgFile   = '',
   edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
   tile = true,
@@ -169,7 +119,7 @@ local RuneCooldownBarEnergizeBorder = {
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-GUB.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -177,236 +127,100 @@ GUB.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
 --
 --*****************************************************************************
 
--------------------------------------------------------------------------------
--- SetCooldownSize(Cooldown, Size)
+--------------------------------------------------------------------------------
+-- ChangeRune
 --
--- Sets the cooldown frame based on the width and height of its rune frame.
--- This is needed so the cooldown animation fits within the rune texture.
--------------------------------------------------------------------------------
-local function SetCooldownSize(Cooldown, Size)
-  local CooldownSize = Size * 0.625
-  Cooldown:SetWidth(CooldownSize)
-  Cooldown:SetHeight(CooldownSize)
+-- Changes a runes texture, bar color, and tooltip based on its rune type
+--
+-- RuneBar           The bar that the runes were created under.
+-- RuneIndex         1 to MaxRunes
+-- TestModeRuneType  For testmode only.
+--------------------------------------------------------------------------------
+local function ChangeRune(RuneBar, RuneID, TestModeRuneType)
+  local BBar = RuneBar.BBar
+  local UB = RuneBar.UnitBar
+  local BgColor = UB.Background.Color
+  local BarColor = UB.Bar.Color
+  local ColorEnergize = UB.General.ColorEnergize
+  local RuneType = TestModeRuneType or GetRuneType(RuneID)
+
+  BBar:SetTexture(RuneID, RuneTexture, RuneTextureData[RuneType])
+
+  -- Turn runetype into color index 1 to 8.
+  local ColorIndex = RuneType * 2 - RuneID % 2
+
+  local c = BarColor
+  if not c.All then
+    c = BarColor[ColorIndex]
+  end
+  BBar:SetColorTexture(RuneID, RuneSBar, c.r, c.g, c.b, c.a)
+
+  c = BgColor
+  if not c.All then
+    c = BgColor[ColorIndex]
+  end
+  BBar:SetBackdropColor(RuneID, BarMode, c.r, c.g, c.b, c.a)
+
+  BBar:UpdateFont(RuneID, nil, ColorIndex)
+
+  c = ColorEnergize
+  if not c.All then
+    c = ColorEnergize[ColorIndex]
+  end
+  BBar:SetBackdropBorderColorTexture(RuneID, RuneEnergizeSBar, c.r, c.g, c.b, c.a)
+  BBar:SetColorTexture(RuneID, RuneEnergizeTexture, c.r, c.g, c.b, c.a)
+
+  BBar:SetTooltip(RuneID, nil, format('%s %s', RuneName[RuneType], 2 - RuneID % 2))
 end
 
 -------------------------------------------------------------------------------
--- GetRuneName
+-- DoEnergize
 --
--- Returns a text name of the rune
+-- Shows an energize border for a period of time.
 --
--- Usage: Name = GetRuneName(RuneF, RuneID)
---
--- RuneF               The rune you want to save the name to in its Name field.
---
--- Name                Name of the rune.
+-- RuneBar   Bar to use.
+-- RuneID    Rune to show a border around.
 -------------------------------------------------------------------------------
-local function GetRuneName(RuneF)
-  local RuneName = nil
-  local RuneNumber = nil
-  local RuneID = RuneF.RuneID
-  local RuneType = RuneF.RuneType
+local function DoEnergizeTimer(self, Elapsed)
+  if Elapsed > 0 then
+    local BBar = self.BBar
+    local RuneID = self.RuneID
 
-  if mod(RuneF.RuneID, 2) == 0 then
-    RuneNumber = '2'
-  else
-    RuneNumber = '1'
-  end
-  if RuneType == RuneBlood then
-    RuneName = 'Blood Rune'
-  elseif RuneType == RuneUnholy then
-    RuneName = 'Unholy Rune'
-  elseif RuneType == RuneFrost then
-    RuneName = 'Frost Rune'
-  elseif RuneType == RuneDeath then
-    RuneName = 'Death Rune'
-  end
-
-  return format('%s %s', RuneName, RuneNumber)
-end
-
--------------------------------------------------------------------------------
--- SwapRunes
---
--- Swaps the X Y location when not in barmode or swap the bar rune order when in
--- bar mode.
---
--- Usage: SwapRuneLocations(UnitBarF, Rune1, Rune2)
---
--- UnitBarF        The unitbar that contains the runebar that the two runes are being
---                 swapped on.
--- Rune1, Rune2    The two rune frames you want to swap positions.
--------------------------------------------------------------------------------
-local function SwapRunes(UnitBarF, Rune1, Rune2)
-  local RuneBarOrder = UnitBarF.UnitBar.RuneBarOrder
-
-  local RuneIndex1 = nil
-  local RuneIndex2 = nil
-  local RuneID1 = Rune1.RuneID
-  local RuneID2 = Rune2.RuneID
-
-  -- Only swap the rune order in barmode.
-  if UnitBarF.UnitBar.General.BarMode then
-
-    -- Find the runes first.
-    for RuneIndex, Rune in ipairs(RuneBarOrder) do
-      if RuneIndex1 == nil and RuneID1 == Rune then
-        RuneIndex1 = RuneIndex
-      elseif RuneIndex2 == nil and RuneID2 == Rune then
-        RuneIndex2 = RuneIndex
-      end
-    end
-
-    -- Swap the runes in rune bar order.
-    RuneBarOrder[RuneIndex1], RuneBarOrder[RuneIndex2] = RuneBarOrder[RuneIndex2], RuneBarOrder[RuneIndex1]
-  else
-
-    -- Swap the runes by screen location.
-    Rune1.RuneLocation.x, Rune2.RuneLocation.x = Rune2.RuneLocation.x, Rune1.RuneLocation.x
-    Rune1.RuneLocation.y, Rune2.RuneLocation.y = Rune2.RuneLocation.y, Rune1.RuneLocation.y
+    BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, true)
+    BBar:SetHiddenTexture(RuneID, RuneEnergizeTexture, true)
+    Main:SetTimer(self, nil)
   end
 end
 
---*****************************************************************************
---
--- Runebar script functions (script/event)
---
---*****************************************************************************
+local function DoEnergize(RuneBar, RuneID)
+  local BBar = RuneBar.BBar
+  local Gen = RuneBar.UnitBar.General
+  local EnergizeTimers = RuneBar.EnergizeTimers
+  local EnergizeShow = Gen.EnergizeShow
 
--------------------------------------------------------------------------------
--- RuneOnEnter
---
--- Gets called once when a rune is dragged over another rune.
---
--- RuneF    Frame of the rune you're dragging over
--------------------------------------------------------------------------------
-local function RuneOnEnter(RuneF)
-  RuneF.Highlight:SetTexture(RuneHighlightTexture)
-
-  local Backdrop = Main:ConvertBackdrop(RuneF.UnitBarF.UnitBar.Background.BackdropSettings)
-  Backdrop.bgFile = ''
-  RuneF.CooldownBarHighlight:SetBackdrop(Backdrop)
-end
-
--------------------------------------------------------------------------------
--- RuneOnLeave
---
--- Gets called once when a rune has left the rune it was being dragged over.
---
--- RuneF    Frame of the rune you left.
--------------------------------------------------------------------------------
-local function RuneOnLeave(RuneF)
-  RuneF.Highlight:SetTexture('')
-  RuneF.CooldownBarHighlight:SetBackdrop(nil)
-end
-
--------------------------------------------------------------------------------
--- RuneTrackerOnResize
---
--- Keeps track of the location of a rune being dragged to make swapping runes
--- thru drag and drop possible.
--------------------------------------------------------------------------------
-local function RuneTrackerOnResize(self, Width, Height)
-  local DragRune = self:GetParent()
-
-  -- Do nothing if runeswap is not turned on
-  if not DragRune.UnitBarF.UnitBar.General.RuneSwap then
-    return
+  if EnergizeTimers == nil then
+    EnergizeTimers = {}
+    RuneBar.EnergizeTimers = EnergizeTimers
   end
-  local RuneF = DragRune.UnitBarF.RuneF
-  local RuneTouch = nil
-  local RuneID = DragRune.RuneID
-  for RuneIndex, RF in ipairs(RuneF) do
-    if RuneTouch == nil and RuneID ~= RF.RuneID and MouseIsOver(RF) then
-      RuneTouch = RuneIndex
-    end
+  local EnergizeTimer = EnergizeTimers[RuneID]
+
+  if EnergizeTimer == nil then
+    EnergizeTimer = {}
+    EnergizeTimers[RuneID] = EnergizeTimer
   end
 
-  -- Did the rune get dragged into empty space or off a rune onto another.  If so then the
-  -- last rune we entered needs to be cleared.
-  if RuneTouch == nil or RuneEnter and RuneTouch ~= RuneEnter then
-    if RuneEnter then
-      RuneOnLeave(RuneF[RuneEnter])
-      RuneEnter = nil
-    end
+  EnergizeTimer.BBar = BBar
+  EnergizeTimer.RuneID = RuneID
+
+  if strfind(EnergizeShow, 'bar') then
+    BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, false)
+  end
+  if strfind(EnergizeShow, 'rune') then
+    BBar:SetHiddenTexture(RuneID, RuneEnergizeTexture, false)
   end
 
-  -- Is the dragged rune on top of another rune?
-  if RuneTouch and RuneEnter == nil then
-    RuneOnEnter(RuneF[RuneTouch])
-    RuneEnter = RuneTouch
-  end
-end
-
--------------------------------------------------------------------------------
--- RuneBarStartMoving
---
--- If UnitBars.IsGrouped is true then the unitbar anchor frame will be moved.
--- Otherwise just the runes will be moved.
--------------------------------------------------------------------------------
-local function RuneBarStartMoving(self, Button)
-
-  -- Call the base moving function for group or anchor movement.
-  if Main.UnitBarStartMoving(self.Anchor, Button) then
-    self.UnitBarMoving = true
-  else
-
-    -- Check to see if shift/alt/control and left button are held down
-    if not IsModifierKeyDown() then
-      return
-    end
-
-    if Button == 'RightButton' then
-
-      self.IsMoving = true
-
-      -- Initialize the RuneEnter flag.
-      RuneEnter = nil
-
-      -- Set the script for dragging.
-      self.RuneTrackingFrame:SetScript('OnSizeChanged', RuneTrackerOnResize)
-
-      -- Start moving the rune.
-      self:StartMoving()
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- RuneBarStopMoving
---
--- Same as above except it stops moving and saves the new coordinates.
--------------------------------------------------------------------------------
-local function RuneBarStopMoving(self, Button)
-
-  local UnitBarF = self.UnitBarF
-
-  -- Call the stop moving base function if there was a group move or anchor move.
-  if self.UnitBarMoving then
-    self.UnitBarMoving = false
-    Main.UnitBarStopMoving(self.Anchor, Button)
-
-  -- Stop moving a rune if it was moving.
-  elseif self.IsMoving then
-    self.IsMoving = false
-    self:StopMovingOrSizing()
-
-    -- Clear the dragging script.
-    self.RuneTrackingFrame:SetScript('OnSizeChanged', nil)
-
-    -- Check to see if a rune needs a swap.
-    if RuneEnter then
-      local RuneF = UnitBarF.RuneF[RuneEnter]
-      RuneOnLeave(RuneF)
-      SwapRunes(UnitBarF, self, RuneF)
-
-    -- Move the rune if we're not in bar mode.
-    elseif not UnitBarF.UnitBar.General.BarMode then
-      self.RuneLocation.x, self.RuneLocation.y = Main:RestoreRelativePoints(self)
-    end
-
-    -- Update the layout.
-    UnitBarF:SetLayout()
-  end
+  Main:SetTimer(EnergizeTimer, nil)
+  Main:SetTimer(EnergizeTimer, Gen.EnergizeTime, DoEnergizeTimer)
 end
 
 --*****************************************************************************
@@ -416,178 +230,161 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- UpdateTestMode
+--
+-- Display the rune bar in a testmode pattern.
+--
+-- RuneBar      The runebar to show in test mode.
+-- Testing      If true shows the test pattern, if false clears it.
+-------------------------------------------------------------------------------
+local function UpdateTestMode(RuneBar, Testing)
+  local BBar = RuneBar.BBar
+
+  if Testing then
+    local UB = RuneBar.UnitBar
+    local HideText = UB.Layout.HideText
+    local TestMode = UB.TestMode
+    local ShowDeathRunes = TestMode.ShowDeathRunes
+    local ShowEnergize = TestMode.ShowEnergize
+    local EnergizeShow = UB.General.EnergizeShow
+
+    for RuneIndex = 1, MaxRunes do
+      local RuneType = ceil(RuneIndex / 2)
+
+      BBar:SetFillTexture(RuneIndex, RuneSBar, 0.50, true)
+
+      if ShowDeathRunes and RuneType == RuneBlood then
+        RuneType = RuneDeath
+      end
+      ChangeRune(RuneBar, RuneIndex, RuneType)
+      if not HideText then
+        BBar:SetValueFont(RuneIndex, nil, 'time', 9)
+      else
+        BBar:SetValueRawFont(RuneIndex, nil, '')
+      end
+    end
+    BBar:SetHiddenTexture(0, RuneEnergizeSBar, not ShowEnergize or strfind(EnergizeShow, 'bar') == nil)
+    BBar:SetHiddenTexture(0, RuneEnergizeTexture, not ShowEnergize or strfind(EnergizeShow, 'rune') == nil)
+
+  else
+    for RuneIndex = 1, MaxRunes do
+      BBar:SetFillTexture(RuneIndex, RuneSBar, 0, false)
+      ChangeRune(RuneBar, RuneIndex)
+    end
+    BBar:SetHiddenTexture(0, RuneEnergizeSBar, true)
+    BBar:SetHiddenTexture(0, RuneEnergizeTexture, true)
+    BBar:SetValueRawFont(0, nil, '')
+  end
+end
+
+-------------------------------------------------------------------------------
 -- StartRuneCooldown
 --
 -- Start a rune cooldown onevent timer.
 --
--- Usage: StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize)
---
--- RuneF      A cooldown will be started for this runeframe.
+-- RuneBar    The bar containing the runes.
 -- StartTime  Start time for the cooldown.
 -- Duration   Duration of the cooldown.
 -- RuneReady  If true all cooldown timers are stopped, otherwise they're started.
 -- Energize   If true then creates a colored border around the frame.
 -------------------------------------------------------------------------------
-local function EndRuneEnergize(self, Elapsed)
-  local RuneF = self.RuneF
+local function StartRuneCooldown(RuneBar, RuneID, StartTime, Duration, RuneReady, Energize)
+  local UB = RuneBar.UnitBar
+  local Layout = UB.Layout
+  local Gen = UB.General
+  local BBar = RuneBar.BBar
+  local OnCooldown = RuneBar.OnCooldown
 
-  RuneF.RuneBorderEnergize:Hide()
-  RuneF.RuneCooldownBarEnergizeFrame:Hide()
-  Main:SetTimer(self, nil)
-end
-
-local function StartRuneCooldown(RuneF, StartTime, Duration, RuneReady, Energize)
-  local LastTime = 0
-  local FS = nil
-
-  RuneF.StartRuneCooldown = RuneF.StartRuneCooldown or function()
-
-    -- Get the amount of time left on cooldown.
-    local TimeElapsed = GetTime() - StartTime
-
-    -- Display the time left
-    if TimeElapsed >= 0 then
-      local Seconds = floor(Duration - TimeElapsed)
-      if Seconds < LastTime then
-        LastTime = Seconds
-        if Seconds < 0 then
-          FS:SetValue('')
-        else
-          FS:SetValue(Seconds + 1)
-        end
-      end
-    end
+  if OnCooldown == nil then
+    OnCooldown = {}
+    RuneBar.OnCooldown = OnCooldown
   end
-
-  RuneF.StartRuneCooldown2 = RuneF.StartRuneCooldown2 or function(StartTime2, Duration2, FS2)
-    StartTime = StartTime2
-    Duration = Duration2
-    LastTime = 100
-    FS = FS2
-  end
-
-  -- Get the options.
-  local Gen = RuneF.UnitBarF.UnitBar.General
-  local HideCooldownFlash = Gen.HideCooldownFlash
-  local CooldownAnimation = Gen.CooldownAnimation
-  local EnergizeShow = Gen.EnergizeShow
-  FS = RuneF.FS
-  local RuneID = RuneF.RuneID
 
   if not RuneReady and not Energize then
+    if not OnCooldown[RuneID] then
 
-    -- Start cooldown bar timer.
-    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, StartTime, Duration, 1)
+      -- Start bar timer.
+      if strfind(Gen.RuneMode, 'bar') then
+        BBar:SetFillTimeTexture(RuneID, RuneSBar, StartTime, Duration, 0, 1)
+      end
+      if Gen.CooldownAnimation and strfind(Gen.RuneMode, 'rune') then
+        BBar:SetCooldownTexture(RuneID, RuneTexture, StartTime, Duration, Gen.CooldownLine, Gen.HideCooldownFlash)
+      end
+      if not Layout.HideText then
+        BBar:SetValueTimeFont(RuneID, nil, StartTime, Duration, Duration, -1)
+      end
 
-    -- Start a clockface cooldown timer if cooldown animation is true.
-    if CooldownAnimation then
-      CooldownFrame_SetTimer(RuneF.Cooldown, StartTime, Duration, 1)
-    end
-
-    -- Start text timer if cooldown text option is on.
-    if Gen.CooldownText then
-      RuneF.CooldownText = true
-      RuneF.StartRuneCooldown2(StartTime, Duration, FS)
-
-      Main:SetTimer(RuneF, 0.25, RuneF.StartRuneCooldown)
-    end
-
-    -- Stop energize timer for this rune.
-    if EnergizeShow ~= 'none' then
-      EndRuneEnergize(RuneF.Energize)
+      OnCooldown[RuneID] = true
     end
   else
 
-    -- Set text to blank in case rune came off cooldown early.
-    FS:SetValue('')
-
-    -- Hide cooldown flash if HideCooldownFlash is set to true.
-    -- Or stop the animation if the rune came off cooldown early.
-    if CooldownAnimation and (HideCooldownFlash or Energize) then
-      CooldownFrame_SetTimer(RuneF.Cooldown, 0, 0, 0)
+    -- stop timer and text.
+    if strfind(Gen.RuneMode, 'bar') then
+      BBar:SetFillTimeTexture(RuneID, RuneSBar)
+      BBar:SetFillTexture(RuneID, RuneSBar, 0)
     end
-
-    Main:CooldownBarSetTimer(RuneF.RuneCooldownBar, 0, 0, 0)
-
-    -- Stop text timer.
-    if RuneF.CooldownText then
-      Main:SetTimer(RuneF, nil)
+    if not Layout.HideText then
+      BBar:SetValueTimeFont(RuneID, nil)
     end
+    if Energize then
+      DoEnergize(RuneBar, RuneID)
+      if Gen.CooldownAnimation and strfind(Gen.RuneMode, 'rune') then
+
+        -- stop the current rune cooldown.
+        BBar:SetCooldownTexture(RuneID, RuneTexture)
+      end
+    end
+    OnCooldown[RuneID] = false
   end
-
-  -- Start an energize timer.
-  if EnergizeShow ~= 'none' and Energize then
-    if EnergizeShow == 'rune' or EnergizeShow == 'runecooldownbar' then
-      RuneF.RuneBorderEnergize:Show()
-    end
-    if EnergizeShow == 'cooldownbar' or EnergizeShow == 'runecooldownbar' then
-      RuneF.RuneCooldownBarEnergizeFrame:Show()
-    end
-    Main:SetTimer(RuneF.Energize, Gen.EnergizeTime, EndRuneEnergize)
-  end
-end
-
--------------------------------------------------------------------------------
--- RefreshRune
---
--- Refreshes a rune based on its setting server side.
---
--- Usage: RefreshRune(RuneF)
---
--- RuneF   Rune frame that is to be refreshed.
--------------------------------------------------------------------------------
-local function RefreshRune(RuneF, HideCooldownFlash)
-  local RuneType = GetRuneType(RuneF.RuneID)
-  RuneF.RuneType = RuneType
-  RuneF.RuneIcon:SetTexture(RuneTexture[RuneType])
-
-  -- Update tooltip name.
-  Main:SetTooltip(RuneF, GetRuneName(RuneF))
 end
 
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
---
--- Usage: Update(Event, ...)
 --
 -- Event                    Rune type event.  If this is not a rune event
 --                          function does nothing.
 -- ...        RuneID        RuneId from 1 to 6.
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.RuneBar:Update(Event, ...)
+function Main.UnitBarsF.RuneBar:Update(Event, ...)
 
   -- Check if bar is not visible or has active flag waiting for activity.
   if not self.Visible and self.IsActive ~= 0 then
     return
   end
 
-  -- Get the rune frame.
-  local RuneID = select(1, ...)
-  local RuneF = self.RuneF[RuneID]
+  -- Check for testmode.
+  local Testing = Main.UnitBars.Testing
+  if Testing or self.Testing then
+    self.Testing = Testing
+    UpdateTestMode(self, Testing)
+    if Testing then
+      return
+    end
+  end
 
-  if RuneF then
+  local RuneID = select(1, ...)
+
+  if RuneID then
     if Event == 'RUNE_TYPE_UPDATE' then
 
       -- Flip between default and death rune textures.
-      RefreshRune(RuneF)
-
-      -- Update the bar color for blood/death runes for cooldownbar mode.
-      -- Also updates the color for energize (empowerment)
-      self:SetAttr(nil, 'color')
+      ChangeRune(self, RuneID)
 
     -- Update the rune cooldown.
     else  -- RUNE_POWER_UPDATE
       local Energize = select(2, ...)
       local Start, Duration, RuneReady = GetRuneCooldown(RuneID)
-      StartRuneCooldown(RuneF, Start, Duration, RuneReady, Energize)
+
+      StartRuneCooldown(self, RuneID, Start, Duration, RuneReady, Energize)
     end
   end
 
   -- Calculate active status.
   local Active = false
-  for i = 1, MaxRunes do
-    local Start, Duration, RuneReady = GetRuneCooldown(i)
+  for Index = 1, MaxRunes do
+    local Start, Duration, RuneReady = GetRuneCooldown(Index)
+
     if not RuneReady then
       Active = true
       break
@@ -612,562 +409,89 @@ end
 --
 -- This will enable or disbale mouse clicks for the rune icons.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.RuneBar:EnableMouseClicks(Enable)
-  for _, RF in ipairs(self.RuneF) do
-    RF:EnableMouse(Enable)
-  end
+function Main.UnitBarsF.RuneBar:EnableMouseClicks(Enable)
+  local BBar = self.BBar
+
+  -- ENable/disable for box mode
+  BBar:EnableMouseClicks(0, nil, Enable)
 end
 
 -------------------------------------------------------------------------------
--- FrameSetScript    UnitBarsF function
---
--- Set up script handlers for the Runebar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.RuneBar:FrameSetScript(Enable)
-  for _, RF in ipairs(self.RuneF) do
-    if Enable then
-      RF:SetScript('OnMouseDown', RuneBarStartMoving)
-      RF:SetScript('OnMouseUp', RuneBarStopMoving)
-      RF:SetScript('OnHide',  RuneBarStopMoving)
-      RF:SetScript('OnEnter', function(self)
-                                Main.UnitBarTooltip(self, false)
-                              end)
-      RF:SetScript('OnLeave', function(self)
-                                Main.UnitBarTooltip(self, true)
-                              end)
-    else
-      RF:SetScript('OnMouseDown', nil)
-      RF:SetScript('OnMouseUp', nil)
-      RF:SetScript('OnHide', nil)
-      RF:SetScript('OnEnter', nil)
-      RF:SetScript('OnLeave', nil)
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- SetAttr    UnitBarsF function
+-- SetAttr
 --
 -- Sets different parts of the runebar.
---
--- Usage: SetAttr(Object, Attr)
---
--- Object       Object being changed:
---               'bg'        for background (Border).
---               'bar'       for forground (StatusBar).
---               'text'      for text (StatusBar.FS).
---               'frame'     for the frame.
---               'texture'   for the textures used in the unitbar. (different from 'bar' and 'bg')
--- Attr         Type of attribute being applied to object:
---               'color'     Color being set to the object.
---               'padding'   Amount of padding set to the object.
---               'texture'   One or more textures set to the object.
---               'font'      Font settings being set to the object.
---               'backdrop'  Backdrop settings being set to the object.
---               'scale'     Scale settings being set to the object.
---               'strata'    Frame strata for the object.
---
--- NOTE: To apply one attribute to all objects. Object must be nil.
---       To apply all attributes to one object. Attr must be nil.
---       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.RuneBar:SetAttr(Object, Attr)
+function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
+  local BBar = self.BBar
 
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local Gen = UB.General
-  local Bar = UB.Bar
-  local Text = UB.Text
-  local Background = UB.Background
-  local Padding = Bar.Padding
-  local FontSettings = Text.FontSettings
-  local BarDrawEdge = Gen.CooldownBarDrawEdge
-  local FillDirection = Bar.FillDirection
-  local ReverseFill = Bar.ReverseFill
-  local RuneHeight = Bar.RuneHeight
-  local RuneWidth = Bar.RuneWidth
+  if not BBar:OptionsSet() then
+    BBar:SO('Text', '_Font', function() Color = true end)
+    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-  local RuneMode = UB.General.RuneMode
-  local RuneF = self.RuneF
-
-  -- Check scale and strata for 'frame'
-  Main:UnitBarSetAttr(self, Object, Attr)
-
-  for _, Rune in ipairs(UB.RuneBarOrder) do
-    local RF = RuneF[Rune]
-
-    -- Get rune color based on runetype
-    local RuneColorIndex = RF.RuneType * 2 - mod(Rune, 2)
-
-    if RuneMode ~= 'rune' then
-
-      -- Background (Border).
-      if Object == nil or Object == 'bg' then
-        local RuneCooldownBarFrame = RF.RuneCooldownBarFrame
-        local BgColor = Background.Color
-
-        -- Get all color if All is true.
-        if not BgColor.All then
-
-          -- Get color based on runetype
-          BgColor = BgColor[RuneColorIndex]
-        end
-
-        if Attr == nil or Attr == 'backdrop' then
-          RuneCooldownBarFrame:SetBackdrop(Main:ConvertBackdrop(Background.BackdropSettings))
-          RuneCooldownBarFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-        end
-        if Attr == nil or Attr == 'color' then
-          RuneCooldownBarFrame:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-        end
+    BBar:SO('General', 'RuneMode', function(v)
+      BBar:SetHidden(0, BarMode, true)
+      BBar:SetHidden(0, RuneMode, true)
+      if strfind(v, 'rune') then
+        BBar:SetHidden(0, RuneMode, false)
       end
-
-      -- Forground (Statusbar).
-      if Object == nil or Object == 'bar' then
-        local RuneCooldownBar = RF.RuneCooldownBar
-        local CooldownEdgeFrame = RF.CooldownEdgeFrame
-
-        if Attr == nil or Attr == 'texture' then
-          RuneCooldownBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
-          RuneCooldownBar:GetStatusBarTexture():SetHorizTile(false)
-          RuneCooldownBar:GetStatusBarTexture():SetVertTile(false)
-          RuneCooldownBar:SetOrientation(Bar.FillDirection)
-          RuneCooldownBar:SetReverseFill(Bar.ReverseFill)
-          RuneCooldownBar:SetRotatesTexture(Bar.RotateTexture)
-
-          -- Set the cooldownbar edge frame based on fill direction.
-          -- 0.57142 is a scale calculation to be sure the spark is always the right size.
-          if BarDrawEdge then
-            if Bar.FillDirection == 'HORIZONTAL' then
-              RF.CooldownEdge:SetTexCoord(0, 1, 0, 1)
-              Main:SetCooldownBarEdgeFrame(RuneCooldownBar, CooldownEdgeFrame, FillDirection, ReverseFill,
-                                           CooldownBarSparkTexture.Width, RuneHeight / 0.57142)
-            else
-              RF.CooldownEdge:SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0)
-              Main:SetCooldownBarEdgeFrame(RuneCooldownBar, CooldownEdgeFrame, FillDirection, ReverseFill,
-                                           RuneWidth / 0.57142, CooldownBarSparkTexture.Height)
-            end
-          else
-            Main:SetCooldownBarEdgeFrame(RuneCooldownBar, nil)
-          end
-        end
-        if Attr == nil or Attr == 'color' then
-          local BarColor = Bar.Color
-
-          -- Get all color if All is true.
-          if not BarColor.All then
-
-            -- Get color based on runetype
-            BarColor = BarColor[RuneColorIndex]
-          end
-          RuneCooldownBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-        end
-        if Attr == nil or Attr == 'padding' then
-          RuneCooldownBar:ClearAllPoints()
-          RuneCooldownBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
-          RuneCooldownBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
-        end
+      if strfind(v, 'bar') then
+        BBar:SetHidden(0, BarMode, false)
       end
+      Display = true
+    end)
 
-      -- Texture
-      if Object == nil or Object == 'texture' then
-        if Attr == nil or Attr == 'color' then
-          local EnergizeColor = Gen.ColorEnergize
-
-          -- Get all color if All is true.
-          if not EnergizeColor.All then
-
-            -- Get color based on runetype
-            EnergizeColor = EnergizeColor[RuneColorIndex]
-          end
-          RF.RuneCooldownBarEnergizeFrame:SetBackdropBorderColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
-          RF.RuneBorderEnergize:SetVertexColor(EnergizeColor.r, EnergizeColor.g, EnergizeColor.b, EnergizeColor.a)
-        end
+    BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
+    BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
+    BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) end)
+    BBar:SO('Layout', 'HideText',      function(v)
+      if v then
+        BBar:SetValueTimeFont(0, nil)
       end
-    end
+    end)
+    BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
+    BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
+    BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
+    BBar:SO('Layout', 'TextureScale',  function(v) BBar:SetScaleTextureFrame(0, RuneMode, v) Display = true end)
+    BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
+    BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    -- Text
-    if Object == nil or Object == 'text' then
-      local FS = RF.FS
+    BBar:SO('General', 'BarSpark',      function(v) BBar:SetHiddenSpark(0, RuneSBar, not v) end)
+    BBar:SO('General', 'ColorEnergize', function() Color = true end)
+    BBar:SO('General', '_RuneLocation', function(v) BBar:SetPointTextureFrame(0, RuneMode, 'CENTER', BarMode, v.RunePosition, v.RuneOffsetX, v.RuneOffsetY) Display = true end)
 
-      if Attr == nil or Attr == 'color' then
-        FS:SetColor(RuneColorIndex)
-      end
-      if Attr == nil or Attr == 'font' then
-        FS:SetFont()
-      end
-    end
-  end
-end
+    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(0, BarMode, v) end)
+    BBar:SO('Background', 'Color',            function(v) Color = true end)
 
--------------------------------------------------------------------------------
--- SetLayout    UnitBarsF function
---
--- Sets a runebar with a new layout.
---
--- Usage: SetLayout(UnitBarF)
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.RuneBar:SetLayout()
-
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local Gen = UB.General
-
-  local RuneF = self.RuneF
-
-  local BarMode = Gen.BarMode
-  local RuneMode = Gen.RuneMode
-  local Padding = Gen.RunePadding
-  local RuneSize = Gen.RuneSize
-  local Angle = Gen.BarModeAngle
-  local RunePosition = Gen.RunePosition
-  local RuneOffsetX = Gen.RuneOffsetX
-  local RuneOffsetY = Gen.RuneOffsetY
-
-  local RuneHeight = UB.Bar.RuneHeight
-  local RuneWidth = UB.Bar.RuneWidth
-
-  local RuneLocation = UB.RuneLocation
-  local x = 0
-  local y = 0
-  local BorderWidth = 0
-  local BorderHeight = 0
-  local OffsetFX = 0
-  local OffsetFY = 0
-  local XOffset = 0
-  local YOffset = 0
-  local Width = 0
-  local Height = 0
-  local CooldownBarOffsetX = 0
-  local CooldownBarOffsetY = 0
-
-  -- Get the offsets based on angle.
-  -- for normal mode
-  if RuneMode == 'rune' then
-    Width = RuneSize
-    Height = RuneSize
-  else
-    if RuneMode == 'cooldownbar' then
-
-      -- for cooldown bar mode.
-      Width = RuneWidth
-      Height = RuneHeight
-    end
-
-    -- for rune and cooldown bar mode.
-    if RuneMode == 'runecooldownbar' then
-
-      -- Get the upper left location of rune location.
-      -- Make RuneSize / 2 a negative value since we're looking for upper left.
-      local x, y = Main:CalcSetPoint(RunePosition, RuneWidth, RuneHeight, -(RuneSize / 2), RuneSize / 2)
-
-      -- Apply the offsets to the rune location.
-      x = x + RuneOffsetX
-      y = y + RuneOffsetY
-
-      -- Get the offsets for the cooldown bar frame.
-      CooldownBarOffsetX = x < 0 and -x or 0
-      CooldownBarOffsetY = y > 0 and -y or 0
-
-      -- Calculate the new size of the rune frame.
-      _, _, Width, Height = Main:GetBorder(x, y, RuneSize, RuneSize, 0, 0, RuneWidth, RuneHeight)
-    end
+    BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, RuneSBar, v) end)
+    BBar:SO('Bar', 'FillDirection',    function(v) BBar:SetFillDirectionTexture(0, RuneSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, RuneSBar, v) end)
+    BBar:SO('Bar', 'Color',            function() Color = true end)
+    BBar:SO('Bar', '_Size',            function(v, UB) BBar:SetSizeTextureFrame(0, BarMode, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, RuneSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
-  -- Get the offsets for rotation.
-  XOffset, YOffset = Main:AngleToOffset(Width + Padding, Height + Padding, Angle)
+  -- Do the option.  This will call one of the options above or all.
+  BBar:DoOption(TableName, KeyName)
 
-  -- Set up the rune positions
-  for RuneIndex, Rune in ipairs(UB.RuneBarOrder) do
-    local RF = RuneF[Rune]
-    local RL = RuneLocation[Rune]
-    local RuneNormalFrame = RF.RuneNormalFrame
-    local RuneCooldownBarFrame = RF.RuneCooldownBarFrame
-
-    -- If barmode is false then get the rune location from saved data or
-    -- from x, y.
-    if not BarMode then
-      if RL.x == '' then
-
-        -- set the floating location if one wasn't found. This should only
-        -- happen once when the user switches out of barmode for the first time.
-        RL.x = x
-        RL.y = y
-      else
-        x = RL.x
-        y = RL.y
-      end
-
-      -- Save a reference of the rune location.
-      RF.RuneLocation = RL
-
-      -- Set the location in floating mode.
-      RF:ClearAllPoints()
-      RF:SetPoint('TOPLEFT', x, y)
-
-      -- Calculate the next x or y location.
-      x = x + XOffset
-      y = y + YOffset
-    else
-
-      -- Calculate the x and y location before setting the location if angle is > 180.
-      if Angle > 180 and RuneIndex > 1 then
-        x = x + XOffset
-        y = y + YOffset
-      end
-
-      -- Set the location in barmode.
-      RF:ClearAllPoints()
-      RF:SetPoint('TOPLEFT', x, y)
-
-      -- Calculate the border width.
-      if XOffset ~= 0 then
-        BorderWidth = BorderWidth + abs(XOffset)
-        if RuneIndex == 1 then
-          BorderWidth = BorderWidth - Padding
-        end
-      else
-        BorderWidth = Width
-      end
-
-      -- Calculate the border height.
-      if YOffset ~= 0 then
-        BorderHeight = BorderHeight + abs(YOffset)
-        if RuneIndex == 1 then
-          BorderHeight = BorderHeight - Padding
-        end
-      else
-        BorderHeight = Height
-      end
-
-      -- Get the x y for the frame offset.
-      if x < 0 then
-        OffsetFX = abs(x)
-      end
-      if y > 0 then
-        OffsetFY = -y
-      end
-
-      -- Calculate the x and y location after setting location if angle <= 180.
-      if Angle <= 180 then
-        x = x + XOffset
-        y = y + YOffset
-      end
+  -- Change color if flagged
+  if Color then
+    for RuneIndex = 1, MaxRunes do
+      ChangeRune(self, RuneIndex)
     end
-
-    -- Rune or Rune with Cooldown bar mode.
-    if strsub(RuneMode, 1, 4) == 'rune' then
-
-      -- Hide/Show then cooldownbar.
-      if RuneMode == 'rune' then
-        RuneCooldownBarFrame:Hide()
-        RuneNormalFrame:SetAllPoints(RF)
-        RuneNormalFrame:Show()
-
-        -- In rune mode we can set width/height here.
-        RF:SetWidth(RuneSize)
-        RF:SetHeight(RuneSize)
-      end
-
-      -- Update the cooldown size.
-      SetCooldownSize(RF.Cooldown, RuneSize)
-    end
-
-    -- Cooldown mode with or without rune.
-    if RuneMode == 'cooldownbar' or RuneMode == 'runecooldownbar' then
-
-      -- Hide show the normal rune.
-      if RuneMode == 'cooldownbar' then
-        RuneNormalFrame:Hide()
-        RuneCooldownBarFrame:SetAllPoints(RF)
-        RuneCooldownBarFrame:Show()
-
-        -- in cooldownbar mode we can set width/height here.
-        RF:SetWidth(RuneWidth)
-        RF:SetHeight(RuneHeight)
-      else
-
-        -- cooldown bar frame.
-        RuneCooldownBarFrame:ClearAllPoints()
-        RuneCooldownBarFrame:SetPoint('TOPLEFT', CooldownBarOffsetX, CooldownBarOffsetY)
-        RuneCooldownBarFrame:SetWidth(RuneWidth)
-        RuneCooldownBarFrame:SetHeight(RuneHeight)
-        RuneCooldownBarFrame:Show()
-
-        -- Set the rune based off the cooldown bar frame position.
-        RuneNormalFrame:ClearAllPoints()
-        RuneNormalFrame:SetPoint('CENTER', RuneCooldownBarFrame, RunePosition, RuneOffsetX, RuneOffsetY)
-        RuneNormalFrame:SetWidth(RuneSize)
-        RuneNormalFrame:SetHeight(RuneSize)
-        RuneNormalFrame:Show()
-
-        RF:SetWidth(Width)
-        RF:SetHeight(Height)
-      end
-
-      -- Show the cooldown bar
-      RF.RuneCooldownBarFrame:Show()
-    end
-
-    -- Refresh the rune texture incase it changed server side after the reload ui.
-    RefreshRune(RF)
+    Color = false
   end
 
-  -- Calculate the offsets for the offset frame for when not in bar mode.
-  -- Also get the width/height for the border.
-  -- The border gets offsetted, but then we need to shift the offset frame in the opposite direction.
-  -- So the runes appear in the correct location on the screen.
-  if not BarMode then
-    x, y, BorderWidth, BorderHeight = Main:GetBorder(RuneLocation[1].x, RuneLocation[1].y, Width, Height,
-                                                     RuneLocation[2].x, RuneLocation[2].y, Width, Height,
-                                                     RuneLocation[3].x, RuneLocation[3].y, Width, Height,
-                                                     RuneLocation[4].x, RuneLocation[4].y, Width, Height,
-                                                     RuneLocation[5].x, RuneLocation[5].y, Width, Height,
-                                                     RuneLocation[6].x, RuneLocation[6].y, Width, Height)
-
-    -- Shift all the runes in the opposite direction.
-    for RuneIndex, RF in ipairs(RuneF) do
-      local RL = RuneLocation[RuneIndex]
-      local x1, y1 = RL.x - x, RL.y - y
-      RF:SetPoint('TOPLEFT', x1, y1)
-      RL.x, RL.y = x1, y1
-    end
-
-    -- Set unitbar size and offset the unitbar by x, y
-    self:SetSize(BorderWidth, BorderHeight, x, y)
-  else
-
-    -- set the unibat size but don't offset.
-    self:SetSize(BorderWidth, BorderHeight)
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
-  -- Set the offsets to the offset frame.
-  local OffsetFrame = self.OffsetFrame
-  OffsetFrame:ClearAllPoints()
-  OffsetFrame:SetPoint('TOPLEFT', OffsetFX, OffsetFY)
-  OffsetFrame:SetWidth(1)
-  OffsetFrame:SetHeight(1)
-
-    -- Set all attributes.
-  self:SetAttr(nil, nil)
-end
-
--------------------------------------------------------------------------------
--- CreateRune
---
--- Creates one of the 4 different death knight runes.
---
--- Usage: RuneFrame = CreateRune(BarType, RuneType, RF)
---
--- BarType       Needed for Main:CreateFontString
--- RuneType      One of the four different death knight runes.
--- RF            RuneFrame to put the created rune into.
--------------------------------------------------------------------------------
-local function CreateRune(BarType, RuneType, RuneF)
-
-  -- Create a RuneNormalFrame for easy hiding/showing of runes.
-  local RuneNormalFrame = CreateFrame('Frame', nil, RuneF)
-
-    -- Create the highlight texture.
-    local Highlight = RuneNormalFrame:CreateTexture(nil, 'OVERLAY')
-    Highlight:SetPoint('TOPLEFT', -5, 5)
-    Highlight:SetPoint('BOTTOMRIGHT', 5, -5)
-
-    -- Create the text frame so that it can work with cooldown bars or rune textures.
-    -- Set the frame level so its higher than the RuneBorderFrame.
-    local TxtFrame = CreateFrame('Frame', nil, RuneF)
-    TxtFrame:SetAllPoints(RuneF)
-    local FS = Main:CreateFontString(BarType, TxtFrame, 10, 'OVERLAY')
-
-    -- Create the rune icon for the rune.
-    local RuneIcon = RuneNormalFrame:CreateTexture(nil, 'BACKGROUND')
-    RuneIcon:SetTexture(RuneTexture[RuneType])
-    RuneIcon:SetAllPoints(RuneNormalFrame)
-
-    -- Create the cooldown frame for the rune.
-    local Cooldown = CreateFrame('Cooldown', nil, RuneNormalFrame)
-    Cooldown:SetPoint('CENTER', RuneIcon, 'CENTER', 0, 1)
-
-    -- Create the border frame for the border that gets drawn ontop of the cooldown frame.
-    local RuneBorderFrame = CreateFrame('Frame', nil, RuneNormalFrame)
-    RuneBorderFrame:SetAllPoints(RuneNormalFrame)
-
-      -- Create the border texture for the rune.
-      local RuneBorder = RuneBorderFrame:CreateTexture(nil, 'ARTWORK')
-      RuneBorder:SetTexture(RuneBorderTexture)
-      RuneBorder:SetAllPoints(RuneBorderFrame)
-      RuneBorder:SetVertexColor(0.6, 0.6, 0.6, 1)
-
-      -- Create the energize border texture for the rune.
-      local RuneBorderEnergize = RuneBorderFrame:CreateTexture(nil, 'OVERLAY')
-      RuneBorderEnergize:SetTexture(RuneBorderTextureEnergize)
-      RuneBorderEnergize:SetAllPoints(RuneBorderFrame)
-      RuneBorderEnergize:SetVertexColor(1, 1, 1, 1)
-      RuneBorderEnergize:Hide()
-
-  -- Create the RuneCooldownBarFrame for easy hiding/showing of the cooldown bars.
-  local RuneCooldownBarFrame = CreateFrame('Frame', nil, RuneF)
-
-    -- Create the highlight border for the cooldown bar
-    local CooldownBarHighlight = CreateFrame('Frame', nil, RuneCooldownBarFrame)
-    CooldownBarHighlight:SetPoint('TOPLEFT', -3, 3)
-    CooldownBarHighlight:SetPoint('BOTTOMRIGHT', 3, -3)
-
-    -- Create a statusbar texture for the cooldown bar timer.
-    local RuneCooldownBar = CreateFrame('StatusBar', nil, RuneCooldownBarFrame)
-    RuneCooldownBar:SetMinMaxValues(0, 1)
-    RuneCooldownBar:SetValue(0)
-
-    -- Create a energize frame for cooldown bar.
-    local RuneCooldownBarEnergizeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
-    RuneCooldownBarEnergizeFrame:SetAllPoints(RuneCooldownBarFrame)
-    RuneCooldownBarEnergizeFrame:SetBackdrop(RuneCooldownBarEnergizeBorder)
-    RuneCooldownBarEnergizeFrame:Hide()
-
-  -- Create the cooldown edge frame
-  local CooldownEdgeFrame = CreateFrame('Frame', nil, RuneCooldownBarFrame)
-
-    -- Create the cooldown edge texture
-    local CooldownEdge = CooldownEdgeFrame:CreateTexture(nil, 'OVERLAY')
-    CooldownEdge:SetTexture(CooldownBarSparkTexture.Texture)
-    CooldownEdge:SetBlendMode('ADD')
-    CooldownEdge:SetAllPoints(CooldownEdgeFrame)
-
-  -- Set frame levels.
-
-  -- Set text to be above all. Appears this has to be higher than what is set to RuneNormalFrame below.
-  TxtFrame:SetFrameLevel(RuneBorderFrame:GetFrameLevel() + 6)
-
-  RuneNormalFrame:SetFrameLevel(RuneNormalFrame:GetFrameLevel() + 5)
-
-  -- Make rune border appear above clockface cooldown.
-  RuneBorderFrame:SetFrameLevel(Cooldown:GetFrameLevel() + 1)
-
-  -- Make the energize texture appear on top of the cooldown bar.
-  RuneCooldownBarEnergizeFrame:SetFrameLevel(RuneCooldownBarEnergizeFrame:GetFrameLevel() + 1)
-
-  -- Create a table for energize.
-  RuneF.Energize = {RuneF = RuneF}
-
-  -- Save the rune type to RuneF.
-  RuneF.RuneType = RuneType
-
-  -- Save the frames and textures.
-  RuneF.RuneNormalFrame = RuneNormalFrame
-  RuneF.TxtFrame = TxtFrame
-  RuneF.FS = FS
-  RuneF.RuneIcon = RuneIcon
-  RuneF.Cooldown = Cooldown
-  RuneF.RuneBorderFrame = RuneBorderFrame
-  RuneF.RuneBorder = RuneBorder
-  RuneF.RuneBorderEnergize = RuneBorderEnergize
-  RuneF.Highlight = Highlight
-  RuneF.CooldownBarHighlight = CooldownBarHighlight
-  RuneF.RuneCooldownBarFrame = RuneCooldownBarFrame
-  RuneF.RuneCooldownBar = RuneCooldownBar
-  RuneF.RuneCooldownBarEnergizeFrame = RuneCooldownBarEnergizeFrame
-  RuneF.CooldownEdgeFrame = CooldownEdgeFrame
-  RuneF.CooldownEdge = CooldownEdge
+  if Display then
+    BBar:Display()
+    Display = false
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -1175,67 +499,59 @@ end
 --
 -- Creates the main rune bar frame that contains the death knight runes
 --
--- Usage: GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
---
 -- UnitBarF     The unitbar frame which will contain the rune bar.
 -- UB           Unitbar data.
--- Anchor       The unitbar's anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.RuneBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
-  local BarType = UnitBarF.BarType
-
-
-  -- Create the offset frame.
-  local OffsetFrame = CreateFrame('Frame', nil, ScaleFrame)
-
-  local RuneF = {}
+function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
+  local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxRunes)
   local ColorAllNames = {}
 
-  -- Create the rune frames for the runebar.
-  for Rune = 1, MaxRunes do
-    local RF = CreateFrame('Frame', nil, OffsetFrame)
+  BBar:CreateTextureFrame(0, BarMode, 0)
+    BBar:CreateTexture(0, BarMode, 'statusbar', 1, RuneSBar)
+    BBar:CreateTexture(0, BarMode, 'statusbar', 2, RuneEnergizeSBar)
+    BBar:SetBackdropTexture(0, RuneEnergizeSBar, BarEnergizeBorder)
 
-    -- Save the rune number as a runeId
-    RF.RuneID = Rune
+  local Width = RuneTextureData.Width
+  local Height = RuneTextureData.Height
 
-    -- Create the tracking frame.
-    local RuneTrackingFrame =  CreateFrame('Frame', nil, RF)
-    RuneTrackingFrame:SetPoint('BOTTOMLEFT', Anchor, 'BOTTOMLEFT')
-    RuneTrackingFrame:SetPoint('TOPRIGHT', RF, 'TOPLEFT')
-    RF.RuneTrackingFrame = RuneTrackingFrame
+  for RuneIndex = 1, MaxRunes do
+    local RuneType = GetRuneType(RuneIndex)
 
-    -- Create the rune. This math converts rune into runetype.
-    CreateRune(BarType, ceil(Rune / 2), RF)
+    BBar:SetFillTexture(RuneIndex, RuneSBar, 0)
 
-    -- Make the rune movable.
-    RF:SetMovable(true)
+    BBar:CreateTextureFrame(RuneIndex, RuneMode, 3)
+      BBar:CreateTexture(RuneIndex, RuneMode, 'cooldown', 4, RuneTexture)
+      BBar:SetTexture(RuneIndex, RuneTexture, RuneTextureData[RuneType])
+      BBar:SetSizeTexture(RuneIndex, RuneTexture, Width, Height)
+      BBar:SetSizeCooldownTexture(RuneIndex, RuneTexture, Width * 0.625, Height * 0.625, 0, 1)
 
-    -- Save a reference of the anchor for moving.
-    RF.Anchor = Anchor
+      BBar:CreateTexture(RuneIndex, RuneMode, 'texture', 5, RuneBorderTexture)
+      BBar:SetTexture(RuneIndex, RuneBorderTexture, RuneTextureData.Border)
+      BBar:SetColorTexture(RuneIndex, RuneBorderTexture, 0.6, 0.6, 0.6, 1)
+      BBar:SetSizeTexture(RuneIndex, RuneBorderTexture, Width, Height)
 
-    -- Save a reference of UnitBarF for dragging/dropping.
-    RF.UnitBarF = UnitBarF
+      BBar:CreateTexture(RuneIndex, RuneMode, 'texture', 6, RuneEnergizeTexture)
+      BBar:SetTexture(RuneIndex, RuneEnergizeTexture, RuneTextureData.BorderEnergize)
+      BBar:SetSizeTexture(RuneIndex, RuneEnergizeTexture, Width, Height)
 
-    -- Set the text for tooltips/options.
-    local Name = GetRuneName(RF)
-    Main:SetTooltip(RF, Name, MouseOverDesc)
-    Main:SetTooltip(RF, nil, MouseOverDesc2)
-    ColorAllNames[RF.RuneID] = Name
-
-    RuneF[Rune] = RF
+      ColorAllNames[RuneIndex] = format('%s %s', RuneName[ceil(RuneIndex / 2)], 2 - RuneIndex % 2)
   end
 
-  -- Add death rune name for options.
   ColorAllNames[7] = 'Death Rune 1'
   ColorAllNames[8] = 'Death Rune 2'
 
-  -- Save the color all names.
-  UnitBarF.ColorAllNames = ColorAllNames
+  BBar:SetSizeTextureFrame(0, BarMode, UB.Bar.Width, UB.Bar.Height)
+  BBar:SetSizeTextureFrame(0, RuneMode, RuneTextureData.Width, RuneTextureData.Height)
 
-  -- Save the rune frames.
-  UnitBarF.OffsetFrame = OffsetFrame
-  UnitBarF.RuneF = RuneF
+  BBar:SetHiddenTexture(0, RuneSBar, false)
+  BBar:SetHiddenTexture(0, RuneTexture, false)
+  BBar:SetHiddenTexture(0, RuneBorderTexture, false)
+
+  BBar:CreateFont(0)
+
+  UnitBarF.ColorAllNames = ColorAllNames
+  UnitBarF.BBar = BBar
 end
 
 --*****************************************************************************
@@ -1244,7 +560,7 @@ end
 --
 --*****************************************************************************
 
-function GUB.UnitBarsF.RuneBar:Enable(Enable)
+function Main.UnitBarsF.RuneBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'RUNE_POWER_UPDATE', self.Update)
   Main:RegEventFrame(Enable, self, 'RUNE_TYPE_UPDATE', self.Update)
 end

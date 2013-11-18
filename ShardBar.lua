@@ -10,25 +10,27 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local ConvertPowerType = GUB.ConvertPowerType
-local MouseOverDesc = GUB.MouseOverDesc
+
+local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
+      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
+local UnitName, UnitGetIncomingHeals, GetRealmName =
+      UnitName, UnitGetIncomingHeals, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -41,35 +43,45 @@ local C_PetBattles, UIParent =
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar                  Reference to the unitbar data for the shard bar.
+-- UnitBarF.BBar                     Contains the ember bar displayed on screen.
+--
 -- UnitBarF.ShardBar                 Contains the shard bar displayed on screen.
 --
 -- ShardData                         Contains all the data for the soul shards texture.
 --   Texture                         Path name to the texture file.
---   Point                           Texture position inside the texture frame.
 --   Width                           Width of the texture and box size in texture mode.
 --   Height                          Height of the texture and box size in texture mode.
 --   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
 -- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
 --
+-- Shards                            ChangeTexture number for ShardBar and ShardLightTexture
+-- ShardSBar                         Contains the lit shard texture for box mode.
+-- ShardDarkTexture                  Contains the dark shard texture for texture mode.
+-- ShardLightTexture                 Contains the lit shard textuire for texture mode.
 -- ShardBox                          Soul shard in box mode.  Statusbar
 -- ShardDark                         Dark soul shard when not lit.
 -- ShardLight                        Light sould shard used for lighting a dark soul shard.
 -------------------------------------------------------------------------------
 local MaxSoulShards = 4
+local Display = false
 
 -- Powertype constants
 local PowerShard = ConvertPowerType['SOUL_SHARDS']
 
 -- Soulshard Texture constants
-local ShardBox = 1
-local ShardDark = 2
-local ShardLight = 3
+local BoxMode = 1
+local TextureMode = 2
+
+local Shards = 3
+
+local ShardSBar = 10
+local ShardDarkTexture = 11
+local ShardLightTexture = 12
 
 local ShardData = {
   Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
-  Point = 'CENTER',
-  Width = 17 + 15, Height = 16 + 15,
+  BoxWidth = 17 + 15, BoxHeight = 16 + 15,
+  Width = 17 + 15 - 7, Height = 16 + 15 - 7,
   Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
 }
 local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
@@ -77,7 +89,7 @@ local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -86,46 +98,15 @@ GUB.UnitBarsF.ShardBar.StatusCheck = GUB.Main.StatusCheck
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UpdateSoulShards
---
--- Lights or darkens the soul shards
---
--- Usage: UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFade)
---
--- ShardBarF        SoulShard bar containing shards to update.
--- SoulShards       Total amount of shards to light up.
--- NumShards        Total amount of shards that can be displayed.
--------------------------------------------------------------------------------
-local function UpdateSoulShards(ShardBarF, SoulShards, NumShards, FinishFade)
-  local ShardBar = ShardBarF.ShardBar
-
-  for ShardIndex = 1, NumShards do
-
-    -- Light the shard.
-    if ShardIndex <= SoulShards then
-      ShardBar:ShowTexture(ShardIndex, ShardBox)
-      ShardBar:ShowTexture(ShardIndex, ShardLight)
-    else
-
-      -- Darken the shard.
-      ShardBar:HideTexture(ShardIndex, ShardBox)
-      ShardBar:HideTexture(ShardIndex, ShardLight)
-    end
-  end
-end
-
--------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
 -- Update the number of shards of the player
---
--- Usage: Update(Event, Unit, PowerType)
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
+function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
   if not self.Visible and self.IsActive ~= 0 then
@@ -143,19 +124,14 @@ function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   local NumShards = UnitPowerMax('player', PowerShard)
 
   -- Set default value if NumShards returns zero.
-  NumShards = NumShards > 0 and NumShards or MaxSoulShards - 1
+  NumShards = NumShards > 0 and NumShards or MaxSoulShards
 
-  -- Check for total shard change.
-  if NumShards ~= self.NumShards then
-    local ShardBar = self.ShardBar
-
-    -- Change the number of boxes in the bar.
-    ShardBar:SetNumBoxes(NumShards)
-
-    -- Update the layout to reflect the change.
-    self:SetLayout()
-
-    self.NumShards = NumShards
+  if Main.UnitBars.Testing then
+    if self.UnitBar.TestMode.MaxResource then
+      SoulShards = MaxSoulShards
+    else
+      SoulShards = 0
+    end
 
   -- Reduce cpu usage by checking for soulshard change.
   -- This is because unit_power_frequent is firing off more than it should.
@@ -164,7 +140,11 @@ function GUB.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   end
 
   self.SoulShards = SoulShards
-  UpdateSoulShards(self, SoulShards, NumShards)
+  local BBar = self.BBar
+
+  for ShardIndex = 1, MaxSoulShards do
+    BBar:ChangeTexture(Shards, 'SetHiddenTexture', ShardIndex, ShardIndex > SoulShards)
+  end
 
   -- Set the IsActive flag.
   self.IsActive = SoulShards < NumShards
@@ -184,261 +164,133 @@ end
 --
 -- This will enable or disbable mouse clicks for the shard bar.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:EnableMouseClicks(Enable)
-  local ShardBar = self.ShardBar
+function Main.UnitBarsF.ShardBar:EnableMouseClicks(Enable)
+  local BBar = self.BBar
 
-  -- Enable/Disable normal mode.
-  ShardBar:SetEnableMouseClicks(nil, Enable)
+  -- Enable/disable for border.
+  BBar:EnableMouseClicksRegion(Enable)
 
-  -- Enable/disable box mode.
-  ShardBar:SetEnableMouseClicks(0, Enable)
-end
-
--------------------------------------------------------------------------------
--- FrameSetScript    UnitBarsF function
---
--- Set up script handlers for the Shardbar.
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:FrameSetScript()
-  local ShardBar = self.ShardBar
-
-  -- Enable normal mode. for the bar.
-  ShardBar:SetEnableMouse(nil)
-
-  -- Enable box mode.
-  ShardBar:SetEnableMouse(0)
+  -- ENable/disable for box mode
+  BBar:EnableMouseClicks(0, nil, Enable)
 end
 
 -------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the shardbar.
---
--- Usage: SetAttr(Object, Attr)
---
--- Object       Object being changed:
---               'bg' for background (Border).
---               'bar' for forground (StatusBar).
---               'frame' for the frame.
--- Attr         Type of attribute being applied to object:
---               'color'     Color being set to the object.
---               'backdrop'  Backdrop settings being set to the object.
---               'scale'     Scale settings being set to the object.
---               'padding' Amount of padding set to the object.
---               'texture' One or more textures set to the object.
---               'strata'    Frame strata for the object.
---
--- NOTE: To apply one attribute to all objects. Object must be nil.
---       To apply all attributes to one object. Attr must be nil.
---       To apply all attributes to all objects both must be nil.
 -------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:SetAttr(Object, Attr)
-  local ShardBar = self.ShardBar
+function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
+  local BBar = self.BBar
 
-  -- Check scale and strata for 'frame'
-  Main:UnitBarSetAttr(self, Object, Attr)
+  if not BBar:OptionsSet() then
 
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local Border = self.Border
+    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-  -- Check if we're in boxmode.
-  if UB.General.BoxMode then
-    local Bar = UB.Bar
-    local Background = UB.Background
-    local Padding = Bar.Padding
-    local BackdropSettings = Background.BackdropSettings
-
-    for ShardIndex = 1, MaxSoulShards do
-
-      -- Background (Border).
-      if Object == nil or Object == 'bg' then
-        local BgColor = Background.Color
-
-        -- Get all color if All is true.
-        if not BgColor.All then
-          BgColor = BgColor[ShardIndex]
-        end
-
-        if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
-          ShardBar:SetBackdrop(ShardIndex, BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-        end
+    BBar:SO('Layout', 'BoxMode',       function(v)
+      if v then
+        -- Box mode
+        BBar:ShowRowTextureFrame(BoxMode)
+      else
+        -- texture mode
+        BBar:ShowRowTextureFrame(TextureMode)
       end
+      Display = true
+    end)
+    BBar:SO('Layout', 'HideRegion',    function(v) BBar:SetHiddenRegion(v) Display = true end)
+    BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
+    BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
+    BBar:SO('Layout', 'BorderPadding', function(v) BBar:SetPaddingBorder(v) Display = true end)
+    BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
+    BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
+    BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
+    BBar:SO('Layout', 'TextureScale',  function(v) BBar:SetScaleTextureFrame(0, TextureMode, v) Display = true end)
+    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, ShardSBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(0, ShardLightTexture, 'in', v) end)
+    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, ShardSBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(0, ShardLightTexture, 'out', v) end)
+    BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
+    BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-      -- Forground (Statusbar).
-      if Object == nil or Object == 'bar' then
-        if Attr == nil or Attr == 'texture' then
-          ShardBar:SetTexture(ShardIndex, ShardBox, Bar.StatusBarTexture)
-          ShardBar:SetRotateTexture(ShardIndex, ShardBox, Bar.RotateTexture)
-        end
-        if Attr == nil or Attr == 'color' then
-          local BarColor = Bar.Color
+    BBar:SO('Region', 'BackdropSettings', function(v) BBar:SetBackdropRegion(v) end)
+    BBar:SO('Region', 'Color',            function(v) BBar:SetBackdropColorRegion(v.r, v.g, v.b, v.a) end)
 
-          -- Get all color if All is true.
-          if not BarColor.All then
-            BarColor = BarColor[ShardIndex]
-          end
-          ShardBar:SetColor(ShardIndex, ShardBox, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-        end
-      end
-    end
+    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(0, BoxMode, v) end)
+    BBar:SO('Background', 'Color',            function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
 
-    -- Forground (Statusbar).
-    if Object == nil or Object == 'bar' then
-      if Attr == nil or Attr == 'padding' then
-        ShardBar:SetStatusBarPadding(0, ShardBox, Padding.Left, Padding.Right, Padding.Top, Padding.Bottom)
-      end
-    end
-  else
-
-    -- Else in texture mode.
-
-    -- Background (Border).
-    if Object == nil or Object == 'bg' then
-      local BgColor = UB.Background.Color
-
-      if Attr == nil or Attr == 'backdrop' or Attr == 'color' then
-        ShardBar:SetBackdrop(nil, UB.Background.BackdropSettings, BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-      end
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- SetLayout    UnitBarsF function
---
--- Set a shardbar to a new layout
--------------------------------------------------------------------------------
-function GUB.UnitBarsF.ShardBar:SetLayout()
-  local ShardBar = self.ShardBar
-
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local Gen = self.UnitBar.General
-  local ShardFadeInTime = Gen.ShardFadeInTime
-  local ShardFadeOutTime = Gen.ShardFadeOutTime
-
-  -- Convert old shard size to a default of 1.
-  if Gen.ShardSize > 9 then
-    Gen.ShardSize = 1
+    BBar:SO('Bar', 'StatusBarTexture',  function(v) BBar:SetTexture(0, ShardSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',     function(v) BBar:SetRotateTexture(0, ShardSBar, v) end)
+    BBar:SO('Bar', 'Color',             function(v, UB, OD) BBar:SetColorTexture(OD.Index, ShardSBar, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Bar', '_Size',             function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',           function(v) BBar:SetPaddingTexture(0, ShardSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
-  -- Set all attributes.
-  self:SetAttr(nil, nil)
+  -- Do the option.  This will call one of the options above or all.
+  BBar:DoOption(TableName, KeyName)
 
-  -- Set padding and rotation and fade.
-  ShardBar:SetPadding(0, Gen.ShardPadding)
-  ShardBar:SetAngle(Gen.ShardAngle)
-  ShardBar:SetFadeTime(0, ShardBox, 'in', ShardFadeInTime)
-  ShardBar:SetFadeTime(0, ShardLight, 'in', ShardFadeInTime)
-  ShardBar:SetFadeTime(0, ShardBox, 'out', ShardFadeOutTime)
-  ShardBar:SetFadeTime(0, ShardLight, 'out', ShardFadeOutTime)
-
-  -- Check for box mode.
-  if Gen.BoxMode then
-
-    -- Set size
-    ShardBar:SetBoxSize(UB.Bar.BoxWidth, UB.Bar.BoxHeight)
-    ShardBar:SetBoxScale(1)
-
-    -- Stop any fading animation.
-    ShardBar:StopFade(0, ShardBox)
-
-    -- Hide/show Box mode.
-    ShardBar:HideTextureFrame(0, ShardDark)
-    ShardBar:HideTextureFrame(0, ShardLight)
-    ShardBar:ShowTextureFrame(0, ShardBox)
-
-    ShardBar:HideBorder(nil)
-    ShardBar:ShowBorder(0)
-  else
-
-    -- Texture mode
-    local ShardScale = Gen.ShardScale
-
-    -- Set Size
-    ShardBar:SetBoxSize(ShardData.Width, ShardData.Height)
-    ShardBar:SetBoxScale(Gen.ShardSize)
-    ShardBar:SetTextureScale(0, ShardDark, ShardScale)
-    ShardBar:SetTextureScale(0, ShardLight, ShardScale)
-
-    -- Stop any fading animation.
-    ShardBar:StopFade(0, ShardLight)
-
-    -- Hide/show Texture mode.
-    ShardBar:ShowTextureFrame(0, ShardDark)
-    ShardBar:ShowTextureFrame(0, ShardLight)
-    ShardBar:HideTextureFrame(0, ShardBox)
-
-    ShardBar:HideBorder(0)
-    ShardBar:ShowBorder(nil)
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
-  -- Display the shardbar.
-  self:SetSize(ShardBar:Display())
+  if Display then
+    BBar:Display()
+    Display = false
+  end
 end
 
 -------------------------------------------------------------------------------
 -- CreateBar
 --
--- Usage: GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
---
 -- UnitBarF     The unitbar frame which will contain the shard bar.
 -- UB           Unitbar data.
--- Anchor       The unitbars anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.ShardBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
+  local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxSoulShards)
+
   local ColorAllNames = {}
 
-  -- Create the shardbar.
-  local ShardBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxSoulShards)
+  -- Create box mode.
+  BBar:CreateTextureFrame(0, BoxMode, 0)
+    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ShardSBar)
+
+  -- Create texture mode.
+  BBar:CreateTextureFrame(0, TextureMode, 0)
+
+  BBar:CreateTexture(0, TextureMode, 'texture', 1, ShardDarkTexture)
+  BBar:CreateTexture(0, TextureMode, 'texture', 2, ShardLightTexture)
+
+  BBar:SetTexture(0, ShardDarkTexture, ShardData.Texture)
+  BBar:SetTexture(0, ShardLightTexture, ShardData.Texture)
+
+  BBar:SetCoordTexture(0, ShardDarkTexture, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
+  BBar:SetCoordTexture(0, ShardLightTexture, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
+
+  BBar:SetGreyscaleTexture(0, ShardDarkTexture, true)
+  BBar:SetColorTexture(0, ShardDarkTexture, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
+
+  BBar:SetSizeTexture(0, ShardDarkTexture, ShardData.Width, ShardData.Height)
+  BBar:SetSizeTexture(0, ShardLightTexture, ShardData.Width, ShardData.Height)
+
+  BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)
+  BBar:SetSizeTextureFrame(0, TextureMode, ShardData.BoxWidth, ShardData.BoxHeight)
+
+  BBar:SetHiddenTexture(0, ShardDarkTexture, false)
 
   for ShardIndex = 1, MaxSoulShards do
-
-      -- Create the textures for box and runes.
-    ShardBar:CreateBoxTexture(ShardIndex, ShardBox, 'statusbar', 0)
-    ShardBar:CreateBoxTexture(ShardIndex, ShardDark, 'texture', 0, ShardData.Width, ShardData.Height)
-    ShardBar:CreateBoxTexture(ShardIndex, ShardLight, 'texture', 1, ShardData.Width, ShardData.Height)
-
-    -- Set the textures
-    ShardBar:SetTexture(ShardIndex, ShardDark, ShardData.Texture)
-    ShardBar:SetTexture(ShardIndex, ShardLight, ShardData.Texture)
-
-    -- Set the soulshard dark texture
-    ShardBar:SetTexCoord(ShardIndex, ShardDark, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
-
-    ShardBar:SetTextureSize(ShardIndex, ShardDark, ShardData.Width, ShardData.Height)
-    ShardBar:SetDesaturated(ShardIndex, ShardDark, true)
-    ShardBar:SetColor(ShardIndex, ShardDark, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
-
-    -- Set the soulshard light texture
-    ShardBar:SetTexCoord(ShardIndex, ShardLight, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
-    ShardBar:SetTextureSize(ShardIndex, ShardLight, ShardData.Width, ShardData.Height)
-
-    -- Set texture points.
-    ShardBar:SetTexturePoint(ShardIndex, ShardDark, ShardData.Point)
-    ShardBar:SetTexturePoint(ShardIndex, ShardLight, ShardData.Point)
-
-     -- Set and save the name for tooltips for each shard.
     local Name = 'Soul Shard ' .. ShardIndex
 
-    ShardBar:SetTooltip(ShardIndex, Name, MouseOverDesc)
-
+    BBar:SetTooltip(ShardIndex, nil, Name)
     ColorAllNames[ShardIndex] = Name
   end
+  BBar:SetTooltipRegion(UB.Name)
 
-  -- Show the dark textures.
-  ShardBar:ShowTexture(0 , ShardDark)
+  BBar:SetChangeTexture(Shards, ShardLightTexture, ShardSBar)
 
-  -- Save the name for tooltips for normal mode.
-  ShardBar:SetTooltip(nil, UB.Name, MouseOverDesc)
-
-  -- Save the color all names.
   UnitBarF.ColorAllNames = ColorAllNames
-
-  -- Save the shardbar
-  UnitBarF.ShardBar = ShardBar
+  UnitBarF.BBar = BBar
 end
 
 --*****************************************************************************
@@ -447,6 +299,6 @@ end
 --
 --*****************************************************************************
 
-function GUB.UnitBarsF.ShardBar:Enable(Enable)
+function Main.UnitBarsF.ShardBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end

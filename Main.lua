@@ -8,19 +8,23 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local DefaultUB = GUB.DefaultUB
+local Version = DefaultUB.Version
+local DUB = DefaultUB.Default.profile
+
 local Main = {}
 local UnitBarsF = {}
-local UnitBarsFI = {}
+local UnitBarsFE = {}
+local Bar = {}
 local HapBar = {}
 local Options = {}
 
 GUB.Main = Main
-GUB.UnitBarsF = UnitBarsF
-GUB.Bar = {}
-GUB.WoWUI = {}
+GUB.Bar = Bar
 GUB.HapBar = HapBar
 GUB.RuneBar = {}
 GUB.ComboBar = {}
+GUB.AnticipationBar = {}
 GUB.HolyBar = {}
 GUB.ShardBar = {}
 GUB.DemonicBar = {}
@@ -28,28 +32,22 @@ GUB.EmberBar = {}
 GUB.EclipseBar = {}
 GUB.ShadowBar = {}
 GUB.ChiBar = {}
+GUB.MaelstromBar = {}
 GUB.Options = Options
-GUB.ProfileChanging = false
 
--------------------------------------------------------------------------------
--- Setup Ace3
--------------------------------------------------------------------------------
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
--------------------------------------------------------------------------------
--- Setup shared media
--------------------------------------------------------------------------------
 local LSM = LibStub('LibSharedMedia-3.0')
 local MistsVersion = select(4, GetBuildInfo()) >= 50000
 
 -- localize some globals.
 local _
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local strfind, strsplit, strsub, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber =
+      strfind, strsplit, strsub, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
@@ -58,8 +56,8 @@ local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, 
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
 local UnitName, UnitGetIncomingHeals, GetRealmName =
       UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -82,11 +80,10 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --     Fade
 --     ScaleFrame
 --       <Unitbar frames start here>
---     SelectFrame
 --
 --
--- UnitBarsF structure    NOTE: To access UnitBarsF by index use UnitBarsFI[Index].
---                              UnitBarsFI is used to enable/disable bars in EnableUnitBars().
+-- UnitBarsF structure    NOTE: To access UnitBarsF by index use UnitBarsFE[Index].
+--                              UnitBarsFE is used to enable/disable bars in SetUnitBars().
 --
 -- UnitBarsParent         - Child of UIParent.  The perpose of this is so all bars can be moved as a group.
 -- UnitBarsF[]            - UnitBarsF[] is a frame and table.  This is so each bar can have its own events,
@@ -95,11 +92,9 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --                          and size of a bar and location on the screen.  Also brings the bar to top level when clicked.
 --                          From my testing any frame that gets clicked on that is a child of a frame with SetToplevel(true)
 --                          will bring the parent to top level even if the parent wasn't the actual frame clicked on.
---     UnitBar            - This is used for moving since the move code needs to update the bars position data after each move.
+--   Anchor.UnitBar       - This is used for moving since the move code needs to update the bars position data after each move.
+--   Anchor.Name          - Name of the UnitBar.  This is used by the aling and swap options which uses MoveFrameStart()
 --   ScaleFrame           - Child of Anchor.  Controls scaling of bars to be made larger or smaller thru SetScale().
---   SelectFrame          - Child of Anchor.  Places a colored border around a selected frame used for the alignment tool.
---                          Its frame level is always the highest since it doesn't get scaled and needs to appear
---                          on the top most level.
 --   Fade                 - Table containing the fading animation groups/methods.  The groups are a child of Anchor.
 --
 --
@@ -108,19 +103,14 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- Search thru the code to see how these are used.
 --
 --
--- GUB.ProfileUpdate      - If true the mod is currently in the process of changing the profile.
---                          If false no profile changing. This is currently set by a profilechange, reset defaults, and copypaste.
---
 -- List of UninBarsF methods:
 --
 --   Update()             - This is how information from the server gets to the bar.
+--   Enable()             - Disables events if passed true otherwise enables events.
 --   StatusCheck()        - All bars have flags that determin if a bar should be visible in combat or never shown.
 --                          When this gets called the bar checks the flags to see if the bar should change its state.
 --   EnableMouseClicks()  - Enable or disable mouse interaction with the bar.
---   FrameSetScript()     - Enable or disable scripts for the bar.
---   SetAttr()            - Set different parts of the bar. Color, size, font, etc.
---   SetLayout()          - Before a bar can start taking data this must be called.  This will load the profile data
---                          into the bar.  This is used for initializing after firstload or during a profile change.
+--   SetAttr()            - This sets the layout and different parts of the bar. Color, size, font, etc.
 --   BarVisible()         - This is used by StatusCheck() to determin if a bar should be hidden.  Bars like focus and target
 --                          need to be hidden when the player doesn't have a target or focus.
 --   SetSize()            - This can change the location and/or size of the Anchor.
@@ -130,40 +120,37 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 -- List of UnitBarsF values.
 --
---   WasEnabled           - True or false.  Flag used to keep track of enable/disable by EnableUnitBars()
+--   Anchor               - Frame that holds the location of the bar.  This is a child of UnitBarsParent.
+--   Created              - If nil then the bar has not been created yet, otherwise true.
+--   OldEnabled           - Current state of the bar. This is used to detect if a bar is being changed from enabled to disabled or
+--                          vice versa.  Used by SetUnitBars().
 --   Visible              - True or false.  If true then the bar is visible otherwise hidden.
 --   IsActive             - True, false, or 0.
 --                            True   The bar is considered to be doing something.
 --                            False  The bar is not active.
 --                            0      The bar is waiting to be active again.  If the flag is checked by StatusCheck() and is false.
 --                                   Then it sets it to zero.
---   ScaleWidth           - Contains the scaled width of the Anchor.
---   ScaleHeight          - Contains the scaled height of the Anchor.
---   Width                - Contains the unscaled width of the Anchor.  ScaleWidth * scale.
---   Height               - Contains the unscaled height of the Anchor.  ScaleHeight * scale.
---   Selected             - True of false.  If true then the bar has a select rectangle around it.
---   SelectColor          - Color of the select retangle in r, g, b format.
+--   BaseWidth            - Used by SetUnitBarSize() to control scaling.
+--   BaseHeight           - Used by SetUnitBarSize() to control scaling.
+--   Width                - Width of the bar based on Anchor.
+--   Height               - Height of the bar based on Anchor.
 --   BarType              - Mostly for debugging.  Contains the type of bar. 'PlayerHealth', 'RuneBar', etc.
 --   UnitBar              - Reference to the current UnitBar data which is the current profile.  Each time the
---                          profile changes this value gets referenced to the new profile. UnitBar points to
---                          the current profile.
+--                          profile changes this value gets referenced to the new profile. This is the same
+--                          as UnitBars[BarType].
 --
 --
 -- UnitBar mod upvalues/tables.
 --
--- Defaults               - The default unitbar table.  Used for first time initialization.
--- DefaultFadeInTime      - Default fade in time for all bars and objects.
--- DefaultFadeOutTime     - Default fade out time for all bars and objects.
--- CooldownBarTimerDelay  - Delay for the cooldown timer bar measured in times per second.
+-- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
 -- ConvertPowerType       - Table to convert a string powertype into a number or back into a number.
--- Backdrop                 This contains a Backdrop table that has texture path names.  Since this addon uses
---                          shared media.  Texture names need to be converted into path names.  So ConvertBackdrop()
---                          needs to be called.  ConvertBackdrop then sets this table to a real backdrop table that
---                          can be used in SetBackdrop().  This table should never be reference to another table
---                          since convertbackdrop passes back a reference to this table.
---
--- AlignmentTooltipDesc     Tooltip to be shown when the alignment tool is active.
+-- InitOnce               - Used by OnEnable to initialize just one time.
+-- MessageBox             - Contains the message box to show a message on screeen.
+-- TrackingFrame          - Used by MoveFrameGetNearestFrame()
+-- MouseOverDesc          - Mouse over tooltip displayed to drag bar.
+-- UnitBarVersion         - Current version of the mod.
+-- AlignAndSwapTooltipDesc - Tooltip to be shown when the alignment tool is active.
 --
 -- InCombat               - True or false. If true then the player is in combat.
 -- InVehicle              - True or false. If true then the player is in a vehicle.
@@ -178,368 +165,24 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -- PlayerPowerType        - The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in.
 -- PlayerSpecialization   - The current specialization for the player
--- Initialized            - True of false. Flag for OnInitializeOnce().
--- PSelectedUnitBarF      - Contains a reference to UnitBarF.  Contains the primary selected UnitBar.
---                          Alignment tool currently uses this.
--- SelectMode             - true or false.  If true then bars can be left or right clicked on to select.
---                                          Otherwise nothing happens.
---
--- DefaultBgTexture       - Default background texture for the backdrop and all bars.
--- DefaultBdTexture       - Default border texture for the backdrop and all bars.
--- DefaultStatusBarTexture- Default bar texture for the health and power bars.
---
--- PointCalc              - Table used by CalcSetPoint() to return a location inside a parent frame.
 --
 -- RegEventFrames         - Table used by RegEvent()
 --
--- Thousands              - Contains the digit group delimeter based on language.
--- BillionFormat
--- MillionFormat
--- ThousandFormat         - Used by NumberToDigitGroups()
+-- MoonkinForm
+-- CatForm
+-- BearForm
+-- MonkMistWeaveSpec      - Current specs used by their bars.
 --
+-- MoveAlignDistance      - Amount of distance in pixels when aligning bars or bar objects.
+-- MoveSelectFrame        - Current frame that is selected when swapping or aligning bars or bar objects
+-- MoveLastSelectFrame    - Used to keep track of when a MoveSelectFrame changed.
+-- MovePoint              - Current point for moveframe when aligning.
+-- MoveSelectPoint        - Relative point to anchor MovePoint to on the MoveSelectFrame.
+-- MoveLastHighlightFrame - Keeps track of what frame was last highlighted for align and swap for both bars and boxes.
+-- MoveOldSelectFrame     - For alingment, keeps track of the last selected frame.  To pick the next closest frame.
+-- MoveOldMFCenterX
+-- MoveOldMFCenterY       - For alingment, used to calculate the linedistance between the oldselectframe and new one.
 --
--- UnitBar table data structure.
--- This data is used in the root of the unitbar data table and applies to all bars.  Accessed by UnitBar.Key.
---
--- EnableClass            - True or false. If true all unitbars get enabled for your class only.
--- IsGrouped              - True or false. If true all unitbars get dragged as one object.
---                                         If false each unitbar can be dragged by its self.
--- IsLocked               - True or false. If true all unitbars can not be clicked on.
--- IsClamped              - True or false. If true all frames can't be moved off screen.
--- HideTooltips           - True or false. If true tooltips are not shown when mousing over unlocked bars.
--- HideTooltipsDesc       - True or false. If true the descriptions inside the tooltips will not be shown when mousing over
---                                         unlocked bars.
--- ReverseFading          - True of false. If true then transition from fading in one direction then going to the other is smooth.
--- FadeOutTime            - Time in seconds before a bar completely goes hidden.
--- FadeInTime             - Time in seconds before a bar completely becomes visible.
--- Px, Py                 - The current location of the UnitBarsParent on the screen.
---
---
--- Fields found in all unitbars:
---
---   _DC = 0              - This can appear anywhere in the table.  It's used by CopyUnitBar().  If this key is found
---                          in the source and destination during a copy.  It will deepcopy the table instead. Even if the table
---                          being copied is inside of a larger table that has the _DC tag.  Then it will still get deep copied.
---   Name                 - Name of the bar.
---   UnitType             - Type of unit: 'player', 'pet', 'focus', 'target'
---   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
---   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this.
---   UsedByClass          - If a bar doesn't have this key then any class can use the bar and be any spec or no spec.
---                          Contains the data for HideNotUsable flag.  Not all unitbars use this. This is also used for Enable Bar Options.
---                          Example1: {DRUID = '1234'}
---                            Class has to be druid and any of the 4 specs can be used.
---                          Example2: {DRUID = '12', DEATHKNIGHT = ''}
---                            Class has to be druid or deathknight.  Spec 1 or 2 on the druid has to be used. Deathknight, spec isn't checked.
---
---   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
---   Status               - Table that contains a list of flags marked as true or false.
---                          If a flag is found true then a statuscheck will be done to see what the
---                          bar should do. Flags with a higher priority override flags with a lower.
---                          Flags from highest priority to lowest.
---                            HideNotUsable    Disables and hides the unitbar if the bar is not usable
---                                             by class and/or specialization.
---                                             Not everybar has this flag.  If one is present then
---                                             the bar has a UsedByClass table.
---                            HideWhenDead     Hide the unitbar when the player is dead.
---                            HideInVehicle    Hide the unitbar if in a vehicle.
---                            HideInPetBattle  Hide the unitbar if in a pet battle.
---                            HideNotActive    Hide the unitbar if its not active. Only checked out of combat.
---                            HideNoCombat     Hide the unitbar when not in combat.
--- Other                  - For anything not related mostly this will be for scale and maybe alpha
---   Scale                - Sets the scale of the unitbar frame.
---   FrameStrata          - Sets the strata for the frame to appear on.
-
---
--- Tables used in any unitbar:
---
---
--- BackdropSettings       - Backdrop settings table. Must be converted into a backdrop before using.
---   BgTexture            - Name of the background textured in sharedmedia.
---   BdTexture            - Name of the forground texture 'statusbar' in sharedmedia.
---   BgTile               - True or false. If true then the background is tiled, otherwise not tiled.
---   BgTileSize           - Size (width or height) of the square repeating background tiles (in pixels).
---   BdSize               - Size of the border texture thickness in pixels.
---   Padding
---     Left, Right,
---     Top, Bottom        - Positive values go inwards, negative values outward.
---
--- Text                   - Text settings used for displaying numerical or string.
---   Multi                  If key is not present then
---                          Custom, Layout, ValueName, ValueType is not used and doesn't need to be in the table.
---   [x]                  - Each array element is a text line (fontstring).
---                          If mutli is false then [1] is used.
---
---     Custom             - If true a user inputed layout is used instead of one being automatically generated.
---     Layout             - Layout used in string.format for displaying the values.
---     ValueName          - An array of strings that tell what each position will display.
---     ValueType          - Tells how the value will be displayed.
---
---     FontType           - Type of font to use.
---     FontSize           - Size of the font.
---     FontStyle          - Contains flags seperated by a comma: MONOCHROME, OUTLINE, THICKOUTLINE
---     FontHAlign         - Horizontal alignment.  LEFT  CENTER  RIGHT
---     Position           - Position relative to the font's parent.  Can be one of the 9 standard setpoints.
---     FontPosition       - Same as Position except its relative to Position.
---     Width              - Field width for the font.
---     OffsetX            - Horizontal offset position of the frame.
---     OffsetY            - Vertical offset position of the frame.
---     ShadowOffset       - Number of pixels to move the shadow towards the bottom right of the font.
---     Color              - Color of the text.  This also supports 'color all' for bars like runebar.
---
---
--- UnitBars health and power fields
---   General
---     PredictedHealth    - True or false.  Used by health bars only.
---                                          If true then predicted health will be shown.
---     PredictedPower     - True or false.  Used by Player Power for hunters only.
---                                          If true predicted power will be shown.
---   Background
---     PaddingAll         - If true then padding can be set with one value other four.
---     BackdropSettings   - Contains the settings for the background, and padding.
---     Color              - Current color of the background texture of the border frame.
---   Bar
---     ClassColor         - True or false.  Used by Target and Focus Health bars only.
---                                          If true then the health bar uses the
---                                          class color otherwise uses the normal color.
---     HapWidth, HapHeight- The current width and height.
---     FillDirection      - Direction to the fill the bar in 'HORIZONTAL' or 'VERTICAL'.
---     ReverseFill        - If true then the bar fills in the opposite direction.
---     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
---                                          If false no rotation takes place.
---     PaddingAll         - If true then padding can be set with one value otherwise four.
---     Padding            - The amount of pixels to be added or subtracted from the bar texture.
---     StatusBarTexture   - Texture for the bar its self.
---     PredictedBarTexture- Used for Player, Target, Focus.  Texture used for the predicted health.
---     PredictedColor     - Used for Player, Target, Focus.  Color of the predicted health bar.
---     Color              - Hash table for current color of the bar. Health bars only.
---     Color[PowerType]   - This array is for powerbars only.  By default they're loaded from
---                          blizzards default colors.
---   Text
---
---
--- Runebar fields
---   General
---     BarModeAngle       - Angle in degrees in which way the bar will be displayed.  Only works in barmode.
---                        - Must be a multiple of 45 degrees and not 360.
---     BarMode            - If true the runes are displayed from left to right forming a bar of runes.
---     RuneMode           - 'rune'             Only rune textures are shown.
---                          'cooldownbar'      Cooldown bars only are shown.
---                          'runecooldownbar'  Rune and a Cooldown bar are shown.
---     EnergizeShow       - When a rune energizes it shows a border around the rune.
---                            'none'            Don't show any energize borders.
---                            'rune'            Only show an energize border around a rune.
---                            'cooldownbar'     Only show an energize border around a cooldown bar.
---                            'runecooldownbar' Show an energize border around a rune and cooldown bar.
---     EnergizeTime       - Time in seconds to show the energize border for.
---     RuneSwap           - True or false.  If true runes can be dragged and dropped to swap positions. Otherwise
---                                          nothing happens when a rune is dropped on another rune.
---     CooldownBarDrawEdge- True or false.  If true a line is draw on the cooldown bar edge animation.
---     CooldownAnimation  - True or false.  If true cooldown animation is shown otherwise false.
---     CooldownText       - True or false.  If true then cooldown text gets displayed.
---     HideCooldownFlash  - True or false.  If true a flash cooldown animation is not shown when a rune comes off cooldown.
---     RuneSize           - Width and Hight of all the runes.
---     RunePadding        - For barmode only, the amount of space between the runes.
---     RunePosition       - Frame position of the rune attached to Cooldownbar.  In runecooldownbar mode.
---     RuneOffsetX        - Offset X from RunePosition.
---     RuneOffsetY        - Offset Y from RunePosition.
---
---     Energize           - Table used for energize borders.
---       Color            - Color used for all the energize borders when Color.All is true.
---         All            - True or false.  If true then all energize borders use the same color.
---       Color[1 to 8]    - Colors used for each energize border when Color.All is false.
---
---   Background           - Only used for cooldown bars.
---     PaddingAll         - True or false. If true then padding can be set with one value otherwise four.
---     BackdropSettings   - Contains the settings for background, border, and padding for each cooldown bar.
---                          This is used for cooldown bars only.
---     Color              - Color used for all the cooldown bars when Color.All is true
---       All              - True or false. If true then all cooldown bars use the same color.
---     Color[1 to 8]      - Colors used for each cooldown bar when Color.All is false.
---
---   Bar                  - Only used for cooldown bars.
---     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     RuneWidth          - Width of the cooldown bar.
---     RuneHeight         - Height of the cooldown bar.
---     FillDirection      - Changes the fill direction. 'VERTICAL' or 'HORIZONTAL'.
---     ReverseFill        - If true then the bar fills in the opposite direction.
---     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
---                                          If false no rotation takes place.
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     Padding            - The amount of pixels to be added or subtracted from the bar texture.
---     StatusBarTexture   - Texture for the cooldown bar.
---     Color              - Current color of the cooldown bar.
---       All              - True or false.  If true then all cooldown bars use the same color.
---
---   Text
---
---   RuneBarOrder         - The order the runes are displayed from left to right in barmode.
---                          RuneBarOrder[Rune slot 1 to 6] = The rune frame on screen.
---   RuneLocation         - Contains the x, y location of the runes on screen when not in barmode.
---
---
--- Combobar fields
---   General
---     ComboPadding       - The amount of space in pixels between each combo point box.
---     ComboAngle         - Angle in degrees in which way the bar will be displayed.
---     ComboFadeInTime    - Time in seconds for a combo point to become visible.
---     ComboFadeOutTime   - Time in seconds for a combo point to go invisible.
---
---   Background
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     BackdropSettings   - Contains the settings for background, border, and padding for each combo point box.
---     Color              - Contains just one background color for all the combo point boxes.
---       All              - True or false.  If true then all the combo boxes are set to one color.
---                                          If false then each combo box can be set a different color.
---                          Only works when Color.All is true.
---     Color[1 to 5]      - Contains the background colors of all the combo point boxes.
---
---   Bar
---     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     BoxWidth           - The width of each combo point box.
---     BoxHeight          - The height of each combo point box.
---     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
---                                          If false no rotation takes place.
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     Padding            - Amount of padding on the forground of each combo point box.
---     StatusbarTexture   - Texture used for the forground of each combo point box.
---     Color              - Contains just one bar color for all the combo point boxes.
---       All              - True or false.  If true then all the combo boxes are set to one color.
---                                          If false then each combo box can be set a different color.
---                        - Only works when Color.All is true.
---     Color[1 to 5]      - Contains the bar colors of all the combo point boxes.
---
---
--- Holybar fields
---   General
---     BoxMode            - True or false.  If true the bar uses boxes instead of textures.
---     HolySize           - Size of the holy rune with and height.  Not used in Box Mode.
---     HolyPadding        - Amount of space between each holy rune.  Works in both modes.
---     HolyScale          - Scale of the rune without changing the holy bar size. Not used in box mode.
---     HolyFadeInTime     - Amount of time in seconds before a holy rune is lit. Works in both modes.
---     HolyFadeOutTime    - Amount of time in seconds before a holy rune goes dark.  Works in both modes.
---     HolyAngle          - Angle in degrees in which way the bar will be displayed.
---
---   Background
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     BackdropSettings   - Contains the settings for background, border, and padding for each holy rune box.
---                          When in box mode each holy box uses this setting.
---     Color              - Contains just one background color for all the holy rune boxes.
---       All              - True or false.  If true then all the holy rune boxes are set to one color.
---                                          If false then each holy rune box can be set a different color.
---                                          Only works in box mode.
---     Color[1 to 3]      - Contains the background colors of all the holy rune boxes.
---
---   Bar
---     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     BoxWidth           - Width of each holy rune box.
---     BoxHeight          - Height of each holy rune box.
---     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
---                                          If false no rotation takes place.
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     Padding            - Amount of padding on the forground of each holy rune box.
---     StatusbarTexture   - Texture used for the forground of each holy rune box.
---     Color              - Contains just one bar color for all the holy rune boxes.
---       All              - True or false.  If true then all the holy rune boxes are set to one color.
---                                          If false then each holy rune box can be set a different color.
---     Color[1 to 3]      - Contains the bar colors of all the holy rune boxes.
---
---
--- Shardbar fields        Same as Holybar fields except for the following:
---                          Uses 4 colors.
--- EmberBar fields        Same as ShardBar fields
---
--- ChiBar fields          Same as ShardBar fields except for the following:
---                          Uses 5 colors.
---
--- DemonicBar fields
---   General
---     BoxMode            - True or false.  If true the bar uses boxes instead of textures.
---
---   Background
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     BackdropSettings   - Contains the settings for background, border, and padding for each holy rune box.
---                          When in box mode each holy box uses this setting.
---     Color              - Background color for the demonic bar in box and texture mode.
---
---   Bar
---     Advanced           - True or false.  If true then you change the size of the bar in small steps.
---     BoxWidth           - Width of the bar in box mode.
---     BoxHeight          - Height of the bar in box mode.
---     FillDirection      - Direction of fill in box mode.  Works in both modes.
---     ReverseFill        - If true then the bar fills in the opposite direction.
---     RotateTexture      - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
---                                          If false no rotation takes place.
---     PaddingAll         - True or false.  If true then padding can be set with one value otherwise four.
---     Padding            - Amount of padding on the forground of the bar in box mode.
---     StatusbarTexture   - Texture used for the forground in box mode.
---     Color              - Color of the bar in box mode.
---     ColorMeta          - Color of the bar when in metamorphosis for box mode.
---
---   Text
---
---
--- Eclipsebar fields
---   General
---     SliderInside       - True or false.  If true the slider is kept inside the bar is slides on.
---                                          Otherwise the slider box will appear a little out side
---                                          when it reaches edges of the bar.
---     HideSlider         - True or false.  If true then the slider is hidden.
---     BarHalfLit         - True or false.  If true only half of the bar is lit based on the direction the slider is going in.
---     PowerText          - True or false.  If true then eclipse power text will be shown.
---     PredictedPowerText - True or false.  If true then predicted power is shown instead.
---     EclipseAngle       - Angle in degrees in which the bar will be displayed.
---     SliderDirection    - if 'HORIZONTAL' slider will move left to right and right to left.
---                          if 'VERTICAL' slider will move top to bottom and bottom to top.
---     PredictedPower     - True or false.  If true then predicted power will be activated.
---     IndicatorHideShow  - 'showalways' the indicator will never auto hide.
---                          'hidealways' the indicator will never be shown.
---                          'none'       default.
---     PredictedEclipse   - True or false.  If true then show an eclipse proc based on predicted power.
---     PredictedBarHalfLit- True or false.  Same as BarHalfLit except it is based on predicted power.
---                                          BarHalfLit has to be true for this to be enabled.
---     EclipseFadeInTime  - Amount of time in seconds for bar half lit, sun, and moon to fade in.
---     EclipseFadeOutTime - Amount of time in seconds for bar half lit, sun, and moon to fade out.
---
---   Background
---     Moon, Sun, Bar,
---     Slider, and
---     Indicator
---       PaddingAll       - True or false.  If true then padding can be set with one value otherwise four.
---       BackdropSettings - Contains the settings for background, border, and padding.
---       Color            - Contains the color.
---
---   Bar
---     All fields have the following:
---       RotateTexture    - True or false.  If true then the bar texture will be rotated 90 degree counter-clockwise
---                                          If false no rotation takes place.
---       PaddingAll       - True or false.  If true then padding can be set with one value otherwise four.
---       Padding          - Amount of padding for the forground of the sun and moon.
---       StatusBarTexture - Texture used for the forground.  Not used for the Bar field.
---       Color            - Contains the color of the StatusBarTexture. Not used for the Bar field.
---     Sun and Moon
---       Sun/MoonWidth    - Width of the sun/moon.
---       Sun/MoonHeight   - Height of the sun/moon.
---     Slider
---       SunMoon          - True or false.  If true the slider uses the Sun and Moon color based on which direction it's going in.
---       SliderWidth      - Width of the slider.
---       SliderHeight     - Height of the slider.
---     Indicator          - Same as slider except used for predicted power.
---
---     Bar
---       BarWidth         - Width of the bar.
---       BarHeight        - Height of the bar.
---       StatusBarTextureLunar
---                        - Texture that fills up the solar half of the bar.
---       StatusBarTextureSolar
---                        - Texture that fills up the lunar half of the bar.
---       ColorLunar       - Color of the StatusBarTextureLunar.
---       ColorSolar       - Color of the StatusBarTextureSolar.
---
---   Text
---
---
--- ShadowBar fields       - Same as shardbar fields except for:
---                            Uses 3 colors.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -623,36 +266,6 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- Alignment tool
---
--- The alignment tool uses green and white selected bars.  The green bar is the bar
--- that the white bars will be lined up with.  When you right click a bar it
--- opens up the alignement tool. Right click again to select the bar which will have
--- a green border around it and the alignment tool panel will open up.
---
--- The UnitBarStartMoving() function handles that right/left clicking of a bar
--- to select/unselect.
---
--- SetLayout()  Will disable select mode and hide the alignment tool if its visible.
--- SetAllOptions()  Checks to see if alignment tool is enabled.
---
--- Options.ATOFrame:Hide()    Hides the alignment tool.
--- Options.ATOFrame:Show()    Shows the alignment tool.
--------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
--- ShareData()
---
--- Other parts of the mod if needed can have a BarType:ShareData() function.
--- This is used to pass upvalues to other parts of the mod.
--- If this function exists it'll be called. ShareData gets called during runtime
--- and when the profile changes and during intialization.  Check bottom of this file
--- on hows it used.
---
--- Options:ShareData() is included as well.
--------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
 -- Fading Animation
 --
 -- Handles all the micromanaging of fading bars in and out based on a rule set.
@@ -699,43 +312,56 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- Font Strings
+-- MoveFrames
 --
--- Handles all text output for any bar that needs to display a value.
+-- Before a moveframe is moved.  MoveFrameStart checks to see if each frame
+-- has a MoveHighlghtFrame.  If not it creates one and saves it to each frame.
+-- This is then used to highlight each frame for align and swap.
 --
--- Fontstring object returned by Main:CreateFontString
+-- MoveFrames functions allow frames to be dragged, dropped, swapped, or aligned.
 --
+-- MoveFrameStart added a Move table to the frames table passed to it.
 --
--- FontStrings            A hash table used for font highlight.
---  [BarType]             Fontstring are contained under each barname.
---    [x]                 Array. Most bars just have one fontstring object.  But some like the rune bar have 6.
---                        This will contain the fontstring object created by Main:CreateFontString()
+-- Move table data structure
 --
+--   Frame        Frame to be moved on screen.
+--   Frames       Table of frames to interact with the Frame being moved.
+--   Parent       Parent of Frames.
+--   Flags        Table containing the flags for Float, Align, and Swap.
+--   FrameStrata  Stores the framestrata before moving a frame.
+--   FrameLevel   Stores the framelevel befoe moving a frame.
 --
--- Fontstring (FS)
---   BarType              The bar that the font string is being used by.
---   Parent               The frame the font will be displayed on.
---   TextFrame[]          An array of frames the font string uses to set size and a border for highlight.
---                        This frame is a child of Parent
---   Layer                The graphics layer the fontstring uses.
---   Multi                If not nil then the fontstring can have more than one also known as text lines.
---   NumStrings           For speed for the SetValue() function.  Contains how many fontstrings are currently
---                        being used.
---   [x]                  If multi is not nil then more than 1 array element can be created for each fontstring.
---                        Otherwise FS[1] is the primary fontstring.
+--   FrameStrata and FrameLevel are used to restore the MoveFrame.
+--   Before the move the framestrata is set to 'TOOLTIP'. This fixes the lag
+--   problem when dragging and dropping a frame.
 --
+-- MoveFrameModifyAlignFrames creates the AlignFrames table which is stored
+--   in the Move table.
 --
--- Fontstring methods
---   PercentFn            Calculation function for taking min and max and getting a percentage.
---                        Some bars calculate percentage differently so this offers the flexability.
---   Modify               Add or remove fontstrings or values.
---   SetFont              Set the font attributes such as size, fieldwidth, etc.
---   SetColor             Set the font color.
---   SetValue             Setting a value causes the value to be displayed on screen.
+-- AlignFrames data structure
 --
--- NOTES: See Main:CreateFontString() for details.
+--   MoveFrame          Frame that was moved.
+--   SelectFrame        MoveFrame is aligned to this frame.
+--   MovePoint          Anchor point on MoveFrame.
+--   SelectPoint        Relative point on selectframe to set movepoint's anchor to.
+--   PaddingDirectionX  Horizontal padding
+--                        -1 Padding goes from right to left
+--                        1  Padding goes from left to right
+--                        0  No padding allowed
+--   PaddingDirectionY  Vertical padding
+--                        -1 Padding goes from bottom to top
+--                        1  Padding goes from top to bottom
+--                        0  No padding allowed.
+--   Offset             MoveFrame is the offset frame instead of being padded.
+--                      This offsets all the other frames that are chain connected
+--                      thru alignment.
 -------------------------------------------------------------------------------
-local AlignmentTooltipDesc = 'Right mouse button to align'
+local AlignAndSwapTooltipDesc = 'Right mouse button to align and swap this bar'
+local MouseOverDesc = 'Modifier + left mouse button to drag this bar'
+local TrackingFrame = CreateFrame('Frame')
+local InitOnce = true
+local GUBData = nil
+local MessageBox = nil
 
 local InCombat = false
 local InVehicle = false
@@ -755,12 +381,17 @@ local CatForm = CAT_FORM
 local BearForm = BEAR_FORM
 local MonkMistWeaverSpec = SPEC_MONK_MISTWEAVER
 
-local Initialized = false
+local MoveAlignDistance = 20
+local MoveSelectFrame = nil
+local MoveLastSelectFrame = nil
+local MovePoint = nil
+local MoveSelectPoint = nil
+local MoveLastHighlightFrame = nil
+local MoveOldSelectFrame = nil
+local MoveOldMFCenterX = nil
+local MoveOldMFCenterY = nil
 
 local EquipmentSetRegisterEvent = false
-local PSelectedUnitBarF = nil
-local SelectMode = false
-local FontStrings = {}
 
 local SpellTrackerTimeout = 7
 local SpellTrackerTime = nil
@@ -772,6 +403,19 @@ local EventSpellSucceeded   = 2
 local EventSpellEnergize    = 3
 local EventSpellMissed      = 4
 local EventSpellFailed      = 5
+
+DUB.TargetHealth.BarVisible = function() return HasTarget end
+DUB.TargetPower.BarVisible  = function() return HasTarget end
+DUB.FocusHealth.BarVisible  = function() return HasFocus end
+DUB.FocusPower.BarVisible   = function() return HasFocus end
+DUB.PetHealth.BarVisible    = function() return HasPet end
+DUB.PetPower.BarVisible     = function() return HasPet end
+DUB.ManaPower.BarVisible    = function()
+                                return  -- PlayerPowerType 0 is mana
+                                  (PlayerClass == 'DRUID' or PlayerClass == 'MONK') and PlayerPowerType ~= 0
+                              end
+DUB.ComboBar.BarVisible     = function() return HasTarget end
+DUB.EclipseBar.BarVisible   = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) end
 
 local SpellTrackerCasting = {
   SpellID = 0,
@@ -795,18 +439,6 @@ local SpellTrackerMessage = {         -- These variables are blizzard globals. M
 
 local TrackedSpell = {}
 
-local PointCalc = {
-        TOPLEFT     = {x = 0,   y = 0},
-        TOP         = {x = 0.5, y = 0},
-        TOPRIGHT    = {x = 1,   y = 0},
-        LEFT        = {x = 0,   y = 0.5},
-        CENTER      = {x = 0.5, y = 0.5},
-        RIGHT       = {x = 1,   y = 0.5},
-        BOTTOMLEFT  = {x = 0,   y = 1},
-        BOTTOM      = {x = 0.5, y = 1},
-        BOTTOMRIGHT = {x = 1,   y = 1}
-      }
-
 -- letter before ID is only to format the data here making it easier to read.
 local EquipmentSet = {
 
@@ -825,50 +457,14 @@ local EquipmentSet = {
   b10 = {[78769] = 13, [77029] = 13, [78674] = 13}, -- gloves
 }
 
-local ValueLayout = {
-  plain = '%s',
-  whole_dgroups = '%s',
-  thousands_dgroups = '%sk',
-  millions_dgroups = '%sm',
-  short_dgroups = '%s',
-  percent = '%d%%',
-  thousands = '%.fk',
-  millions = '%.1fm',
-  short = '%s',
-}
-
 local EquipmentSetBonus = {}
 
 local RegEventFrames = {}
 
 local FadingAnimation = {}
 
-local CooldownBarTimerDelay = 1 / 40 -- 40 times per second
-
 local UnitBarsParent = nil
 local UnitBars = nil
-
-local DefaultBgTexture = 'Blizzard Tooltip'
-local DefaultBdTexture = 'Blizzard Tooltip'
-local DefaultStatusBarTexture = 'Blizzard'
-local GUBStatusBarTexture = 'GUB Bright Bar'
-local UBFontType = 'Arial Narrow'
-local DefaultFadeOutTime = 1
-local DefaultFadeInTime = 0.30
-
-local Backdrop = {
-  bgFile   = LSM:Fetch('background', DefaultBgTexture), -- background texture
-  edgeFile = LSM:Fetch('border', DefaultBdTexture),     -- border texture
-  tile = true,      -- True to repeat the background texture to fill the frame, false to scale it.
-  tileSize = 16,    -- Size (width or height) of the square repeating background tiles (in pixels).
-  edgeSize = 12,    -- Thickness of edge segments and square size of edge corners (in pixels).
-  insets = {        -- Positive values shrink the border inwards, negative expand it outwards.
-    left = 4 ,
-    right = 4,
-    top = 4,
-    bottom = 4
-  }
-}
 
 local SelectFrameBorder = {
   bgFile   = '',
@@ -884,12 +480,12 @@ local SelectFrameBorder = {
   }
 }
 
-local FontStringBorder = {
-  bgFile   = '',
-  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+local DialogBorder = {
+  bgFile   = LSM:Fetch('background', 'Blizzard Dialog Background'),
+  edgeFile = LSM:Fetch('border', 'Blizzard Dialog'),
   tile = true,
-  tileSize = 16,
-  edgeSize = 6,
+  tileSize = 20,
+  edgeSize = 20,
   insets = {
     left = 4 ,
     right = 4,
@@ -898,1500 +494,6 @@ local FontStringBorder = {
   }
 }
 
-local FontSettings = {  -- for debugging
-  FontType = UBFontType,
-  FontSize = 16,
-  FontStyle = 'OUTLINE',
-  FontHAlign = 'CENTER',
-  Position = 'CENTER',
-  Width = 200,
-  Height = 18,
-  OffsetX = 0,
-  OffsetY = 0,
-  ShadowOffset = 0,
-}
-
-local Defaults = {
-  profile = {
-    Point = 'CENTER',
-    RelativePoint = 'CENTER',
-    Px = 0,
-    Py = 0,
-    EnableClass = true,
-    IsGrouped = false,
-    IsLocked = false,
-    IsClamped = true,
-    HideTooltips = false,
-    HideTooltipsDesc = false,
-    HideTextHighlight = false,
-    AlignmentToolEnabled = true,
-    ReverseFading = true,
-    FadeInTime = DefaultFadeInTime,
-    FadeOutTime = DefaultFadeOutTime,
--- Player Health
-    PlayerHealth = {
-      Name = 'Player Health',
-      UnitType = 'player',
-      Enabled = true,
-      x = -200,
-      y = 230,
-      Status = {
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        PredictedHealth = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        ClassColor = false,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Player Power
-    PlayerPower = {
-      Name = 'Player Power',
-      UnitType = 'player',
-      Enabled = true,
-      x = -200,
-      y = 200,
-      Status = {
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        PredictedPower = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Target Health
-    TargetHealth = {
-      Name = 'Target Health',
-      UnitType = 'target',
-      Enabled = true,
-      BarVisible = function() return HasTarget end,
-      x = -200,
-      y = 170,
-      Status = {
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        PredictedHealth = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        ClassColor = false,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Target Power
-    TargetPower = {
-      Name = 'Target Power',
-      UnitType = 'target',
-      Enabled = true,
-      BarVisible = function() return HasTarget end,
-      x = -200,
-      y = 140,
-      Status = {
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Focus Health
-    FocusHealth = {
-      Name = 'Focus Health',
-      UnitType = 'focus',
-      Enabled = true,
-      BarVisible = function() return HasFocus end,
-      x = -200,
-      y = 110,
-      Status = {
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        PredictedHealth = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        ClassColor = false,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Focus Power
-    FocusPower = {
-      Name = 'Focus Power',
-      UnitType = 'focus',
-      Enabled = true,
-      BarVisible = function() return HasFocus end,
-      x = -200,
-      y = 80,
-      Status = {
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Pet Health
-    PetHealth = {
-      Name = 'Pet Health',
-      UnitType = 'pet',
-      Enabled = true,
-      BarVisible = function() return HasPet end,
-      UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
-      x = -200,
-      y = 50,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        PredictedHealth = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Pet Power
-    PetPower = {
-      Name = 'Pet Power',
-      UnitType = 'pet',
-      Enabled = true,
-      BarVisible = function() return HasPet end,
-      UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
-      x = -200,
-      y = 20,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- Mana Power
-    ManaPower = {
-      Name = 'Druid or Monk Mana',
-      UnitType = 'player',
-      Enabled = true,
-      BarVisible = function()
-                     return  -- PlayerPowerType 0 is mana
-                       (PlayerClass == 'DRUID' or PlayerClass == 'MONK') and PlayerPowerType ~= 0
-                     end,
-      UsedByClass = {DRUID = '', MONK = '2'},
-      x = -200,
-      y = -10,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        HapWidth = 170,
-        HapHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- RuneBar
-    RuneBar = {
-      Name = 'Rune Bar',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = ''},
-      x = 0,
-      y = 229,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BarModeAngle = 90,
-        BarMode = true,  -- Must be true for default or no default rune positions gets created.
-        RuneMode = 'rune',
-        EnergizeShow = 'rune',
-        EnergizeTime = 3,
-        CooldownDrawEdge = false,
-        CooldownBarDrawEdge = false,
-        HideCooldownFlash = true,
-        CooldownAnimation = true,
-        CooldownText = false,
-        RuneSize = 22,
-        RuneSwap = true,
-        RunePadding = 0,
-        RunePosition = 'LEFT',
-        RuneOffsetX = 0,
-        RuneOffsetY = 0,
-        ColorEnergize = {
-          All = false,
-          r = 1, g = 0, b = 0, a = 1,         -- All runes
-          {r = 1, g = 0, b = 0, a = 1},       -- 1 Blood
-          {r = 1, g = 0, b = 0, a = 1},       -- 2 Blood
-          {r = 0, g = 1, b = 0, a = 1},       -- 3 Unholy
-          {r = 0, g = 1, b = 0, a = 1},       -- 4 Unholy
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 5 Frost
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 6 Frost
-          {r = 1, g = 0, b = 1, a = 1},       -- 7 Death
-          {r = 1, g = 0, b = 1, a = 1},       -- 8 Death
-        },
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,                               -- All runes
-          {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- 1 Blood
-          {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- 2 Blood
-          {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- 3 Unholy
-          {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- 4 Unholy
-          {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 5 Frost
-          {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 6 Frost
-          {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 7 Death
-          {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 8 Death
-        },
-      },
-      Bar = {
-        Advanced = false,
-        RuneWidth = 40,
-        RuneHeight = 25,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 0, b = 0, a = 1,         -- All runes
-          {r = 1, g = 0, b = 0, a = 1},       -- 1 Blood
-          {r = 1, g = 0, b = 0, a = 1},       -- 2 Blood
-          {r = 0, g = 1, b = 0, a = 1},       -- 3 Unholy
-          {r = 0, g = 1, b = 0, a = 1},       -- 4 Unholy
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 5 Frost
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 6 Frost
-          {r = 1, g = 0, b = 1, a = 1},       -- 7 Death
-          {r = 1, g = 0, b = 1, a = 1},       -- 8 Death
-        },
-      },
-      Text = {
-        { -- 1
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 25,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {
-            All = false,
-            r = 1, g = 1, b = 1, a = 1,         -- All runes
-            {r = 1, g = 1, b = 1, a = 1},       -- 1 Blood
-            {r = 1, g = 1, b = 1, a = 1},       -- 2 Blood
-            {r = 1, g = 1, b = 1, a = 1},       -- 3 Unholy
-            {r = 1, g = 1, b = 1, a = 1},       -- 4 Unholy
-            {r = 1, g = 1, b = 1, a = 1},       -- 5 Frost
-            {r = 1, g = 1, b = 1, a = 1},       -- 6 Frost
-            {r = 1, g = 1, b = 1, a = 1},       -- 7 Death
-            {r = 1, g = 1, b = 1, a = 1},       -- 8 Death
-          },
-        },
-      },           -- 1  2  3  4  5  6
-      RuneBarOrder = {1, 2, 5, 6, 3, 4},
-      RuneLocation = {
-        {x = '', y = ''},  -- 1
-        {x = '', y = ''},  -- 2
-        {x = '', y = ''},  -- 3
-        {x = '', y = ''},  -- 4
-        {x = '', y = ''},  -- 5
-        {x = '', y = ''},  -- 6
-      },
-    },
--- ComboBar
-    ComboBar = {
-      Name = 'Combo Bar',
-      Enabled = true,
-      BarVisible = function() return HasTarget end,
-      UsedByClass = {ROGUE = '', DRUID = ''},
-      x = 0,
-      y = 201,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = true,
-        HideNoCombat    = false,
-      },
-      General = {
-        ComboAngle = 90,
-        ComboPadding = 5,
-        ComboFadeInTime = DefaultFadeInTime,
-        ComboFadeOutTime = DefaultFadeOutTime,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1},  -- 1
-          {r = 0, g = 0, b = 0, a = 1},  -- 2
-          {r = 0, g = 0, b = 0, a = 1},  -- 3
-          {r = 0, g = 0, b = 0, a = 1},  -- 4
-          {r = 0, g = 0, b = 0, a = 1},  -- 5
-        },
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 40,
-        BoxHeight = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 0, b = 0, a = 1,
-          {r = 1, g = 0, b = 0, a = 1}, -- 1
-          {r = 1, g = 0, b = 0, a = 1}, -- 2
-          {r = 1, g = 0, b = 0, a = 1}, -- 3
-          {r = 1, g = 0, b = 0, a = 1}, -- 4
-          {r = 1, g = 0, b = 0, a = 1}, -- 5
-        }
-      }
-    },
--- HolyBar
-    HolyBar = {
-      Name = 'Holy Bar',
-      Enabled = true,
-      UsedByClass = {PALADIN = ''},
-      x = 0,
-      y = 171,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BoxMode = false,
-        HolySize = 1,
-        HolyPadding = -2,
-        HolyScale = 1,
-        HolyFadeInTime = DefaultFadeInTime,
-        HolyFadeOutTime = DefaultFadeOutTime,
-        HolyAngle = 90
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0.5, g = 0.5, b = 0.5, a = 1,
-          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 1
-          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 2
-          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 3
-          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 4
-          {r = 0.5, g = 0.5, b = 0.5, a = 1}, -- 5
-        },
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 40,
-        BoxHeight = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 0.705, b = 0, a = 1,
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 1
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 2
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 3
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 4
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 5
-        },
-      },
-    },
--- ShardBar
-    ShardBar = {
-      Name = 'Shard Bar',
-      Enabled = true,
-      UsedByClass = {WARLOCK = '1'},
-      x = 0,
-      y = 134,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BoxMode = false,
-        ShardSize = 1,
-        ShardPadding = 10,
-        ShardScale = 0.80,
-        ShardFadeInTime = DefaultFadeInTime,
-        ShardFadeOutTime = DefaultFadeOutTime,
-        ShardAngle = 90
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0.329, g = 0.172, b = 0.337, a = 1,
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
-        },
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 40,
-        BoxHeight = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.980, g = 0.517, b = 1, a = 1,
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
-        },
-      },
-    },
--- DemonicBar
-    DemonicBar = {
-      Name = 'Demonic Bar',
-      Enabled = true,
-      UsedByClass = {WARLOCK = '2'},
-      x = 0,
-      y = 98,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BoxMode = false,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0.082, g = 0.219, b = 0.019, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 150,
-        BoxHeight = 24,
-        FillDirection = 'HORIZONTAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        MetaStatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0.627, g = 0.298, b = 1, a = 1},
-        MetaColor = {r = 0.922, g = 0.549, b = 0.972, a = 1},
-      },
-      Text = {
-        _DC = 0,
-
-        Multi = 1,
-        { -- 1
-          Custom    = false,
-          Layout    = '%d%%',
-          ValueName = {'current'},
-          ValueType = {'plain'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- EmberBar
-    EmberBar = {
-      Name = 'Ember Bar',
-      Enabled = true,
-      UsedByClass = {WARLOCK = '3'},
-      x = 0,
-      y = 60,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BoxMode = false,
-        GreenFire = false,
-        GreenFireAuto = true,
-        EmberSize = 1,
-        EmberPadding = 5,
-        EmberScale = 1,
-        EmberAngle = 90,
-        FieryEmberFadeInTime = DefaultFadeInTime,
-        FieryEmberFadeOutTime = DefaultFadeOutTime,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0.180, g = 0.047, b = 0.031, a = 1,
-          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 1
-          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 2
-          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 3
-          {r = 0.180, g = 0.047, b = 0.031, a = 1}, -- 4
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.043, g = 0.188, b = 0, a = 1,
-          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 1
-          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 2
-          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 3
-          {r = 0.043, g = 0.188, b = 0, a = 1}, -- 4
-        },
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 25,
-        BoxHeight = 34,
-        FillDirection = 'VERTICAL',
-        ReverseFill = false,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        FieryStatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 0.325, b = 0 , a = 1,
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 1
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 2
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 3
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 4
-        },
-        ColorFiery = {
-          All = false,
-          r = 0.941, g = 0.690, b = 0.094, a = 1,
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 1
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 2
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 3
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 4
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.203, g = 0.662, b = 0, a = 1,
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
-        },
-        ColorFieryGreen = {
-          All = false,
-          r = 0, g = 1, b = 0.078, a = 1,
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 1
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 2
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 3
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 4
-        },
-      },
-    },
--- EclipseBar
-    EclipseBar = {
-      Name = 'Eclipse Bar',
-      Enabled = true,
-      BarVisible = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) end,
-      UsedByClass = {DRUID = '1'},
-      x = 0,
-      y = 11,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        SliderInside = true,
-        HideSlider = false,
-        BarHalfLit = false,
-        PowerText = true,
-        EclipseAngle = 90,
-        SliderDirection = 'HORIZONTAL',
-        EclipseFadeInTime = DefaultFadeInTime,
-        EclipseFadeOutTime = DefaultFadeOutTime,
-        SunOffsetX = 0,
-        SunOffsetY = 0,
-        MoonOffsetX = 0,
-        MoonOffsetY = 0,
-        PredictedPower = false,
-        IndicatorHideShow = 'none',
-        PredictedEclipse = true,
-        PredictedBarHalfLit = false,
-        PredictedPowerText = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        Moon = {
-          PaddingAll = true,
-          BackdropSettings = {
-            BgTexture = DefaultBgTexture,
-            BdTexture = DefaultBdTexture,
-            BgTile = false,
-            BgTileSize = 16,
-            BdSize = 12,
-            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-          },
-          Color = {r = 0, g = 0, b = 0, a = 1},
-        },
-        Sun = {
-          PaddingAll = true,
-          BackdropSettings = {
-            BgTexture = DefaultBgTexture,
-            BdTexture = DefaultBdTexture,
-            BgTile = false,
-            BgTileSize = 16,
-            BdSize = 12,
-            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-          },
-          Color = {r = 0, g = 0, b = 0, a = 1},
-        },
-        Bar = {
-          PaddingAll = true,
-          BackdropSettings = {
-            BgTexture = DefaultBgTexture,
-            BdTexture = DefaultBdTexture,
-            BgTile = false,
-            BgTileSize = 16,
-            BdSize = 12,
-            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-          },
-          Color = {r = 0, g = 0, b = 0, a = 1},
-        },
-        Slider = {
-          PaddingAll = true,
-          BackdropSettings = {
-            BgTexture = DefaultBgTexture,
-            BdTexture = DefaultBdTexture,
-            BgTile = false,
-            BgTileSize = 16,
-            BdSize = 12,
-            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-          },
-          Color = {r = 0, g = 0, b = 0, a = 1},
-        },
-        Indicator = {
-          PaddingAll = true,
-          BackdropSettings = {
-            BgTexture = DefaultBgTexture,
-            BdTexture = DefaultBdTexture,
-            BgTile = false,
-            BgTileSize = 16,
-            BdSize = 12,
-            Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-          },
-          Color = {r = 0, g = 0, b = 0, a = 1},
-        },
-      },
-      Bar = {
-        Moon = {
-          Advanced = false,
-          MoonWidth = 25,
-          MoonHeight = 25,
-          RotateTexture = false,
-          PaddingAll = true,
-          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-          StatusBarTexture = GUBStatusBarTexture,
-          Color = {r = 0.847, g = 0.988, b = 0.972, a = 1},
-        },
-        Sun = {
-          Advanced = false,
-          SunWidth = 25,
-          SunHeight = 25,
-          RotateTexture = false,
-          PaddingAll = true,
-          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-          StatusBarTexture = GUBStatusBarTexture,
-          Color = {r = 0.96, g = 0.925, b = 0.113, a = 1},
-        },
-        Bar = {
-          Advanced = false,
-          BarWidth = 170,
-          BarHeight = 25,
-          RotateTexture = false,
-          PaddingAll = true,
-          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-          StatusBarTextureLunar = GUBStatusBarTexture,
-          StatusBarTextureSolar = GUBStatusBarTexture,
-          ColorLunar = {r = 0.364, g = 0.470, b = 0.627, a = 1}, -- moon
-          ColorSolar = {r = 0.631, g = 0.466, b = 0.184, a = 1}, -- sun
-        },
-        Slider = {
-          Advanced = false,
-          SunMoon = true,
-          SliderWidth = 16,
-          SliderHeight = 20,
-          RotateTexture = false,
-          PaddingAll = true,
-          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-          StatusBarTexture = GUBStatusBarTexture,
-          Color = {r = 0, g = 1, b = 0, a = 1},
-        },
-        Indicator = {
-          Advanced = false,
-          SunMoon = false,
-          IndicatorWidth = 16,
-          IndicatorHeight = 20,
-          RotateTexture = false,
-          PaddingAll = true,
-          Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-          StatusBarTexture = GUBStatusBarTexture,
-          Color = {r = 0, g = 1, b = 0, a = 1},
-        },
-      },
-      Text = {
-        { -- 1
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'OUTLINE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 50,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-    },
--- ShadowBar
-    ShadowBar = {
-      Name = 'Shadow Bar',
-      Enabled = true,
-      UsedByClass = {PRIEST = '3'},
-      x = 161,
-      y = 60,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BoxMode = false,
-        ShadowSize = 1,
-        ShadowPadding = 1,
-        ShadowScale = 1,
-        ShadowFadeInTime = DefaultFadeInTime,
-        ShadowFadeOutTime = DefaultFadeOutTime,
-        ShadowAngle = 90
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0.329, g = 0.172, b = 0.337, a = 1,
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
-        },
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 38,
-        BoxHeight = 37,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.729, g = 0.466, b = 1, a = 1,
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 1
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 2
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 3
-        },
-      },
-    },
--- ChiBar
-    ChiBar = {
-      Name = 'Chi Bar',
-      Enabled = true,
-      UsedByClass = {MONK = ''},
-      x = 161,
-      y = 98,
-      Status = {
-        HideNotUsable   = true,
-        HideWhenDead    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      General = {
-        BoxMode = false,
-        ChiSize = 1,
-        ChiPadding = 5,
-        ChiScale = 1,
-        ChiFadeInTime = DefaultFadeInTime,
-        ChiFadeOutTime = DefaultFadeOutTime,
-        ChiAngle = 90
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {
-          All = false,
-          r = 0.113, g = 0.192, b = 0.188, a = 1,
-          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 1
-          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 2
-          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 3
-          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 4
-          {r = 0.113, g = 0.192, b = 0.188, a = 1}, -- 5
-        },
-      },
-      Bar = {
-        Advanced = false,
-        BoxWidth = 30,
-        BoxHeight = 30,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.407, g = 0.764, b = 0.670, a = 1,
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 1
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 2
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 3
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 4
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
-        },
-      },
-    },
-  },
-}
 
 local ConvertPowerType = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
@@ -2407,18 +509,12 @@ local PowerColorType = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
 }
 
--- Constants used in NumberToDigitGroups
-local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.'
-local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local ThousandFormat = '%s%d' .. Thousands..'%03d'
-
 -- Share with the whole addon.
-GUB.LSM = LSM
-GUB.Defaults = Defaults
-GUB.PowerColorType = PowerColorType
-GUB.ConvertPowerType = ConvertPowerType
-GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
+Main.LSM = LSM
+Main.PowerColorType = PowerColorType
+Main.ConvertPowerType = ConvertPowerType
+Main.UnitBarsF = UnitBarsF
+Main.UnitBarsFE = UnitBarsFE
 
 -------------------------------------------------------------------------------
 --
@@ -2427,12 +523,12 @@ GUB.MouseOverDesc = 'Modifier + left mouse button to drag'
 -------------------------------------------------------------------------------
 do
   local Index = 0
-  for BarType, UB in pairs(Defaults.profile) do
+  for BarType, UB in pairs(DUB) do
     if type(UB) == 'table' and UB.Name then
       Index = Index + 1
       local UBFTable = CreateFrame('Frame')
       UnitBarsF[BarType] = UBFTable
-      UnitBarsFI[Index] = UBFTable
+      UnitBarsFE[Index] = UBFTable
     end
   end
 end
@@ -2441,8 +537,6 @@ end
 -- RegisterEvents
 --
 -- Register/unregister events
---
--- Usage: RegisterEvents(Action, EventType)
 --
 -- Action       'unregister' or 'register'
 -- EventType    'main'             Registers the main events for the mod.
@@ -2497,13 +591,13 @@ end
 -- Copy blizzard's power colors and class colors into the Defaults profile.
 -------------------------------------------------------------------------------
 local function InitializeColors()
-  local UnitBars = Defaults.profile
 
   -- Copy the power colors.
   for PCT, PowerType in pairs(PowerColorType) do
     local Color = PowerBarColor[PCT]
     local r, g, b = Color.r, Color.g, Color.b
-    for BarType, UB in pairs(UnitBars) do
+
+    for BarType, UB in pairs(DUB) do
       if BarType == 'PlayerPower' or BarType == 'TargetPower' or
          BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'ManaPower' then
         local Bar = UB.Bar
@@ -2517,7 +611,8 @@ local function InitializeColors()
   -- Copy the class colors.
   for Class, Color in pairs(RAID_CLASS_COLORS) do
     local r, g, b = Color.r, Color.g, Color.b
-    for BarType, UB in pairs(UnitBars) do
+
+    for BarType, UB in pairs(DUB) do
       if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
         local Bar = UB.Bar
 
@@ -2576,559 +671,292 @@ function GUB.Main:RegEvent(Reg, Event, Fn, ...)
 end
 
 -------------------------------------------------------------------------------
--- Round
+-- ShowMessage
 --
--- Rounds a number down or up
---
--- Usage: RoundValue = Round(Value, DecimalPlaces)
---
--- Value           Number to be rounded.
--- DecimalPlaces   If the number is a floating then you can specify how many
---                 decimal places to round at.
--- RoundValue      New value rounded.
+-- Displays a message on the screen in a box, with an Okay button.
 -------------------------------------------------------------------------------
-local function Round(Value, DecimalPlaces)
-   if DecimalPlaces then
-     local Mult = 10 ^ DecimalPlaces
-     return floor(Value * Mult + 0.5) / Mult
-   else
-     return floor(Value + 0.5)
-   end
+local function ShowMessage(Message)
+  if MessageBox == nil then
+    MessageBox = CreateFrame('ScrollFrame', nil, UIParent)
+    MessageBox:SetSize(600, 310)
+    MessageBox:ClearAllPoints()
+    MessageBox:SetPoint('CENTER')
+    MessageBox:SetBackdrop(DialogBorder)
+    MessageBox:SetMovable(true)
+    MessageBox:SetToplevel(true)
+    MessageBox:SetClampedToScreen(true)
+    MessageBox:SetScript('OnMouseDown', MessageBox.StartMoving)
+    MessageBox:SetScript('OnMouseUp', MessageBox.StopMovingOrSizing)
+    MessageBox:SetScript('OnHide', MessageBox.StopMovingOrSizing)
+    MessageBox:SetFrameStrata('DIALOG')
+
+    local FontString = MessageBox:CreateFontString(nil)
+    FontString:ClearAllPoints()
+    FontString:SetPoint('TOPLEFT', 15, -15)
+    FontString:SetPoint('BOTTOMRIGHT', -15, 15)
+    FontString:SetFont(LSM:Fetch('font', 'Arial Narrow'), 13, 'NONE')
+    FontString:SetJustifyH('LEFT')
+    FontString:SetJustifyV('TOP')
+
+    local OkButton =  CreateFrame('Button', nil, MessageBox, 'UIPanelButtonTemplate')
+    OkButton:SetScale(1.25)
+    OkButton:SetSize(50, 20)
+    OkButton:ClearAllPoints()
+    OkButton:SetPoint('BOTTOMRIGHT', -10, 10)
+    OkButton:SetScript('OnClick', function()
+                                    PlaySound('igMainMenuOptionCheckBoxOn')
+                                    MessageBox:Hide()
+                                  end)
+    OkButton:SetText('Okay')
+
+    MessageBox.FontString = FontString
+    MessageBox.OkButton = OkButton
+  end
+
+  MessageBox:Show()
+  MessageBox.FontString:SetText(Message)
 end
 
 -------------------------------------------------------------------------------
--- NumberToDigitGroups
+-- ConvertUnitBarData
 --
--- Takes a number and returns it in groups of three. 999,999,999
+-- Converts unitbar data to a newer format.
 --
--- Usage: String = NumberToDigitGroups(Value)
+-- ConvertUBData format
 --
--- Value       Number to convert to a digit group.
+-- ConvertUBData
+--   Action
+--     remove         Remove a table that matches Key
+--     copy           Copy a value from Source to Dest
+--     move           Move a value from source to Dest
+--     movetable      Move a sub table from Source to Dest.  Keys is the subtable.
+--     custom         Calls ConvertCustom to make changes.
 --
--- String      String containing Value in digit groups.
+--   []               Array of Keys.
+--     Key            If action is movetable then the key is the sub table to move.
+--                    The key only needs to partially match the key found in unitbars[BarType]
+--                    A key can have two different prefixes:
+--                      ! Will take the value if boolean and flip it before copying or moving the value.
+--                        If the value is a number it will flip its sign. So negative to positive.
+--                      = Will make the key have to match exactly to what is found in unitbars.  If the
+--                        match fails its skipped.
+--                      =! to both, they must be in that order.
+--                    A key can also contain a destkey part format is Key:DestKey.  DestKey is the new
+--                    name to copy, rename or move to.
+--
+-- NOTES: copy, move, movetable.  These keys must not exist in the default profile.
+--        custom.  These keys can exist in the default profile.
 -------------------------------------------------------------------------------
-local function NumberToDigitGroups(Value)
-  local Sign = ''
-  if Value < 0 then
-    Sign = '-'
-    Value = abs(Value)
-  end
+local function ConvertCustom(BarType, SourceUB, DestUB, SourceKey, DestKey)
+  if BarType == 'RuneBar' then
 
-  if Value >= 1000000000 then
-    return format(BillionFormat, Sign, Value / 1000000000, (Value / 1000000) % 1000, (Value / 1000) % 1000, Value % 1000)
-  elseif Value >= 1000000 then
-    return format(MillionFormat, Sign, Value / 1000000, (Value / 1000) % 1000, Value % 1000)
-  elseif Value >= 1000 then
-    return format(ThousandFormat, Sign, Value / 1000, Value % 1000)
-  else
-    return format('%s', Value)
+    -- Convert RuneBarOrder to BoxOrder, then delete RuneBarOrder
+    if SourceKey == 'RuneBarOrder' then
+      local BoxOrder = DestUB.BoxOrder
+
+      for k, v in pairs(SourceUB.RuneBarOrder) do
+        BoxOrder[k] = v
+      end
+      SourceUB.RuneBarOrder = nil
+
+    -- Convert RuneLocation to BoxLocations, then delete RuneLocation
+    elseif SourceKey == 'RuneLocation' then
+      local BoxLocations = {}
+
+      for k, v in pairs(SourceUB.RuneLocation) do
+        local BL = {}
+        local x, y = v.x, v.y
+
+        x = x == '' and 0 or x
+        y = y == '' and 0 or y
+        BL.x, BL.y = x, y
+        BoxLocations[k] = BL
+      end
+      DestUB.BoxLocations = BoxLocations
+      SourceUB.RuneLocation = nil
+
+    -- Convert RuneSize into TextureScale, then remove RuneSize
+    elseif SourceKey == 'RuneSize' then
+      local TextureScale = SourceUB.RuneSize / 22
+      DestUB.TextureScale = TextureScale - TextureScale % 0.01
+      SourceUB.RuneSize = nil
+
+    -- Convert rune mode and energize show
+    elseif SourceKey == 'RuneMode' or SourceKey == 'EnergizeShow' then
+      local Mode = SourceUB[SourceKey]
+
+      if Mode == 'cooldownbar' then
+        Mode = 'bar'
+      elseif Mode == 'runecooldownbar' then
+        Mode = 'runebar'
+      end
+      SourceUB[SourceKey] = Mode
+    end
+  end
+  if BarType == 'EclipseBar' then
+    if SourceUB.IndicatorHideShow == 'none' then
+      SourceUB.IndicatorHideShow = 'auto'
+    end
+  end
+  if SourceKey == 'Text' then
+    local Text = SourceUB.Text
+    for Index = 1, #Text do
+      local TS = Text[Index]
+      local ValueName = TS.ValueName
+      local ValueType = TS.ValueType
+
+      for ValueIndex = 1, #ValueName do
+        local VName = ValueName[ValueIndex]
+        local VType = ValueType[ValueIndex]
+
+        if VName == 'unitname' or VName == 'realmname' or VName == 'unitnamerealm' then
+          ValueName[ValueIndex] = 'name'
+          ValueType[ValueIndex] = VName
+        elseif VType == 'plain' then
+          ValueType[ValueIndex] = 'whole'
+        end
+      end
+    end
   end
 end
 
--------------------------------------------------------------------------------
--- FontSetHighlight
---
--- Places a highlight rectangle around all the text of all bars.  And allows
--- one to be highlighted in addition to the existing ones.
---
--- Usage: FontSetHighlight(BarType or 'on' or 'off', TextIndex)
---
--- 'on'       Put a white rectangle around all the fonts used by all bars.
--- 'off'      Turns off all the rectangles.
--- BarType    'on' must already be set.  This will highlight the bar of bartype
---            with a green rectangle.
--- TextIndex  The text line in the bar to highlight.
--------------------------------------------------------------------------------
-function GUB.Main:FontSetHighlight(BarType, TextIndex)
-  local HideTextHighlight = UnitBars.HideTextHighlight
+local function ConvertUnitBarData()
+  local KeysFound = {}
+  local ConvertUBData = {
+    {Action = 'custom',                                                 'RuneBarOrder', 'RuneLocation'},
+    {Action = 'custom',    Source = 'General', Dest = 'Layout',         'RuneSize', 'IndicatorHideShow', 'RuneMode', 'EnergizeShow'},
 
-  -- Iterate thru fontstrings
-  for BT, FSA in pairs(FontStrings) do
+    {Action = 'remove',    Source = 'General',                          'Scale', 'SunOffsetX', 'MoonOffsetX', 'SunOffsetY', 'MoonOffsetY'},
+    {Action = 'move',      Source = 'General', Dest = 'General',        'CooldownBarDrawEdge:BarSpark'},
+    {Action = 'copy',      Source = 'General', Dest = 'Layout',         'BoxMode:HideRegion'},
+    {Action = 'move',      Source = 'General', Dest = 'Layout',         'BoxMode', 'Size:TextureScale', 'Padding', '=!BarMode:Float',
+                                                                        'RuneSwap:Swap', 'Angle:Rotation', 'FadeInTime', 'FadeOutTime'},
 
-    -- Iterate thru the fontstring array.
-    for _, FS in ipairs(FSA) do
-      local NumStrings = #FS.Text
+    {Action = 'move',      Source = 'General', Dest = 'General',        '=BarHalfLit:PowerHalfLit', '=PredictedBarHalfLit:PredictedPowerHalfLit'},
 
+    {Action = 'move',      Source = 'Bar',     Dest = 'Layout',         'ReverseFill'},
 
-      for Index, TF in ipairs(FS.TextFrame) do
-        local r, g, b, a = 1, 1, 1, 0
+    {Action = 'move',      Source = 'Bar',     Dest = 'Bar',            '=ComboWidth:Width', '=ComboHeight:Height',
+                                                                        '=RuneWidth:Width', '=RuneHeight:Height',
+                                                                        '=HapWidth:Width', '=HapHeight:Height'},
+    {Action = 'move',      Source = 'Bar',     Dest = 'Bar',            '=BoxWidth:Width', '=BoxHeight:Height'},
+    {Action = 'move',      Source = 'Bar',     Dest = 'Bar.Color',      'ClassColor:Class'},
 
-        if not HideTextHighlight then
+    {Action = 'move',      Source = 'Bar.Moon',      Dest = 'BarMoon',      '=MoonWidth:Width',      '=MoonHeight:Height'},
+    {Action = 'move',      Source = 'Bar.Sun',       Dest = 'BarSun',       '=SunWidth:Width',       '=SunHeight:Height'},
+    {Action = 'move',      Source = 'Bar.Bar',       Dest = 'BarPower',     '=BarWidth:Width',       '=BarHeight:Height'},
+    {Action = 'move',      Source = 'Bar.Slider',    Dest = 'BarSlider',    '=SliderWidth:Width',    '=SliderHeight:Height'},
+    {Action = 'move',      Source = 'Bar.Indicator', Dest = 'BarIndicator', '=IndicatorWidth:Width', '=IndicatorHeight:Height'},
 
-          -- Check if fontstring is active.
-          if Index <= NumStrings then
+    {Action = 'movetable', Source = 'Bar',                              '=Moon:BarMoon','=Sun:BarSun', '=Bar:BarPower',
+                                                                        '=Slider:BarSlider', '=Indicator:BarIndicator'},
+    {Action = 'movetable', Source = 'Background',                       '=Moon:BackgroundMoon', '=Sun:BackgroundSun', '=Bar:BackgroundPower',
+                                                                        '=Slider:BackgroundSlider', '=Indicator:BackgroundIndicator' },
+    {Action = 'custom',    Source = '', '=Text'},
+  }
 
-            -- if on default to white.
-            if BarType == 'on' then
-              a = 1
+  local AlignmentToolEnabled = UnitBars.AlignmentToolEnabled
+  if AlignmentToolEnabled ~= nil then
+    UnitBars.AlignAndSwapEnabled = AlignmentToolEnabled
+    UnitBars.AlignmentToolEnabled = nil
+  end
 
-            -- if off hide all borders.
-            elseif BarType == 'off' then
-              a = 0
+  for BarType, UBF in pairs(UnitBarsF) do
+    local UB = UBF.UnitBar
 
-            -- match bartype and text index then set it to green.
-            -- if bartype matches but not the index then set to white.
-            elseif FS.BarType == BarType and TextIndex == Index then
-              r, g, b, a = 0, 1, 0, 1
-            else
-              a = 1
+    -- Get source, dest and keylist
+    for _, ConvertData in ipairs(ConvertUBData) do
+      local SourceTable = ConvertData.Source or ''
+      local SourceUB = Main:GetUB(BarType, SourceTable)
+      local SourceUBD = Main:GetUB(BarType, SourceTable, DUB)
+
+      -- Skip Unitbar if Source is not found
+      if SourceUB then
+        local Action = ConvertData.Action
+        local DestTable = ConvertData.Dest or ''
+        local DestUB = Main:GetUB(BarType, DestTable)
+
+        -- Iterate thru the key list
+        for _, Key in ipairs(ConvertData) do
+          local NumKeys = 0
+          local NotFlag = false
+          local Exact = false
+
+          -- check for exact match operator in key.
+          if strfind(Key, '=') then
+            Exact = true
+            Key = strsub(Key, 2)
+          end
+
+          -- check for the not operator in Key.
+          if strfind(Key, '!') then
+            NotFlag = true
+            Key = strsub(Key, 2)
+          end
+
+          local SourceKey, DestKey = strsplit(':', Key, 2)
+
+          DestKey = DestKey or SourceKey
+
+          -- Find the keys and store the results in KeysFound.
+          for UBKey, Value in pairs(SourceUB) do
+            if Exact and UBKey == SourceKey or not Exact and strfind(UBKey, SourceKey) then
+              if Action ~= 'custom' and SourceUBD and SourceUBD[UBKey] ~= nil then
+              else
+                -- Check to see if the DestKey already exists in the dest table.
+                if Action ~= 'custom' and Action ~= 'remove' and (DestUB == nil or DestUB and DestUB[DestKey] == nil) then
+                else
+                  NumKeys = NumKeys + 1
+                  KeysFound[NumKeys] = UBKey
+                end
+              end
+            end
+          end
+          for Index = 1, NumKeys do
+            local KeyFound = KeysFound[Index]
+
+            if Action == 'custom' then
+              local ReturnOK, Msg = pcall(ConvertCustom, BarType, SourceUB, DestUB, SourceKey, DestKey)
+
+              if not ReturnOK then
+                print('ERROR (custom): Report message to author')
+                print('MSG: ', Msg)
+              end
+
+            elseif Action == 'movetable' then
+              Main:CopyTableValues(SourceUB[KeyFound], DestUB[DestKey])
+              SourceUB[KeyFound] = nil
+
+            elseif Action == 'move' or Action == 'copy' then
+              local Value = SourceUB[KeyFound]
+
+              if NotFlag then
+                if type(Value) == 'boolean' then
+                  Value = not Value
+                elseif type(Value) == 'number' then
+                  Value = Value * -1
+                end
+              end
+              DestUB[DestKey] = Value
+              if Action == 'move' then
+                SourceUB[KeyFound] = nil
+              end
+
+            elseif Action ==  'remove' then
+              SourceUB[KeyFound] = nil
+            end
+
+            -- delete empty table
+            if next(SourceUB) == nil then
+              Main:ListTable(SourceUB)
+              Main:DelUB(BarType, SourceTable)
             end
           end
         end
-        TF:SetBackdropBorderColor(r, g, b, a)
-        TF:SetBackdropColor(0, 0, 0, 0)
       end
     end
   end
-end
-
--------------------------------------------------------------------------------
--- FontGetValue
---
---  Subfunction of FontSetValue()
---
---  Usage: Value = FontGetValue(FS, Value, ValueType)
---
---  FS          FS object created by Main:CreateFontString()
---  Value       Value to be modifed in some way.
---  ValueType   Type of value.
---
---  Value       Value returned based on ValueType
--------------------------------------------------------------------------------
-local FontGetValue = {}
-
-  local function FontGetValue_Short(FS, Value, ValueType)
-    if Value >= 10000000 then
-      if ValueType == 'short_dgroups' then
-        return format('%sm', NumberToDigitGroups(Round(Value / 1000000, 1)))
-      else
-        return format('%.1fm', Value / 1000000)
-      end
-    elseif Value >= 1000000 then
-      return format('%.2fm', Value / 1000000)
-    elseif Value >= 100000 then
-      return format('%.0fk', Value / 1000)
-    elseif Value >= 10000 then
-      return format('%.1fk', Value / 1000)
-    else
-      if ValueType == 'short_dgroups' then
-        return NumberToDigitGroups(Value)
-      else
-        return format('%s', Value)
-      end
-    end
-  end
-
-  FontGetValue['short'] = FontGetValue_Short
-  FontGetValue['short_dgroups'] = FontGetValue_Short
-
-  FontGetValue['plain'] = function(FS, Value, ValueType)
-    return Value
-  end
-
-  FontGetValue['whole_dgroups'] = function(FS, Value, ValueType)
-    return NumberToDigitGroups(Value)
-  end
-
-  FontGetValue['percent'] = function(FS, Value, ValueType)
-    local MaxValue = FS.maximum
-
-    if MaxValue == 0 then
-      return 0
-    else
-      return FS.PercentFn(Value, MaxValue)
-    end
-  end
-
-  FontGetValue['thousands'] = function(FS, Value, ValueType)
-    return Value / 1000
-  end
-
-  FontGetValue['thousands_dgroups'] = function(FS, Value, ValueType)
-    return NumberToDigitGroups(Round(Value / 1000))
-  end
-
-  FontGetValue['millions'] = function(FS, Value, ValueType)
-    return Value / 1000000
-  end
-
-  FontGetValue['millions_dgroups'] = function(FS, Value, ValueType)
-    return NumberToDigitGroups(Round(Value / 1000000, 1))
-  end
-
--------------------------------------------------------------------------------
--- FontSetValue (method for Font)
---
--- Usage: FS:SetValue(Curr, Max, Predicted, UnitTypeNameRealm)
---
--- Curr               Minimum Value
--- Maximum            Maximum Value
--- Predicted          Predicted Value
--- UnitTypeNameRealm  For unit name and realm name.
--------------------------------------------------------------------------------
-local function FontSetValue2(FS, FontString, Layout, NumValues, ValueName, ValueType, ...)
-
-  -- if we have paramters left then get them.
-  local Name = ValueName[NumValues]
-  local Type = ValueType[NumValues]
-  local Value = FS[Name]
-
-  if NumValues > 1 then
-    if Name ~= 'none' then
-      return FontSetValue2(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, FontGetValue[Type](FS, Value, Type), ...)
-    else
-      return FontSetValue2(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, ...)
-    end
-  else
-    if Name ~= 'none' then
-      FontString:SetFormattedText(Layout, FontGetValue[Type](FS, Value, Type), ...)
-    else
-      FontString:SetFormattedText(Layout, ...)
-    end
-  end
-end
-
-local function FontSetValue(self, Current, Maximum, Predicted, UnitTypeNameRealm)
-  local FS = self
-  local TextFrame = FS.TextFrame
-
-  -- if not multi then set current value as a string and return
-  if FS.Multi == nil then
-    FS[1]:SetText(Current)
-  else
-    FS.current = Current or 0
-    FS.maximum = Maximum or 0
-    FS.predicted = Predicted or 0
-    if UnitTypeNameRealm then
-      local Name, Realm = UnitName(UnitTypeNameRealm)
-      Name = Name or ''
-      Realm = Realm or ''
-
-      FS.unitname = Name
-      FS.realmname = Realm
-      if Realm ~= '' then
-        Realm = '-' .. Realm
-      end
-      FS.unitnamerealm = Name .. Realm
-    end
-
-    local Text = FS.Text
-
-    for Index = 1, FS.NumStrings do
-      local FontString = FS[Index]
-      local TS = Text[Index]
-      local ValueName = TS.ValueName
-
-      -- Display the font string
-      local ReturnOK, Msg = pcall(FontSetValue2, FS, FontString, TS.Layout, #ValueName, ValueName, TS.ValueType)
-
-      if not ReturnOK then
-        FontString:SetFormattedText('Err (%d)', Index)
-      end
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- FontGetLayout
---
--- Subfunction of FontModify
---
--- Returns a new layout based on the Value name and value type.
---
--- Usage: Layout = FontGetLayout(ValueName, ValueType)
---
--- ValueName      Array containing the names.
--- ValueType      Array containing the types.
---
--- Layout         String containing the new layout.
--------------------------------------------------------------------------------
-local function FontGetLayout(ValueName, ValueType)
-  local LastName = nil
-  local Sep = ''
-  local SepFlag = false
-
-  local Layout = ''
-
-  for NameIndex, Name in ipairs(ValueName) do
-    if Name ~= 'none' then
-
-      -- Add a '/' between current and maximum.
-      if NameIndex > 1 then
-        if not SepFlag and (LastName == 'current' and Name == 'maximum' or
-                            LastName == 'maximum' and Name == 'current') then
-          Sep = ' / '
-          SepFlag = true
-        else
-          Sep = ' '
-        end
-      end
-
-      LastName = Name
-      Layout = Layout .. Sep .. (ValueLayout[ValueType[NameIndex]] or '')
-    end
-  end
-
-  return Layout
-end
-
--------------------------------------------------------------------------------
--- FontUpdate
---
--- Subfunction of FontSetColor(), FontSetFont(), Main:CreateFontString()
---
--- If the profile changes this will update the fontstring to the new profile.
---
--- Usage   FontUpdate(FS)
---
--- FS     FontString object
--------------------------------------------------------------------------------
-local function FontUpdate(FS)
-  local Text = nil
-
-  if FS.UB ~= UnitBars or GUB.ProfileUpdate then
-    FS.UB = UnitBars
-    Text = UnitBars[FS.BarType].Text
-    FS.Text = Text
-    local Multi = Text.Multi
-    local DefaultTextSettings = Defaults.profile[FS.BarType].Text[1]
-
-    -- Since Text is dynamic we need to make sure no values are missing.
-    -- If they are they'll be copied from defaults.
-    for _, TS in ipairs(Text) do
-      Main:CopyMissingTableValues(DefaultTextSettings, TS)
-
-      -- Update the layout if not in custom mode.
-      if not TS.Custom and Multi then
-        TS.Layout = FontGetLayout(TS.ValueName, TS.ValueType)
-      end
-    end
-  else
-    Text = FS.Text
-  end
-
-  local Parent = FS.Parent
-  local TextFrame = FS.TextFrame
-  local Layer = FS.Layer
-  local TextFrameLevel = FS.TextFrameLevel
-
-  -- Add font strings if needed
-  for Index, TS in ipairs(Text) do
-    if FS[Index] == nil then
-      local TF = CreateFrame('Frame', nil, Parent)
-      TF:SetFrameLevel(TF:GetFrameLevel() + TextFrameLevel)
-
-      TF:SetBackdrop(FontStringBorder)
-      TF:SetBackdropBorderColor(1, 1, 1, 0)
-      TF:SetBackdropColor(0, 0, 0, 0)
-      TF:SetSize(TS.Width, TS.Height)
-
-      TextFrame[Index] = TF
-      local FontString = TF:CreateFontString(nil, Layer)
-
-      FontString:SetAllPoints(TF)
-      FS[Index] = FontString
-    end
-  end
-
-  local NumStrings = #Text
-
-  -- Erase font string data no longer used.
-  for Index = NumStrings + 1, FS.NumStrings or 0 do
-    FS[Index]:SetText('')
-  end
-
-  FS.NumStrings = NumStrings
-end
-
--------------------------------------------------------------------------------
--- FontSetColor (method for Font)
---
--- Usage: FS:SetColor(ColorIndex)
---
--- ColorIndex only used for color tables that support the 'all' feature.
--------------------------------------------------------------------------------
-local function FontSetColor(self, ColorIndex)
-  FontUpdate(self)
-
-  local FS = self
-  local Text = FS.Text
-
-  for Index, TS in ipairs(Text) do
-    local Color = TS.Color
-
-    if Color.All ~= nil and not Color.All then
-      Color = Color[ColorIndex]
-    end
-    FS[Index]:SetTextColor(Color.r, Color.g, Color.b, Color.a)
-  end
-end
-
--------------------------------------------------------------------------------
--- FontSetFont (method for Font)
---
--- Sets a fontstring attributes so it can be used.
---
--- Usage: FS:SetFont()
--------------------------------------------------------------------------------
-local function FontSetFont(self)
-  local FS = self
-  local TextFrame = FS.TextFrame
-  local Parent = FS.Parent
-
-  FontUpdate(FS)
-
-  for Index, TS in ipairs(FS.Text) do
-    local FontString = FS[Index]
-    local TF = TextFrame[Index]
-
-    FontString:SetFont(LSM:Fetch('font', TS.FontType), TS.FontSize, TS.FontStyle)
-    FontString:SetJustifyH(TS.FontHAlign)
-    FontString:SetJustifyV(TS.FontVAlign)
-    FontString:SetShadowOffset(TS.ShadowOffset, -TS.ShadowOffset)
-
-    TF:ClearAllPoints()
-    TF:SetPoint(TS.FontPosition, Parent, TS.Position, TS.OffsetX, TS.OffsetY)
-    TF:SetSize(TS.Width, TS.Height)
-
-    if FontString:GetText() == nil then
-      FontString:SetText('')
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- FontModify (method for Font)
---
--- Add or remove text or values in each string.
---
--- Usage:  FS:Modify('string', 'add', TextIndex, ValueIndex, Name, Type)
---         FS:Modify('string', 'remove', TextIndex)
---         FS:Modify('textsettings', 'add' or 'remove' or 'change', TextIndex, ValueIndex, [Name, Type])
---
--- 'textsettings'    Modify the values displayed.
--- 'string'          Modify the number of font strings displayed.
--- 'add'             Will add a new font string or textsetting.
--- 'remove'          Will remove an old font string or textsetting.
--- 'change'          Only used with 'textsettings'.
--- Name              If nil then not applied. Only used with 'add' or 'change'
--- Type              If nil then not applied. Only used with 'add' or 'change'
--- TextIndex         Which textsettings to modify.
--- ValueIndex        Which value to modify in textsettings.
---
--- NOTES: When doing textsettings add.  Name and Type will get pulled from defaults.
---        Also the ValueIndex is ignored when doing textsettings add
--------------------------------------------------------------------------------
-local function FontModify(self, Object, Action, TextIndex, ValueIndex, Name, Type)
-  local FS = self
-  local Text = FS.Text
-  local Color = 'Color%s'
-
-  if Object == 'string' then
-    local NumTextSettings = #Text
-
-    if Action == 'add' then
-
-      -- Copy first text setting from defaults into text table.
-      Text[NumTextSettings + 1] = Main:DeepCopy(Defaults.profile[FS.BarType].Text[1])
-
-      -- New fontstring will be created if needed by FS:SetFont() below.
-    elseif Action == 'remove' then
-      if NumTextSettings > 1 then
-
-        -- Delete the text setting.
-        tremove(Text, TextIndex)
-
-        -- Clear any text on screen from this removed fontstring.
-        FS[NumTextSettings]:SetText('')
-      end
-    end
-    FS:SetFont()
-    FS:SetColor()
-
-  elseif Object == 'textsettings' then
-    local TS = Text[TextIndex]
-    local ValueName = TS.ValueName
-    local ValueType = TS.ValueType
-    local NumValues = #ValueName
-
-    if Action == 'remove' and NumValues > 0 then
-      tremove(ValueName, ValueIndex)
-      tremove(ValueType, ValueIndex)
-    end
-    if Action == 'change' then
-      NumValues = ValueIndex - 1
-    end
-    if Action == 'add' or Action == 'change' then
-      if Action == 'add' then
-        Name = Defaults.profile[FS.BarType].Text[1].ValueName[1]
-        Type = Defaults.profile[FS.BarType].Text[1].ValueType[1]
-      end
-      if Name then
-        ValueName[NumValues + 1] = Name
-      end
-      if Type then
-        ValueType[NumValues + 1] = Type
-      end
-    end
-
-    -- Update the layout if not in custom mode.
-    if not TS.Custom then
-      TS.Layout = FontGetLayout(ValueName, ValueType)
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- CreateFontString
---
--- Creates a font string that can be displayed on screen.
---
--- Usage:  FS = CreateFontString(BarType, Parent, TextFrameLevel, Layer, PercentFn)
---
--- BarType         Bar that the fontstring will belong to.
--- TextFrame       Frame that will have text displayed on.
--- TextFrameLevel  This is added on to the Parent for TextFrame.
--- Layer           Grahics layer to display the text on.
--- PercentFn       Function used to calculate percentage.
---
--- FS              Font String object
---                   FS:SetFontString()
---                   FS:SetColor()
---                   FS:SetValue()
---                   FS:Modify()
---                   FS:SetValue()
--------------------------------------------------------------------------------
-function GUB.Main:CreateFontString(BarType, Parent, TextFrameLevel, Layer, PercentFn)
-  local FS = {}
-  local Text = UnitBars[BarType].Text
-
-  -- Add font string to the FontStrings table.
-  if FontStrings[BarType] == nil then
-    FontStrings[BarType] = {}
-  end
-  local FSS = FontStrings[BarType]
-
-  FSS[#FSS + 1] = FS
-
-  FS.BarType = BarType
-  FS.Text = Text
-  FS.Parent = Parent
-  FS.TextFrameLevel = Parent:GetFrameLevel() + TextFrameLevel
-  FS.TextFrame = {}
-  FS.Layer = Layer
-  FS.Multi = Text.Multi
-
-  -- Create new font strings.
-  FontUpdate(FS)
-
-  FS.PercentFn = PercentFn
-  FS.Modify = FontModify
-  FS.SetFont = FontSetFont
-  FS.SetColor = FontSetColor
-  FS.SetValue = FontSetValue
-
-  return FS
+  UnitBars.Version = 3
 end
 
 -------------------------------------------------------------------------------
@@ -3136,12 +964,11 @@ end
 --
 -- Checks to see if the talent is chosen or not.
 --
--- Usage: Status = CheckTalent(Index)
---
 -- Unit   player, target, pet, focus, etc
 -- Index  Talent index from 1 to 18.  Talents are index from left to right then down one.
 --
--- Status   If true then the talent is chosen, otherwise false.
+-- Returns:
+--   Status   If true then the talent is chosen, otherwise false.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckTalent(Index)
   local _, _, _, _, Active = GetTalentInfo(Index, nil, nil)
@@ -3149,174 +976,84 @@ function GUB.Main:CheckTalent(Index)
 end
 
 -------------------------------------------------------------------------------
--- SetTooltip
---
--- Adds a tooltip to an object to be used with ShowTooltip
---
--- Usage: SetTooltip(Object, Name, Description)
---
--- Object        Object to add a tooltip too.
--- Name          Appears a yellow at the top of the tooltip.
---               If nil then gets ignored.
--- Description   Description to appear in the tooltip.
---               If nil then gets ignored.
---
--- Note: Too add more lines just call this function again.
--------------------------------------------------------------------------------
-function GUB.Main:SetTooltip(Object, Name, Description)
-  if Description then
-    local TooltipDesc = Object.TooltipDesc
-    if TooltipDesc == nil then
-      TooltipDesc = {}
-      Object.TooltipDesc = TooltipDesc
-    end
-    TooltipDesc[#TooltipDesc + 1] = Description
-  end
-  if Name then
-    Object.TooltipName = Name
-  end
-end
-
--------------------------------------------------------------------------------
 -- ShowTooltip
 --
--- Usage: ShowTooltip(Object, Show)
+-- Shows a tooltip at the frame location.
 --
--- Object    Object that contains the tooltip
--- Show      True or false.  If true then the tooltip is shown otherwise hidden.
+-- Frame                 Frame where the tooltip will be positioned at.
+-- UnitBarDesc           if true then shows the standard unitbar description.
+-- Name                  Name of the tooltip, set to '' to skip.
+-- ...                   Additional lines.  Can be a table of strings or
+--                       comma delimited strings. Set to nil to skip.
 --
--- The self.TooltipDesc is a variable array can contain 1 or more indexes.
+-- NOTES:  To hide the tooltip pass no paramaters.
 -------------------------------------------------------------------------------
-function GUB.Main:ShowTooltip(Object, Show)
-  local TooltipName = Object.TooltipName
-  local TooltipDesc = Object.TooltipDesc
-  if TooltipDesc or TooltipName then
-    if Show then
-      GameTooltip:SetOwner(Object, 'ANCHOR_TOPRIGHT')
-      if TooltipName then
-        GameTooltip:AddLine(TooltipName)
-      end
-      if not UnitBars.HideTooltipsDesc or Object.WoWUI then
-        if TooltipDesc then
-          for _, Desc in ipairs(TooltipDesc) do
-            GameTooltip:AddLine(Desc, 1, 1, 1)
-          end
-        end
-        if UnitBars.AlignmentToolEnabled and Object.WoWUI == nil then
-          GameTooltip:AddLine(AlignmentTooltipDesc, 1, 1, 1)
-        end
-      end
-      GameTooltip:Show()
-    else
-      GameTooltip:Hide()
+function GUB.Main:ShowTooltip(Frame, UnitBarDesc, Name, ...)
+  if Frame and not UnitBars.HideTooltips then
+    local St = nil
+
+    GameTooltip:SetOwner(Frame, 'ANCHOR_TOPRIGHT')
+
+    if Name ~= '' then
+      GameTooltip:AddLine(Name)
     end
+
+    -- Add unitbar description if true
+    if not UnitBars.HideTooltipsDesc then
+      if UnitBarDesc then
+        if UnitBars.AlignAndSwapEnabled then
+          GameTooltip:AddLine(AlignAndSwapTooltipDesc, 1, 1, 1)
+        end
+        GameTooltip:AddLine(MouseOverDesc, 1, 1, 1)
+      end
+      if ... then
+        if type(...) == 'table' then
+          St = ...
+        end
+        for Index = 1, St and #St or select('#', ...) do
+          local Desc = St and St[Index] or select(Index, ...)
+
+          GameTooltip:AddLine(Desc, 1, 1, 1)
+        end
+      end
+    end
+    GameTooltip:Show()
+  else
+    GameTooltip:Hide()
   end
 end
 
 -------------------------------------------------------------------------------
 -- GetHighestFrameLevel
 --
--- Returns the highest frame level in all of the frames children.
+-- Returns the frame with the highest frame level in all of the frames children.
 --
--- Usage: FrameLevel = GetHighestFrameLevel(IgnoreFrame, Frame)
---
--- IgnoreFrame      It will skip this frame if it finds it in the children.
--- Frame            Frame to start searching its children for the highest level.
--- FrameLevel       Highest frame level found in the child frames.
+-- Frame            Frame to start searching its children for the highest frame.
 -------------------------------------------------------------------------------
-local function GetHighestFrameLevel(IgnoreFrame, ...)
+local function GetHighestFrameLevel(Frame)
+  local HighestFrameLevel = -1
 
-  local function GetHighestLevel(FrameLevel, ...)
+  local function FindHighestFrameLevel(...)
     local Found = false
 
-    -- Search one or more frames.
-    for i = 1, select('#', ...) do
-      local Frame = select(i, ...)
+    for Index = 1, select('#', ...) do
+      local Frame = select(Index, ...)
+      Found = true
 
-      -- skip the ignored frame,
-      if Frame ~= IgnoreFrame then
-        Found = true
+      if not FindHighestFrameLevel(Frame:GetChildren()) then
 
-        -- recursive call to search more children if they exist.
-        local FL = GetHighestLevel(FrameLevel, Frame:GetChildren())
-        if FL == nil then
+        -- No children found so use this frame.
+        local FL = Frame:GetFrameLevel()
 
-          -- no children found so get the frame level of this frame.
-          FL = Frame:GetFrameLevel()
-        end
-        if FL > FrameLevel then
-          FrameLevel = FL
+        if FL > HighestFrameLevel then
+          HighestFrameLevel = FL
         end
       end
     end
-
-    -- return framelevel if a frame was searched or nil
-    return Found and FrameLevel or nil
+    return Found
   end
-
-  return GetHighestLevel(0, ...)
-end
-
--------------------------------------------------------------------------------
--- SelectUnitBar
---
--- Selects or deselects a unitbar.
---
--- Usage: SelectUnitBar(UnitBarF, Action, r, g, b)
---
--- UnitBarF      Unitbar being selected.
--- Action        'set' to select or 'clear' to unselect.  RGB is ignored when using 'clear'
--- r, g, b       Color of the selected unitbar.
--------------------------------------------------------------------------------
-local function SelectUnitBar(UnitBarF, Action, r, g, b)
-  local SelectFrame = UnitBarF.SelectFrame
-
-  -- Set the border color and show it.
-  if Action == 'set' then
-
-    -- Set selectframe to the top level
-    SelectFrame:SetFrameLevel(GetHighestFrameLevel(SelectFrame, UnitBarF.Anchor) + 1)
-    SelectFrame:SetBackdropBorderColor(r, g, b, 1)
-    UnitBarF.Selected = true
-
-    -- If color setting doesn't exist then create one.
-    if UnitBarF.SelectColor == nil then
-      UnitBarF.SelectColor = {r = r, g = g, b = b}
-    else
-
-      -- Use existing color setting.
-      local Color = UnitBarF.SelectColor
-      Color.r, Color.g, Color.b = r, g, b
-    end
-
-  -- Hide the border by setting its alpha to zero.
-  elseif Action == 'clear' then
-    SelectFrame:SetBackdropBorderColor(1, 1, 1, 0)
-    UnitBarF.Selected = false
-  end
-end
-
--------------------------------------------------------------------------------
--- EnableSelectMode
---
--- Enable or disable select mode.
---
--- Usage: EnableSelectMode(true or false)
--------------------------------------------------------------------------------
-function GUB.Main:EnableSelectMode(Action)
-  for _, UBF in ipairs(UnitBarsFI) do
-    if Action then
-      UBF.SelectFrame:Show()
-    else
-      UBF.SelectFrame:Hide()
-    end
-  end
-  SelectMode = Action
-
-  -- Set PSelectedUnitBarF to nil if SelectMode was turned off.
-  if not SelectMode then
-    PSelectedUnitBarF = nil
-  end
+  FindHighestFrameLevel(Frame)
+  return HighestFrameLevel
 end
 
 -------------------------------------------------------------------------------
@@ -3326,175 +1063,44 @@ end
 --
 -- Sets the width and height for a unitbar.
 --
--- Usage: SetUnitBarSize(UnitBarF, Width2, Height2, OffsetX, OffsetT)
---
 -- UnitBarF    UnitBar to set the size for.
--- Width2      Set width of the unitbar. if Width is nil then current width is used.
--- Height2     Set height of the unitbar.
+-- Width       Set width of the unitbar. if Width is nil then current width is used.
+-- Height      Set height of the unitbar.
 -- OffsetX     Move the unitbar from the current position by OffsetX.
 -- OffsetY     Move the unitbar from the current position by OffsetY
 --
 -- NOTE:  This accounts for scale.  Width and Height must be unscaled when passed.
 -------------------------------------------------------------------------------
-local function SetUnitBarSize(self, Width2, Height2, OffsetX, OffsetY)
+local function SetUnitBarSize(self, Width, Height, OffsetX, OffsetY)
 
   -- Get Unitbar data and anchor
   local UB = self.UnitBar
   local Anchor = self.Anchor
   local Scale = UB.Other.Scale
 
-  -- Get width and height
-  local Width = nil
-  local Height = nil
-
-  -- If width then scale it.
-  if Width2 then
-    Width = Width2
-    Height = Height2
+  if Width == nil then
+    Width = self.BaseWidth or 1
+    Height = self.BaseHeight or 1
   else
-
-    -- If not width specified then use the current scale width and height
-    Width = self.ScaleWidth
-    Height = self.ScaleHeight
+    self.BaseWidth = Width
+    self.BaseHeight = Height
   end
 
-  -- Offset the Anchor and setsize.
-  if OffsetX ~= nil then
-    local x, y = UB.x + OffsetX * Scale, UB.y + OffsetY * Scale
-    Anchor:SetPoint('TOPLEFT' , x, y)
-    UB.x, UB.y = x, y
-  end
+  -- Need to scale width and height since size is based on ScaleFrame.
+  Width = Width * Scale
+  Height = Height * Scale
+  self.Width = Width
+  self.Height = Height
+  Anchor:SetSize(Width, Height)
 
-  if Width ~= nil and Height ~= nil then
+  -- Need to scale offset since all offsets are based off of ScaleFrame.
+  local x, y = UB.x + (OffsetX or 0) * Scale, UB.y + (OffsetY or 0) * Scale
+  Anchor:SetPoint('TOPLEFT', Anchor:GetParent(), 'TOPLEFT', x, y)
+  UB.x, UB.y = x, y
 
-    -- Set scale width and height.
-    local ScaleWidth = Width
-    local ScaleHeight = Height
-
-    -- Unscale width and height
-    Width = Width * Scale
-    Height = Height * Scale
-
-    -- save width and heiht
-    self.ScaleWidth = ScaleWidth
-    self.ScaleHeight = ScaleHeight
-    self.Width = Width
-    self.Height = Height
-
-    Anchor:SetWidth(Width)
-    Anchor:SetHeight(Height)
-  end
-end
-
--------------------------------------------------------------------------------
--- AlignUnitBars
---
--- Align unitbars by horizontal/vertical.
---
--- Usage: AlignUnitBars(Alignment, Justify, PaddingEnabled, Padding)
---
--- Alignment        'vertical', 'horizontal'
--- Justify          1 = left or 2 = right for vertical.
---                  1 = top  or 2 = bottom for horizontal.
--- PaddingEnabled   true or false. If true then the bars will be spaced apart in pixels.
--- Padding          Amount of pixels to space bars apart.
---
--- NOTE:  Function will not do anything unless you have at one primary selected bar and
---        one or more selected bars.
--------------------------------------------------------------------------------
-local function SortY(a, b)
-  return a.UnitBar.y > b.UnitBar.y
-end
-
-local function SortX(a, b)
-  return a.UnitBar.x < b.UnitBar.x
-end
-
-function GUB.Main:AlignUnitBars(Alignment, Justify, PaddingEnabled, Padding)
-  local StartIndex = 0
-  local DestIndex = 0
-  local MaxUnitBars = 0
-  local x = 0
-  local y = 0
-  local UB = nil
-  local LastUB = nil
-  local UnitBarF = nil
-  local LastUnitBarF = nil
-
-  -- Do nothing if no primary selected bar.
-  if PSelectedUnitBarF == nil then
-    return
-  end
-
-  -- sort UnitBarsF
-  if Alignment == 'vertical' then
-    sort(UnitBarsF, SortY)
-  elseif Alignment == 'horizontal' then
-    sort(UnitBarsF, SortX)
-  end
-
-  -- Find the primary selected unitbar.
-  for Index, UBF in ipairs(UnitBarsFI) do
-    MaxUnitBars = MaxUnitBars + 1
-    if UBF == PSelectedUnitBarF then
-      StartIndex = Index
-    end
-  end
-
-  for Direction = -1, 1, 2 do
-
-    -- Set destination index.
-    DestIndex = Direction == -1 and 1 or MaxUnitBars
-
-    -- Set the starting x, y location.
-    LastUB = PSelectedUnitBarF.UnitBar
-    LastUnitBarF = PSelectedUnitBarF
-
-    -- loop from the center outward.
-    for AlignmentIndex = StartIndex + Direction, DestIndex, Direction do
-      UnitBarF = UnitBarsFI[AlignmentIndex]
-
-      -- Only check selected bars.
-      if UnitBarF.Selected then
-        UB = UnitBarF.UnitBar
-        x, y = UB.x, UB.y
-        if Alignment == 'vertical' then
-          if PaddingEnabled then
-            if Direction == -1 then
-              y = LastUB.y + Padding + UnitBarF.Height
-            else
-              y = LastUB.y - LastUnitBarF.Height - Padding
-            end
-          end
-
-          -- Handle left/right justification.
-          if Justify == 1 then
-            x = LastUB.x
-          else
-            x = LastUB.x + (LastUnitBarF.Width - UnitBarF.Width)
-          end
-        else
-          if PaddingEnabled then
-            if Direction == -1 then
-              x = LastUB.x - Padding - UnitBarF.Width
-            else
-              x = LastUB.x + LastUnitBarF.Width + Padding
-            end
-          end
-
-          -- Handle top/bottom justification
-          if Justify == 1 then
-            y = LastUB.y
-          else
-            y = LastUB.y - (LastUnitBarF.Height - UnitBarF.Height)
-          end
-        end
-        UnitBarF.Anchor:SetPoint('TOPLEFT', x, y)
-        UB.x, UB.y = x, y
-        LastUB = UB
-        LastUnitBarF = UnitBarF
-      end
-    end
+  -- Update alignment if alignswap is open
+  if Options.AlignSwapOpen then
+    Main:SetUnitBarsAlignSwap()
   end
 end
 
@@ -3519,6 +1125,10 @@ end
 --
 --        I decided to do it this way because the overhead of using indexed
 --        arrays for multiple timers ended up using more cpu.
+--
+--        The function that gets called has the following passed to it:
+--          Table      Table that was created with the timer.
+--          Duration   This is the same value as Delay passed to starting the timer.
 ---------------------------------------------------------------------------------
 function GUB.Main:SetTimer(Table, Delay, TimerFn)
   local AnimationGroup = nil
@@ -3532,12 +1142,19 @@ function GUB.Main:SetTimer(Table, Delay, TimerFn)
       Animation = AnimationGroup:CreateAnimation('Animation')
       Animation:SetOrder(1)
       AnimationGroup:SetLooping('REPEAT')
-      AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Table, self:GetDuration()) end )
+
+      local GetDuration = AnimationGroup.GetDuration
+      AnimationGroup:SetScript('OnLoop' , function(self) TimerFn(Table, GetDuration(self)) end )
     end
     if Start then
       TimerFn = TimerFn2
       Animation:SetDuration(Delay)
-      AnimationGroup:Play()
+      if Delay > 0 then
+        AnimationGroup:Play()
+      else
+        -- Call Timer function if 0 is passed
+        TimerFn(Table, 0)
+      end
     else
       AnimationGroup:Stop()
     end
@@ -3602,11 +1219,10 @@ end
 --
 -- Returns set bonus info.
 --
--- Usage: SetBonus = GetSetBonus(Tier)
+-- Tier        Tier number of gear 11, 12 etc.
 --
--- Tie        Tier number of gear 11, 12 etc.
---
--- SetBonus   Set bonus 2 or 4, 0 if no bonus is detected.
+-- Returns:
+--   SetBonus   Set bonus 2 or 4, 0 if no bonus is detected.
 -------------------------------------------------------------------------------
 function GUB.Main:GetSetBonus(Tier)
 
@@ -3630,19 +1246,20 @@ end
 --
 -- Checks to see if one or more auras are active
 --
--- Usage: Found, [TimeLeft] = CheckAura(Condition, ...)
---
-
 -- Condition    - 'a' and.
 --                   All auras must be found.
 --                'o' or.
 --                   Only one of the auras need to be found.
--- Found        - If 'a' is used.
---                Returns true if the aura was found. Or false.
---                If 'o' is used.
---                Returns the SpellID of the aura found or nil if no aura was found.
--- TimeLeft     - Time left on aura.  -1 if aura doesn't have a time left.
---                This only gets returned when using the 'o' option.
+-- ...          - One or more spell IDs to search.
+--
+-- Returns:
+--   Found        - If 'a' is used.
+--                  Returns true if the aura was found. Or false.
+--                  If 'o' is used.
+--                  Returns the SpellID of the aura found or nil if no aura was found.
+--   TimeLeft     - Time left on aura.  -1 if aura doesn't have a time left.
+--                  This only gets returned when using the 'o' option.
+--   Stacks       - Number of stacks of the buff gets returned when using the 'o' option.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckAura(Condition, ...)
   local Name = nil
@@ -3652,7 +1269,7 @@ function GUB.Main:CheckAura(Condition, ...)
   local AuraIndex = 1
 
   repeat
-    local Name, _, _, _, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', AuraIndex)
+    local Name, _, _, Stacks, _, _, ExpiresIn, _, _, _, SpellID = UnitBuff('player', AuraIndex)
     if Name then
 
       -- Search for the aura against the list of auras passed.
@@ -3666,9 +1283,9 @@ function GUB.Main:CheckAura(Condition, ...)
       -- When using the 'o' option then return on the first found aura.
       if Condition == 'o' and Found > 0 then
         if ExpiresIn == 0 then
-          return SpellID, -1
+          return SpellID, -1, Stacks
         else
-          return SpellID, ExpiresIn - GetTime()
+          return SpellID, ExpiresIn - GetTime(), Stacks
         end
       end
     end
@@ -3707,8 +1324,6 @@ end
 -- ModifySpellTracker
 --
 -- Adds or Remove a spell from the spell tracker.
---
--- Usage: ModifySpellTracker(Action, UnitBarF, SpellID, LineID, CastTime, Fn)
 --
 -- Action     'remove' or 'add'
 --            'add'    will add the current spell to casting.
@@ -3750,8 +1365,6 @@ end
 -- SetSpellTrackerActive
 --
 -- Turns spell tracking on or off.
---
--- Usage: SetSpellTrackerActive(UnitBarF, Action)
 --
 -- UnitBarF  If this matches with what was set in SetSpellTracker() then
 --           Action won't be ignored.
@@ -3848,224 +1461,11 @@ function GUB.Main:SetSpellTracker(UnitBarF, SpellID, EndOn, Fn)
 end
 
 -------------------------------------------------------------------------------
--- CalcSetPoint
---
--- Returns where a child sub frame point would be set on another frame.
---
--- Usage x, y = CalcSetPoint(Point, Width, Height, OffsetX, OffsetY)
---
--- Point      One of the 9 different points. 'TOP', 'LEFT', etc.
--- Width      Width of the frame.
--- Height     Height of the frame.
--- OffsetX    Screen position X offset from Point.
--- OffsetY    Screen position Y offset from point.
---
--- x, y       New screen location within the frame.
--------------------------------------------------------------------------------
-function GUB.Main:CalcSetPoint(Point, Width, Height, OffsetX, OffSetY)
-  return Width * PointCalc[Point].x + OffsetX, -(Height * PointCalc[Point].y + -OffSetY)
-end
-
--------------------------------------------------------------------------------
--- GetBorder
---
--- Returns the four values to create a frame that can surround sub frames.
---
--- Usage: x, y, Width, Height = GetBorder(x1, y1, Width1, Height1, ...)
---
--- x1, y1      Top left location of a frame.
--- Width1      Width of the frame
--- Height      Height of the frame
--- ...         One or more (x1, y1, Width1, Height1) groups
---
--- x, y        Location based on the left (x1) and top most (y1) values passed.
--- Width       Based on the distance from x1 to x1 + Width1.  Returns the largest.
--- Height      Based on the distance from y1 to y1 + Height1.  Returns the largest.
--------------------------------------------------------------------------------
-function GUB.Main:GetBorder(...)
-  local Left = 0
-  local Top = 0
-  local Right = 0
-  local Bottom = 0
-
-  for i = 1, select('#', ...), 4 do
-    local Left2 = select(i, ...)
-    local Top2 = select(i + 1, ...)
-    local Right2 = select(i + 2, ...)
-    local Bottom2 = select(i + 3, ...)
-
-    -- Convert Right and Bottom into screen coordinates.
-    Right2 = Left2 + Right2
-    Bottom2 = Top2 - Bottom2
-
-    -- If this is the first set, set the values.
-    if i == 1 then
-      Left, Top, Right, Bottom = Left2, Top2, Right2, Bottom2
-    else
-
-      -- Get the left and top most values.
-      Left = Left2 < Left and Left2 or Left
-      Top = Top2 > Top and Top2 or Top
-
-      -- Get the right and bottom most values.
-      Right = Right2 > Right and Right2 or Right
-      Bottom = Bottom2 < Bottom and Bottom2 or Bottom
-    end
-  end
-  return Left, Top, Right - Left, Top - Bottom
-end
-
--------------------------------------------------------------------------------
--- SetCooldownBarEdgeFrame
---
--- Creates a frame that gets placed on the edge of the bar.
---
--- Usage: SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, ReverseFill, Width, Height)
---
--- StatusBar     Statusbar containing the cooldownbar timer.
--- EdgeFrame     Frame containing objects to be displayed.
--- FillDirection 'HORIZONTAL' left to right, 'VERTICAL' bottom to top.
--- ReverseFill   True   left to right or bottom to top.
---               False  right to left or top to bottom.
--- Width         Width set to EdgeFrame
--- Height        Height set to EdgeFrame
---
--- If EdgeFrame is nil then no EdgeFrame will be shown or the existing EdgeFrame
--- will be removed.
--------------------------------------------------------------------------------
-function GUB.Main:SetCooldownBarEdgeFrame(StatusBar, EdgeFrame, FillDirection, ReverseFill, Width, Height)
-  if EdgeFrame then
-    EdgeFrame:Hide()
-
-    -- Set the width and height.
-    EdgeFrame:SetWidth(Width)
-    EdgeFrame:SetHeight(Height)
-
-    StatusBar.EdgeFrame = EdgeFrame
-    StatusBar.FillDirection = FillDirection
-    StatusBar.ReverseFill = ReverseFill
-  else
-
-    -- Hide the old edgeframe
-    EdgeFrame = StatusBar.EdgeFrame
-    if EdgeFrame then
-      EdgeFrame:Hide()
-    end
-    StatusBar.EdgeFrame = nil
-  end
-
-  StatusBar.ShowEdgeFrame = false
-end
-
--------------------------------------------------------------------------------
--- CooldownBarSetTimer
---
--- Creates a bar timer using an existing statusbar.
---
--- Usage: CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
---
--- StatusBar     StatusBar you want to use for the cooldown bar.
--- StartTime     Starting time in seconds that you want the timer to start at.
--- Duration      Time in seconds you want the bar to keep track of once StartTime has Been reached.
---               If Duration is 0 then no timer is started.
--- Enable        if set to 1 the timer will be set to start at StartTime.
---               if set to 0 the existing timer will be stopped
--------------------------------------------------------------------------------
-function GUB.Main:CooldownBarSetTimer(StatusBar, StartTime, Duration, Enable)
-  local LastX = nil
-  local LastY = nil
-
-  StatusBar.CooldownBarSetTimer = StatusBar.CooldownBarSetTimer or function(self)
-    local CurrentTime = GetTime()
-
-    -- Check to see if the start time has been reached
-    if CurrentTime >= StartTime then
-      local TimeElapsed = CurrentTime - StartTime
-
-       -- Check to see if we're less than duration
-      if TimeElapsed <= Duration then
-        local EdgeFrame = self.EdgeFrame
-        self:SetMinMaxValues(0, Duration)
-        self:SetValue(TimeElapsed)
-        self:Show()
-
-        -- Position and show the edgeframe if one is present.
-        if EdgeFrame then
-          if self.FillDirection == 'HORIZONTAL' then
-            local x = TimeElapsed / Duration * self:GetWidth()
-            if self.ReverseFill then
-              x = self:GetWidth() - x
-            end
-            if x ~= LastX then
-              EdgeFrame:SetPoint('CENTER', self, 'LEFT', x, 0)
-              LastX = x
-            end
-          else
-            local y = TimeElapsed / Duration * self:GetHeight()
-            if self.ReverseFill then
-              y = self:GetHeight() - y
-            end
-            if y ~= LastY then
-              EdgeFrame:SetPoint('CENTER', self, 'BOTTOM', 0, y)
-              LastY = y
-            end
-          end
-          EdgeFrame:Show()
-        end
-
-      else
-        if self.EdgeFrame then
-
-          -- Hide the edgeframe.
-          self.EdgeFrame:Hide()
-        end
-
-        -- stop the timer.
-        self.Start = false
-        self:SetValue(0)
-        Main:SetTimer(self, nil)
-      end
-    end
-  end
-
-  StatusBar.CooldownBarSetTimer2 = StatusBar.CooldownBarSetTimer2 or function(StartTime2, Duration2)
-    StartTime = StartTime2
-    Duration = Duration2
-  end
-
-  if Enable == 1 then
-
-    -- Check to see if the timer is not already running and only start a timer if duration > 0.
-    if Duration > 0 and (StatusBar.Start == nil or not StatusBar.Start) then
-      StatusBar.Start = true
-      StatusBar.Delay = -1
-
-      StatusBar.CooldownBarSetTimer2(StartTime, Duration)
-      Main:SetTimer(StatusBar, CooldownBarTimerDelay, StatusBar.CooldownBarSetTimer)
-    end
-  else
-    local EdgeFrame = StatusBar.EdgeFrame
-    if EdgeFrame then
-
-      -- Hide the edgeframe.
-      EdgeFrame:Hide()
-    end
-
-    -- stop the timer.
-    StatusBar:SetValue(0)
-    StatusBar.Start = false
-    Main:SetTimer(StatusBar, nil)
-  end
-end
-
--------------------------------------------------------------------------------
--- TableForEach()
+-- ListTable()
 --
 -- Like table.foreach except shows the details of all sub tables.
---
--- usage: TableForEach(Table)
 -------------------------------------------------------------------------------
-function GUB.Main:TableForEach(Table, Path)
+function GUB.Main:ListTable(Table, Path)
   if Path == nil then
     Path = '.'
   end
@@ -4074,7 +1474,7 @@ function GUB.Main:TableForEach(Table, Path)
     if type(v) == 'table' then
       print(Path .. '.' .. k .. ' = ', v)
 
-      Main:TableForEach(v, Path .. '.' .. k)
+      Main:ListTable(v, Path .. '.' .. k)
     else
       print(Path .. '.' .. k .. ' = ', v)
     end
@@ -4082,74 +1482,84 @@ function GUB.Main:TableForEach(Table, Path)
 end
 
 -------------------------------------------------------------------------------
--- CompareTables
+-- Check
 --
--- Debugging tool.  This will compare two tables. And show a tablepath of
--- what was not found or mismatched.
+-- Checks if the tablepath leads to data in a table.
+-- If the check fails false is returned otherise true.
 --
--- Usage CheckUnitBars(Default.profile, UnitBars)
+-- BarType              Table data for that bar.
+-- Table                Table to seach in.  Must have same format as a UnitBar table.
+-- TablePath            A string leading to the data you want to find.
 -------------------------------------------------------------------------------
-local function CompareTables(Source, Dest, Path)
-  if Path == nil then
-    Path = '.'
+local function Check(BarType, Table, TablePath)
+  local Value = Table[BarType]
+  if Value == nil then
+    return false
   end
+  local Key = nil
 
-  for k, v in pairs(Source) do
-    local d = Dest[k]
-    local ts = type(v)
+  while true do
+    if TablePath then
+      Key, TablePath = strsplit('.', TablePath, 2)
 
-    if d == nil then
-      print('Not Found:', Path .. '.' .. k)
-    elseif ts == 'table' then
-
-      -- Subtable found keep checking.
-      CompareTables(v, d, Path .. '.' .. k)
-    elseif ts ~= type(d) then
-      print('Mismatch:', Path .. '.' .. k, '|source = ' .. ts .. ' Dest = ' .. type(d))
+      -- Get value by array index or hash index.
+      Value = Value[tonumber(Key) or Key]
+      if Value == nil then
+        return false
+      elseif type(Value) ~= 'table' and TablePath ~= nil then
+        return false
+      end
+    else
+      break
     end
   end
+  return true
 end
 
 -------------------------------------------------------------------------------
--- GetVP
+-- GetUB
 --
 -- Gets a value or a table from a table based on BarType
 --
--- Usage: Value, DC = GetVP(BarType, TablePath)
---
 -- BarType      Table of bartype
 -- TablePath    String delimited by a '.'  Example 'table.1' = table[1] or 'table.subtable' = table['subtable']
+-- Table        If not nil then this table will be searched instead.  Must have a unitbar table format.
 --
--- Value        Table or value returned
--- DC           If true then a _DC tag was found
+-- Returns:
+--   Value        Table or value returned
+--   DC           If true then a _DC tag was found. _DC tag is only searched in default unitbars.
 --
 -- Notes:  If nil is found at anytime then a nil is returned.
 --         If TablePath is '' or nil then UnitBars[BarType] is returned.
 -------------------------------------------------------------------------------
-function GUB.Main:GetVP(BarType, TablePath)
-  local Value = UnitBars[BarType]
+function GUB.Main:GetUB(BarType, TablePath, Table)
+  local Value = Table and Table[BarType] or UnitBars[BarType]
+  local DUBValue = DUB[BarType]
   local DC = false
-  TablePath = TablePath and TablePath or ''
+  local Key = nil
+
+  if TablePath == '' then
+    TablePath = nil
+  end
 
   while true do
-    if Value._DC then
+    if type(DUBValue) == 'table' and DUBValue._DC then
       DC = true
     end
 
-    if TablePath ~= '' then
-      local Index = strfind(TablePath, '.', 1, true) or #TablePath + 1
-      local Key = strsub(TablePath, 1, Index - 1)
+    if TablePath then
+      Key, TablePath = strsplit('.', TablePath, 2)
 
-      -- Convert Key into an integer, else leave it as a string.
-      local Array = tonumber(Key)
-      Value = Value[Array and Array or Key]
+      -- Get value by array index or hash index.
+      local Key = tonumber(Key) or Key
+      Value = Value[Key]
+      if DUBValue then
+        DUBValue = DUBValue[Key]
+      end
 
       if type(Value) ~= 'table' then
         break
       end
-
-      -- Not at end of path yet.
-      TablePath = strsub(TablePath, Index + 1)
     else
       break
     end
@@ -4159,29 +1569,79 @@ function GUB.Main:GetVP(BarType, TablePath)
 end
 
 -------------------------------------------------------------------------------
--- DeepCopy
+-- DelUB
 --
--- Copies a table and any subtables
+-- Deletes a key in a unitbar by tablepath.
 --
--- Usage: CopiedTable = DeepCopy(OldTable)
---
--- CopiedTable      Copy of OldTable.
--- OldTable         Table to be copied.
+-- BarType    UnitBar to delete a key from.
+-- TablePath  Path leading to the key to delete.
 -------------------------------------------------------------------------------
-function GUB.Main:DeepCopy(t)
-  if type(t) ~= 'table' then
-    return t
-  end
-  local MT = getmetatable(t)
-  local NewTable = {}
-  for k, v in pairs(t) do
-    if type(v) == 'table' then
-      v = Main:DeepCopy(v)
+function GUB.Main:DelUB(BarType, TablePath)
+  local Value = UnitBars[BarType]
+  local Key = nil
+
+  while true do
+    if TablePath then
+      Key, TablePath = strsplit('.', TablePath, 2)
+      Key = tonumber(Key) or Key
+
+      if TablePath == nil then
+        Value[Key] = nil
+        return
+      else
+
+        -- Get value by array index or hash index.
+        Value = Value[Key]
+        if type(Value) ~= 'table' then
+          break
+        end
+      end
+    else
+      break
     end
-    NewTable[k] = v
   end
-  setmetatable(NewTable, MT)
-  return NewTable
+end
+
+-------------------------------------------------------------------------------
+-- CopyTableValues
+--
+-- Copies all the data from one table to another.
+--
+-- Source        Table to copy from.
+-- Dest          Table to copy to.
+-- DC            If true deep copies to the destination, but keeps the original.
+--               table pointer intact.
+--
+-- NOTES: Types need to match, so the source found has to have the same type
+--        in the destination.
+--        Any source keys that start with an '_' will not get copied.  Even if DC is true.
+-------------------------------------------------------------------------------
+local function CopyTable(Source, Dest, DC)
+  for k, v in pairs(Source) do
+    local d = Dest[k]
+    local ts = type(v)
+
+    if (DC or ts == type(d)) and strsub(k, 1, 1) ~= '_' then
+      if ts == 'table' then
+        if d == nil then
+          d = {}
+          Dest[k] = d
+        end
+        CopyTable(v, d, DC)
+      else
+        Dest[k] = v
+      end
+    end
+  end
+end
+
+function GUB.Main:CopyTableValues(Source, Dest, DC)
+  if DC then
+
+    -- Empty table for deep copy
+    wipe(Dest)
+  end
+  CopyTable(Source, Dest, DC)
 end
 
 -------------------------------------------------------------------------------
@@ -4189,8 +1649,6 @@ end
 --
 -- Copies the values that exist in the source but not in the destination.
 -- Array indexes are skipped.
---
--- Usage: CopyMissingTableValues(Source, Dest)
 --
 -- Source    The source table you're copying data from.
 -- Dest      The destination table the data is being copied to.
@@ -4205,7 +1663,9 @@ function GUB.Main:CopyMissingTableValues(Source, Dest)
 
       -- if table then copy entire table and all subtables over.
       if ts == 'table' then
-        Dest[k] = Main:DeepCopy(v)
+        d = {}
+        CopyTable(v, d, true)
+        Dest[k] = d
 
       -- skip the copy if its an array index.
       elseif type(k) ~= 'number' then
@@ -4220,11 +1680,9 @@ function GUB.Main:CopyMissingTableValues(Source, Dest)
 end
 
 -------------------------------------------------------------------------------
--- CopyTableValues
+-- CopyUnitBar
 --
 -- Copies all the data from one unitbar to another based on the TablePath
---
--- Usage: CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
 --
 -- Source            BarType or Table
 -- Dest              BarType or Table
@@ -4235,143 +1693,13 @@ end
 --        copy will be done instead.
 --        If path is not found in either source or dest no copy is done.
 -------------------------------------------------------------------------------
-local function CopyTableValues(Source, Dest, DC)
-  if DC then
-
-    -- Empty table and deep copy
-    for k, v in pairs(Dest) do
-      Dest[k] = nil
-    end
-  end
-  for k, v in pairs(Source) do
-    local d = Dest[k]
-    local ts = type(v)
-
-    if ts == type(d) or DC then
-      if ts == 'table' then
-
-        if DC then
-          Dest[k] = Main:DeepCopy(v)
-        else
-
-          -- normal copy.
-          CopyTableValues(v, d)
-        end
-      else
-        Dest[k] = v
-      end
-    end
-  end
-end
-
 function GUB.Main:CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
-  local Source, SourceDC = Main:GetVP(Source, SourceTablePath)
-  local Dest, DestDC = Main:GetVP(Dest, DestTablePath)
+  local Source, SourceDC = Main:GetUB(Source, SourceTablePath)
+  local Dest, DestDC = Main:GetUB(Dest, DestTablePath)
 
   if Source and Dest then
-    CopyTableValues(Source, Dest, SourceDC and DestDC)
+    Main:CopyTableValues(Source, Dest, SourceDC and DestDC)
   end
-end
-
--------------------------------------------------------------------------------
--- AngleToOffset
---
--- Passes back an x y offset based on angle.
---
--- Usage XO, YO = AngleToOffset(XOffset, YOffset, Angle)
---
--- XOffset      The offset value for X.
--- YOffset      The offset Value for Y.
--- Angle        Must be 45 90 135 180 225 270 315 or 360
---
--- XO           Negative or positive value of XOffset depending on angle.
--- YO           Negative or positive value of YOffset depending on angle.
--------------------------------------------------------------------------------
-function GUB.Main:AngleToOffset(XO, YO, Angle)
-  local XOffset = 0
-  local YOffset = 0
-
-  -- Set the offsets.
-  if Angle == 90 or Angle == 270 then
-    XOffset = XO
-  elseif Angle == 180 or Angle == 360 then
-    YOffset = YO
-  elseif Angle == 45 or Angle == 135 or Angle == 225 or Angle == 315 then
-    XOffset = XO
-    YOffset = YO
-  end
-
-  -- Calculate the direction.
-  local Angle = mrad(Angle)
-  if msin(Angle) < 0 then
-    XOffset = -XOffset
-  end
-  if mcos(Angle) < 0 then
-    YOffset = -YOffset
-  end
-  return XOffset, YOffset
-end
-
--------------------------------------------------------------------------------
--- ConvertBackdrop
---
--- Converts BackdropSettings that can be used in SetBackdrop()
---
--- Usage: Backdrop = GUB.Main:ConvertBackdrop(Bd)
---
--- Bd               Usually from saved unitbar data that has shared media
---                  strings for textures.
--- Backdrop         A table that is usable by blizzard. This table always
---                  references the local table in main.lua
--------------------------------------------------------------------------------
-function GUB.Main:ConvertBackdrop(Bd)
-  Backdrop.bgFile   = LSM:Fetch('background', Bd.BgTexture)
-  Backdrop.edgeFile = LSM:Fetch('border', Bd.BdTexture)
-  Backdrop.tile = Bd.BgTile
-  Backdrop.tileSize = Bd.BgTileSize
-  Backdrop.edgeSize = Bd.BdSize
-  local Insets = Backdrop.insets
-  local Padding = Bd.Padding
-  Insets.left = Padding.Left
-  Insets.right = Padding.Right
-  Insets.top = Padding.Top
-  Insets.bottom = Padding.Bottom
-
-  return Backdrop
-end
-
--------------------------------------------------------------------------------
--- RestoreRelativePoints
---
--- Restores lost relative points that are relative to its parent and returns
--- back the restored points.
---
--- Usage: x, y = RestoreRelativePoints(Frame)
---
--- Frame   The frame you want to restore relative points.
--------------------------------------------------------------------------------
-function GUB.Main:RestoreRelativePoints(Frame)
-  local Parent = Frame:GetParent()
-  local Scale = Frame:GetScale()
-  local PScale = Parent:GetScale()
-
-  -- Get the left and top location of the current frame and scale it.
-  local Left = Frame:GetLeft() * Scale
-  local Top = Frame:GetTop() * Scale
-
-  -- Get the left and top of the parent frame and scale it.
-  local LeftP = Parent:GetLeft() * PScale
-  local TopP = Parent:GetTop() * PScale
-
-  -- Calculate the X, Y location relative to the parent frame.
-  local x = (Left - LeftP) / Scale
-  local y = (Top - TopP) / Scale
-
-  -- Set the frame location relative to the parent frame.
-  Frame:ClearAllPoints()
-  Frame:SetPoint('TOPLEFT', x, y)
-
-  return x, y
 end
 
 -------------------------------------------------------------------------------
@@ -4446,8 +1774,8 @@ local function PlayAnimation(Fade, Action, ReverseFade)
     Duration = Fade.DurationOut
   end
 
-  -- Check for zero duration.
-  if Duration == 0 then
+  -- Check for zero duration or invisible frame.
+  if Duration == 0 or Fade.Object:IsVisible() == nil then
     FinishAnimation(Fade, Action)
   else
 
@@ -4660,8 +1988,6 @@ end
 --
 -- UnitBarF       Unitbar frame to hide or show.
 -- HideBar        Hide the bar if equal to true otherwise show.
---
--- NOTE:  Hiding a selected unitbar will deselect it.
 -------------------------------------------------------------------------------
 local function HideUnitBar(UnitBarF, HideBar)
   local Fade = UnitBarF.Fade
@@ -4676,12 +2002,6 @@ local function HideUnitBar(UnitBarF, HideBar)
         -- Disable spell tracking for this bar.
         SetSpellTrackerActive(UnitBarF, 'unregister')
       end
-
-      -- Deselect a unitbar if selected.
-      if UnitBarF == PSelectedUnitBarF then
-        PSelectedUnitBarF = nil
-      end
-      SelectUnitBar(UnitBarF, 'clear')
 
       -- Start the animation fadeout.
       Fade:SetAnimation('out')
@@ -4726,7 +2046,7 @@ function GUB.Main:StatusCheck(Event)
   end
 
   -- Show bars if not locked.
-  if not UnitBars.IsLocked then
+  if not UnitBars.IsLocked or UnitBars.Testing then
 
     -- use HideNotUsable visible flag if HideNotUsable is set.
     if not HideNotUsable then
@@ -4757,6 +2077,7 @@ function GUB.Main:StatusCheck(Event)
         Visible = false
 
       -- Get the idle status based on HideNotActive when not in combat.
+      -- If the flag is not present the it defaults to false.
       elseif not InCombat and Status.HideNotActive then
         local IsActive = self.IsActive
         Visible = IsActive == true
@@ -4787,17 +2108,590 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UnitBarTooltip
+-- MoveFrameSetHighlightFrame
 --
--- Display a tooltip of a frame that has a name.
+-- Sets a frame to be highlighted
 --
--- This function is called by setscript OnEnter and OnLeave
+-- Frame       Frame to highlight
+-- Action      If true the box gets highlighted
+-- r, g, b, a  Red, Green, Blue, and Alpha
 -------------------------------------------------------------------------------
-function GUB.Main:UnitBarTooltip(Hide)
-  if UnitBars.HideTooltips then
-    return
+local function MoveFrameSetHighlightFrame(Action, SelectFrame, r, g, b, a)
+  if MoveLastHighlightFrame then
+    MoveLastHighlightFrame:Hide()
   end
-  Main:ShowTooltip(self, not Hide)
+  if Action then
+    local MoveHighlightFrame = SelectFrame.MoveHighlightFrame
+
+    MoveHighlightFrame:Show()
+    MoveHighlightFrame:SetBackdropBorderColor(r, g, b, a or 1)
+    MoveLastHighlightFrame = MoveHighlightFrame
+  end
+end
+
+-------------------------------------------------------------------------------
+-- MoveFrameGetNearestFrame
+--
+-- Gets the closest frame to the one being moved.
+--
+-- Frames        List of boxframes or unitbar frames
+
+-- NOTES: If the frame is inside of more than one frame.  Then the frame
+--        that is closest is the selected frame.  Otherwise the 4 sides
+--        of each frame is calculated to see which frame we're closest too.
+--
+--        F1: (SelectMFSize - MoveFrameSize) This is the amount of distance from
+--        the center of the SelectFrame to the center of the moveframe if all
+--        of the moveframe was just inside.
+--
+--        F2: Distance > MoveFrameSize * 2.  Distance is the amount of overlap
+--        of SelectFrame and MoveFrame.  Once the overlap is greater than
+--        the total width of MoveFrame.  Then the frame is inside.
+--        At this point the SelectLineDistance will vary between F1 and zero.
+-------------------------------------------------------------------------------
+local function MoveFrameCalcDistance(Distance, SelectLineDistance, SelectMFSize, MoveFrameSize)
+  SelectLineDistance = abs(SelectLineDistance)
+
+  Distance = abs(SelectLineDistance - SelectMFSize - MoveFrameSize) -- Distance betwee the edges of both frames.
+  if Distance >= MoveFrameSize then  -- at least half inside.
+    if Distance > MoveFrameSize * 2 then   -- All of frame inside.
+      Distance = 100 - (SelectLineDistance / (SelectMFSize - MoveFrameSize) * 100)
+    else
+      Distance = 0
+    end
+  elseif Distance ~= 0 then
+    Distance = Distance * -1
+  else
+    Distance = -1
+  end
+  return Distance
+end
+
+local function MoveFrameGetNearestFrame(self)
+  local Move = self.Move
+  local Flags = Move.Flags
+  local MoveFrame = Move.Frame
+  local Swap = Flags.Swap
+  local Float = Flags.Float
+  local Align = Flags.Align
+
+  if Float and (Align and not Swap or Swap and not Align) or not Float and Swap and not Align then
+    local Type = self.Type
+    local MoveFrames = Move.Frames
+
+    local MoveFrameCenterX, MoveFrameCenterY = MoveFrame:GetCenter()
+    local MoveFrameWidth = MoveFrame:GetWidth() * 0.5
+    local MoveFrameHeight = MoveFrame:GetHeight() * 0.5
+    local SmallestDistance = 65535
+    local SmallestLineDistance = 65535
+
+    local SelectMFCenterX = 0
+    local SelectMFCenterY = 0
+    local SelectMFWidth = 0
+    local SelectMFHeight = 0
+    local SelectLineDistanceX = 0
+    local SelectLineDistanceY = 0
+    local OldLineDistance = 0
+
+    MoveSelectFrame = nil
+
+    for MoveFrameIndex = 1, #MoveFrames do
+      local MF = Type == 'box' and MoveFrames[MoveFrameIndex] or MoveFrames[MoveFrameIndex].Anchor
+
+      -- needs to be visible and not the move frame.
+      if MF:IsVisible() and MF ~= MoveFrame then
+        local MFCenterX, MFCenterY = MF:GetCenter()
+        local MFWidth = MF:GetWidth() * 0.5
+        local MFHeight = MF:GetHeight() * 0.5
+        local Width = MoveFrameWidth + MFWidth
+        local Height = MoveFrameHeight + MFHeight
+
+        local LineDistanceX = MoveFrameCenterX - MFCenterX
+        local LineDistanceY = MoveFrameCenterY - MFCenterY
+
+        local DistanceX = abs(LineDistanceX) - Width
+        local DistanceY = abs(LineDistanceY) - Height
+
+        DistanceX = DistanceX > 0 and DistanceX or 0
+        DistanceY = DistanceY > 0 and DistanceY or 0
+
+        -- Calculate the shortest distance between two frame in a straight line.
+        local LineDistance = sqrt(LineDistanceX * LineDistanceX + LineDistanceY * LineDistanceY)
+
+        -- Calculate distance between the moveframe and MF edges.
+        local Distance = sqrt(DistanceX * DistanceX + DistanceY * DistanceY)
+
+        if Swap or Align then
+          if Align then
+
+            -- Calculate the distance between the old select frame and the current select frame.
+            if MoveOldSelectFrame then
+              local OldLineDistanceX = abs(MoveOldMFCenterX - MFCenterX)
+              local OldLineDistanceY = abs(MoveOldMFCenterY - MFCenterY)
+
+              OldLineDistance = sqrt(OldLineDistanceX * OldLineDistanceX + OldLineDistanceY * OldLineDistanceY)
+            end
+            if Distance <= MoveAlignDistance then
+              if MoveOldSelectFrame and SmallestLineDistance > OldLineDistance or MoveOldSelectFrame == nil then
+                SmallestLineDistance = OldLineDistance
+                MoveSelectFrame = MF
+                SelectMFCenterX = MFCenterX
+                SelectMFCenterY = MFCenterY
+                SelectMFWidth = MFWidth
+                SelectMFHeight = MFHeight
+                SelectLineDistanceX = LineDistanceX
+                SelectLineDistanceY = LineDistanceY
+              end
+            end
+          elseif Distance == 0 then
+            if LineDistance <= SmallestLineDistance then
+              SmallestLineDistance = LineDistance
+              MoveSelectFrame = MF
+
+              SelectMFWidth = MFWidth
+              SelectMFHeight = MFHeight
+              SelectLineDistanceX = LineDistanceX
+              SelectLineDistanceY = LineDistanceY
+            end
+          end
+        end
+      end
+    end
+
+    MoveOldSelectFrame = MoveSelectFrame
+    if Align and MoveSelectFrame then
+      MoveOldMFCenterX = SelectMFCenterX
+      MoveOldMFCenterY = SelectMFCenterY
+
+      local FlipX = 1
+      local FlipY = 1
+      local DistanceX = 0
+      local DistanceY = 0
+      local Point = nil
+      local XMovePoint = ''
+      local YMovePoint = ''
+      local XSelectPoint = ''
+      local YSelectPoint = ''
+      local Flag = nil
+      local XLessY = nil
+      local PaddingDirectionX = 0
+      local PaddingDirectionY = 0
+
+      -- DistanceX and Y, if negative then outside the frame otherwise inside.
+      if MoveFrameWidth <= SelectMFWidth then
+        DistanceX = MoveFrameCalcDistance(DistanceX, SelectLineDistanceX, SelectMFWidth, MoveFrameWidth)
+      else
+        DistanceX = MoveFrameCalcDistance(DistanceX, SelectLineDistanceX, MoveFrameWidth, SelectMFWidth)
+        FlipX = -1
+      end
+
+      if MoveFrameHeight <= SelectMFHeight then
+        DistanceY = MoveFrameCalcDistance(DistanceY, SelectLineDistanceY, SelectMFHeight, MoveFrameHeight)
+      else
+        DistanceY = MoveFrameCalcDistance(DistanceY, SelectLineDistanceY, MoveFrameHeight, SelectMFHeight)
+        FlipY = -1
+      end
+      XLessY = DistanceX < DistanceY
+      if DistanceX > 50 or DistanceY > 50 then        -- Center inside or outside
+        if XLessY then
+          Flag         = SelectLineDistanceX > 0      -- > 0 right, left
+          XMovePoint   = Flag and 'LEFT'  or 'RIGHT'
+          XSelectPoint = Flag and 'RIGHT' or 'LEFT'
+        else
+          Flag         = SelectLineDistanceY > 0      -- > 0 top, bottom
+          YMovePoint   = Flag and 'BOTTOM' or 'TOP'
+          YSelectPoint = Flag and 'TOP' or 'BOTTOM'
+        end
+      else
+        if XLessY then
+          Flag         = SelectLineDistanceX > 0      -- > 0 right, left
+          XMovePoint   = Flag and 'LEFT'  or 'RIGHT'
+          XSelectPoint = Flag and 'RIGHT' or 'LEFT'
+
+          if DistanceY >= 0 then                      -- >= 0 inside, outside
+            Flag = SelectLineDistanceY * FlipY > 0    -- > 0 top, bottom
+            YMovePoint = Flag and 'TOP' or 'BOTTOM'
+            YSelectPoint = Flag and 'TOP' or 'BOTTOM'
+          else
+            Flag = SelectLineDistanceY > 0            -- > 0 top, bottom
+            YMovePoint   = Flag and 'BOTTOM' or 'TOP'
+            YSelectPoint = Flag and 'TOP' or 'BOTTOM'
+          end
+        else
+          Flag         = SelectLineDistanceY > 0      -- > 0 top, bottom
+          YMovePoint   = Flag and 'BOTTOM' or 'TOP'
+          YSelectPoint = Flag and 'TOP' or 'BOTTOM'
+
+          if DistanceX >= 0 then                      -- >= 0 inside, outside
+            Flag = SelectLineDistanceX * FlipX > 0    -- > 0 right, left
+            XMovePoint = Flag and 'RIGHT' or 'LEFT'
+            XSelectPoint = Flag and 'RIGHT' or 'LEFT'
+          else
+            Flag = SelectLineDistanceX > 0            -- > 0 right, left
+            XMovePoint = Flag and 'LEFT' or 'RIGHT'
+            XSelectPoint = Flag and 'RIGHT' or 'LEFT'
+          end
+        end
+      end
+
+      MovePoint = YMovePoint .. XMovePoint
+      MoveSelectPoint = YSelectPoint .. XSelectPoint
+      if XSelectPoint ~= XMovePoint then
+        if XSelectPoint == 'LEFT' then
+          PaddingDirectionX = -1
+        elseif XSelectPoint == 'RIGHT' then
+          PaddingDirectionX = 1
+        end
+      end
+      if YSelectPoint ~= YMovePoint then
+        if YSelectPoint == 'TOP' then
+          PaddingDirectionY = 1
+        elseif YSelectPoint == 'BOTTOM' then
+          PaddingDirectionY = -1
+        end
+      end
+      Move.PaddingDirectionX = PaddingDirectionX
+      Move.PaddingDirectionY = PaddingDirectionY
+    end
+
+    -- Highlight the MoveFrame.
+    if MoveLastSelectFrame ~= MoveSelectFrame then
+      MoveLastSelectFrame = MoveSelectFrame
+      local TooltipDesc = ''
+
+      if MoveSelectFrame then
+        if Swap then
+          MoveFrameSetHighlightFrame(true, MoveSelectFrame, 1, 0, 0) -- red
+        else
+          MoveFrameSetHighlightFrame(true, MoveSelectFrame, 0, 1, 0) -- green
+        end
+        TooltipDesc = format('Selected %s', MoveSelectFrame.Name or ' ')
+      else
+        MoveFrameSetHighlightFrame(false)
+      end
+      Main:ShowTooltip(MoveFrame, false, '', TooltipDesc)
+    end
+  end
+
+  if MoveSelectFrame == nil and not UnitBars.HideLocationInfo and not UnitBars.HideTooltipsDesc then
+    local x, y = Bar:GetRect(MoveFrame)
+
+    Main:ShowTooltip(MoveFrame, false, '', format('%d, %d', floor(x + 0.5), floor(y + 0.5)))
+  end
+end
+
+-------------------------------------------------------------------------------
+-- MoveFrameStart
+--
+-- Starts moving a bar or box for swapping or alignment or just moving.
+--
+-- MoveFrames  List of frames that are being moved.
+-- MoveFrame   Frame that is to be moved.
+-- MoveFlags   Table containing the Swap, Float, Align, Type flags.
+--
+-- NOTES:  Swap and Align get ignored if both are true unless not in Float then
+--         only Swap will work.
+-------------------------------------------------------------------------------
+function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
+  local Move = MoveFrames.Move
+  local Type = nil
+
+  if Move == nil then
+    Move = {}
+    MoveFrames.Move = Move
+  end
+  local Flags = Move.Flags
+
+  if Flags == nil then
+    Flags = {}
+    Move.Flags = Flags
+  end
+
+  Flags.Align = MoveFlags and MoveFlags.Align or false
+  Flags.Swap = MoveFlags and MoveFlags.Swap or false
+  Flags.Float = MoveFlags and MoveFlags.Float or false
+
+  -- This is done to get rid of move lag.
+  Move.FrameStrata = MoveFrame:GetFrameStrata()
+  MoveFrame:SetFrameStrata('TOOLTIP')
+
+  Move.Frame = MoveFrame
+  Move.FrameOldX, Move.FrameOldY = Bar:GetRect(MoveFrame)
+  Move.Frames = MoveFrames
+
+  if MoveFrames[1].SetAttr then
+    Type = 'bar'
+    Flags.Float = true
+  else
+    Type = 'box'
+  end
+  TrackingFrame.Type = Type
+
+  -- Create HighlightFrames if there are none.
+  for Index = 1, #MoveFrames do
+    local MF = Type == 'box' and MoveFrames[Index] or MoveFrames[Index].Anchor
+
+    if MF.MoveHighlightFrame == nil then
+      local MoveHighlightFrame = CreateFrame('Frame', nil, MF)
+
+      MoveHighlightFrame:SetFrameLevel(GetHighestFrameLevel(MF) + 1)
+      MoveHighlightFrame:SetPoint('TOPLEFT', -1, 1)
+      MoveHighlightFrame:SetPoint('BOTTOMRIGHT', 1, -1)
+      MoveHighlightFrame:SetBackdrop(SelectFrameBorder)
+      MoveHighlightFrame:Hide()
+      MF.MoveHighlightFrame = MoveHighlightFrame
+    end
+  end
+
+  TrackingFrame.Move = Move
+  MoveSelectFrame = nil
+  MoveOldSelectFrame = nil
+  MoveLastSelectFrame = nil
+
+  TrackingFrame:SetParent(MoveFrame)
+  TrackingFrame:ClearAllPoints()
+  TrackingFrame:SetPoint('TOPRIGHT', MoveFrame, 'TOPLEFT')
+  TrackingFrame:SetPoint('BOTTOMLEFT', MoveFrame:GetParent(), 'TOPLEFT')
+  TrackingFrame:SetScript('OnSizeChanged', MoveFrameGetNearestFrame)
+  MoveFrame:StartMoving()
+end
+
+-------------------------------------------------------------------------------
+-- MoveFrameModifyAlignFrames
+--
+-- Adds/removes a frame from the aligned frames list.
+--
+-- Move         Contains the Move data.
+-- MoveFrame    Frame that was moved by MoveFrameStart
+-- SelectFrame  Frame that was selected by MoveFrameGetNearestFrame
+--              If SelectFrame is nil then MoveFrame will be removed
+--              from the list. Or if MoveFrame was being used by another
+--              frame, then that frame is removed from the list.
+-------------------------------------------------------------------------------
+local function MoveFrameModifyAlignFrames(Move, MoveFrame, SelectFrame)
+  local AlignFrames = Move.AlignFrames
+  local AlignFrame = nil
+
+  if AlignFrames == nil then
+    AlignFrames = {}
+    Move.AlignFrames = AlignFrames
+  end
+  local Index = 1
+
+  if #AlignFrames > 0 then
+    repeat
+      local AlignFrame2 = AlignFrames[Index]
+      local DelIndex = 1
+      local Deleted = false
+
+      -- Delete any entries using moveframe.
+      repeat
+        local AlignFrame3 = AlignFrames[DelIndex]
+        local MF = AlignFrame3.MoveFrame
+
+        -- Delete frame that was moved away from another frame that was using
+        -- moveframe.  Or delete any moveframe in the list if SelectFrame is nil.
+        if MoveFrame ~= MF and MoveFrame == AlignFrame3.SelectFrame or
+           MoveFrame == MF and SelectFrame == nil then
+          tremove(AlignFrames, DelIndex)
+          Deleted = true
+        else
+          DelIndex = DelIndex + 1
+        end
+      until DelIndex > #AlignFrames
+
+      if SelectFrame == nil then
+        break
+      elseif MoveFrame == AlignFrame2.MoveFrame then
+
+        -- Found AlignFrame.
+        AlignFrame = AlignFrame2
+        break
+      end
+      if not Deleted then
+        Index = Index + 1
+      end
+    until Index > #AlignFrames or SelectFrame == nil
+  end
+
+  if SelectFrame then
+
+    -- Create new entry
+    if AlignFrame == nil then
+      AlignFrame = {}
+      AlignFrames[#AlignFrames + 1] = AlignFrame
+    end
+    AlignFrame.MoveFrame = MoveFrame
+    AlignFrame.SelectFrame = SelectFrame
+    AlignFrame.MovePoint = MovePoint
+    AlignFrame.SelectPoint = MoveSelectPoint
+    AlignFrame.PaddingDirectionX = Move.PaddingDirectionX
+    AlignFrame.PaddingDirectionY = Move.PaddingDirectionY
+    AlignFrame.Offset = false
+  end
+
+  -- find offset frame
+  local NumAlignFrames = #AlignFrames
+
+  for Index = 1, NumAlignFrames do
+    AlignFrame = AlignFrames[Index]
+    local SF = AlignFrame.SelectFrame
+    local MF = AlignFrame.MoveFrame
+    local Offset = true
+
+    for Index2 = 1, NumAlignFrames do
+      local AlignFrame2 = AlignFrames[Index2]
+
+      if SF == AlignFrame2.MoveFrame then
+        Offset = false
+      end
+    end
+
+    -- Offset found, but if its not being used by another frame then
+    -- its not the offset frame.
+    if Offset then
+      Offset = false
+      for Index2 = 1, NumAlignFrames do
+        local AlignFrame2 = AlignFrames[Index2]
+
+        if MF == AlignFrame2.SelectFrame then
+          Offset = true
+        end
+      end
+    end
+    AlignFrame.Offset = Offset
+  end
+end
+
+-------------------------------------------------------------------------------
+-- MoveFrameStop
+--
+-- Stops moving the frame that was started by MoveStart
+--
+-- MoveFrames      The list of frames passed to MoveStart
+--
+-- Returns:
+--   MoveSelectFrame        Frame that is selected by align or swap
+--   MovePoint              Anchor point for the frame that was moved.
+--   SelectPoint            Relative anchor point for the selected frame.
+--
+-- NOTES: if no frame was selected or aligned then MoveSelectFrame is nil
+-------------------------------------------------------------------------------
+function GUB.Main:MoveFrameStop(MoveFrames)
+  local Move = MoveFrames.Move
+  local MoveFrame = Move.Frame
+  local Flags = Move.Flags
+
+  MoveFrame:SetFrameStrata(Move.FrameStrata)
+
+  TrackingFrame:SetScript('OnSizeChanged', nil)
+  MoveFrameSetHighlightFrame(false)
+  MoveFrame:StopMovingOrSizing()
+
+  -- Add frame to AlignFrames list if align is on.
+  if Flags.Align and Flags.Float then
+    MoveFrameModifyAlignFrames(Move, MoveFrame, MoveSelectFrame)
+  end
+
+  -- Set frames
+  if Flags.Float then
+    if MoveSelectFrame then
+      local MoveFrame = Move.Frame
+
+      if Flags.Swap then
+        -- Swap
+        local x, y = Bar:GetRect(MoveSelectFrame)
+
+        MoveFrame:ClearAllPoints()
+        MoveFrame:SetPoint('TOPLEFT', x, y)
+        MoveSelectFrame:ClearAllPoints()
+        MoveSelectFrame:SetPoint('TOPLEFT', Move.FrameOldX, Move.FrameOldY)
+      elseif Flags.Align then
+        -- Align
+        MoveFrame:ClearAllPoints()
+        MoveFrame:SetPoint(MovePoint, MoveSelectFrame, MoveSelectPoint, 0, 0)
+      end
+    end
+    if MoveSelectFrame == nil or not Flags.Swap and not Flags.Align then
+
+      -- Place frame
+      local x, y = Bar:GetRect(MoveFrame)
+
+      MoveFrame:ClearAllPoints()
+      MoveFrame:SetPoint('TOPLEFT', x, y)
+    end
+  end
+
+  return MoveSelectFrame
+end
+
+-------------------------------------------------------------------------------
+-- MoveFrameSetAlignPadding
+--
+-- Adds padding to a frames padding group.  Can also offset the padding group.
+--
+-- MoveFrames        One or more frames to be padded
+-- PaddingX          Distance between each frame set for horizontal alignment.
+--                   'reset' then the padding info gets deleted.
+-- PaddingY          Distance between each frame set for vertical alignment.
+-- OffsetX           Horizontal Offset for the whole padding group.
+-- OffsetY           Vertical Offset for the whole padding group.
+--
+-- NOTES:  There can be more than one padding group.  In this case each one
+--         would get offset.
+-------------------------------------------------------------------------------
+function GUB.Main:MoveFrameSetAlignPadding(MoveFrames, PaddingX, PaddingY, OffsetX, OffsetY)
+  local Move = MoveFrames.Move
+
+  if Move then
+
+    -- Erase Padding data if align is faled
+    if PaddingX == 'reset'then
+      Move.AlignFrames = nil
+    else
+      local AlignFrames = Move.AlignFrames
+      local Index = 1
+
+      if AlignFrames and #AlignFrames > 0 then
+
+        -- Remove any invisible select frames
+        repeat
+          local AlignFrame = AlignFrames[Index]
+          local SelectFrame = AlignFrame.SelectFrame
+
+          if SelectFrame:IsVisible() == nil then
+            tremove(AlignFrames, Index)
+          else
+            Index = Index + 1
+          end
+        until Index > #AlignFrames
+        local NumAlignFrames = #AlignFrames
+
+        -- Offset or pad frames
+        for Index = 1, NumAlignFrames do
+          local AlignFrame = AlignFrames[Index]
+          local MF = AlignFrame.MoveFrame
+
+          MF:ClearAllPoints()
+          local PadX = AlignFrame.PaddingDirectionX * PaddingX
+          local PadY = AlignFrame.PaddingDirectionY * PaddingY
+          if AlignFrame.Offset then
+            PadX = OffsetX or 0
+            PadY = OffsetY or 0
+          end
+          MF:SetPoint(AlignFrame.MovePoint, AlignFrame.SelectFrame, AlignFrame.SelectPoint, PadX, PadY)
+        end
+
+        for Index = 1 , NumAlignFrames do
+          local MF = AlignFrames[Index].MoveFrame
+          local x, y = Bar:GetRect(MF)
+
+          MF:ClearAllPoints()
+          MF:SetPoint('TOPLEFT', x, y)
+        end
+      end
+    end
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -4964,7 +2858,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization()
 
-  for _, UBF in ipairs(UnitBarsFI) do
+  for _, UBF in ipairs(UnitBarsFE) do
     UBF:StatusCheck()
     UBF:Update()
   end
@@ -4977,81 +2871,88 @@ end
 -- Otherwise just the unitbar frame will be moved.
 --
 -- Note: To move a frame the unitbars anchor needs to be moved.
---       This function returns false if it didn't do anything otherwise true.
+--       This function returns false if it didn't do anything, otherwise true.
 -------------------------------------------------------------------------------
-function GUB.Main:UnitBarStartMoving(Button)
+function GUB.Main:UnitBarStartMoving(Frame, Button)
 
   -- Handle selection of unitbars for the alignment tool.
-  if ( Button == 'LeftButton' or Button == 'RightButton' ) and not IsModifierKeyDown() then
-    local UBF = self.UnitBarF
+  if Button == 'RightButton' and UnitBars.AlignAndSwapEnabled and not IsModifierKeyDown() then
+    Options:OpenAlignSwapOptions()
+    return false
+  end
 
-    -- Left click select bar if alignment tool is open.
-    -- Must have selected a bar (green) first.
-    if Button == 'LeftButton' and SelectMode and PSelectedUnitBarF then
-      if UBF ~= PSelectedUnitBarF then
-        if UBF.Selected then
-          SelectUnitBar(UBF, 'clear')
-        else
-          SelectUnitBar(UBF, 'set', 1, 1, 1, 1)  -- white
-        end
-      end
-
-    -- Right click select main bar and open alignment tool.
-    elseif Button == 'RightButton' then
-      if SelectMode then
-        if PSelectedUnitBarF and PSelectedUnitBarF ~= UBF then
-          SelectUnitBar(PSelectedUnitBarF, 'clear')
-        end
-        if PSelectedUnitBarF then
-          SelectUnitBar(PSelectedUnitBarF, 'set', 1, 1, 1, 1)  -- white
-        end
-        PSelectedUnitBarF = UBF
-        SelectUnitBar(UBF, 'set', 0, 1, 0, 1)  -- green
+  if Button == 'LeftButton' and IsModifierKeyDown() then
+    -- Set the moving flag.
+    -- Group move check.
+    if UnitBars.IsGrouped then
+      UnitBarsParent.IsMoving = true
+      UnitBarsParent:StartMoving()
+    else
+      Frame.IsMoving = true
+      if Options.AlignSwapOpen then
+        Main:MoveFrameStart(UnitBarsFE, Frame, UnitBars)
       else
-        Options.ATOFrame:Show()
+        Main:MoveFrameStart(UnitBarsFE, Frame)
       end
     end
-    return false
-  end
-
-  if Button ~= 'LeftButton' then
-    return false
-  end
-
-  -- Set the moving flag.
-  -- Group move check.
-  if UnitBars.IsGrouped then
-    UnitBarsParent.IsMoving = true
-    UnitBarsParent:StartMoving()
+    return true
   else
-    self.IsMoving = true
-    self:StartMoving()
+    return false
   end
+end
 
-  return true
+-------------------------------------------------------------------------------
+-- SetUnitBarsAlignSwap
+--
+-- Align all unitbars
+-------------------------------------------------------------------------------
+function GUB.Main:SetUnitBarsAlignSwap()
+  if not UnitBars.Align then
+    Main:MoveFrameSetAlignPadding(UnitBarsFE, 'reset')
+  else
+    Main:MoveFrameSetAlignPadding(UnitBarsFE, UnitBars.AlignSwapPaddingX, UnitBars.AlignSwapPaddingY, UnitBars.AlignSwapOffsetX, UnitBars.AlignSwapOffsetY)
+  end
+  for _, UBF in ipairs(UnitBarsFE) do
+    local UB = UBF.UnitBar
+    local Anchor = UBF.Anchor
+    local x, y = Bar:GetRect(Anchor)
+
+    Anchor:ClearAllPoints()
+    Anchor:SetPoint('TOPLEFT', x, y)
+    UB.x, UB.y = x, y
+  end
 end
 
 -------------------------------------------------------------------------------
 -- UnitBarStopMoving
 --
 -- Same as above except it stops moving and saves the new coordinates.
+--
+-- returns true if it stopped a frame that started with UnitBarsStartMoving()
 -------------------------------------------------------------------------------
-function GUB.Main:UnitBarStopMoving(Button)
+function GUB.Main:UnitBarStopMoving(Frame)
   if UnitBarsParent.IsMoving then
     UnitBarsParent.IsMoving = false
     UnitBarsParent:StopMovingOrSizing()
 
     -- Save the new position of the ParentFrame.
     UnitBars.Point, _, UnitBars.RelativePoint, UnitBars.Px, UnitBars.Py = UnitBarsParent:GetPoint()
-  elseif self.IsMoving then
-    self.IsMoving = false
-    self:StopMovingOrSizing()
+    return true
+  elseif Frame.IsMoving then
+    Frame.IsMoving = false
+    Main:MoveFrameStop(UnitBarsFE)
+    if Options.AlignSwapOpen then
+      Main:SetUnitBarsAlignSwap()
+    else
+      local x, y = Bar:GetRect(Frame)
 
-    -- StartMoving() sets the coordinates of the frame relative to UIParent, so we
-    -- Need to recalculate where it is relative to frames parent.
-    -- Update the UnitBar data with the new coordinates.
-    self.UnitBar.x, self.UnitBar.y = Main:RestoreRelativePoints(self)
+      Frame.UnitBar.x, Frame.UnitBar.y = x, y
+      Frame:ClearAllPoints()
+      Frame:SetPoint('TOPLEFT', x, y)
+    end
+    return true
   end
+  return false
 end
 
 --*****************************************************************************
@@ -5061,6 +2962,45 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- UnitBarsSetAllOptions
+--
+-- Handles the settings that effect all the unitbars.
+--
+-- Activates the current settings in UnitBars.
+--
+-- IsLocked
+-- AlignmentToolEnabled
+-- IsClamped
+-- FadeOutTime
+-- FadeInTime
+-------------------------------------------------------------------------------
+function GUB.Main:UnitBarsSetAllOptions()
+  local ATOFrame = Options.ATOFrame
+  local IsLocked = UnitBars.IsLocked
+  local IsClamped = UnitBars.IsClamped
+  local FadeOutTime = UnitBars.FadeOutTime
+  local FadeInTime = UnitBars.FadeInTime
+
+  -- Update text highlight only when options window is open
+  if Options.MainOpen then
+    Bar:SetHighlightFont('on', UnitBars.HideTextHighlight)
+  end
+
+  -- Update alignment tool status.
+  if IsLocked or not UnitBars.AlignAndSwapEnabled then
+    Options:CloseAlignSwapOptions()
+  end
+
+  -- Apply the settings.
+  for _, UBF in ipairs(UnitBarsFE) do
+    UBF:EnableMouseClicks(not IsLocked)
+    UBF.Anchor:SetClampedToScreen(IsClamped)
+    UBF.Fade:SetDuration('out', FadeOutTime)
+    UBF.Fade:SetDuration('in', FadeInTime)
+  end
+end
+
+-------------------------------------------------------------------------------
 -- UnitBarSetAttr
 --
 -- Base unitbar set attribute. Handles attributes that are shared across all bars.
@@ -5068,182 +3008,77 @@ end
 -- Usage    UnitBarSetAttr(UnitBarF, Object, Attr)
 --
 -- UnitBarF    The Unitbar frame to work on.
--- Object       Object being changed:
---               'frame' for the frame.
--- Attr         Type of attribute being applied to object:
---               'scale'     Scale settings being set to the object.
---               'strata'    Frame strata for the object.
 -------------------------------------------------------------------------------
-function GUB.Main:UnitBarSetAttr(UnitBarF, Object, Attr)
+function GUB.Main:UnitBarSetAttr(UnitBarF)
 
   -- Get the unitbar data.
   local UB = UnitBarF.UnitBar
 
   -- Frame.
-  if Object == nil or Object == 'frame' then
-    if Attr == nil or Attr == 'scale' then
-      UnitBarF.ScaleFrame:SetScale(UB.Other.Scale)
+  UnitBarF.ScaleFrame:SetScale(UB.Other.Scale)
 
-      -- Update the unitbar to the correct size based on scale.
-      UnitBarF:SetSize()
-    end
-    if Attr == nil or Attr == 'strata' then
-      UnitBarF.Anchor:SetFrameStrata(UB.Other.FrameStrata)
-    end
-  end
+  -- Update the unitbar to the correct size based on scale.
+  UnitBarF:SetSize()
+  UnitBarF.Anchor:SetFrameStrata(UB.Other.FrameStrata)
 end
 
 -------------------------------------------------------------------------------
--- UnitBarsSetAllOptions
+-- SetUnitBarLayout
 --
--- Handles the settings that effect all the unitbars.
+-- Sets the layout for a unitbar that is already created.
 --
--- Usage: UnitBarSetAllOptions()
---
--- Activates the current settings in UnitBars.
---
--- IsLocked
--- IsClamped
--- FadeOutTime
--- FadeInTime
+-- UnitBarF      UnitBarsF[BarType]
+-- BarType       Type of bar
 -------------------------------------------------------------------------------
-function GUB.Main:UnitBarsSetAllOptions()
-  local ATOFrame = Options.ATOFrame
+local function SetUnitBarLayout(UnitBarF, BarType)
+  local UB = UnitBarF.UnitBar
+  local Anchor = UnitBarF.Anchor
 
-  -- Update text highlight only when options window is open
-  if Options.Open then
-    Main:FontSetHighlight('on')
-  end
+  -- Stop any old fade animation for this unitbar.
+  UnitBarF.Fade:SetAnimation('stopall')
 
-  -- Update alignment tool status.
-  if UnitBars.IsLocked or not UnitBars.AlignmentToolEnabled then
-    Options.ATOFrame:Hide()
-  end
+  -- Set the anchor position and size.
+  Anchor:ClearAllPoints()
+  Anchor:SetPoint('TOPLEFT', UB.x, UB.y)
+  Anchor:SetSize(1, 1)
 
-  -- Apply the settings.
-  for _, UBF in pairs(UnitBarsF) do
-    local IsLocked, IsClamped = UnitBars.IsLocked, UnitBars.IsClamped
+  --Set a reference to UnitBar[BarType] for moving.
+  Anchor.UnitBar = UB
 
-    UBF:EnableMouseClicks(not IsLocked)
-    UBF.Anchor:SetClampedToScreen(IsClamped)
-  end
+  -- Set the IsActive flag to false.
+  UnitBarF.IsActive = false
 
-  local FadeOutTime = UnitBars.FadeOutTime
+  -- Hide the unitbar.
+  UnitBarF.Visible = false
 
-  for _, UBF in pairs(UnitBarsF) do
-    UBF.Fade:SetDuration('out', FadeOutTime)
-  end
+  -- Set the hidden flag.
+  UnitBarF.Hidden = true
 
-  local FadeInTime = UnitBars.FadeInTime
+  -- Hide the frame.
+  UnitBarF.Anchor:Hide()
 
-  for _, UBF in pairs(UnitBarsF) do
-    UBF.Fade:SetDuration('in', FadeInTime)
-  end
+  -- Set Attributes for the bar.
+  UnitBarF:SetAttr()
 end
 
 -------------------------------------------------------------------------------
--- UnitBarsSetScript
+-- CreateUnitBar
 --
--- Set up script handlers for the unitbars.
+-- Creates a unitbar. If the UnitBar is already created this function does nothing.
 --
--- Usage: UnitBarsSetScript(Enable)
---
--- Enable     If true scripts get set otherwise they get disabled.
+-- UnitBarF    Subtable of UnitBarsF[BarType]
+-- BarType     Type of bar.
 -------------------------------------------------------------------------------
-local function UnitBarsSetScript(Enable)
-  for _, UBF in pairs(UnitBarsF) do
-    UBF:FrameSetScript(Enable)
-  end
-end
+local function CreateUnitBar(UnitBarF, BarType)
+  if UnitBarF.Created == nil then
+    local UB = UnitBarF.UnitBar
 
--------------------------------------------------------------------------------
--- SetUnitBarsLayout
---
--- Sets all the unitbars with new data.
--------------------------------------------------------------------------------
-local function SetUnitBarsLayout()
-
-  -- Set the unitbar parent frame values.
-  UnitBarsParent:ClearAllPoints()
-  UnitBarsParent:SetPoint(UnitBars.Point, UIParent, UnitBars.RelativePoint, UnitBars.Px, UnitBars.Py)
-  UnitBarsParent:SetWidth(1)
-  UnitBarsParent:SetHeight(1)
-
-  -- Hide the alignment control panel and turn off selectmode
-  Options.ATOFrame:Hide()
-
-  -- Reset the spell tracker.
-  Main:SetSpellTracker('reset')
-
-  for BarType, UnitBarF in pairs(UnitBarsF) do
-    local UB = UnitBars[BarType]
-    local Anchor = UnitBarF.Anchor
-    local ScaleFrame = UnitBarF.ScaleFrame
-    local SelectFrame = UnitBarF.SelectFrame
-
-    -- Stop any old fade animation for this unitbar.
-    UnitBarF.Fade:SetAnimation('stopall')
-
-    -- Set the anchor position and size.
-    Anchor:ClearAllPoints()
-    Anchor:SetPoint('TOPLEFT' , UB.x, UB.y)
-    Anchor:SetWidth(1)
-    Anchor:SetHeight(1)
-
-    -- Set the size of the scale frame.
-    ScaleFrame:SetPoint('TOPLEFT', 0, 0)
-    ScaleFrame:SetWidth(1)
-    ScaleFrame:SetHeight(1)
-
-    -- Set the selectframe width/height.
-    SelectFrame:SetAllPoints(Anchor)
-
-    -- Set a reference in the unitbar frame to UnitBars[BarType] and Anchor.
-    UnitBarF.UnitBar = UB
-    Anchor.UnitBar = UB
-
-    -- Set the IsActive flag to false.
-    UnitBarF.IsActive = false
-
-    -- Hide the unitbar.
-    UnitBarF.Visible = false
-
-    -- Reset the WasEnabled flag
-    UnitBarF.WasEnabled = nil
-
-    -- Set selected to false.
-    SelectUnitBar(UnitBarF, 'clear')
-
-    -- Hide the select frame.
-    SelectFrame:Hide()
-
-    -- Set the hidden flag.
-    UnitBarF.Hidden = true
-
-    -- Hide the frame.
-    UnitBarF.Anchor:Hide()
-
-    -- Set the layout for the bar.
-    UnitBarF:SetLayout()
-  end
-end
-
--------------------------------------------------------------------------------
--- CreateUnitBars
---
--- Creates all the bars used by GalvinUnitBars.
--------------------------------------------------------------------------------
-local function CreateUnitBars(UnitBarDB)
-
-  -- Create the unitbar parent frame.
-  UnitBarsParent = CreateFrame('Frame', nil, UIParent)
-  UnitBarsParent:SetMovable(true)
-
-  for BarType, UnitBarF in pairs(UnitBarsF) do
-    local UB = UnitBars[BarType]
+    UnitBarF.Created = true
 
     -- Create the anchor frame.
     local Anchor = CreateFrame('Frame', nil, UnitBarsParent)
+    Anchor:SetPoint('TOPLEFT', UB.x, UB.y)
+    Anchor:SetSize(1, 1)
 
     -- Hide the anchor
     Anchor:Hide()
@@ -5254,30 +3089,25 @@ local function CreateUnitBars(UnitBarDB)
     -- Make the unitbar come to top when clicked.
     Anchor:SetToplevel(true)
 
-    -- Create the selectframe.
-    local SelectFrame = CreateFrame('Frame', nil, Anchor)
-    SelectFrame:SetBackdrop(SelectFrameBorder)
-    SelectFrame:SetBackdropBorderColor(1, 1, 1, 0)
-    SelectFrame:SetBackdropColor(0, 0, 0, 0)
+    -- Get name for align and swap.
+    Anchor.Name = UnitBars[BarType].Name
 
     -- Create the scale frame.
     local ScaleFrame = CreateFrame('Frame', nil, Anchor)
+    ScaleFrame:SetPoint('TOPLEFT', 0, 0)
+    ScaleFrame:SetSize(1, 1)
 
     -- Save the bartype.
     UnitBarF.BarType = BarType
 
-    -- Create a reference in the unitbar frame to UnitBars[BarType] and Anchor.
-    UnitBarF.UnitBar = UB
+    --Set a reference to UnitBar[BarType] for moving.
     Anchor.UnitBar = UB
 
-    -- Save a lookback to UnitBarF in anchor for selection.
+    -- Save a lookback to UnitBarF in anchor for selection (selectframe)
     Anchor.UnitBarF = UnitBarF
 
     -- Save the anchor.
     UnitBarF.Anchor = Anchor
-
-    -- Save the select frame.
-    UnitBarF.SelectFrame = SelectFrame
 
     -- Save the scale frame.
     UnitBarF.ScaleFrame = ScaleFrame
@@ -5292,35 +3122,58 @@ local function CreateUnitBars(UnitBarDB)
     UnitBarF.Fade = Main:CreateFade(UnitBarF, Anchor, true)
 
     if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
-      HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+      HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
     else
-      GUB[BarType]:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
+      GUB[BarType]:CreateBar(UnitBarF, UB, ScaleFrame)
     end
   end
 end
-
 
 --*****************************************************************************
 --
 -- Addon Enable/Disable functions
 --
--- Placed at the bottom was tired of doing function forwarding.
---
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableUnitBars
+-- SetUnitBars
 --
--- Enables/Disables the unitbars.
+-- Sets the UnitBarsParent.
+-- Creates/Enables/Disables unitbars.
+-- Sets the layout.
 -------------------------------------------------------------------------------
-function GUB.Main:EnableUnitBars()
+function GUB.Main:SetUnitBars(ProfileChanged)
+  local EnableClass = UnitBars.EnableClass
+  local ATOFrame = Options.ATOFrame
   local Index = 0
   local Total = 0
-  local EnableClass = UnitBars.EnableClass
+
+  Main.ProfileChanged = ProfileChanged or false
+  if ProfileChanged then
+
+    -- Create the unitbar parent frame.
+    if UnitBarsParent == nil then
+      UnitBarsParent = CreateFrame('Frame', nil, UIParent)
+      UnitBarsParent:SetMovable(true)
+    end
+
+    -- Set the unitbar parent frame values.
+    UnitBarsParent:ClearAllPoints()
+    UnitBarsParent:SetPoint(UnitBars.Point, UIParent, UnitBars.RelativePoint, UnitBars.Px, UnitBars.Py)
+    UnitBarsParent:SetWidth(1)
+    UnitBarsParent:SetHeight(1)
+
+    -- Reset the spell tracker.
+    Main:SetSpellTracker('reset')
+  end
 
   for BarType, UBF in pairs(UnitBarsF) do
     local UB = UBF.UnitBar
 
+    -- Reset the OldEnabled flag during profile change.
+    if ProfileChanged then
+      UBF.OldEnabled = nil
+    end
     Total = Total + 1
 
     -- Enable/Disable if player class option is true.
@@ -5333,170 +3186,225 @@ function GUB.Main:EnableUnitBars()
 
     if Enabled then
       Index = Index + 1
-      UnitBarsFI[Index] = UBF
-
-      if UBF.WasEnabled ~= Enabled then
-        UBF:Enable(Enabled)
-
-        -- Do a status check.
-        UBF:StatusCheck()
-        UBF:Update()
-      end
-    else
-      if UBF.WasEnabled ~= Enabled then
-        UBF:Enable(Enabled)
-      end
-
-      -- Hide the unitbar.
-      HideUnitBar(UBF, true)
+      UnitBarsFE[Index] = UBF
     end
-    UBF.WasEnabled = Enabled
+    if Enabled ~= UBF.OldEnabled then
+      local JustCreated = false
+      local Created = UBF.Created
+
+      if Enabled then
+
+        -- If the unitbar is being created for the first time or
+        -- the profile was changed.  Then set layout, baroptions.
+        if Created == nil then
+          CreateUnitBar(UBF, BarType)
+          JustCreated = true
+        end
+
+      elseif Created then
+
+        if ProfileChanged then
+          UBF.Hidden = true
+          UBF.Anchor:Hide()
+        else
+          -- Hide the unitbar.
+          HideUnitBar(UBF, true)
+        end
+      end
+      if ProfileChanged and Created or JustCreated then
+        SetUnitBarLayout(UBF, BarType)
+      end
+      UBF:Enable(Enabled)
+    end
+    UBF.OldEnabled = Enabled
   end
 
   -- Delete extra bars from the array.
   for Count = Index + 1, Total do
-    UnitBarsFI[Count] = nil
+    UnitBarsFE[Count] = nil
   end
+
+  Options:AddRemoveBarGroups()
+
+  if ProfileChanged == nil then
+    GUB:UnitBarsUpdateStatus()
+    Main:UnitBarsSetAllOptions()
+  end
+
+  Main.ProfileChanged = false
 end
 
 -------------------------------------------------------------------------------
 -- ShareData
 --
--- Any bar that needs to share variable from main.lua that can change during
--- runtime can do it thru this ShareData()
---
--- Currently shares  UnitBars, PlayerClass, and PlayerPowerType
+-- Makes upvalues accessable to other parts of the addon.
 -------------------------------------------------------------------------------
 local function ShareData()
+
+  -- Share data with rest of addon.
+  Main.UnitBars = UnitBars
+  Main.PlayerClass = PlayerClass
+  Main.PlayerPowerType = PlayerPowerType
+
+  -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
-    if UBF.ShareData then
-      UBF:ShareData(UnitBars, PlayerClass, PlayerPowerType)
-    end
+    UBF.UnitBar = UnitBars[BarType]
   end
-  Options:ShareData(UnitBars, PlayerClass, PlayerPowerType)
 end
 
--------------------------------------------------------------------------------
--- Profile management
--------------------------------------------------------------------------------
-function GUB:ProfileChanged(Event, Database, NewProfileKey)
-  GUB.ProfileUpdate = true
-
-  -- set Unitbars to the new database.
-  UnitBars = Database.profile
-
-  -- Share the values with other parts of the addon.
-  ShareData()
-
-  GUB:OnEnable()
-
-  GUB.ProfileUpdate = false
-end
+--*****************************************************************************
+--
+-- Addon Profile Management
+--
+--*****************************************************************************
 
 -------------------------------------------------------------------------------
 -- SharedMedia management
 -------------------------------------------------------------------------------
 function GUB:MediaUpdate(Name, MediaType, Key)
-  for BarType, UBF in pairs(UnitBarsF) do
+  for _, UBF in ipairs(UnitBarsFE) do
     if MediaType == 'border' or MediaType == 'background' then
-      UBF:SetAttr('bg', 'backdrop')
+      UBF:SetAttr('Background', nil)
     elseif MediaType == 'statusbar' then
-      UBF:SetAttr('bar', 'texture')
+      UBF:SetAttr('Bar', nil)
     elseif MediaType == 'font' then
-      UBF:SetAttr('text', 'font')
+      UBF:SetAttr('Text', nil)
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- One time initialization.
+-- CleanUnitBars
+--
+-- Deletes anything not on the exclude list.
+--
+-- NOTES: Exclude list
+--         * means a bartype like PlayerPower, EclipseBar, etc.
+--         # Means an array element.
 -------------------------------------------------------------------------------
-local function OnInitializeOnce()
-  if not Initialized then
+local function CleanUnitBars(DefaultTable, Table, TablePath)
+  local ExcludeList = {
+    ['Version'] = 1,
+    ['*.Text.#'] = 1,
+    ['*.BoxLocations'] = 1,
+    ['*.BoxOrder'] = 1,
+  }
 
-    -- Get the player class.
-    _, PlayerClass = UnitClass('player')
+  if DefaultTable == nil then
+    DefaultTable = DUB
+    Table = UnitBars
+    TablePath = ''
+  end
 
-    -- Get the player power type for the player.
-    PlayerPowerType = UnitPowerType('player')
+  for Key, Value in pairs(Table) do
+    local DefaultValue = DefaultTable[Key]
+    local PathKey = Key
 
-    -- Get the globally unique identifier for the player.
-    PlayerGUID = UnitGUID('player')
-
-    -- Share the values with other parts of the addon.
-    ShareData()
-
-    -- Initialize the options panel.
-    -- Delaying Options init to make sure PlayerClass is accessible first.
-    Options:OnInitialize()
-
-    GUB.MainDB.RegisterCallback(GUB, 'OnProfileReset', 'ProfileChanged')
-    GUB.MainDB.RegisterCallback(GUB, 'OnProfileChanged', 'ProfileChanged')
-    GUB.MainDB.RegisterCallback(GUB, 'OnProfileCopied', 'ProfileChanged')
-
-    LSM.RegisterCallback(GUB, 'LibSharedMedia_Registered', 'MediaUpdate')
-
-    Initialized = true
+    if UnitBarsF[Key] then
+      PathKey = '*'
+    elseif type(Key) == 'number' then
+      PathKey = '#'
+    end
+    if ExcludeList[format('%s%s', TablePath, PathKey)] == nil then
+      if DefaultValue ~= nil then
+        if type(Value) == 'table' then
+          CleanUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey))
+        end
+      else
+        --print('CLEAN:', format('%s%s', TablePath, PathKey))
+        Table[Key] = nil
+      end
+    end
   end
 end
 
 -------------------------------------------------------------------------------
--- Initialize when addon is loaded.
+-- Profile Apply
 -------------------------------------------------------------------------------
-function GUB:OnInitialize()
-
-  -- Add blizzards powerbar colors and class colors to defaults.
-  InitializeColors()
-
-  -- Load the unitbars database
-  GUB.MainDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', Defaults, true)
-
-  -- Save the unitbars data from the current profile.
+function GUB:ApplyProfile()
   UnitBars = GUB.MainDB.profile
 
   -- Share the values with other parts of the addon.
   ShareData()
 
-  -- Create the unitbars.
-  CreateUnitBars()
+  if UnitBars.Version == nil then
+    -- Convert profile from preversion 200.
+    ConvertUnitBarData()
+  end
+  if UnitBars.Version ~= Version then
+    CleanUnitBars()
+    UnitBars.Version = Version
+  end
 
---@do-not-package@
-  GUBfdata = UnitBarsF -- debugging 00000000000000000000000000000000000
---@end-do-not-package@
+  Main:SetUnitBars(true)
+
+  -- Update options.
+  Options:DoFunction()
+
+  -- Reset align padding.
+  Main:MoveFrameSetAlignPadding(UnitBarsFE, 'reset')
+
+  Main:UnitBarsSetAllOptions()
+  GUB:UnitBarsUpdateStatus()
 end
 
 -------------------------------------------------------------------------------
--- Initialize after addon is enabled.
+-- Profile New
+-------------------------------------------------------------------------------
+function GUB:ProfileNew(Event)
+  GUB.MainDB.profile.Version = Version
+  if Event == 'OnProfileReset' then
+    GUB:ApplyProfile()
+  end
+end
+
+-------------------------------------------------------------------------------
+-- One time initialization.
+--
+-- This has to be done cause some of these functions don't return valid data
+-- until after OnEnable()
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
+  if not InitOnce then
+    return
+  end
+  InitOnce = false
 
-  -- Do one time initialization.
-  OnInitializeOnce()
+  if GalvinUnitBarsData == nil then
+    GalvinUnitBarsData = {}
+  end
+  GUBData = GalvinUnitBarsData
 
-  -- Update all the unitbars according to the new data.
-  SetUnitBarsLayout()
+  -- Add blizzards powerbar colors and class colors to defaults.
+  InitializeColors()
 
-  -- Set up the scripts.
-  UnitBarsSetScript(true)
+  -- Load the unitbars database
+  GUB.MainDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', GUB.DefaultUB.Default, true)
 
-  -- Set the unitbars global settings
-  Main:UnitBarsSetAllOptions()
+  UnitBars = GUB.MainDB.profile
 
-  -- Enable unit bars.
-  Main:EnableUnitBars()
+  _, PlayerClass = UnitClass('player')
+  PlayerPowerType = UnitPowerType('player')
+
+  -- Get the globally unique identifier for the player.
+  PlayerGUID = UnitGUID('player')
+
+  ShareData()
+  Options:OnInitialize()
+  GUB:ApplyProfile()
+
+  GUB.MainDB.RegisterCallback(GUB, 'OnProfileReset', 'ProfileNew')
+  GUB.MainDB.RegisterCallback(GUB, 'OnNewProfile', 'ProfileNew')
+  GUB.MainDB.RegisterCallback(GUB, 'OnProfileChanged', 'ApplyProfile')
+  GUB.MainDB.RegisterCallback(GUB, 'OnProfileCopied', 'ApplyProfile')
+  LSM.RegisterCallback(GUB, 'LibSharedMedia_Registered', 'MediaUpdate')
 
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  -- Set the unitbars status and show the unitbars.
-  GUB:UnitBarsUpdateStatus()
-
---@do-not-package@
---  CompareTables(UnitBars, Defaults.profile)
---  GSB = GUB -- for debugging OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
---  GUBdataf = UnitBarsF
---  GUBdata = UnitBars
---@end-do-not-package@
+  if GUBData.ShowMessage ~= 1 then
+    GUBData.ShowMessage = 1
+    ShowMessage(DefaultUB.MessageText)
+  end
 end
-
 
