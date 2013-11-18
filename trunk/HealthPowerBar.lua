@@ -9,27 +9,30 @@
 local MyAddon, GUB = ...
 
 local Main = GUB.Main
-local UnitBarsF = GUB.UnitBarsF
-local LSM = GUB.LSM
-local ConvertPowerType = GUB.ConvertPowerType
-local MouseOverDesc = GUB.MouseOverDesc
+local Bar = GUB.Bar
+
+local UnitBarsF = Main.UnitBarsF
+local LSM = Main.LSM
+local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin
-local strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber =
-      strfind, strsub, strupper, strlower, strmatch, format, strconcat, strmatch, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
+      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax, UnitName, UnitGetIncomingHeals
-local GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, CooldownFrame_SetTimer, GetRuneType, SetDesaturation, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
+local UnitName, UnitGetIncomingHeals, GetRealmName =
+      UnitName, UnitGetIncomingHeals, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
@@ -42,20 +45,21 @@ local C_PetBattles, UIParent =
 --
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.UnitBar           Reference to the unitbar data for the health and power bar.
--- UnitBarF.Border            Border frame for the health and power bar.
--- UnitBarF.StatusBar         The Statusbar for the health and power bar.
--- UnitBarF.PredictedBar      This is another statusbar that sits behind StatusBar.  This is used for
---                            predicted health.
---
--- Border.Anchor              Reference to the anchor for moving.
--- Border.UnitBarF            Reference to unitbarF for for onsizechange.
---
--- StatusBar.UnitBar          Reference to unitbar data for GetStatusBarTextValue()
---
--- PlayerClass                The players class.
+-- UnitBarF.BBar         Contains the Health and power bar displayed on screen.
+-- Display               Flag used to determin if a Display() call is needed.
+-- StatusBar             TextureNumber for Status Bar
+-- PredictedBar          TextureNumber for Predicted Bar
+-- StatusBars            Change Texture for Status Bar and Predicted Bar.
+-- SpellSteadyShot
+-- SpellCobraShot        Hunter Spells to track for predicted power.
+-- PredictedSpellValue   Predicted focus value based on the two above spells.
+-- SteadyFocusAura       Buff hunters get that adds bonus focus.
 -------------------------------------------------------------------------------
-local PlayerClass = nil
+local Display = false
+
+local StatusBar = 1
+local PredictedBar = 2
+local StatusBars = 1
 
 -- Powertype constants
 local PowerMana = ConvertPowerType['MANA']
@@ -82,9 +86,6 @@ local SteadyFocusBonus = 3
 --
 -- Assigns a function to all the health and power bars under one name.
 --
--- Usage:  HapFunction(Name, function()
---           -- do function stuff here
---         end)
 -------------------------------------------------------------------------------
 local function HapFunction(Name, Fn)
   for BarType, UBF in pairs(UnitBarsF) do
@@ -93,17 +94,6 @@ local function HapFunction(Name, Fn)
     end
   end
 end
-
--------------------------------------------------------------------------------
--- ShareData
---
--- Main.lua calls this when values change.
---
--- NOTE: See Main.lua on how this is called.
--------------------------------------------------------------------------------
-HapFunction('ShareData', function(self, UB, PC, PPT)
-  PlayerClass = PC
-end)
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -152,7 +142,6 @@ local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
     UnitBarF.PredictedPower = 0
   end
 
-  -- Remove
   -- Spell is done casting.  Update the power.
   UnitBarF:Update()
 end
@@ -170,20 +159,7 @@ Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellCobraShot,  'casting', CheckSpe
 --
 --*****************************************************************************
 
--------------------------------------------------------------------------------
--- SetStatusBarValue
---
--- Sets the minimum, maximum, and text value to the StatusBar.
---
--- Usage: SetStatusBarValue(UnitBarF, CurrValue, MaxValue, PredictedValue)
---
--- UnitBarF        Frame that text is being created for.
--- CurrValue       Current value to set.
--- MaxValue        Maximum value to set.
--- PredictedValue  Predicted health or power.
--------------------------------------------------------------------------------
-
--- Used by SetTextValues to calculate percentage.
+-- Used by SetValueFont to calculate percentage.
 local function PercentFn(Value, MaxValue)
   return ceil(Value / MaxValue * 100)
 end
@@ -233,8 +209,6 @@ end
 --
 -- Updates the health of the current player or target
 --
--- Usage: UpdateHealthBar(self, Event, Unit)
-
 -- self         UnitBarF contains the health bar to display.
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
@@ -246,17 +220,24 @@ local function UpdateHealthBar(self, Event, Unit)
     return
   end
 
+  local BBar = self.BBar
+  local UB = self.UnitBar
+  local Gen = UB.General
+  local Bar = UB.Bar
+
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
-  local Gen = self.UnitBar.General
   local PredictedHealing = Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
-  local Bar = self.UnitBar.Bar
-  local PredictedBar = self.PredictedBar
-  local StatusBar = self.StatusBar
+
+  if Main.UnitBars.Testing then
+    PredictedHealing = Gen.PredictedHealth and 2500 or 0
+    MaxValue = 10000
+    CurrValue = 5000
+  end
 
   -- Get the class color if classcolor flag is true.
   local Color = Bar.Color
-  if Bar.ClassColor then
+  if Color.Class then
     local _, Class = UnitClass(Unit)
     if Class ~= nil then
       Color = Color[Class]
@@ -265,20 +246,27 @@ local function UpdateHealthBar(self, Event, Unit)
 
   -- Set the color and display the predicted health.
   local PredictedColor = Bar.PredictedColor
-  if PredictedColor and PredictedHealing > 0 and CurrValue < MaxValue then
-    PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
-    PredictedBar:SetMinMaxValues(0, MaxValue)
-    PredictedBar:SetValue(CurrValue + PredictedHealing)
-  else
-    PredictedHealing = 0
-    PredictedBar:SetValue(0)
+  if PredictedColor then
+    if PredictedHealing > 0 and CurrValue < MaxValue then
+      BBar:SetColorTexture(1, PredictedBar, PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
+      BBar:SetFillTexture(1, PredictedBar, (CurrValue + PredictedHealing) / MaxValue)
+    else
+      PredictedHealing = 0
+      BBar:SetFillTexture(1, PredictedBar, 0)
+    end
   end
 
   -- Set the color and display the value.
-  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  StatusBar:SetMinMaxValues(0, MaxValue)
-  StatusBar:SetValue(CurrValue)
-  self.FS:SetValue(CurrValue, MaxValue, PredictedHealing, Unit)
+  BBar:SetColorTexture(1, StatusBar, Color.r, Color.g, Color.b, Color.a)
+  local Value = 0
+
+  if MaxValue > 0 then
+    Value = CurrValue / MaxValue
+  end
+  BBar:SetFillTexture(1, StatusBar, Value)
+  if not UB.Layout.HideText then
+    BBar:SetValueFont(1, nil, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedHealing, 'unit', Unit)
+  end
 
   -- Set the IsActive flag.
   self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
@@ -287,19 +275,19 @@ local function UpdateHealthBar(self, Event, Unit)
   self:StatusCheck()
 end
 
-function GUB.UnitBarsF.PlayerHealth:Update(Event)
+function Main.UnitBarsF.PlayerHealth:Update(Event)
   UpdateHealthBar(self, Event, 'player')
 end
 
-function GUB.UnitBarsF.TargetHealth:Update(Event)
+function Main.UnitBarsF.TargetHealth:Update(Event)
   UpdateHealthBar(self, Event, 'target')
 end
 
-function GUB.UnitBarsF.FocusHealth:Update(Event)
+function Main.UnitBarsF.FocusHealth:Update(Event)
   UpdateHealthBar(self, Event, 'focus')
 end
 
-function GUB.UnitBarsF.PetHealth:Update(Event)
+function Main.UnitBarsF.PetHealth:Update(Event)
   UpdateHealthBar(self, Event, 'pet')
 end
 
@@ -308,10 +296,8 @@ end
 --
 -- Updates the power of the unit.
 --
--- Usage: UpdatePowerBar(self, Event, Unit, PowerType2)
---
 -- self          UnitBarF contains the power bar to display.
--- Event         'change' then the bar will only get updated if there is a change.
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
 -- Unit          Unit name 'player' ,'target', etc
 -- PowerType2    PowerType from server or when PowerMana update is called.
 --               If nil then the unit's powertype is used if nots a ManaPower bar.
@@ -345,6 +331,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     return
   end
 
+  local BBar = self.BBar
   local UB = self.UnitBar
   local Bar = UB.Bar
   local Gen = UB.General
@@ -352,27 +339,38 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
   local PredictedPower = Gen and Gen.PredictedPower and (self.PredictedPower or 0) or 0
-
   local Color = Bar.Color[ConvertPowerType[PowerType]]
-  local PredictedBar = self.PredictedBar
-  local StatusBar = self.StatusBar
+
+  if Main.UnitBars.Testing then
+    PredictedPower = Gen and Gen.PredictedPower and 2500 or 0
+    MaxValue = 10000
+    CurrValue = 5000
+  end
 
   -- Set the color and display the predicted health.
   local PredictedColor = Bar.PredictedColor
-  if PredictedColor and PredictedPower > 0 and CurrValue < MaxValue then
-    PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
-    PredictedBar:SetMinMaxValues(0, MaxValue)
-    PredictedBar:SetValue(CurrValue + PredictedPower)
-  else
-    PredictedPower = 0
-    PredictedBar:SetValue(0)
+
+  if PredictedColor then
+    if PredictedPower > 0 and CurrValue < MaxValue then
+      BBar:SetColorTexture(1, PredictedBar, PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
+      BBar:SetFillTexture(1, PredictedBar, (CurrValue + PredictedPower) / MaxValue)
+    else
+      PredictedPower = 0
+      BBar:SetFillTexture(1, PredictedBar, 0)
+    end
   end
 
   -- Set the color and display the value.
-  StatusBar:SetStatusBarColor(Color.r, Color.g, Color.b, Color.a)
-  StatusBar:SetMinMaxValues(0, MaxValue)
-  StatusBar:SetValue(CurrValue)
-  self.FS:SetValue(CurrValue, MaxValue, PredictedPower, Unit)
+  BBar:SetColorTexture(1, StatusBar, Color.r, Color.g, Color.b, Color.a)
+  local Value = 0
+
+  if MaxValue > 0 then
+    Value = CurrValue / MaxValue
+  end
+  BBar:SetFillTexture(1, StatusBar, Value)
+  if not UB.Layout.HideText then
+    BBar:SetValueFont(1, nil, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
+  end
 
   -- Set the IsActive flag.
   local IsActive = false
@@ -393,23 +391,23 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   self:StatusCheck()
 end
 
-function GUB.UnitBarsF.PlayerPower:Update(Event)
+function Main.UnitBarsF.PlayerPower:Update(Event)
   UpdatePowerBar(self, Event, 'player')
 end
 
-function GUB.UnitBarsF.TargetPower:Update(Event)
+function Main.UnitBarsF.TargetPower:Update(Event)
   UpdatePowerBar(self, Event, 'target')
 end
 
-function GUB.UnitBarsF.FocusPower:Update(Event)
+function Main.UnitBarsF.FocusPower:Update(Event)
   UpdatePowerBar(self, Event, 'focus')
 end
 
-function GUB.UnitBarsF.PetPower:Update(Event)
+function Main.UnitBarsF.PetPower:Update(Event)
   UpdatePowerBar(self, Event, 'pet')
 end
 
-function GUB.UnitBarsF.ManaPower:Update(Event)
+function Main.UnitBarsF.ManaPower:Update(Event)
   UpdatePowerBar(self, Event, 'player', 'MANA')
 end
 
@@ -425,263 +423,134 @@ end
 -- This will enable or disbale mouse clicks for the rune icons.
 -------------------------------------------------------------------------------
 HapFunction('EnableMouseClicks', function(self, Enable)
-  self.Border:EnableMouse(Enable)
-end)
-
--------------------------------------------------------------------------------
--- FrameSetScript
---
--- Set up script handlers for the unitbars.
--------------------------------------------------------------------------------
-HapFunction('FrameSetScript', function(self, Enable)
-  local Border = self.Border
-  if Enable then
-
-    -- Set mouse scripts for all the unitbars.
-    -- Set UnitBar to OnHide when any of the frames are hidden.
-    Border:SetScript('OnMouseDown', HapBarStartMoving)
-    Border:SetScript('OnMouseUp', HapBarStopMoving)
-    Border:SetScript('OnHide', HapBarStopMoving)
-    Border:SetScript('OnEnter', function(self)
-                                  Main.UnitBarTooltip(self, false)
-                                end)
-    Border:SetScript('OnLeave', function(self)
-                                  Main.UnitBarTooltip(self, true)
-                                end)
-  else
-    Border:SetScript('OnMouseDown', nil)
-    Border:SetScript('OnMouseUp', nil)
-    Border:SetScript('OnHide', nil)
-    Border:SetScript('OnEnter', nil)
-    Border:SetScript('OnLeave', nil)
-  end
+  self.BBar:EnableMouseClicks(1, nil, Enable)
 end)
 
 -------------------------------------------------------------------------------
 -- SetAttr
 --
 -- Sets different parts of the health and power bars.
---
--- Usage: SetAttr(Object, Attr)
---        SetAttr('ppower')
---
--- Object       Object being changed:
---               'bg'        for background (Border).
---               'bar'       for forground (StatusBar).
---               'text'      for text (StatusBar.FS).
---               'ppower'    for predicted power.
---               'frame'     for the frame.
--- Attr         Type of attribute being applied to object:
---               'color'     Color being set to the object.
---               'pcolor'    Predicted color being set to the object.
---               'size'      Size being set to the object.
---               'padding'   Amount of padding set to the object.
---               'texture'   One or more textures set to the object.
---               'font'      Font settings being set to the object.
---               'backdrop'  Backdrop settings being set to the object.
---               'scale'     Scale settings being set to the object.
---               'strata'    Frame strata for the object.
---
--- NOTE: To apply one attribute to all objects. Object must be nil.
---       To apply all attributes to one object. Attr must be nil.
---       To apply all attributes to all objects both must be nil.
---
---       Since health bars and power bars can have multiple colors.  This function
---       no longer sets them.
 -------------------------------------------------------------------------------
-HapFunction('SetAttr', function(self, Object, Attr)
-
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-  local Gen = UB.General
+HapFunction('SetAttr', function(self, TableName, KeyName)
+  local BBar = self.BBar
   local BarType = self.BarType
 
-  -- Check scale and strata for 'frame'
-  Main:UnitBarSetAttr(self, Object, Attr)
+  if not BBar:OptionsSet() then
+    BBar:SetTexture(1, PredictedBar, 'GUB EMPTY')
 
-  -- Set predicted power settings.
-  if BarType == 'PlayerPower' and PlayerClass == 'HUNTER' and (Object == nil or Object == 'ppower') then
-    Main:SetSpellTracker(self, Gen.PredictedPower)
-  end
+    BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) self:Update() end)
+    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-  -- Background (Border).
-  if Object == nil or Object == 'bg' then
-    local Border = self.Border
-    local BgColor = UB.Background.Color
-
-    if Attr == nil or Attr == 'backdrop' then
-      Border:SetBackdrop(Main:ConvertBackdrop(UB.Background.BackdropSettings))
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-    end
-    if Attr == nil or Attr == 'color' then
-      Border:SetBackdropColor(BgColor.r, BgColor.g, BgColor.b, BgColor.a)
-    end
-  end
-
-  -- Forground (Statusbar).
-  if Object == nil or Object == 'bar' then
-    local StatusBar = self.StatusBar
-    local PredictedBar = self.PredictedBar
-    local Border = self.Border
-
-    local Bar = UB.Bar
-    local Padding = Bar.Padding
-    local PredictedColor = Bar.PredictedColor
-
-    if Attr == nil or Attr == 'texture' then
-      StatusBar:SetStatusBarTexture(LSM:Fetch('statusbar', Bar.StatusBarTexture))
-      StatusBar:GetStatusBarTexture():SetHorizTile(false)
-      StatusBar:GetStatusBarTexture():SetVertTile(false)
-      StatusBar:SetOrientation(Bar.FillDirection)
-      StatusBar:SetReverseFill(Bar.ReverseFill)
-      StatusBar:SetRotatesTexture(Bar.RotateTexture)
-
-      local PredictedBarTexture = Bar.PredictedBarTexture
-      if PredictedBarTexture then
-        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', PredictedBarTexture))
+    BBar:SO('Layout', 'ReverseFill', function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
+    BBar:SO('Layout', 'HideText',    function(v)
+      if v then
+        BBar:SetValueRawFont(1, nil, '')
       else
-        PredictedBar:SetStatusBarTexture(LSM:Fetch('statusbar', 'GUB Empty'))
+        self:Update()
       end
-      PredictedBar:GetStatusBarTexture():SetHorizTile(false)
-      PredictedBar:GetStatusBarTexture():SetVertTile(false)
-      PredictedBar:SetOrientation(Bar.FillDirection)
-      PredictedBar:SetReverseFill(Bar.ReverseFill)
-      PredictedBar:SetRotatesTexture(Bar.RotateTexture)
+    end)
+    BBar:SO('Layout', 'SmoothFill',  function(v) BBar:SetFillSmoothTimeTexture(1, StatusBar, v) end)
+
+    local Gen = self.UnitBar.General
+    if Gen and Gen.PredictedHealth ~= nil then
+      BBar:SO('General', 'PredictedHealth', function() self:Update() end)
     end
 
-    if Attr == nil or Attr == 'color' then
+    if BarType == 'PlayerPower' and Main.PlayerClass == 'HUNTER' then
+      BBar:SO('General', 'PredictedPower', function(v)
+        Main:SetSpellTracker(self, v)
+        self.PredictedPower = 0
+        self:Update()
+      end)
+    end
+
+    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(1, 1, v) end)
+    BBar:SO('Background', 'Color',            function(v) BBar:SetBackdropColor(1, 1, v.r, v.g, v.b, v.a) end)
+
+    BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(1, StatusBar, v) end)
+    BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(StatusBars, 'SetFillDirectionTexture', 1, v) end)
+    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(StatusBars, 'SetRotateTexture', 1, v) end)
+
+    if self.UnitBar.Bar.PredictedColor ~= nil then
+      BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(1, PredictedBar, v) end)
+      BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(1, PredictedBar, v.r, v.g, v.b, v.a) end)
+    end
+    BBar:SO('Bar', 'Color',               function(v, UB)
       local BarColor = nil
 
       -- Get the Unit and then Powertype for power bars.
       if strfind(BarType, 'Power') then
-        local PowerType = UnitPowerType(UB.UnitType)
+        local PowerType = nil
 
+        if BarType == 'ManaPower' then
+          PowerType = PowerMana
+        else
+          PowerType = UnitPowerType(UB.UnitType)
+        end
         if PowerType then
-          BarColor = Bar.Color[ConvertPowerType[PowerType]]
+          BarColor = v[ConvertPowerType[PowerType]]
         end
 
       -- Get the class color on bars that support it.
       else
-        BarColor = Bar.Color
-        if Bar.ClassColor then
+        BarColor = v
+        if BarColor.Class then
           local _, Class = UnitClass(UB.UnitType)
 
           if Class ~= nil then
-            BarColor = Bar.Color[Class]
+            BarColor = BarColor[Class]
           end
         end
       end
-
       if BarColor then
-        StatusBar:SetStatusBarColor(BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
       end
-    end
-
-    if PredictedColor and ( Attr == nil or Attr == 'pcolor' ) then
-      PredictedBar:SetStatusBarColor(PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
-    end
-
-    if Attr == nil or Attr == 'padding' then
-      StatusBar:ClearAllPoints()
-      StatusBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
-      StatusBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
-
-      PredictedBar:ClearAllPoints()
-      PredictedBar:SetPoint('TOPLEFT', Padding.Left , Padding.Top)
-      PredictedBar:SetPoint('BOTTOMRIGHT', Padding.Right, Padding.Bottom)
-
-      -- Update the statusbars to reflect change.
-      local Value = StatusBar:GetValue()
-      local Value2 = PredictedBar:GetValue()
-
-      StatusBar:SetValue(Value - 1)
-      StatusBar:SetValue(Value)
-      PredictedBar:SetValue(Value2 - 1)
-      PredictedBar:SetValue(Value2)
-    end
-    if Attr == nil or Attr == 'size' then
-      self:SetSize(Bar.HapWidth, Bar.HapHeight)
-    end
-
+    end)
+    BBar:SO('Bar', '_Size',               function(v, UB) BBar:SetSizeTextureFrame(1, 1, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',             function(v) BBar:ChangeTexture(StatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
-  -- Text (StatusBar.Txt).
-  if Object == nil or Object == 'text' then
-    local FS = self.FS
+  -- Do the option.  This will call one of the options above or all.
+  BBar:DoOption(TableName, KeyName)
 
-    if Attr == nil or Attr == 'color' then
-      FS:SetColor()
-    end
-    if Attr == nil or Attr == 'font' then
-      FS:SetFont()
-    end
+  if Display then
+    BBar:Display()
+    Display = false
   end
-
-end)
-
--------------------------------------------------------------------------------
--- SetLayout
---
--- Sets a health and power bar with a new layout.
--------------------------------------------------------------------------------
-HapFunction('SetLayout', function(self)
-
-  -- Get the unitbar data.
-  local UB = self.UnitBar
-
-  local StatusBar = self.StatusBar
-  StatusBar:SetMinMaxValues(0, 100)
-  StatusBar:SetValue(0)
-
-  local PredictedBar = self.PredictedBar
-  PredictedBar:SetMinMaxValues(0, 100)
-  PredictedBar:SetValue(0)
-
-  -- Set all attributes.
-  self:SetAttr(nil, nil)
-
-  -- Save a reference of unitbar data.
-  StatusBar.UnitBar = self.UnitBar
 end)
 
 -------------------------------------------------------------------------------
 -- CreateBar
---
--- Usage: CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
 --
 -- UnitBarF     The unitbar frame which will contain the health and power bar.
 -- UB           Unitbar data.
 -- Anchor       Unitbar's anchor.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.HapBar:CreateBar(UnitBarF, UB, Anchor, ScaleFrame)
-  local Border = CreateFrame('Frame', nil, ScaleFrame)
+function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
+  local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
-  local StatusBar = CreateFrame('StatusBar', nil, Border)
-  local PredictedBar = CreateFrame('StatusBar', nil, Border)
+  -- Create the health and predicted bar
+  BBar:CreateTextureFrame(1, 1, 0)
+    BBar:CreateTexture(1, 1, 'statusbar', 1, PredictedBar)
+    BBar:CreateTexture(1, 1, 'statusbar', 2, StatusBar)
 
-  local FS = Main:CreateFontString(UnitBarF.BarType, Border, 10, 'OVERLAY', PercentFn)
+  -- Create font text for the box frame.
+  BBar:CreateFont(1, nil, PercentFn)
 
-  -- Set the border to always be the same size as the anchor.
-  Border:SetAllPoints(Anchor)
+  -- Enable tooltip
+  BBar:SetTooltip(1, nil, UB.Name)
 
-  -- The predictedbar needs to be below the health/power bar.
-  StatusBar:SetFrameLevel(StatusBar:GetFrameLevel() + 1)
+  -- Use setchange for both statusbars.
+  BBar:SetChangeTexture(StatusBars, PredictedBar, StatusBar)
 
-  -- Save the text for tooltips.
-  Main:SetTooltip(Border, UB.Name, MouseOverDesc)
+  -- Show the bars.
+  BBar:SetHidden(1, 1, false)
+  BBar:ChangeTexture(StatusBars, 'SetHiddenTexture', 1, false)
+  BBar:ChangeTexture(StatusBars, 'SetFillTexture', 1, 0)
 
-  -- Save a reference to the anchor for moving.
-  Border.Anchor = Anchor
-
-  -- Save a reference of UnitBarF to the border for onsizechange.
-  Border.UnitBarF = UnitBarF
-
-  -- Save the frames.
-  UnitBarF.Border = Border
-  UnitBarF.StatusBar = StatusBar
-  UnitBarF.PredictedBar = PredictedBar
-  UnitBarF.FS = FS
+  -- save the health and power bar
+  UnitBarF.BBar = BBar
 end
 
 --*****************************************************************************
@@ -701,38 +570,38 @@ local function RegEventPower(Enable, UnitBarF, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
 end
 
-function GUB.UnitBarsF.PlayerHealth:Enable(Enable)
+function Main.UnitBarsF.PlayerHealth:Enable(Enable)
   RegEventHealth(Enable, self, 'player')
 end
 
-function GUB.UnitBarsF.TargetHealth:Enable(Enable)
+function Main.UnitBarsF.TargetHealth:Enable(Enable)
   RegEventHealth(Enable, self, 'target')
 end
 
-function GUB.UnitBarsF.FocusHealth:Enable(Enable)
+function Main.UnitBarsF.FocusHealth:Enable(Enable)
   RegEventHealth(Enable, self, 'focus')
 end
 
-function GUB.UnitBarsF.PetHealth:Enable(Enable)
+function Main.UnitBarsF.PetHealth:Enable(Enable)
   RegEventHealth(Enable, self, 'pet')
 end
 
-function GUB.UnitBarsF.PlayerPower:Enable(Enable)
+function Main.UnitBarsF.PlayerPower:Enable(Enable)
   RegEventPower(Enable, self, 'player')
 end
 
-function GUB.UnitBarsF.TargetPower:Enable(Enable)
+function Main.UnitBarsF.TargetPower:Enable(Enable)
   RegEventPower(Enable, self, 'target')
 end
 
-function GUB.UnitBarsF.FocusPower:Enable(Enable)
+function Main.UnitBarsF.FocusPower:Enable(Enable)
   RegEventPower(Enable, self, 'focus')
 end
 
-function GUB.UnitBarsF.PetPower:Enable(Enable)
+function Main.UnitBarsF.PetPower:Enable(Enable)
   RegEventPower(Enable, self, 'pet')
 end
 
-function GUB.UnitBarsF.ManaPower:Enable(Enable)
+function Main.UnitBarsF.ManaPower:Enable(Enable)
   RegEventPower(Enable, self, 'player')
 end

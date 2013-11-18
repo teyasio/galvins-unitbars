@@ -31,17 +31,17 @@ bars, The only flag it can't override is never show.
    Hide no Combat       Hide the bar when not in combat.
 
 * Text
-All health and Power bars and the Demonic bar support multiple text lines.  Each text line can have multiple values.  Click
+Some bars support multiple text lines.  Each text line can have multiple values.  Click
 the add/remove buttons to add or remove values.  To add another text line click the button that has the + or - button with
 the name of the text line.  To add another text line beyond line 2.  Click the line 2 tab, then click the button with the
 + symbol.
 
-You can add extra text to the layout.  Just modify the layout in the edit box.  After you click accept the layout will 
+You can add extra text to the layout.  Just modify the layout in the edit box.  After you click accept the layout will
 become a custom layout.  Clicking exit will take you back to a normal layout.  You'll lose the custom layout though.
 
 The layout supports world of warcraft's UI escape color codes.  The format for this is |cAARRGGBB<text>|r.  So for example to
 make percentage show up in red you would do |c00FF0000%d%%|r.  If you want a "|" to appear on the bar you'll need to
-use "|||".
+use "||".
 
 If the layout causes an error you will see a layout error appear in the format of Err (text line number). So Err (2) would
 mean text line 2 is causing the error.
@@ -60,23 +60,36 @@ UI escape codes: http://www.wowwiki.com/UI_escape_sequences
 When eclipse power is turned on.  The mod will show what state the eclipse bar will be in before the cast is finished.
 
 * Cut and Paste
-Go to the copy and paste options.  Click on the button you want to copy then pick another bar in the options and click
+Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of
+buttons. Click on the bottom button you want to copy then pick another bar in the options and click
 the same button to do the paste.  For text lines you can copy and paste within the same bar or to another bar.
 
-* Align bars
-All bars can be lined up for perfection. Bars can be lined either vertically or horizontally.
+* Align and Swap
+Right click on any bar to open this tool up.  Then click on align or swap.
+Align will allow you to line up a bar with another bar.  Just drag the bar near another till you see a green
+rectangle.  The bar will then jump next the other bar based on where you place it.  You can keep doing this
+with more bars.  The tool remembers all the bars you aligned as long as you don't close the tool or
+uncheck align or switch to swap.
 
-You need to have bars unlocked.  To open the alignment tool you need to right click a bar.
-Once the alignment tool is open you'll need to select a primary bar by right clicking it.
+You can use vertical or horizontal padding to space apart the aligned bars.  The vertical only works for bars
+that were aligned vertically and the same for horizontal.  Once you have 2 or more aligned bars they become
+an aligned group.  Then you can use offsets to move the group.
 
-Then you'll need to select some bars to line up with that primary bar.  To do this left click the bars you want to use.  
-Then clicking 'align' will make the changes.
+If you choose swap, then when you drag the bar near another bar. It will have a red rectangle around it.  Soon as
+you place it there the two bars will switch places.
 
-Left to Right: Bars will be lined up horizontally. Without changing their vertical position.
-Top to Bottom: Bars will be lined up vertically. Without changing their horizontal position.
-Justify: Sets the justification.  Bars will then be lined up by their left, right, top, bottom sides.
-Padding: Instead of just lining up bars you may want to have equal spacing between them as well.
-         This works the same in vertical or horizontal. All this does is make each bar have equal spacing.
+This same tool can be used on bar objects.  When you go to the bar options under layout you'll see swap and float.
+Clicking float will open up the align tool further down.
+
+For more you can watch the video:
+http://www.youtube.com/watch?v=STYa5d6riuk
+
+* Test Mode
+When in test mode the bars will behave as if they were unlocked.  But you can't click on them.  Test mode allows
+you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
+
+Additional options will be found at the option panel for the bar when test mode is active
+
 
 * Profiles
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just
