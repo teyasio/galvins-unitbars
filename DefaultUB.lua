@@ -2251,8 +2251,7 @@ For more you can watch the video:
 
 
 |cff00ff00Test Mode|r
-When in test mode the bars will behave as if they were unlocked.  But you can't click on them.  Test mode allows
-you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
+When in test mode the bars will behave as if they were unlocked.  But you can't click on them.  Test mode allows you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
 
 Additional options will be found at the option panel for the bar when test mode is active
 

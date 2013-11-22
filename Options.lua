@@ -12,7 +12,6 @@ local DUB = GUB.DefaultUB.Default.profile
 local Version = GUB.DefaultUB.Version
 
 local Main = GUB.Main
-local WoWUI = GUB.WoWUI
 local Bar = GUB.Bar
 local Options = GUB.Options
 
@@ -42,12 +41,6 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameToo
 -- SlashOptions                  Options only used by slash commands. This is accessed
 --                               by typing '/gub'.
 -- GUB.Options.ATOFrame          Contains the alignment tool options window.
---
--- CapBarType                    Used for copy/paste. Contains the BarType of the bar being copied.
--- CapName                       Used for copy/paste. Contains the bars name of the data being copied.
--- CapTablePath                  Used for copy/paste. Contains the table path to be copied.
--- CapType                       Used for copy/paste. Type of data being copied.
--- CapButtons                    Used for copy/paste. Table containing the buttons for copy and pasting.
 --
 -- DoFunctions                   Table used to save and call functions thru DoFunction()
 -- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
@@ -608,7 +601,7 @@ local function CreateSlashOptions()
         name = 'about',
         order = 2,
         func = function()
-                print(AddonName, 'Version ', Version)
+                 print(AddonName, format('Version %.2f', Version / 100))
                end,
       },
       config = CreateToGUBOptions(2, '', 'Opens a movable options frame'),
@@ -4034,7 +4027,7 @@ local function CreateMainOptions()
       Verstion = {
         type = 'description',
         name = function()
-                 return format('|cffffd200%s   version %s|r', AddonName, Version)
+                 return format('|cffffd200%s   version %.2f|r', AddonName, Version / 100)
                end,
         order = 1,
       },
