@@ -670,7 +670,7 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     end)
     BBar:SO('Bar', '_Size',                 function(v, UB, OD)
       local TableName = OD.TableName
-      if OD.p1 == nil then -- temporary check until old data gets remove from eclipsebar.
+      if OD.p1 == nil then
         return
       end
 
