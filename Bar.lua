@@ -115,8 +115,6 @@ local C_PetBattles, UIParent =
 --   RotateTexture                   If true then the texture is rotated 90 degrees.
 --   ReverseFill                     If true then the texture will fill in the opposite direction.
 --   FillDirection                   Can be 'HORIZONTAL' or 'VERTICAL'.
---   FadeOutTime                     Amount of time it takes for a texture to become hidden.
---   FadeInTime                      Amount of time it takes for a texture to become visible.
 --   Value                           Current value, work around for padding function dealing with statusbars.
 --                                   Also used by SetFill functions.
 --   SmoothTime                      Amount of time it takes to fill a texture from current value to new value.
@@ -1304,7 +1302,8 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
       local Fade = Texture.Fade
 
       if Hide then
-        if Fade and Texture.FadeOutTime > 0 then
+        if Fade then
+
           -- Fadeout the texture frame then hide it.
           Fade:SetAnimation('out')
         else
@@ -1312,7 +1311,7 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
         end
         Texture.Hidden = true
       else
-        if Fade and Texture.FadeInTime > 0 then
+        if Fade then
 
           -- Fade in the texture.
           Fade:SetAnimation('in')
@@ -1959,11 +1958,6 @@ function BarDB:SetFadeTimeTexture(BoxNumber, TextureNumber, Action, Seconds)
 
       -- Set the duration of the fade in.
       Fade:SetDuration(Action, Seconds)
-      if Action == 'in' then
-        Texture.FadeInTime = Seconds
-      else
-        Texture.FadeOutTime = Seconds
-      end
     end
   until LastBox
 end
@@ -2823,8 +2817,6 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     Texture.RotateTexture = false
     Texture.FillDirection = 'HORIZONTAL'
     Texture.ReverseFill = false
-    Texture.FadeOutTime = 0
-    Texture.FadeInTime = 0
 
     -- Hide the texture or statusbar
     Texture:Hide()
