@@ -301,7 +301,7 @@ local function StartRuneCooldown(RuneBar, RuneID, StartTime, Duration, RuneReady
   end
 
   if not RuneReady and not Energize then
-    if not OnCooldown[RuneID] then
+    if OnCooldown[RuneID] ~= Duration then -- We do this to make the bars not jitter.  This detects runic corruption.
 
       -- Start bar timer.
       if strfind(Gen.RuneMode, 'bar') then
@@ -314,7 +314,7 @@ local function StartRuneCooldown(RuneBar, RuneID, StartTime, Duration, RuneReady
         BBar:SetValueTimeFont(RuneID, nil, StartTime, Duration, Duration, -1)
       end
 
-      OnCooldown[RuneID] = true
+      OnCooldown[RuneID] = Duration
     end
   else
 
