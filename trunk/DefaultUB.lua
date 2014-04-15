@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 203
+GUB.DefaultUB.Version = 204
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -39,6 +39,7 @@ GUB.DefaultUB.Version = 203
 -- ReverseFading          - Boolean. If true then transition from fading in one direction then going to the other is smooth.
 -- FadeOutTime            - Time in seconds before a bar completely goes hidden.
 -- FadeInTime             - Time in seconds before a bar completely becomes visible.
+-- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
 --
 --
 -- Fields found in all unitbars:
@@ -226,6 +227,7 @@ GUB.DefaultUB.Default = {
     ReverseFading = true,
     FadeInTime = DefaultFadeInTime,
     FadeOutTime = DefaultFadeOutTime,
+    HighlightDraggedBar = false,
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',

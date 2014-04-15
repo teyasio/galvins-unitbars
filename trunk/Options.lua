@@ -3891,10 +3891,16 @@ local function CreateMainOptions()
                 order = 5,
                 desc = 'Text will not be highlighted when options is opened',
               },
+              HighlightDraggedBar = {
+                type = 'toggle',
+                name = 'Highlight Dragged Bar',
+                order = 6,
+                desc = 'The bar being dragged will show a box around it',
+              },
               Testing = {
                 type = 'toggle',
                 name = 'Test Mode',
-                order = 6,
+                order = 7,
                 desc = 'All bars will be displayed using fixed values',
               },
             },
