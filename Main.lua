@@ -2119,6 +2119,7 @@ end
 local function MoveFrameSetHighlightFrame(Action, SelectFrame, r, g, b, a)
   if MoveLastHighlightFrame then
     MoveLastHighlightFrame:Hide()
+    MoveLastHighlightFrame = nil
   end
   if Action then
     local MoveHighlightFrame = SelectFrame.MoveHighlightFrame
@@ -2443,6 +2444,12 @@ function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
     end
   end
 
+  -- Show a box around the current bar being dragged
+  if Type == 'bar' and UnitBars.HighlightDraggedBar then
+    MoveFrame.MoveHighlightFrame:Show()
+    MoveFrame.MoveHighlightFrame:SetBackdropBorderColor(0, 1, 0, 1) -- green
+  end
+
   TrackingFrame.Move = Move
   MoveSelectFrame = nil
   MoveOldSelectFrame = nil
@@ -2620,6 +2627,11 @@ function GUB.Main:MoveFrameStop(MoveFrames)
       MoveFrame:ClearAllPoints()
       MoveFrame:SetPoint('TOPLEFT', x, y)
     end
+  end
+
+  -- hide the box around the current bar being dragged
+  if TrackingFrame.Type == 'bar' and UnitBars.HighlightDraggedBar then
+    MoveFrame.MoveHighlightFrame:Hide()
   end
 
   return MoveSelectFrame
