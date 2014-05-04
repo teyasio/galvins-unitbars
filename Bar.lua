@@ -2278,6 +2278,7 @@ function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration,
       CooldownFrameLine:SetBlingDuration(0)
     end
   else
+    Main:SetTimer(CooldownFrame, nil)
     CooldownFrame.CooldownFrameLine = CooldownFrameLine
     Main:SetTimer(CooldownFrame, StartTime - GetTime() + Duration, HideFlashTimer)
   end

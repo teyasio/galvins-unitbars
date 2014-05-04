@@ -317,7 +317,6 @@ local function StartRuneCooldown(RuneBar, RuneID, StartTime, Duration, RuneReady
       OnCooldown[RuneID] = Duration
     end
   else
-
     -- stop timer and text.
     if strfind(Gen.RuneMode, 'bar') then
       BBar:SetFillTimeTexture(RuneID, RuneSBar)

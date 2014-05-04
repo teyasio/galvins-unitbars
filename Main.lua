@@ -1129,6 +1129,8 @@ end
 --        The function that gets called has the following passed to it:
 --          Table      Table that was created with the timer.
 --          Duration   This is the same value as Delay passed to starting the timer.
+--
+--        You'll get unpredictable results if the timer is changed without stopping it first.
 ---------------------------------------------------------------------------------
 function GUB.Main:SetTimer(Table, Delay, TimerFn)
   local AnimationGroup = nil
