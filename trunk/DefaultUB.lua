@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 205
+GUB.DefaultUB.Version = 300
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -40,6 +40,7 @@ GUB.DefaultUB.Version = 205
 -- FadeOutTime            - Time in seconds before a bar completely goes hidden.
 -- FadeInTime             - Time in seconds before a bar completely becomes visible.
 -- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
+-- Reset                  - Table containing the default settings for Reset found in General options.
 --
 --
 -- Fields found in all unitbars:
@@ -47,6 +48,7 @@ GUB.DefaultUB.Version = 205
 --   _DC = 0              - This can appear anywhere in the table.  It's used by CopyUnitBar().  If this key is found
 --                          in the source and destination during a copy.  It will deepcopy the table instead. Even if the table
 --                          being copied is inside of a larger table that has the _DC tag.  Then it will still get deep copied.
+--   _<key name>          - Any key that starts with '_' will never get copied even if there is a _DC tag present.
 --   Name                 - Name of the bar.
 --   UnitType             - Type of unit: 'player', 'pet', 'focus', 'target'
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
@@ -100,18 +102,13 @@ GUB.DefaultUB.Version = 205
 --   Scale                - Sets the scale of the unitbar frame.
 --   FrameStrata          - Sets the strata for the frame to appear on.
 --
--- Region                 - Not every bar has this.
+-- Region, Background*    - Not every bar has this.
 --   PaddingAll           - If true then one value sets all 4 padding values.
---   BackdropSettings     - See below for format.
---
---
--- BackdropSettings       - Backdrop settings table. Must be converted into a backdrop before using.
---
---   BgTexture            - Name of the background textured in sharedmedia.
---   BdTexture            - Name of the forground texture 'statusbar' in sharedmedia.
+--   BgTexture            - Name of the background texture in sharedmedia.
+--   BorderTexture        - Name of the forground texture in sharedmedia.
 --   BgTile               - True or false. If true then the background is tiled, otherwise not tiled.
 --   BgTileSize           - Size (width or height) of the square repeating background tiles (in pixels).
---   BdSize               - Size of the border texture thickness in pixels.
+--   BorderSize           - Size of the border texture thickness in pixels.
 --   Padding
 --     Left, Right,
 --     Top, Bottom        - Positive values go inwards, negative values outward.
@@ -139,6 +136,24 @@ GUB.DefaultUB.Version = 205
 --     OffsetY            - Vertical offset position of the frame.
 --     ShadowOffset       - Number of pixels to move the shadow towards the bottom right of the font.
 --     Color              - Color of the text.  This also supports 'color all' for bars like runebar.
+--
+-- Triggers               - Contains all the raw data for triggers.
+--   MinimizeAll          - If true all the triggers are minimized in the options panel.
+--   GroupNumber          - Current group number selected in the trigger options.
+--   Action               - Current action selected in the trigger options.
+--
+--   Default              - Default trigger.  This can't be copied from one bar to another.
+--     Enabled            - True or False.  Enable or disable the trigger.
+--     Minimize           - True or False.  Minimizes just the trigger, not all.
+--     Name               - Name of trigger.  If blank then used a default name in the options.
+--     GroupNumber        - Group for the trigger.  Can be any number.
+--     Value              - Value of the trigger.  For boolean triggers 1 = true and 2 = false.
+--     TypeID             - Identifies what the type is. See Bar.lua for details.
+--     Type               - Can be anything that describes what type it is.
+--     ValueTypeID        - Indentifies what value type it is.
+--     ValueType          - Can be anything that best describes what type of value is being used.
+--     Condition          - Logical conditonal that is used to activate a trigger.
+--     Pars[1 to 4]       - Contains raw data that is used to modify the bar object.
 --
 --
 -- General (Health and power bars)
@@ -194,12 +209,37 @@ GUB.DefaultUB.Version = 205
 --   PredictedPowerText   - If true then predicted power is shown instead.
 -------------------------------------------------------------------------------
 local DefaultBgTexture = 'Blizzard Tooltip'
-local DefaultBdTexture = 'Blizzard Tooltip'
+local DefaultBorderTexture = 'Blizzard Tooltip'
 local DefaultStatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
+local DefaultSound = 'None'
+local DefaultSoundChannel = 'SFX'
 local UBFontType = 'Arial Narrow'
 local DefaultFadeOutTime = 1
 local DefaultFadeInTime = 0.30
+
+GUB.DefaultUB.InCombatOptionsMessage = "Can't have options opened during combat"
+
+GUB.DefaultUB.DefaultBgTexture = DefaultBgTexture
+GUB.DefaultUB.DefaultBorderTexture = DefaultBorderTexture
+GUB.DefaultUB.DefaultStatusBarTexture = DefaultStatusBarTexture
+GUB.DefaultUB.DefaultSound = DefaultSound
+GUB.DefaultUB.DefaultSoundChannel = DefaultSoundChannel
+
+GUB.DefaultUB.TriggerTypes = {
+  TypeID_BackgroundBorder      = 'border',          Type_BackgroundBorder      = 'BG Border',
+  TypeID_BackgroundBorderColor = 'bordercolor',     Type_BackgroundBorderColor = 'BG Border Color',
+  TypeID_BackgroundBackground  = 'background',      Type_BackgroundBackground  = 'BG Background',
+  TypeID_BackgroundColor       = 'backgroundcolor', Type_BackgroundColor       = 'BG Background Color',
+  TypeID_BarTexture            = 'bartexture',      Type_BarTexture            = 'Bar Texture',
+  TypeID_BarColor              = 'bartexturecolor', Type_BarColor              = 'Bar Color',
+  TypeID_TextureSize           = 'texturesize',     Type_TextureSize           = 'Texture Size',
+  TypeID_RegionBorder          = 'border',          Type_RegionBorder          = 'Region Border',
+  TypeID_RegionBorderColor     = 'bordercolor',     Type_RegionBorderColor     = 'Region Border Color',
+  TypeID_RegionBackground      = 'background',      Type_RegionBackground      = 'Region Background',
+  TypeID_RegionBackgroundColor = 'backgroundcolor', Type_RegionBackgroundColor = 'Region Background Color',
+  TypeID_Sound                 = 'sound',           Type_Sound                 = 'Sound',
+}
 
 GUB.DefaultUB.Default = {
   profile = {
@@ -228,6 +268,21 @@ GUB.DefaultUB.Default = {
     FadeInTime = DefaultFadeInTime,
     FadeOutTime = DefaultFadeOutTime,
     HighlightDraggedBar = false,
+    Reset = {
+      Minimize = false,
+
+      All = false,
+      Location = true,
+      Status = true,
+      Test = true,
+      Layout = true,
+      General = true,
+      Other = true,
+      BG = true,
+      Bar = true,
+      Text = false,
+      Triggers = false,
+   },
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
@@ -243,7 +298,12 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+        PredictedValue = 0.25,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -257,15 +317,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -307,6 +367,26 @@ GUB.DefaultUB.Default = {
           OffsetY = 0,
           ShadowOffset = 0,
           Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -325,7 +405,12 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+        PredictedValue = 0.25,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -339,15 +424,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -385,6 +470,26 @@ GUB.DefaultUB.Default = {
           OffsetY = 0,
           ShadowOffset = 0,
           Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -403,7 +508,12 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+        PredictedValue = 0.25,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -417,15 +527,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -467,6 +577,26 @@ GUB.DefaultUB.Default = {
           OffsetY = 0,
           ShadowOffset = 0,
           Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -485,7 +615,11 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -496,15 +630,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -542,6 +676,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         },
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- Focus Health
     FocusHealth = {
@@ -558,7 +712,12 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+        PredictedValue = 0.25,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -572,15 +731,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -624,6 +783,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         },
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- Focus Power
     FocusPower = {
@@ -640,7 +819,11 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -651,15 +834,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -695,6 +878,26 @@ GUB.DefaultUB.Default = {
           OffsetY = 0,
           ShadowOffset = 0,
           Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -716,7 +919,12 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+        PredictedValue = 0.25,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -730,15 +938,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -779,6 +987,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         },
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- Pet Power
     PetPower = {
@@ -798,7 +1026,11 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -809,15 +1041,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -828,6 +1060,8 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Text = {
         _DC = 0,
@@ -853,6 +1087,26 @@ GUB.DefaultUB.Default = {
           OffsetY = 0,
           ShadowOffset = 0,
           Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -874,7 +1128,11 @@ GUB.DefaultUB.Default = {
         HideNotActive   = false,
         HideNoCombat    = false
       },
+      TestMode = {
+        Value = 0.50,
+      },
       Layout = {
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -885,15 +1143,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -929,6 +1187,26 @@ GUB.DefaultUB.Default = {
           OffsetY = 0,
           ShadowOffset = 0,
           Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -951,9 +1229,12 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         ShowDeathRunes = false,
-        ShowEnergize = false,
+        Energize = 0,
+        Value = 0.50,
+        Recharge = 1,
       },
       Layout = {
+        EnableTriggers = false,
         Swap = false,
         Float = false,
         ReverseFill = false,
@@ -998,14 +1279,12 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,                               -- All runes
@@ -1017,6 +1296,19 @@ GUB.DefaultUB.Default = {
           {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 6 Frost
           {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 7 Death
           {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 8 Death
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,          -- All runes
+          {r = 1, g = 1, b = 1, a = 1,},       -- 1 Blood
+          {r = 1, g = 1, b = 1, a = 1,},       -- 2 Blood
+          {r = 1, g = 1, b = 1, a = 1,},       -- 3 Unholy
+          {r = 1, g = 1, b = 1, a = 1,},       -- 4 Unholy
+          {r = 1, g = 1, b = 1, a = 1,},       -- 5 Frost
+          {r = 1, g = 1, b = 1, a = 1,},       -- 6 Frost
+          {r = 1, g = 1, b = 1, a = 1,},       -- 7 Death
+          {r = 1, g = 1, b = 1, a = 1,},       -- 8 Death
         },
       },
       Bar = {
@@ -1076,6 +1368,27 @@ GUB.DefaultUB.Default = {
           },
         },
       },
+      Triggers = {
+        _DC = 0,
+        Notes = 'Empowered uses the Time settings from Empowerment in General settings\neven if turned off',
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '=',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- ComboBar
     ComboBar = {
@@ -1094,9 +1407,10 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false,
       },
       TestMode = {
-        MaxResource = false,
+        Value = 0.50,
       },
       Layout = {
+        EnableTriggers = false,
         Swap = false,
         Float = false,
         Rotation = 90,
@@ -1116,14 +1430,12 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,
@@ -1132,6 +1444,16 @@ GUB.DefaultUB.Default = {
           {r = 0, g = 0, b = 0, a = 1},  -- 3
           {r = 0, g = 0, b = 0, a = 1},  -- 4
           {r = 0, g = 0, b = 0, a = 1},  -- 5
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+          {r = 1, g = 1, b = 1, a = 1},  -- 5
         },
       },
       Bar = {
@@ -1151,7 +1473,27 @@ GUB.DefaultUB.Default = {
           {r = 1, g = 0, b = 0, a = 1}, -- 4
           {r = 1, g = 0, b = 0, a = 1}, -- 5
         },
-      }
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- AnticipationBar
     AnticipationBar = {
@@ -1170,9 +1512,11 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false,
       },
       TestMode = {
-        MaxResource = false,
+        Value = 0.50,
+        Time = 0.50,
       },
       Layout = {
+        EnableTriggers = false,
         Swap = false,
         Float = false,
         ReverseFill = false,
@@ -1199,14 +1543,12 @@ GUB.DefaultUB.Default = {
       },
       BackgroundCharges = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,
@@ -1216,18 +1558,28 @@ GUB.DefaultUB.Default = {
           {r = 0, g = 0, b = 0, a = 1},  -- 4
           {r = 0, g = 0, b = 0, a = 1},  -- 5
         },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+          {r = 1, g = 1, b = 1, a = 1},  -- 5
+        },
       },
       BackgroundTime = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BarCharges = {
         Advanced = false,
@@ -1284,6 +1636,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         }
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- HolyBar
     HolyBar = {
@@ -1302,10 +1674,11 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        MaxResource = false,
+        Value = 0.50,
       },
       Layout = {
         BoxMode = false,
+        EnableTriggers = false,
         HideRegion = false,
         Swap = false,
         Float = false,
@@ -1328,26 +1701,24 @@ GUB.DefaultUB.Default = {
       },
       Region = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0.5, g = 0.5, b = 0.5, a = 1}
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0.121, g = 0.121, b = 0.121, a = 1,
@@ -1356,6 +1727,16 @@ GUB.DefaultUB.Default = {
           {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 3
           {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 4
           {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 5
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+          {r = 1, g = 1, b = 1, a = 1},  -- 5
         },
       },
       Bar = {
@@ -1374,6 +1755,26 @@ GUB.DefaultUB.Default = {
           {r = 1, g = 0.705, b = 0, a = 1}, -- 3
           {r = 1, g = 0.705, b = 0, a = 1}, -- 4
           {r = 1, g = 0.705, b = 0, a = 1}, -- 5
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -1395,10 +1796,11 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        MaxResource = false,
+        Value = 0.50,
       },
       Layout = {
         BoxMode = false,
+        EnableTriggers = false,
         HideRegion = false,
         Swap = false,
         Float = false,
@@ -1421,26 +1823,24 @@ GUB.DefaultUB.Default = {
       },
       Region = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0.266, g = 0.290, b = 0.274, a = 1}
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.266, g = 0.290, b = 0.274, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0.329, g = 0.172, b = 0.337, a = 1,
@@ -1448,6 +1848,15 @@ GUB.DefaultUB.Default = {
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
         },
       },
       Bar = {
@@ -1465,6 +1874,26 @@ GUB.DefaultUB.Default = {
           {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
           {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
           {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -1487,9 +1916,11 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         ShowMeta = false,
+        Value = 0.50,
       },
       Layout = {
         BoxMode = false,
+        EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
         SmoothFill = 0,
@@ -1500,15 +1931,15 @@ GUB.DefaultUB.Default = {
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0.082, g = 0.219, b = 0.019, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Bar = {
         Advanced = false,
@@ -1549,6 +1980,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         },
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color (both)',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- EmberBar
     EmberBar = {
@@ -1568,11 +2019,12 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        MaxResource = false,
         ShowFiery = false,
+        Value = 0.50,
       },
       Layout = {
         BoxMode = false,
+        EnableTriggers = false,
         HideRegion = false,
         Swap = false,
         Float = false,
@@ -1601,26 +2053,24 @@ GUB.DefaultUB.Default = {
       },
       Region = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0, g = 0, b = 0, a = 1}
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0.611, g = 0.137, b = 0.058, a = 1,
@@ -1636,6 +2086,23 @@ GUB.DefaultUB.Default = {
           {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 2
           {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 3
           {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 4
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+        },
+        BorderColorGreen = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
         },
       },
       Bar = {
@@ -1681,6 +2148,27 @@ GUB.DefaultUB.Default = {
           {r = 0, g = 1, b = 0.078, a = 1}, -- 4
         },
       },
+      Triggers = {
+        _DC = 0,
+        Notes = '"Full Burning Embers" go by the total number that are on fire \n "Burning Embers" are based on the amount of fill from 0 to 10 or percentage per ember',
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- EclipseBar
     EclipseBar = {
@@ -1699,9 +2187,10 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        ShowEclipseSun = false,
+        Value = 0.50,
       },
       Layout = {
+        EnableTriggers = false,
         Swap = false,
         Float = false,
         HideText = false,
@@ -1734,63 +2223,63 @@ GUB.DefaultUB.Default = {
       },
       BackgroundMoon = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BackgroundSun = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
         Color = {r = 0, g = 0, b = 0, a = 1},
       },
       BackgroundPower = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BackgroundSlider = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BackgroundIndicator = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BarMoon = {
         Advanced = false,
@@ -1870,6 +2359,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         },
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- ShadowBar
     ShadowBar = {
@@ -1888,10 +2397,11 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        MaxResource = false,
+        Value = 0.50,
       },
       Layout = {
         BoxMode = false,
+        EnableTriggers = false,
         HideRegion = false,
         Swap = false,
         Float = false,
@@ -1914,32 +2424,38 @@ GUB.DefaultUB.Default = {
       },
       Region = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0.156, g = 0.156, b = 0.156, a = 1}
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.156, g = 0.156, b = 0.156, a = 1},
+        EnabelBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0.329, g = 0.172, b = 0.337, a = 1,
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
         },
       },
       Bar = {
@@ -1956,6 +2472,26 @@ GUB.DefaultUB.Default = {
           {r = 0.729, g = 0.466, b = 1, a = 1}, -- 1
           {r = 0.729, g = 0.466, b = 1, a = 1}, -- 2
           {r = 0.729, g = 0.466, b = 1, a = 1}, -- 3
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
         },
       },
     },
@@ -1976,10 +2512,12 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        MaxResource = false,
+        ShowExtraChiOrb = true,
+        Value = 0.50,
       },
       Layout = {
         BoxMode = false,
+        EnableTriggers = false,
         HideRegion = false,
         Swap = false,
         Float = false,
@@ -2002,26 +2540,24 @@ GUB.DefaultUB.Default = {
       },
       Region = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
-        Color = {r = 0.113, g = 0.192, b = 0.188, a = 1}
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+        EnabelBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,
@@ -2030,6 +2566,16 @@ GUB.DefaultUB.Default = {
           {r = 0, g = 0, b = 0, a = 1}, -- 3
           {r = 0, g = 0, b = 0, a = 1}, -- 4
           {r = 0, g = 0, b = 0, a = 1}, -- 5
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+          {r = 1, g = 1, b = 1, a = 1},  -- 5
         },
       },
       Bar = {
@@ -2050,6 +2596,26 @@ GUB.DefaultUB.Default = {
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
         },
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
 -- MaelstromBar
     MaelstromBar = {
@@ -2068,9 +2634,11 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false,
       },
       TestMode = {
-        MaxResource = false,
+        Value = 0.50,
+        Time = 0.50,
       },
       Layout = {
+        EnableTriggers = false,
         Swap = false,
         Float = false,
         ReverseFill = false,
@@ -2097,14 +2665,12 @@ GUB.DefaultUB.Default = {
       },
       BackgroundCharges = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,
@@ -2114,18 +2680,28 @@ GUB.DefaultUB.Default = {
           {r = 0, g = 0, b = 0, a = 1},  -- 4
           {r = 0, g = 0, b = 0, a = 1},  -- 5
         },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+          {r = 1, g = 1, b = 1, a = 1},  -- 5
+        },
       },
       BackgroundTime = {
         PaddingAll = true,
-        BackdropSettings = {
-          BgTexture = DefaultBgTexture,
-          BdTexture = DefaultBdTexture,
-          BgTile = false,
-          BgTileSize = 16,
-          BdSize = 12,
-          Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        },
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BarCharges = {
         Advanced = false,
@@ -2182,6 +2758,26 @@ GUB.DefaultUB.Default = {
           Color = {r = 1, g = 1, b = 1, a = 1},
         }
       },
+      Triggers = {
+        _DC = 0,
+        MinimizeAll = false,
+        GroupNumber = 1,
+        Action = 'none',
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Minimize = false,
+          Name = '',
+          GroupNumber = 1,
+          Value = 1,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          Condition = '>',
+          Pars = {1, 1, 1, 1},
+        },
+      },
     },
   },
 }
@@ -2202,11 +2798,12 @@ To drag any bar around the screen use the left mouse button while pressing any m
 |cff00ff00Status|r
 All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flags it can't override is never show and hide not usable.
 
-   Hide not Usable       Disable and hides the bar if it's not usable by the class or spec.
-   Hide when Dead      Hide the bar when the player is dead.
-   Hide in Vehicle        Hide the bar if a vehicle.
-   Hide in Pet Battle     Hide the bar if in a pet battle.
-   Hide not Active        Hide the bar when it's not active and out of combat.
+   Hide not Usable      Disable and hides the bar if it's not usable by the class or spec.
+   Show Always          Always show the bar.  This doesn't override Hide not usable.
+   Hide when Dead       Hide the bar when the player is dead.
+   Hide in Vehicle      Hide the bar if a vehicle.
+   Hide in Pet Battle   Hide the bar if in a pet battle.
+   Hide not Active      Hide the bar when it's not active and out of combat.
    Hide no Combat       Hide the bar when not in combat.
 
 
@@ -2230,23 +2827,23 @@ For Text: |Cffffff00https://www.youtube.com/watch?v=mQVCDJLrCNI|r
 UI escape codes: |Cffffff00http://www.wowwiki.com/UI_escape_sequences|r
 
 
-|cff00ff00Eclipse Bar - Predicted Power|r
-When predicted eclipse power is turned on.  The mod will show what state the eclipse bar will be in before the cast is finished.
-
-
 |cff00ff00Copy and Paste|r
 Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar in the options and click the same button to do the paste.  For text lines you can copy and paste within the same bar or to another bar.
 
 
 |cff00ff00Align and Swap|r
-Right click on any bar to open this tool up.  Then click on align or swap.
-Align will allow you to line up a bar with another bar.  Just drag the bar near another till you see a green rectangle.  The bar will then jump next the other bar based on where you place it.  You can keep doing this with more bars.  The tool remembers all the bars you aligned as long as you don't close the tool or uncheck align or switch to swap.
+Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar in the options and click the same button to do the paste.  For text lines you can copy and paste within the same bar or to another bar.
+
+* Align and Swap
+Right click on any bar to open this tool up.  Then click on align or swap. Align will allow you to line up a bar with another bar.  Just drag the bar near another till you see a green rectangle.  The bar will then jump next to the other bar based on where you place it.  You can keep doing this with more bars.  The tool remembers all the bars you aligned as long as you don't close the tool or uncheck align or switch to swap.
 
 You can use vertical or horizontal padding to space apart the aligned bars.  The vertical only works for bars that were aligned vertically and the same for horizontal.  Once you have 2 or more aligned bars they become an aligned group.  Then you can use offsets to move the group.
 
 If you choose swap, then when you drag the bar near another bar. It will have a red rectangle around it.  Soon as you place it there the two bars will switch places.
 
-This same tool can be used on bar objects.  When you go to the bar options under layout you'll see swap and float.  Clicking float will open up the align tool further down.
+This same tool can be used on bar objects.  When you go to the bar options under layout you'll see swap and float. Clicking float will open up the align tool further down.
+
+You can also set the bar position manually by unchecking align.  You'll have a Horizontal and Vertical input box just type in the location.  Moving the bar will automatically update the input boxes with the new location.
 
 For more you can watch the video:
 |Cffffff00http://www.youtube.com/watch?v=STYa5d6riuk|r
@@ -2256,6 +2853,39 @@ For more you can watch the video:
 When in test mode the bars will behave as if they were unlocked.  But you can't click on them.  Test mode allows you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
 
 Additional options will be found at the option panel for the bar when test mode is active
+
+
+|cff00ff00Triggers|r
+Triggers let you create an option that will only become active when a condition is met.
+
+When you first go to triggers you'll see a pull down called Bar Object.  Health and power bars only have one bar object, but bars like Ember Bar have more than one.  Select the bar object you want if there is more than one.  Then click the add button.
+You'll then see a trigger options panel come up.  There is no limit to how many triggers you can create, create too many and you may experience lag in the options panel.  Minimizing can help with this.
+
+Action: The action pull down lets you pick an action.  Then a UI option will become visible.
+
+  Add       Adds another copy of the current trigger.
+  Delete    Removes the current trigger.
+  Name      Changes the name of the trigger (Bar Object name) will be appear before the name.
+  Swap      Lets you swap one trigger with another.
+  Disable   Deactivates a trigger.  Triggers that are disabled do not consume cpu.
+  Move      Move a trigger to a different bar object.
+  Copy      Copy a trigger to a different bar object.
+  None      To prevent accidents.
+
+Value Type: lets you pick what type of value you want to trigger off of.  Each bar has its own set of value types.
+Type: lets you pick different parts of the bar.  Border, color, background, etc.
+
+Condition: The condition that needs to be met for the trigger to activate
+
+  <         Less than
+  >         Greater than
+  <=        Less than or equal
+  >=        Greater than or equal
+  =         Equal
+  <>        No equal
+  Static    Always on, static triggers use less cpu.
+
+Value: The value you want to trigger off of based on condition.  If the condition is met the trigger will activate. For percentages only 0 to 100 needs to be entered.
 
 
 |cff00ff00Profiles|r
@@ -2268,23 +2898,14 @@ GUB.DefaultUB.MessageText = [[
 
 Tons of changes have been made.  Please read the help text.  If something is not working please check that bar's settings.
 
-|cff00ff00Eclipse Bar|r
-Sun and Moon offsets have been removed.  Use float mode and alignment to offset these.
 
 |cff00ff00New Features|r
-Anticipation bar for rogues and Maelstrom bar for shaman added.
-Smooth Fill:  Makes a bar change smoothly when its value changes.
-Align and Swap:  Replaces the alingment tool. Can also be used on boxes in a bar.
-Slope:  Adds a curve to a bar when vertical or horizontal.
-Test Mode:  Make changes to bars without having to use combat to do it.
-Hide Location Info:  Bars show their current location when being moved.  This hides it.
-Border Padding:  Sets the amount of distance between the boxes and the bars border.
-Float:  Same as the rune bars.  When in float the bars objects can be moved anywhere.
-Texture Scale:  Changes the size of any textures when not in box mode.
-Hide Text:  Hides any text displayed by the bar.
+* GUB Square Border added for border texture. This can be used thru shared media.
+* Border color can be changed.  Found under Region and Background options.
+* In testmode you can change the resource value up or down.  You can use this to test triggers without being in combat.
+* Triggers - Can change color, textures, or play a sound, etc.  When a condition is met based on the resource value, time, etc.
+* Align and Swap has bar location setting.  Align has to be turned off first.  The bar that was right clicked on is the one that you can set the location to.
+* Reset Defauls has been recoded as reset.  You can choose what parts of the bar to reset.
 
 For a full list of changes go to http://www.curse.com/addons/wow/galvins-unitbars
 ]]
-
-
-

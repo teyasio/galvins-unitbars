@@ -10,6 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
@@ -17,12 +18,12 @@ local ConvertPowerType = Main.ConvertPowerType
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -53,6 +54,11 @@ local C_PetBattles, UIParent =
 -- Runes                             ChangeTexture number for RuneLightTexture and RuneBar.
 -- Display                           Flag used to determin if a Display() call is needed.
 --
+-- AnyRuneTrigger                    Trigger for any rune that is currently active.
+-- RegionTrigger                     Trigger for region changes.
+-- TriggerGroups                     Table containing boxnumber and condition type for triggers.
+-- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+--                                   self:Update(DoTriggers)
 -- HolyData                          Contains the data to create the holy bar.
 --   Texture                         Texture that contains the holy runes.
 --   BoxWidth, BoxHeight             Size of the boxes in texture mode.
@@ -66,6 +72,7 @@ local C_PetBattles, UIParent =
 -------------------------------------------------------------------------------
 local MaxHolyRunes = 5
 local Display = false
+local DoTriggers = false
 
 -- Powertype constants
 local PowerHoly = ConvertPowerType['HOLY_POWER']
@@ -79,6 +86,23 @@ local Runes = 3
 local RuneSBar = 10
 local RuneDarkTexture = 12
 local RuneLightTexture = 13
+
+local AnyRuneTrigger = 6
+local RegionTrigger = 7
+local TGBoxNumber = 1
+local TGName = 2
+local TGValueTypes = 3
+local VTs = {'whole:Holy Power'}
+local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
+  {1,  'Holy Rune 1',    VTs},                 -- 1
+  {2,  'Holy Rune 2',    VTs},                 -- 2
+  {3,  'Holy Rune 3',    VTs},                 -- 3
+  {4,  'Holy Rune 4',    VTs},                 -- 4
+  {5,  'Holy Rune 5',    VTs},                 -- 5
+  {0,  'Any Holy Rune', {'boolean:Active'}},   -- 6
+  {-1, 'Region',         VTs},                 -- 7
+}
+
 
 local HolyData = {
   Texture = [[Interface\PlayerFrame\PaladinPowerTextures]],
@@ -130,13 +154,14 @@ Main.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
 -- Update the holy power level of the player
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
+--              'update' bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -149,17 +174,24 @@ function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
 
   local BBar = self.BBar
   local HolyPower = UnitPower('player', PowerHoly)
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   if Main.UnitBars.Testing then
-    if self.UnitBar.TestMode.MaxResource then
-      HolyPower = MaxHolyRunes
-    else
-      HolyPower = 0
-    end
+    HolyPower = floor(MaxHolyRunes * self.UnitBar.TestMode.Value)
   end
 
   for RuneIndex = 1, MaxHolyRunes do
+    if EnableTriggers then
+      BBar:SetTriggers(AnyRuneTrigger, 'active', RuneIndex <= HolyPower, nil, RuneIndex)
+      BBar:SetTriggers(RuneIndex, 'holy power', HolyPower)
+    end
+
     BBar:ChangeTexture(Runes, 'SetHiddenTexture', RuneIndex, RuneIndex > HolyPower)
+  end
+
+  if EnableTriggers then
+    BBar:SetTriggers(RegionTrigger, 'holy power', HolyPower)
+    BBar:DoTriggers()
   end
 
   -- Set this IsActive flag
@@ -202,6 +234,52 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          for GroupNumber = 1, #TriggerGroups do
+            local TG = TriggerGroups[GroupNumber]
+            local BoxNumber = TG[TGBoxNumber]
+
+            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
+            if BoxNumber ~= -1 then
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, RuneSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, RuneSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_TextureSize,           TT.Type_TextureSize,           'SetScaleTexture', BoxNumber, RuneDarkTexture, RuneLightTexture)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', BoxNumber)
+            else
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorder,          TT.Type_RegionBorder,          'SetBackdropBorderRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,     'SetBackdropBorderColorRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackground,      TT.Type_RegionBackground,      'SetBackdropRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor, 'SetBackdropColorRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', 1)
+            end
+          end
+          -- Set the texture scale for Texture Size triggers.
+          BBar:SetScaleTexture(0, RuneDarkTexture, 1)
+          BBar:SetScaleTexture(0, RuneLightTexture, 1)
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
     BBar:SO('Layout', 'BoxMode',        function(v)
       if v then
 
@@ -231,11 +309,35 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    BBar:SO('Region', 'BackdropSettings', function(v) BBar:SetBackdropRegion(v) end)
-    BBar:SO('Region', 'Color',            function(v) BBar:SetBackdropColorRegion(v.r, v.g, v.b, v.a) end)
+    BBar:SO('Region', 'BgTexture',     function(v) BBar:SetBackdropRegion(v) end)
+    BBar:SO('Region', 'BorderTexture', function(v) BBar:SetBackdropBorderRegion(v) end)
+    BBar:SO('Region', 'BgTile',        function(v) BBar:SetBackdropTileRegion(v) end)
+    BBar:SO('Region', 'BgTileSize',    function(v) BBar:SetBackdropTileSizeRegion(v) end)
+    BBar:SO('Region', 'BorderSize',    function(v) BBar:SetBackdropBorderSizeRegion(v) end)
+    BBar:SO('Region', 'Padding',       function(v) BBar:SetBackdropPaddingRegion(v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Region', 'Color',         function(v) BBar:SetBackdropColorRegion(v.r, v.g, v.b, v.a) end)
+    BBar:SO('Region', 'BorderColor',   function(v, UB)
+      if UB.Region.EnableBorderColor then
+        BBar:SetBackdropBorderColorRegion(v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropBorderColorRegion(nil)
+      end
+    end)
 
-    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(0, BoxMode, v) end)
-    BBar:SO('Background', 'Color',            function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(0, BoxMode, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(0, BoxMode, v) end)
+    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(0, BoxMode, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(0, BoxMode, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(0, BoxMode, v) end)
+    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
+      if UB.Background.EnableBorderColor then
+        BBar:SetBackdropBorderColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a)
+      else
+        BBar:SetBackdropBorderColor(OD.Index, BoxMode, nil)
+      end
+    end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, RuneSBar, v) end)
     BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, RuneSBar, v) end)
@@ -247,8 +349,9 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
-    self:Update()
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
   end
 
   if Display then
@@ -267,7 +370,9 @@ end
 function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxHolyRunes)
 
-  local ColorAllNames = {}
+  local Names = {Trigger = {}, Color = {}}
+  local Trigger = Names.Trigger
+  local Color = Names.Color
   local DarkColor = HolyData.DarkColor
 
   -- Create box mode.
@@ -294,12 +399,16 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:SetCoordTexture(RuneIndex, RuneLightTexture, HD.Left, HD.Right, HD.Top, HD.Bottom)
 
      -- Set and save the name for tooltips for box mode.
-    local Name = 'Holy Rune ' .. RuneIndex
+    local Name = TriggerGroups[RuneIndex][TGName]
 
     BBar:SetTooltip(RuneIndex, nil, Name)
 
-    ColorAllNames[RuneIndex] = Name
+    Color[RuneIndex] = Name
+    Trigger[RuneIndex] = Name
   end
+
+  Trigger[AnyRuneTrigger] = TriggerGroups[AnyRuneTrigger][TGName]
+  Trigger[RegionTrigger] = TriggerGroups[RegionTrigger][TGName]
 
   BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)
   BBar:SetSizeTextureFrame(0, TextureMode, HolyData.BoxWidth, HolyData.BoxHeight)
@@ -307,9 +416,9 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(Runes, RuneLightTexture, RuneSBar)
   BBar:SetHiddenTexture(0, RuneDarkTexture, false)
 
-  BBar:SetTooltipRegion(UB.Name)
-  UnitBarF.ColorAllNames = ColorAllNames
+  BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

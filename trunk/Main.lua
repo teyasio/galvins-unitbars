@@ -11,6 +11,7 @@ local MyAddon, GUB = ...
 local DefaultUB = GUB.DefaultUB
 local Version = DefaultUB.Version
 local DUB = DefaultUB.Default.profile
+local InCombatOptionsMessage = GUB.DefaultUB.InCombatOptionsMessage
 
 local Main = {}
 local UnitBarsF = {}
@@ -44,12 +45,12 @@ local MistsVersion = select(4, GetBuildInfo()) >= 50000
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -71,6 +72,7 @@ local C_PetBattles, UIParent =
 LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar.tga]])
 LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar.tga]])
 LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Textures\GUB_EmptyBar.tga]])
+LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]])
 
 ------------------------------------------------------------------------------
 -- Unitbars frame layout and animation groups.
@@ -141,6 +143,13 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 --
 --
 -- UnitBar mod upvalues/tables.
+--
+-- Main.ProfileChanged    - If true then profile is currently being changed. This is set by SetUnitBars()
+-- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
+-- Main.UnitBars          - Set by SharedData()
+-- Main.PlayerClass       - Set by SharedData()
+-- Main.PlayerPowerType   - Set by SharedData()
+-- Main.InCombat          - set by UnitBarsUpdateStatus()
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
@@ -527,6 +536,7 @@ do
     if type(UB) == 'table' and UB.Name then
       Index = Index + 1
       local UBFTable = CreateFrame('Frame')
+
       UnitBarsF[BarType] = UBFTable
       UnitBarsFE[Index] = UBFTable
     end
@@ -735,7 +745,7 @@ end
 --   []               Array of Keys.
 --     Key            If action is movetable then the key is the sub table to move.
 --                    The key only needs to partially match the key found in unitbars[BarType]
---                    A key can have two different prefixes:
+--                    A key can have three different prefixes:
 --                      ! Will take the value if boolean and flip it before copying or moving the value.
 --                        If the value is a number it will flip its sign. So negative to positive.
 --                      = Will make the key have to match exactly to what is found in unitbars.  If the
@@ -820,9 +830,11 @@ local function ConvertCustom(BarType, SourceUB, DestUB, SourceKey, DestKey)
   end
 end
 
-local function ConvertUnitBarData()
+local function ConvertUnitBarData(Ver)
   local KeysFound = {}
-  local ConvertUBData = {
+  local ConvertUBData = nil
+
+  local ConvertUBData1 = {
     {Action = 'custom',                                                 'RuneBarOrder', 'RuneLocation'},
     {Action = 'custom',    Source = 'General', Dest = 'Layout',         'RuneSize', 'IndicatorHideShow', 'RuneMode', 'EnergizeShow'},
 
@@ -855,10 +867,47 @@ local function ConvertUnitBarData()
     {Action = 'custom',    Source = '', '=Text'},
   }
 
-  local AlignmentToolEnabled = UnitBars.AlignmentToolEnabled
-  if AlignmentToolEnabled ~= nil then
-    UnitBars.AlignAndSwapEnabled = AlignmentToolEnabled
-    UnitBars.AlignmentToolEnabled = nil
+  local ConvertUBData2 = {
+    {Action = 'movetable', Source = 'Region.BackdropSettings',              Dest = 'Region',              'Padding'},
+    {Action = 'movetable', Source = 'Background.BackdropSettings',          Dest = 'Background',          'Padding'},
+    {Action = 'movetable', Source = 'BackgroundCharges.BackdropSettings',   Dest = 'BackgroundCharges',   'Padding'},
+    {Action = 'movetable', Source = 'BackgroundTime.BackdropSettings',      Dest = 'BackgroundTime',      'Padding'},
+    {Action = 'movetable', Source = 'BackgroundMoon.BackdropSettings',      Dest = 'BackgroundMoon',      'Padding'},
+    {Action = 'movetable', Source = 'BackgroundSun.BackdropSettings',       Dest = 'BackgroundSun',       'Padding'},
+    {Action = 'movetable', Source = 'BackgroundPower.BackdropSettings',     Dest = 'BackgroundPower',     'Padding'},
+    {Action = 'movetable', Source = 'BackgroundSlider.BackdropSettings',    Dest = 'BackgroundSlider',    'Padding'},
+    {Action = 'movetable', Source = 'BackgroundIndicator.BackdropSettings', Dest = 'BackgroundIndicator', 'Padding'},
+
+    {Action = 'move', Source = 'Region.BackdropSettings',              Dest = 'Region',              'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'Background.BackdropSettings',          Dest = 'Background',          'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundCharges.BackdropSettings',   Dest = 'BackgroundCharges',   'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundTime.BackdropSettings',      Dest = 'BackgroundTime',      'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundMoon.BackdropSettings',      Dest = 'BackgroundMoon',      'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundSun.BackdropSettings',       Dest = 'BackgroundSun',       'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundPower.BackdropSettings',     Dest = 'BackgroundPower',     'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundSlider.BackdropSettings',    Dest = 'BackgroundSlider',    'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+    {Action = 'move', Source = 'BackgroundIndicator.BackdropSettings', Dest = 'BackgroundIndicator', 'BgTexture', 'BdTexture:BorderTexture',
+                                                                                                     '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
+  }
+
+  if Ver == 1 then -- First time conversion
+    ConvertUBData = ConvertUBData1
+
+    local AlignmentToolEnabled = UnitBars.AlignmentToolEnabled
+    if AlignmentToolEnabled ~= nil then
+      UnitBars.AlignAndSwapEnabled = AlignmentToolEnabled
+      UnitBars.AlignmentToolEnabled = nil
+    end
+  elseif Ver == 2 then -- For version 210 or lower.
+    ConvertUBData = ConvertUBData2
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -948,7 +997,6 @@ local function ConvertUnitBarData()
 
             -- delete empty table
             if next(SourceUB) == nil then
-              Main:ListTable(SourceUB)
               Main:DelUB(BarType, SourceTable)
             end
           end
@@ -1099,7 +1147,7 @@ local function SetUnitBarSize(self, Width, Height, OffsetX, OffsetY)
   UB.x, UB.y = x, y
 
   -- Update alignment if alignswap is open
-  if Options.AlignSwapOpen then
+  if Options.AlignSwapOptionsOpen then
     Main:SetUnitBarsAlignSwap()
   end
 end
@@ -1115,10 +1163,10 @@ end
 --   usage: SetTimer(Table, nil)
 --
 -- Table    Must be a table.
--- Delay    Amount of time to delay after each call to Fn()
+-- Delay    Amount of time to delay after each call to Fn(). First call happens after Delay seconds.
 -- TimerFn  Function to be added. If nil then the timer will be stopped.
 --
--- NOTE:  TimerFn will be called as TimerFn(Frame, Elapsed) from AnimationGroup in StartTimer()
+-- NOTE:  TimerFn will be called as TimerFn(Table, Elapsed) from AnimationGroup in StartTimer()
 --        See CheckSpellTrackerTimeout() on how this is used.
 --
 --        To reduce garbage.  Only a new StartTimer() will get created when a new table is passed.
@@ -1478,7 +1526,13 @@ function GUB.Main:ListTable(Table, Path)
 
       Main:ListTable(v, Path .. '.' .. k)
     else
-      print(Path .. '.' .. k .. ' = ', v)
+      if type(k) == 'table' or type(k) == 'function' then
+        local _, Address = strsplit(' ', tostring(k), 2)
+
+        print(Path .. '.' .. Address .. ' = ', v)
+      else
+        print(Path .. '.' .. k .. ' = ', v)
+      end
     end
   end
 end
@@ -1487,7 +1541,7 @@ end
 -- Check
 --
 -- Checks if the tablepath leads to data in a table.
--- If the check fails false is returned otherise true.
+-- If the check fails false is returned otherwise true.
 --
 -- BarType              Table data for that bar.
 -- Table                Table to seach in.  Must have same format as a UnitBar table.
@@ -1523,13 +1577,14 @@ end
 --
 -- Gets a value or a table from a table based on BarType
 --
--- BarType      Table of bartype
+-- BarType      Type of bar to copy
 -- TablePath    String delimited by a '.'  Example 'table.1' = table[1] or 'table.subtable' = table['subtable']
 -- Table        If not nil then this table will be searched instead.  Must have a unitbar table format.
 --
 -- Returns:
 --   Value        Table or value returned
 --   DC           If true then a _DC tag was found. _DC tag is only searched in default unitbars.
+--   Array        True if '#' is found after the last table in the path.
 --
 -- Notes:  If nil is found at anytime then a nil is returned.
 --         If TablePath is '' or nil then UnitBars[BarType] is returned.
@@ -1539,6 +1594,7 @@ function GUB.Main:GetUB(BarType, TablePath, Table)
   local DUBValue = DUB[BarType]
   local DC = false
   local Key = nil
+  local Array = nil
 
   if TablePath == '' then
     TablePath = nil
@@ -1554,6 +1610,7 @@ function GUB.Main:GetUB(BarType, TablePath, Table)
 
       -- Get value by array index or hash index.
       local Key = tonumber(Key) or Key
+
       Value = Value[Key]
       if DUBValue then
         DUBValue = DUBValue[Key]
@@ -1561,13 +1618,18 @@ function GUB.Main:GetUB(BarType, TablePath, Table)
 
       if type(Value) ~= 'table' then
         break
+      else
+        if TablePath == '#' then
+          TablePath = nil
+          Array = true
+        end
       end
     else
       break
     end
   end
 
-  return Value, DC
+  return Value, DC, Array
 end
 
 -------------------------------------------------------------------------------
@@ -1612,38 +1674,53 @@ end
 -- Source        Table to copy from.
 -- Dest          Table to copy to.
 -- DC            If true deep copies to the destination, but keeps the original.
---               table pointer intact.
+--               table address intact.
+-- Array         If not nil then will copy Array index from source only. Sub tables
+--               dont need to be array indexes only.
 --
 -- NOTES: Types need to match, so the source found has to have the same type
 --        in the destination.
 --        Any source keys that start with an '_' will not get copied.  Even if DC is true.
+--        If DC is true the dest table gets emptied prior to copy. If DC is true and
+--        Array is true then only the array part of the table gets emptied.
 -------------------------------------------------------------------------------
-local function CopyTable(Source, Dest, DC)
+local function CopyTable(Source, Dest, DC, Array)
   for k, v in pairs(Source) do
     local d = Dest[k]
     local ts = type(v)
 
     if (DC or ts == type(d)) and strsub(k, 1, 1) ~= '_' then
-      if ts == 'table' then
-        if d == nil then
-          d = {}
-          Dest[k] = d
+      if Array == nil or type(k) == 'number' then
+        if ts == 'table' then
+          if d == nil then
+            d = {}
+            Dest[k] = d
+          end
+          CopyTable(v, d, DC)
+        else
+          Dest[k] = v
         end
-        CopyTable(v, d, DC)
-      else
-        Dest[k] = v
       end
     end
   end
 end
 
-function GUB.Main:CopyTableValues(Source, Dest, DC)
+function GUB.Main:CopyTableValues(Source, Dest, DC, Array)
   if DC then
+    if Array == nil then
 
-    -- Empty table for deep copy
-    wipe(Dest)
+      -- Empty table for deep copy
+      wipe(Dest)
+    else
+      -- Empty array indexes only
+      for k, _ in pairs(Dest) do
+        if type(k) == 'number' then
+          Dest[k] = nil
+        end
+      end
+    end
   end
-  CopyTable(Source, Dest, DC)
+  CopyTable(Source, Dest, DC, Array)
 end
 
 -------------------------------------------------------------------------------
@@ -1686,9 +1763,11 @@ end
 --
 -- Copies all the data from one unitbar to another based on the TablePath
 --
--- Source            BarType or Table
--- Dest              BarType or Table
+-- Source            BarType
+-- Dest              BarType
 -- SourceTablePath   Path leading to the table or value to copy for source
+--                   Source path can have a '#' at the end to copy Array
+--                   index only.
 -- DestTablePath     Path leading to the table or value to copy for destination
 --
 -- NOTE:  If the _DC tag is found anywhere along the tablepath then a deep
@@ -1696,11 +1775,11 @@ end
 --        If path is not found in either source or dest no copy is done.
 -------------------------------------------------------------------------------
 function GUB.Main:CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
-  local Source, SourceDC = Main:GetUB(Source, SourceTablePath)
+  local Source, SourceDC, Array = Main:GetUB(Source, SourceTablePath)
   local Dest, DestDC = Main:GetUB(Dest, DestTablePath)
 
   if Source and Dest then
-    Main:CopyTableValues(Source, Dest, SourceDC and DestDC)
+    Main:CopyTableValues(Source, Dest, SourceDC and DestDC, Array)
   end
 end
 
@@ -1710,8 +1789,6 @@ end
 -- Finishes a fading animation or skips to the end of one.
 --
 -- Subfunction of SetAnimation()
---
--- Usage: FinishAnimation(self, NewAction)
 --
 -- self       Animation group to finish (Fade)
 -- NewAction  If specified will use this instead of self.Action
@@ -1736,13 +1813,74 @@ local function FinishAnimation(self, NewAction)
 end
 
 -------------------------------------------------------------------------------
+-- PauseAnimation
+--
+-- Stops and starts up the current fade animation without showing any interruption.
+--
+-- Subfunction of SetAnimation()
+--
+-- Fade          Animation group to pause.
+--
+-- This was made because when a fade is finished playing.  It sets the last alpha
+-- color before the fade started.  So there are times when the color needs to change
+-- while fading.  And thats what this fixes.  Blame blizzard for these bugs.
+-------------------------------------------------------------------------------
+local function PauseAnimation(Fade)
+  local Duration = nil
+  local FadeA = Fade.FadeA
+  local Action = Fade.Action
+  local Change = 0
+  local Object = Fade.Object
+  local Alpha = Object:GetAlpha()
+
+  Fade:SetScript('OnFinished', nil)
+  Fade:Stop()
+
+  Fade.PauseAlpha = Alpha
+end
+
+-------------------------------------------------------------------------------
+-- ResumeAnimation
+--
+-- Stops and starts up the current fade animation without showing any interruption.
+--
+-- Subfunction of SetAnimation()
+--
+-- Fade          Animation group to resume.
+-------------------------------------------------------------------------------
+local function ResumeAnimation(Fade)
+  local Duration = nil
+  local FadeA = Fade.FadeA
+  local Action = Fade.Action
+  local Alpha = Fade.PauseAlpha
+  local Change = 0
+
+  Fade.Object:SetAlpha(Alpha)
+
+  if Action == 'in' then
+    Duration = Fade.DurationIn
+    Alpha = 1 - Alpha
+    Change = 1
+  else
+    Duration = Fade.DurationOut
+    Change = -1
+  end
+
+  -- Starting a new fade, set the script.
+  Fade:SetScript('OnFinished', FinishAnimation)
+
+  -- Set and play the fade.
+  FadeA:SetChange(Change)
+  FadeA:SetDuration(Duration * Alpha)
+  Fade:Play()
+end
+
+-------------------------------------------------------------------------------
 -- PlayAnimation
 --
 -- Plays a fading animation.
 --
 -- Subfunction of SetAnimation()
---
--- Usage: PlayAnimation(Fade, Action, ReverseFade)
 --
 -- Fade          Animation group to play.
 -- Action        Must be 'in' or 'out'
@@ -1814,10 +1952,12 @@ end
 -- Usage:  Fade:SetAnimation(Action)
 --
 -- self        Animation group (Fade)
--- Action      'in'       Starts fading animation in. Stops any old animation first or reverses.
---             'out'      Starts fading animation out. Stops any old animation first or reverses.
---             'stop'     Stops fading animation and calls Fn
---             'stopall'  Stops all animation.
+-- Action      'in'          Starts fading animation in. Stops any old animation first or reverses.
+--             'out'         Starts fading animation out. Stops any old animation first or reverses.
+--             'stop'        Stops fading animation and calls Fn
+--             'stopall'     Stops all animation.
+--             'pause'       Stops animation, but allows continue with 'resume'.
+--             'resume'      Resumes where animation left off from 'pause'.
 --
 -- NOTE:  The perpose of this function is to never let a child frame fade in or out
 --        while the parent is fading.  If this were to happen the alpha state of
@@ -1843,6 +1983,18 @@ local function SetAnimation(self, Action)
     end
     return
   end
+
+  if Action == 'pause' or Action == 'resume' then
+    if FadeAction then
+      if Action == 'pause' then
+        PauseAnimation(self)
+      else
+        ResumeAnimation(self)
+      end
+    end
+    return
+  end
+
   if Action == 'in' or Action == 'out' then
     if FadeAction then
       if FadeAction ~= Action then
@@ -2872,6 +3024,25 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization()
 
+  Main.InCombat = InCombat
+
+  -- Close options when in combat.
+  if InCombat then
+    local Closed = false
+
+    if Options.AlignSwapOptionsOpen then
+      Options:CloseAlignSwapOptions()
+      Closed = true
+    end
+    if Options.MainOptionsOpen then
+      Options:CloseMainOptions()
+      Closed = true
+    end
+    if Closed then
+      print(InCombatOptionsMessage)
+    end
+  end
+
   for _, UBF in ipairs(UnitBarsFE) do
     UBF:StatusCheck()
     UBF:Update()
@@ -2891,7 +3062,7 @@ function GUB.Main:UnitBarStartMoving(Frame, Button)
 
   -- Handle selection of unitbars for the alignment tool.
   if Button == 'RightButton' and UnitBars.AlignAndSwapEnabled and not IsModifierKeyDown() then
-    Options:OpenAlignSwapOptions()
+    Options:OpenAlignSwapOptions(Frame)  -- Frame is anchor
     return false
   end
 
@@ -2903,7 +3074,7 @@ function GUB.Main:UnitBarStartMoving(Frame, Button)
       UnitBarsParent:StartMoving()
     else
       Frame.IsMoving = true
-      if Options.AlignSwapOpen then
+      if Options.AlignSwapOptionsOpen then
         Main:MoveFrameStart(UnitBarsFE, Frame, UnitBars)
       else
         Main:MoveFrameStart(UnitBarsFE, Frame)
@@ -2923,9 +3094,14 @@ end
 function GUB.Main:SetUnitBarsAlignSwap()
   if not UnitBars.Align then
     Main:MoveFrameSetAlignPadding(UnitBarsFE, 'reset')
+
+    -- Update bar location info in the alignswap options window.
+    Options:RefreshAlignSwapOptions()
   else
     Main:MoveFrameSetAlignPadding(UnitBarsFE, UnitBars.AlignSwapPaddingX, UnitBars.AlignSwapPaddingY, UnitBars.AlignSwapOffsetX, UnitBars.AlignSwapOffsetY)
   end
+
+  -- Make sure all frame locations are saved.
   for _, UBF in ipairs(UnitBarsFE) do
     local UB = UBF.UnitBar
     local Anchor = UBF.Anchor
@@ -2955,7 +3131,7 @@ function GUB.Main:UnitBarStopMoving(Frame)
   elseif Frame.IsMoving then
     Frame.IsMoving = false
     Main:MoveFrameStop(UnitBarsFE)
-    if Options.AlignSwapOpen then
+    if Options.AlignSwapOptionsOpen then
       Main:SetUnitBarsAlignSwap()
     else
       local x, y = Bar:GetRect(Frame)
@@ -2983,7 +3159,7 @@ end
 -- Activates the current settings in UnitBars.
 --
 -- IsLocked
--- AlignmentToolEnabled
+-- AlignAndSwapEnabled
 -- IsClamped
 -- FadeOutTime
 -- FadeInTime
@@ -2996,7 +3172,7 @@ function GUB.Main:UnitBarsSetAllOptions()
   local FadeInTime = UnitBars.FadeInTime
 
   -- Update text highlight only when options window is open
-  if Options.MainOpen then
+  if Options.MainOptionsOpen then
     Bar:SetHighlightFont('on', UnitBars.HideTextHighlight)
   end
 
@@ -3296,12 +3472,13 @@ end
 --         * means a bartype like PlayerPower, EclipseBar, etc.
 --         # Means an array element.
 -------------------------------------------------------------------------------
-local function CleanUnitBars(DefaultTable, Table, TablePath)
-  local ExcludeList = {
+local function CleanUnitBars(DefaultTable, Table, TablePath, ExcludeList)
+  ExcludeList = ExcludeList or {
     ['Version'] = 1,
-    ['*.Text.#'] = 1,
     ['*.BoxLocations'] = 1,
     ['*.BoxOrder'] = 1,
+    ['*.Text.#'] = 1,
+    ['*.Triggers.#'] = 1,
   }
 
   if DefaultTable == nil then
@@ -3322,7 +3499,7 @@ local function CleanUnitBars(DefaultTable, Table, TablePath)
     if ExcludeList[format('%s%s', TablePath, PathKey)] == nil then
       if DefaultValue ~= nil then
         if type(Value) == 'table' then
-          CleanUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey))
+          CleanUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), ExcludeList)
         end
       else
         --print('CLEAN:', format('%s%s', TablePath, PathKey))
@@ -3337,15 +3514,20 @@ end
 -------------------------------------------------------------------------------
 function GUB:ApplyProfile()
   UnitBars = GUB.MainDB.profile
+  local Ver = UnitBars.Version
 
   -- Share the values with other parts of the addon.
   ShareData()
 
-  if UnitBars.Version == nil then
+  if Ver == nil then
     -- Convert profile from preversion 200.
-    ConvertUnitBarData()
+    ConvertUnitBarData(1)
   end
-  if UnitBars.Version ~= Version then
+  if Ver == nil or Ver < 300 then
+    -- Convert profile from a version before 3.00
+    ConvertUnitBarData(2)
+  end
+  if Ver ~= Version then
     CleanUnitBars()
     UnitBars.Version = Version
   end
@@ -3416,8 +3598,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 1 then
-    GUBData.ShowMessage = 1
+  if GUBData.ShowMessage ~= 2 then
+    GUBData.ShowMessage = 2
     ShowMessage(DefaultUB.MessageText)
   end
 end
