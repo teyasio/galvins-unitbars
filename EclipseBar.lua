@@ -17,6 +17,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
@@ -26,12 +27,12 @@ local ConvertPowerType = Main.ConvertPowerType
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -77,8 +78,13 @@ local C_PetBattles, UIParent =
 -- SpellEnergize                     SpellID for energize that come back from the server when
 --                                   Wrath, Starfire, or Starsurge is cast.
 -- PredictedSpellValue               Table containing the power that each of the spells gives.  Used for prediction.
+--
+-- TriggerGroups                     Table containing data needed to do DoTriggers() and create the trigger groups.
+-- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+--                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local Display = false
+local DoTriggers = false
 
 -- Powertype constants
 local PowerEclipse = ConvertPowerType['ECLIPSE']
@@ -110,6 +116,20 @@ local PredictedSpellValue = {
   [SpellWrath] = 15,
   [SpellStarfire] = 20,
   [SpellStarsurge] = 20
+}
+
+local TGBoxNumber = 1
+local TGTpar = 2
+local TGName = 3
+local TGValueTypes = 4
+local VTs = {'whole:Lunar Energy', 'whole:Solar Energy', 'whole:Lunar Energy (predicted)', 'whole:Solar Energy (predicted)',
+             'boolean:Solar Eclipse', 'boolean:Lunar Eclipse'}
+local TriggerGroups = { -- BoxNumber, TPar, Name, ValueTypes,
+  {MoonBox,  MoonSBar,      'Moon',      VTs}, -- 1
+  {SunBox,   SunSBar,       'Sun',       VTs}, -- 2
+  {PowerBox, 0,             'Power',     VTs}, -- 3
+  {PowerBox, SliderSBar,    'Slider',    VTs}, -- 4
+  {PowerBox, IndicatorSBar, 'Indicator', VTs}, -- 5
 }
 
 -------------------------------------------------------------------------------
@@ -287,7 +307,8 @@ local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Directi
  -- end
 
   -- Calc eclipse.
-  if Direction == 'moon' and Power > 0 and Power <= MaxPower or Direction == 'sun' and Power < 0 and Power >= -MaxPower then
+  if Direction == 'moon' and Power > 0 and Power <= MaxPower or
+     Direction == 'sun' and Power < 0 and Power >= -MaxPower then
 
     -- Set the eclipse state.
     Eclipse = PowerType
@@ -327,8 +348,8 @@ local function DisplayEclipseSlider(UB, BBar, KeyName, Power, MaxPower, Directio
   local Gen = UB.General
   local SliderDirection = Gen.SliderDirection
   local EclipseRotation = UB.Layout.Rotation
-  local BackgroundSlider = UB['Background' .. KeyName]
-  local BarSlider = UB['Bar' .. KeyName]
+  local BackgroundSlider = UB[format('Background%s', KeyName)]
+  local BarSlider = UB[format('Bar%s', KeyName)]
   local BarPower = UB.BarPower
   local BackgroundPower = UB.BackgroundPower
   local Slider = nil
@@ -349,7 +370,7 @@ local function DisplayEclipseSlider(UB, BBar, KeyName, Power, MaxPower, Directio
   if MaxPower > 0 then
     SliderPos = Power / MaxPower
   end
-  local BdSize = BackgroundPower.BackdropSettings.BdSize / 2
+  local BorderSize = BackgroundPower.BorderSize / 2
   local BarSize = 0
   local SliderSize = 0
 
@@ -364,9 +385,9 @@ local function DisplayEclipseSlider(UB, BBar, KeyName, Power, MaxPower, Directio
 
   -- Check the SliderInside option.  Need to divide by 2 since we have negative to positive coordinates.
   if Gen.SliderInside then
-    SliderPos = SliderPos * ((BarSize - BdSize - SliderSize) / 2)
+    SliderPos = SliderPos * ((BarSize - BorderSize - SliderSize) / 2)
   else
-    SliderPos = SliderPos * (BarSize - BdSize) / 2
+    SliderPos = SliderPos * (BarSize - BorderSize) / 2
   end
 
   if SliderDirection == 'VERTICAL' then
@@ -395,14 +416,14 @@ end
 -- Update the eclipse bar power, sun, and moon.
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
+--              'update' bypasses visible flag.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
-  if not self.Visible then
+  if Event ~= 'update' and not self.Visible then
     return
   end
-
   local BBar = self.BBar
 
   PowerType = PowerType and ConvertPowerType[PowerType] or PowerEclipse
@@ -441,23 +462,41 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   local PEclipse = nil
 
   if Testing then
-    if EclipseMaxPower == 0 then
-      EclipseMaxPower = 100
-    end
-    if UB.TestMode.ShowEclipseSun then
-      EclipseDirection = 'moon'
-      EclipsePower = EclipseMaxPower
-      SpellID = SpellStarsurge
-      Eclipse = 1
+    local TestMode = UB.TestMode
+    local TestEclipsePower = self.TestEclipsePower
+
+    SpellID = SpellStarsurge
+    EclipseMaxPower = 100
+    EclipsePower = floor(EclipseMaxPower * 2 * TestMode.Value) - abs(EclipseMaxPower)
+
+    if EclipsePower ~= TestEclipsePower then
+      if TestEclipsePower then
+        if EclipsePower < TestEclipsePower then
+          EclipseDirection = 'moon'
+        else
+          EclipseDirection = 'sun'
+        end
+      else
+        EclipseDirection = 'none'
+      end
+      self.TestEclipsePower = EclipsePower
+      self.TestEclipseDirection = EclipseDirection
     else
-      EclipseDirection = 'sun'
-      EclipsePower = EclipseMaxPower * -1
-      SpellID = SpellStarsurge
-      Eclipse = -1
+      EclipseDirection = self.TestEclipseDirection
     end
     EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
-  end
 
+    if abs(EclipsePower) == EclipseMaxPower then
+      Eclipse = EclipsePowerType
+      self.TestEclipse = Eclipse
+    else
+      Eclipse = self.TestEclipse or 0
+    end
+    if Eclipse == -1 and EclipsePower > 0 or Eclipse == 1 and EclipsePower < 0 then
+      Eclipse = 0
+      self.TestEclipse = 0
+    end
+  end
 
   -- Check hide slider option.
   if not HideSlider then
@@ -468,7 +507,7 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   if PredictedPower then
 
     -- Check to see if soul of the forest talent is active.
-   -- local SoTFActive = false --IsSpellKnown(SoTF)
+    -- local SoTFActive = false --IsSpellKnown(SoTF)
 
     local PowerChange = false
     PEclipseDirection = EclipseDirection
@@ -537,6 +576,33 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   BBar:SetHiddenTexture(PowerBox, LunarSBar, PowerHalfLit and EclipseDirection == 'sun')
   BBar:SetHiddenTexture(PowerBox, SolarSBar, PowerHalfLit and EclipseDirection == 'moon')
 
+  -- Triggers
+  if UB.Layout.EnableTriggers then
+    for Index = 1, #TriggerGroups do
+      if PredictedPower then
+        if PEclipsePower <= 0 then
+          BBar:SetTriggers(Index, 'off', 'solar energy (predicted)')
+          BBar:SetTriggers(Index, 'lunar energy (predicted)', abs(PEclipsePower))
+        else
+          BBar:SetTriggers(Index, 'off', 'lunar energy (predicted)')
+          BBar:SetTriggers(Index, 'solar energy (predicted)', PEclipsePower)
+        end
+      end
+
+      if EclipsePower <= 0 then
+        BBar:SetTriggers(Index, 'off', 'solar energy')
+        BBar:SetTriggers(Index, 'lunar energy', abs(EclipsePower))
+      else
+        BBar:SetTriggers(Index, 'off', 'lunar energy')
+        BBar:SetTriggers(Index, 'solar energy', EclipsePower)
+      end
+
+      BBar:SetTriggers(Index, 'lunar eclipse', Eclipse < 0)
+      BBar:SetTriggers(Index, 'solar eclipse', Eclipse > 0)
+    end
+    BBar:DoTriggers()
+  end
+
   self.IsActive = true
 
   -- Do a status check.
@@ -568,11 +634,11 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
 
   if not BBar:OptionsSet() then
 
-    BBar:SetOptionData('BackgroundMoon', MoonBox)
-    BBar:SetOptionData('BackgroundSun', SunBox)
-    BBar:SetOptionData('BackgroundPower', PowerBox)
-    BBar:SetOptionData('BackgroundSlider', PowerBox, SliderSBar)
-    BBar:SetOptionData('BackgroundIndicator', PowerBox, IndicatorSBar)
+    BBar:SetOptionData('BackgroundMoon', '', MoonBox, BoxMode)
+    BBar:SetOptionData('BackgroundSun', '', SunBox, BoxMode)
+    BBar:SetOptionData('BackgroundPower', '', PowerBox, BoxMode)
+    BBar:SetOptionData('BackgroundSlider', 'Texture', PowerBox, SliderSBar)
+    BBar:SetOptionData('BackgroundIndicator', 'Texture', PowerBox, IndicatorSBar)
     BBar:SetOptionData('BarMoon', MoonBox,  MoonSBar)
     BBar:SetOptionData('BarSun', SunBox, SunSBar)
     BBar:SetOptionData('BarPower', PowerBox)
@@ -582,6 +648,55 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(PowerBox) self:Update() end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          for GroupNumber = 1, #TriggerGroups do
+            local TG = TriggerGroups[GroupNumber]
+            local BoxNumber, Tpar, Name = TG[TGBoxNumber],  TG[TGTpar], TG[TGName]
+
+            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
+            if Name == 'Moon' or Name == 'Sun' or Name == 'Power' then
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,         'SetBackdropBorder', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,    'SetBackdropBorderColor', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,     'SetBackdrop', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,          'SetBackdropColor', BoxNumber, BoxMode)
+            else
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,         'SetBackdropBorderTexture', BoxNumber, Tpar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,    'SetBackdropBorderColorTexture', BoxNumber, Tpar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,     'SetBackdropTexture', BoxNumber, Tpar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,          'SetBackdropColorTexture', BoxNumber, Tpar)
+            end
+            if Name == 'Power' then
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (lunar)', 'SetTexture', BoxNumber, LunarSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (lunar)', 'SetColorTexture', BoxNumber, LunarSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (solar)', 'SetTexture', BoxNumber, SolarSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (solar)', 'SetColorTexture', BoxNumber, SolarSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                    'PlaySound', 1)
+            else
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,               'SetTexture', BoxNumber, Tpar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,                 'SetColorTexture', BoxNumber, Tpar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                    'PlaySound', 1)
+            end
+          end
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'HideText',      function(v)
@@ -608,24 +723,21 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    BBar:SO('Background', 'BackdropSettings', function(v, UB, OD)
-      local TableName = OD.TableName
-
-      if TableName == 'BackgroundSlider' or TableName == 'BackgroundIndicator' then
-        BBar:SetBackdropTexture(OD.p1, OD.p2, v)
+    BBar:SO('Background', 'BgTexture',     function(v, UB, OD) BBar[format('SetBackdrop%s', OD.p1)](BBar, OD.p2, OD.p3, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v, UB, OD) BBar[format('SetBackdropBorder%s', OD.p1)](BBar, OD.p2, OD.p3, v) end)
+    BBar:SO('Background', 'BgTile',        function(v, UB, OD) BBar[format('SetBackdropTile%s', OD.p1)](BBar, OD.p2, OD.p3, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v, UB, OD) BBar[format('SetBackdropTileSize%s', OD.p1)](BBar, OD.p2, OD.p3, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v, UB, OD) BBar[format('SetBackdropBorderSize%s', OD.p1)](BBar,OD.p2, OD.p3, v) end)
+    BBar:SO('Background', 'Padding',       function(v, UB, OD) BBar[format('SetBackdropPadding%s', OD.p1)](BBar, OD.p2, OD.p3, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v, UB, OD) BBar[format('SetBackdropColor%s', OD.p1)](BBar, OD.p2, OD.p3, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
+      if UB[OD.TableName].EnableBorderColor then
+        BBar[format('SetBackdropBorderColor%s', OD.p1)](BBar, OD.p2, OD.p3, v.r, v.g, v.b, v.a)
       else
-        BBar:SetBackdrop(OD.p1, BoxMode, v)
+        BBar[format('SetBackdropBorderColor%s', OD.p1)](BBar, OD.p2, OD.p3, nil)
       end
     end)
-    BBar:SO('Background', 'Color',            function(v, UB, OD)
-      local TableName = OD.TableName
 
-      if TableName == 'BackgroundSlider' or TableName == 'BackgroundIndicator' then
-        BBar:SetBackdropColorTexture(OD.p1, OD.p2, v.r, v.g, v.b, v.a)
-      else
-        BBar:SetBackdropColor(OD.p1, BoxMode, v.r, v.g, v.b, v.a)
-      end
-    end)
     BBar:SO('Bar', 'StatusBarTextureLunar', function(v) BBar:SetTexture(PowerBox, LunarSBar, v) end)
     BBar:SO('Bar', 'StatusBarTextureSolar', function(v) BBar:SetTexture(PowerBox, SolarSBar, v) end)
     BBar:SO('Bar', 'StatusBarTexture',      function(v, UB, OD) BBar:SetTexture(OD.p1, OD.p2, v) end)
@@ -718,8 +830,9 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     BBar:DoOption(TableName, KeyName)
   end
 
-  if Main.UnitBars.Testing then
-    self:Update()
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
   end
 
   if Display then
@@ -737,6 +850,9 @@ end
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 3)
+
+  local Names = {Trigger = {}}
+  local Trigger = Names.Trigger
 
   -- Create the sun, moon, and power.
   BBar:CreateTextureFrame(PowerBox, BoxMode, 0)
@@ -778,6 +894,11 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
   -- This will make all the bar objects be aligned by their sides.
   BBar:SetJustifyBar('SIDE')
 
+  for GroupNumber = 1, #TriggerGroups do
+    Trigger[GroupNumber] = TriggerGroups[GroupNumber][TGName]
+  end
+
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

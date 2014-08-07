@@ -18,12 +18,12 @@ local LSM = Main.LSM
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -43,7 +43,7 @@ local C_PetBattles, UIParent =
 -- Locals
 --
 -- BarDB                             Bar Database. All functions are called thru this except for CreateBar().
--- BarDB.UnitBarF                    The bar is a chiled of UnitBarF.
+-- BarDB.UnitBarF                    The bar is a child of UnitBarF.
 -- BarDB.ProfileChanged              Used by Display(). If true then the profile was changed in some way.
 -- BarDB.Anchor                      Reference to the UnitBar's anchor frame.
 -- BarDB.BarType                     The type of bar it belongs to.
@@ -56,6 +56,7 @@ local C_PetBattles, UIParent =
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for Mouse interaction.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for mouse interaction
 --   Name                            Name for the tooltip.  Used for tooltip, dragging.
+--   Backdrop                        Table containing the backdrop.
 -- BarDB.NumBoxes                    Total number of boxes the bar was created with.
 -- BarDB.TopFrame                    Contains a reference to the frame that has the highest frame level.
 -- BarDB.Rotation                    Rotation in degrees for the bar.
@@ -79,6 +80,8 @@ local C_PetBattles, UIParent =
 --     Texture[]                     An array containing all the texture/statusbars for the texture frame.
 --       SubTexture                  Texture that is a child of Texture[].
 --
+-- BarDB.Triggers                    Contains all the triggers created in the current bar.
+--
 -- BoxFrame data structure
 --
 --   Name                            Name of the boxframe.  This will appear on tooltips.
@@ -92,6 +95,7 @@ local C_PetBattles, UIParent =
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
+--   Backdrop                        Table containing the backdrop.
 --
 -- TextureFrame data structure
 --
@@ -104,6 +108,7 @@ local C_PetBattles, UIParent =
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
+--   Backdrop                        Table containing the backdrop.
 --
 -- Texture data structure            A texture is actually a frame.  I call it Texture so its not confused with
 --                                   TextureFrame.
@@ -111,6 +116,8 @@ local C_PetBattles, UIParent =
 --   Type                            Either 'statusbar' or 'texture'
 --   SubFrame                        Child of Texture. Holds the StatusBar or Frame containing the actual texture.
 --   Width, Height                   Width and height of the texture.
+--   CurrentTexture                  Contains the current texture name.  This is to prevent the texture from getting
+--                                   set to the same texture.  Which would cause a graphical glitch.  Used by SetTexture()
 --   Hidden                          If true then the statusbar/texture is hidden.
 --   RotateTexture                   If true then the texture is rotated 90 degrees.
 --   ReverseFill                     If true then the texture will fill in the opposite direction.
@@ -138,6 +145,8 @@ local C_PetBattles, UIParent =
 --   CooldownFrame                   Frame used to do a cooldown on the texture.
 --   CooldownFrameLine               Frame used to show a line in the clockface cooldown.
 --
+--   Backdrop                        Table containing the backdrop.
+--
 --  Spark data structure
 --    ParentFrame                    Contains a reference to Texture.
 --
@@ -145,8 +154,6 @@ local C_PetBattles, UIParent =
 --
 --    RotationPoint                  Used by Display() to rotate the bar.
 --    BoxFrames                      Used by NextBox() for iteration.
---    NextColor                      Used by NextColor() for iteration of a ColorAll table.
---    ColorBarFn                     Used by NextColor() contains the barfunction passed.
 --    TextureFillTime                Amount of times per second the fill timer is called.
 --    TextureSmoothFillTime          Amount of times per second the smooth fill timer is called.
 --    DoOptionData                   Resusable table for passing back information. Used by DoOption().
@@ -158,7 +165,7 @@ local C_PetBattles, UIParent =
 --                                   x or y will be 0 if there is no direction to go in.
 --                                   For example x = 1 y = 0 means that there is no up/down just
 --                                   horizontal.
---  SIDE or CORNER                   Is the alignment for the boxes.  Either their attached by their
+--  SIDE or CORNER                   Is the alignment for the boxes.  Either they're attached by their
 --                                   corner or side.  Side would be the middle part of the box edge.
 --    Point                          The anchor point for the boxframe to attach another boxframe.
 --    ParentPoint                    Is the previos boxframe's anchor point that is attached.
@@ -176,7 +183,7 @@ local C_PetBattles, UIParent =
 --
 -- NOTES:   When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
 --          Will cause GetLeft() etc to return a bad value.  But if you pass the frame
---          instead of nil you'll get good values.
+--          instead of nil you'll get a good values.
 --
 -- Bar Display notes:
 --
@@ -214,46 +221,61 @@ local C_PetBattles, UIParent =
 -- SetOptionData()  Sets extra data to be passed back to the function set in SO()
 --
 -- SO short for SetOption lets you specifiy a table name and key name.
--- When you call DoOptions() with a table name and key name the following can happen:
+-- When you call DoOption() with a table name and key name the following can happen:
 --
--- TableName is nil   - Then the SO TableName will match.
--- KeyName is nil     - Then the SO KeyName will match.
+-- TableName is nil   - Then will match any SO TableName.
+-- KeyName is nil     - Then will match any SO KeyName.
 --
 --   Each time an SO TableName is found.  Then the SO TableName has to be found in the
 --   default unitbar data first then its checked to see if its in the UnitBar data second.
 --   Each time an SO KeyName is found.  Then it has to match exactly to a key in the
 --   unitbar data.
 --
--- TableName is not nil - Then the SO TableName needs to be found within TableName.
--- KeyName is not nil   - Then the SO KeyName needs to match exatly to KeyName.  Then it also
---                        has to match exactly to the unitbar data keyname.
+-- TableName is not nil - Then can partially match SO TableName.
+-- KeyName is not nil   - Then has to exact match SO KeyName.
+--                        If its '_' then its a empty virtual key name and will match any SO KeyName.
+--                        Empty virtual key names dont get searched in the unitbar data.
 --
+-- After TableName and KeyName are found in the SO data.  Then the TableName is searched in the default UnitBarData
+-- for the current BarType.  This can partially match.  After that it takes the full name of the table
+-- found in the default unitbar.  And looks for it in the unitbar profile.  If found then then
+-- the KeyName has to be an exact match to UnitBar[TableName][KeyName].  Unless KeyName is virtual.
+
 -- Virtual Key Name.
 --   A virtual key starts with an underscore.  It still follows the matching rules of a normal
---   key except it doesn't get searched in the UnitBar data.  A virtual key of '_' will match
---   any keyname passed from DoOption.  But those keys never get searced in the unitbar data.
+--   key except it doesn't get searched in the UnitBar data.
 --
--- Everytime a match is made in the unitbar data the function passed to SO() gets called.
--- The following parameters are passed back.
+-- Each time DoOption matches data from SO(). The following parametrs are passed back.
 --
---   v:   This equals UnitBars[BarType][TableName][KeyName]. If the KeyName is virtual
---        then this will equal UnitBars[BarType][TableName].
+--   v:   This equals UnitBars[BarType][TableName][KeyName].
+--        If the KeyName is virtual then this will equal UnitBars[BarType][TableName].
 --   UB:  This equals the unitbar table UnitBars[BarType].
 --   OD:  Table that contains the following:
 --           TableName   The name of the table found in the unitbar data.
 --           KeyName     Name of the key passed to SO()
 --
 --           If the KeyName is a table that contains 'All'.  Then its considered
---           a color all table.  And the following is returned.
---             Index       THe current element in the color all table.
+--           a color all table.  The following is returned in interation till
+--           the end of table is reached.
+--             Index       The current element in the color all table.
 --             r, g, b, a  The red, green, blue, and alpha colors KeyName[Index]
 --
--- Additional information can be applied to the OD table thru SetOptionData.
--- SetOptionData takes a tablename and one or more paramaters for the data.
--- Once the SO TableName is found in the UnitBar data.  Then if the SO TableName
--- matches the one in SetOptionsData.  Then the following are added to the OD table:
---  p1..pN.   One or more paramaters containing the data passed thru SetOptionData.
---            Each paramater is always p1, p2, etc.
+--           p1..pN.   Paramater data passed from SetOptionData.  See below for details.
+--
+-- If there was a SetOptionData() and the TableName found in SO data, default unitbar data, and unitbardata.
+-- If the tablename matches exactly to what was passed from SetOptionData.  Then p1..pN get added to OD.
+--
+--
+-- Options Data structure
+-- Options[]                   Array containing all the options.
+--   TableName                 string: TableName this is looked up in DoOption()
+--   KeyNames[]                Array containing a list of KeyName and Functions.
+--     Name                    string: Keyname that is looked up in DoOption()
+--     Fn                      Function to call after searching for TableName and Name
+--
+-- OptionsData[TableName]      Table containing additional data that can be used with DoOption()
+--   p1..pN                    Series of keys that go in p1, p2, p3, etc.  These contain
+--                             the paramaters passed from SetOptionData()
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -276,6 +298,100 @@ local C_PetBattles, UIParent =
 --
 -- Lowercase hash names are used for SetValueTimeFont and SetValueFont.
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Triggers
+--
+-- Triggers are sorted by the value they trigger off of.  So the triggers with the lowest
+-- value get checked first.
+--
+-- BarFunctionIDTrigger       Used to make a unique ID based on the BarFunctionName, BoxNumber, TextureFrameNumber or TextureNumber.
+--
+-- Triggers  Non indexed data structure.
+--   NumTriggers              Contains the number of triggers stored in Triggers[]
+--   LastValues[BarFunction]  Contains the last value set by the trigger.  used by CheckTriggers()
+--     LastValue[]            Contains the paramaters to pass to the function to modify Object.
+--
+-- Triggers[] Data structure
+--   Pars[]                   Table of Values to pass to the function to modify the Object or play a sound.
+--   BarFunctions[]           Table that contains the function to modify the object. Can be referenced by BarFunctionID.
+--   Groups[]                 Contains the Groups which contains the BarFunctions.
+--   ActiveGroups[]           Contains a list of groups that are currently in use by any triggers.
+--                            This is used by SetParTriggers() and UpdateTriggers().
+--                            This way extra paramater data doesn't get set if its not going to get used.
+--   Active[BarFunction]      If true the trigger is an active state waiting.  If false the trigger is
+--                            inactive waiting to be reactivated again.
+--   Condition                can be '<', '>', '<=', '>=', '==', '~='
+--   Value                    Value to trigger off of based on Condition.
+--   SortValue                For sorting only in DoTriggers().
+--   ValueTypeID              Identified what type the ValueType is.
+--   ValueType                String naming of the type.
+--   GroupNumber              GroupNumber the trigger belongs to.
+--   Modified                 If true then ModifyTriggers() was called.  DoTriggers() sets this back to false.
+--   SortedTriggers           Used by DoTriggers() when ever sorting is needed.  Triggers cant be sorted cause this
+--                            would cause the Trigger profile to not match with Triggers. So SortedTriggers is a reference
+--                            to Triggers which is sorted uneffecting Triggers.
+--   StaticTriggers           Contains a list of any trigger that has a Condition of 'static'. Static Triggers always
+--                            execute as long as DoTriggers() is called.
+--
+-- Groups[GroupNumber]                Array containing ValueTypes
+--   ValueTypes[]                     Array that contains the name of each ValueType.  Name can be anything.
+--   ValueTypeIDs[]                   Array that contains the IDs of each value type.  See CreateGroupTriggers() for details.
+--   Objects[TypeIndex]               List of objects that make up the Group.
+--     TypeID                         Identifier to ID what type it is.
+--     Type                           Name of the type.
+--     BarFunction
+--       All[]                        Contains references to all the boxes plus multiple textures.
+--       NumAll                       Contains the total number of items in All[].
+--       Custom                       If not nil then this BarFunction uses a custom function not found in the BarDB.  Custom functions
+--                                    only execute one time then the trigger has to rearm and execute again.
+--   -----------------------          Fields below this line don't exist in a virtual barfunction.
+--                                    A virtual barfunction is created for boxnumber = 0 or when a group has more than one
+--                                    Tpar.
+--       AllBoxes[]                   Contains references to just all the boxes for boxnumber 0.
+--       FnPars[]                     FnPars reference to BarFunctions[BarFunctionID].  Contains the last pars set by
+--                                    the function when called outside of the trigger system.
+--       Fn                           Call to the original function since the BarFunction gets rerouted to a wrapper function.
+--       BarFunctionName              Name of the BarDB:BarFunctionName to call.
+--       BoxNumber                      0  for all boxes,
+--                                      +1 for a single box.
+--                                      -1 for Region.
+--       Tpar                         TextureFrameNumber or TextureNumber.
+--
+-- BarFunctions[BarFunctionID] Contains a reference to each BarFunction based on function name, par1, and par2.
+--
+-- Pars[] Data structure.
+--   [1], [2], [3], [4]       Max of 4 elements each stores the paramater passed to the function.   These don't
+--                            include the BoxNumber, TextureNumber, or TextureFrameNumber.
+--
+--
+-- Before a trigger can be set.  A BarFunction needs to be created using CreateGroupTriggers(GroupNumber, ValueTypes, Type, Function Name, BoxNumber, ...)
+-- GroupNumber can be any number you want.  But can't skip numbers on different SetBarFunction calls.
+-- ValueTypes specifies what type of values you want. 'whole', 'percent', 'boolean'. See CreateGroupTriggers() for more details.
+-- Type is a string, can be anything you want.  Function Name is the function that gets called by the trigger that uses the BarFunction
+-- BoxNumber 0 for all boxes, or 1+ for a single box.
+-- ... is BoxNumber, TextureFrameNumber or TextureNumber.
+-- This also sets a wrapper function. So if thet Function Name is used.  The last paramaters passed to it are stored.  This is
+-- so when a trigger deactivates or triggers are disabled, the original bar state can be restored.
+--
+-- UpdateTriggers()
+-- This takes the triggers stored in the players profile and creates them.
+--
+-- SetTriggers(GroupNumber, CurrValue, MaxValue, BoxNumber)
+-- See SetParTriggers() for details.
+--
+-- DoTriggers()
+-- This executes the triggers based on the Parameters set by SetTriggers.
+--
+-- When the Value passed from SetTriggers() is compared by Condition and is true. And if the trigger
+-- is active, then it will fire and become inactive.  The condition must become false and the trigger must
+-- be inactive.  When this happens the trigger is made active again.
+--
+-- Each time a trigger fires, its Pars[] are stored in LastValues[BarFunction].  This is to make sure
+-- that the final trigger result is the one to use. When a trigger resets it stores the last value set to
+-- BarFunction that was called outside of the trigger system.  This value is stored in LastValues[BarFunction]
+-- assuming nothing is set to it already.
+-------------------------------------------------------------------------------
 local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this object'
 
 local BarDB = {}
@@ -288,19 +404,20 @@ local VirtualFrameLevels = nil
 local BoxFrames = nil
 local NextBoxFrame = 0
 local LastBox = true
-local NextColor = 0
-local ColorBarFn = nil
 
 local TextureFillTime = 1 / 40  -- 40 times per second
 local TextureSmoothFillTime = 1 / 60 -- 60 times per second.
 local TextureSpark = [[Interface\CastingBar\UI-CastingBar-Spark]]
 local TextureSparkSize = 32
 
+local BarFunctionIDTrigger = '%s %s:%s'
+local RegionTrigger = -1
+
 -- Constants used in NumberToDigitGroups
 local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.'
 local BillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d' .. Thousands .. '%03d'
 local MillionFormat = '%s%d' .. Thousands .. '%03d' .. Thousands .. '%03d'
-local ThousandFormat = '%s%d' .. Thousands..'%03d'
+local ThousandFormat = '%s%d' .. Thousands ..'%03d'
 
 local RotationPoint = {
   [45]  = {x = 1,  y = 1,
@@ -348,7 +465,7 @@ local ValueLayout = {
   charges = '%d',
 }
 
-local Backdrop = {
+local DefaultBackdrop = {
   bgFile   = '', -- background texture
   edgeFile = '', -- border texture
   tile = true,   -- True to repeat the background texture to fill the frame, false to scale it.
@@ -365,7 +482,7 @@ local Backdrop = {
 local FrameBorder = {
   bgFile   = '',
   edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
-  tile = true,
+  tile = false,
   tileSize = 16,
   edgeSize = 6,
   insets = {
@@ -563,27 +680,28 @@ local function GetColor(Object, Name)
       return Color.r, Color.g, Color.b, Color.a
     end
   end
-  return 0, 0, 0, 1
+  return 1, 1, 1, 1
 end
 
 -------------------------------------------------------------------------------
 -- CreateBackdrop
 --
--- Creates a backdrop from a backdrop settings table.
+-- Creates a backdrop from a backdrop settings table. And saves it to Object.
 --
--- Bd               Backdrop settings table.  Look in main.lua defualt table
---                  for the format.
+-- Object     Object to save the backdrop to.
 --
 -- Returns:
---   Backdrop       Backdrop that can be used with SetBackdrop().  Do not
---                  modify this table.
---
--- NOTES:  If the Bd is not a backdrop settings table, then the table will
---         be returned.  This is so backdrop functions can use a native
---         backdrop instead.
+--  Backdrop   Reference to backdrop saved to Object.
 -------------------------------------------------------------------------------
-local function CreateBackdrop(Bd)
-  if Bd.BgTexture == nil then
+local function CreateBackdrop(Object)
+  local NewBackdrop = {}
+
+  Main:CopyTableValues(DefaultBackdrop, NewBackdrop, true)
+  Object.Backdrop = NewBackdrop
+
+  return NewBackdrop
+
+--[[  if Bd.BgTexture == nil then
 
     -- return table since its not a backdrop settings table.
     return Bd
@@ -603,7 +721,7 @@ local function CreateBackdrop(Bd)
     Insets.bottom = Padding.Bottom
 
     return Backdrop
-  end
+  end --]]
 end
 
 -------------------------------------------------------------------------------
@@ -1352,18 +1470,121 @@ end
 -------------------------------------------------------------------------------
 -- SetBackdropRegion
 --
--- Sets the backdrop for the bars region.
+-- Sets the background texture to the backdrop.
 --
--- BackdropSettings    Backdrop to set for the bar
---                     This can also be a wow formatted backdrop table.
+-- TextureName           New texture to set to backdrop
+-- PathName              If true then TextureName is a pathname. Otherwise nil
 -------------------------------------------------------------------------------
-function BarDB:SetBackdropRegion(BackdropSettings)
+function BarDB:SetBackdropRegion(TextureName, PathName)
   local Region = self.Region
+  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
 
-  Region:SetBackdrop(CreateBackdrop(BackdropSettings))
+  Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
+  Region:SetBackdrop(Backdrop)
 
   -- Need to set color since it gets lost when setting backdrop.
   Region:SetBackdropColor(GetColor(Region, 'backdrop'))
+  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropBorderRegion
+--
+-- Sets the border texture to the backdrop.
+--
+-- TextureName           New texture to set to backdrop
+-- PathName              If true then TextureName is a pathname. Otherwise nil
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropBorderRegion(TextureName, PathName)
+  local Region = self.Region
+  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+
+  Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
+  Region:SetBackdrop(Backdrop)
+
+  -- Need to set color since it gets lost when setting backdrop.
+  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
+  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropTileRegion
+--
+-- Turns tiles off or on for the backdrop.
+--
+-- Tile     If true then use tiles, otherwise false.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropTileRegion(Tile)
+  local Region = self.Region
+  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+
+  Backdrop.tile = Tile
+  Region:SetBackdrop(Backdrop)
+
+  -- Need to set color since it gets lost when setting backdrop.
+  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
+  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropTileSizeRegion
+--
+-- Sets the size of the tiles for the backdrop.
+--
+-- TileSize            Set the size of each tile for the backdrop texture.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropTileSizeRegion(TileSize)
+  local Region = self.Region
+  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+
+  Backdrop.tileSize = TileSize
+  Region:SetBackdrop(Backdrop)
+
+  -- Need to set color since it gets lost when setting backdrop.
+  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
+  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropBorderSizeRegion
+--
+-- Sets the size of border for the backdrop.
+--
+-- BorderSize            Set the size of the border.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropBorderSizeRegion(BorderSize)
+  local Region = self.Region
+  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+
+  Backdrop.edgeSize = BorderSize
+  Region:SetBackdrop(Backdrop)
+
+  -- Need to set color since it gets lost when setting backdrop.
+  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
+  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropPaddingRegion
+--
+-- Sets the amount of space between the background and the border.
+--
+-- Left, Right, Top, Bottom   Amount of distance to set between border and background.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropPaddingRegion(Left, Right, Top, Bottom)
+  local Region = self.Region
+  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Insets = Backdrop.insets
+
+  Insets.left = Left
+  Insets.right = Right
+  Insets.top = Top
+  Insets.bottom = Bottom
+  Region:SetBackdrop(Backdrop)
+
+  -- Need to set color since it gets lost when setting backdrop.
+  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
+  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
 end
 
 -------------------------------------------------------------------------------
@@ -1385,9 +1606,18 @@ end
 -- Sets the backdrop edge color of the bars region.
 --
 -- r, g, b, a              red, green, blue, alpha
+--
+-- Notes: To clear color just set nil instead of r, g, b, a.
 -------------------------------------------------------------------------------
-function BarDB:SetBackdropEdgeColorRegion(r, g, b, a)
-  self.Region:SetBackdropBorderColor(r, g, b, a)
+function BarDB:SetBackdropBorderColorRegion(r, g, b, a)
+  local Region = self.Region
+
+  -- Clear if no color is specified.
+  if r == nil then
+    r, g, b, a = 1, 1, 1, 1
+  end
+  SetColor(Region, 'backdrop border', r, g, b, a)
+  Region:SetBackdropBorderColor(r, g, b, a)
 end
 
 -------------------------------------------------------------------------------
@@ -1565,7 +1795,7 @@ end
 -- Changes a texture based on boxnumber.  SetChange must be called prior.
 --
 -- ChangeNumber         Number you assigned the box numbers to.
--- BarFunction          Bar function that can be called by BarDB:Function
+-- BarFn                Bar function that can be called by BarDB:Function
 --                      Must be a function that can take a boxnumber.
 --                      Function must be a string.
 -- ...                  1 or more values passed to Function
@@ -1575,8 +1805,8 @@ end
 --                This would be the same as:
 --                BarDB:SetFillTexture(MyBoxNumber, Value)
 -------------------------------------------------------------------------------
-function BarDB:ChangeBox(ChangeNumber, BarFunction, ...)
-  local Fn = self[BarFunction]
+function BarDB:ChangeBox(ChangeNumber, BarFn, ...)
+  local Fn = self[BarFn]
   local BoxNumbers = self.ChangeBoxes[ChangeNumber]
 
   for Index = 1, #BoxNumbers do
@@ -1593,23 +1823,169 @@ end
 -------------------------------------------------------------------------------
 -- SetBackdrop
 --
--- Sets a backdrop for a boxframe or textureframe.
+-- Sets the background texture to the backdrop.
 --
--- BoxNumber             Box you want to set the backdrop.
+-- BoxNumber             Box you want to set the modify the backdrop for.
 -- TextureFrameNumber    If not nil then the backdrop will be set to the textureframe instead
--- BackdropSettings      Backdrop settings table.  Can also be a wow formatted backdrop table.
+-- TextureName           New texture to set to backdrop
+-- PathName              If true then TextureName is a pathname. Otherwise nil
 -------------------------------------------------------------------------------
-function BarDB:SetBackdrop(BoxNumber, TextureFrameNumber, BackdropSettings)
+function BarDB:SetBackdrop(BoxNumber, TextureFrameNumber, TextureName, PathName)
   repeat
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber]
     end
-    Frame:SetBackdrop(CreateBackdrop(BackdropSettings))
+    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+
+    Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
+    Frame:SetBackdrop(Backdrop)
 
     -- Need to set color since it gets lost when setting backdrop.
     Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetbackdropBorder
+--
+-- Sets the border texture to the backdrop.
+--
+-- BoxNumber             Box you want to set the modify the backdrop for.
+-- TextureFrameNumber    If not nil then the backdrop will be set to the textureframe instead
+-- TextureName           New texture to set to backdrop border.
+-- PathName              If true then TextureName is a pathname. Otherwise nil
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropBorder(BoxNumber, TextureFrameNumber, TextureName, PathName)
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+
+    if TextureFrameNumber then
+      Frame = Frame.TextureFrames[TextureFrameNumber]
+    end
+    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+
+    Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
+    Frame:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropTile
+--
+-- Turns tiles off or on for the backdrop.
+--
+-- BoxNumber             Box you want to set the modify the backdrop for.
+-- TextureFrameNumber    If not nil then the backdrop will be set to the textureframe instead
+-- Tile                  If true then use tiles, otherwise false.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropTile(BoxNumber, TextureFrameNumber, Tile)
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+
+    if TextureFrameNumber then
+      Frame = Frame.TextureFrames[TextureFrameNumber]
+    end
+    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+
+    Backdrop.tile = Tile
+    Frame:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropTileSize
+--
+-- Sets the size of the tiles for the backdrop.
+--
+-- BoxNumber             Box you want to set the modify the backdrop for.
+-- TextureFrameNumber    If not nil then the backdrop will be set to the textureframe instead
+-- TileSize            Set the size of each tile for the backdrop texture.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropTileSize(BoxNumber, TextureFrameNumber, TileSize)
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+
+    if TextureFrameNumber then
+      Frame = Frame.TextureFrames[TextureFrameNumber]
+    end
+    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+
+    Backdrop.tileSize = TileSize
+    Frame:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetbackdropBorderSize
+--
+-- Sets the size of the border texture of the backdrop.
+--
+-- BoxNumber             Box you want to set the modify the backdrop for.
+-- TextureFrameNumber    If not nil then the backdrop will be set to the textureframe instead
+-- BorderSize            Set the size of the border.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropBorderSize(BoxNumber, TextureFrameNumber, BorderSize)
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+
+    if TextureFrameNumber then
+      Frame = Frame.TextureFrames[TextureFrameNumber]
+    end
+    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+
+    Backdrop.edgeSize = BorderSize
+    Frame:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetbackdropPadding
+--
+-- Sets the amount of space between the background and the border.
+--
+-- BoxNumber                  Box you want to set the modify the backdrop for.
+-- TextureFrameNumber         If not nil then the backdrop will be set to the textureframe instead
+-- Left, Right, Top, Bottom   Amount of distance to set between border and background.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropPadding(BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+
+    if TextureFrameNumber then
+      Frame = Frame.TextureFrames[TextureFrameNumber]
+    end
+    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Insets = Backdrop.insets
+
+    Insets.left = Left
+    Insets.right = Right
+    Insets.top = Top
+    Insets.bottom = Bottom
+
+    Frame:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
   until LastBox
 end
 
@@ -1642,6 +2018,8 @@ end
 -- BoxNumber             Box you want to set the change the backdrop border color of.
 -- TextureFrameNumber    If not nil then the TextureFrame backdrop be used instead.
 -- r, g, b, a            red, green, blue, alpha
+--
+-- Notes: To clear color just set nil instead of r, g, b, a.
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropBorderColor(BoxNumber, TextureFrameNumber, r, g, b, a)
   repeat
@@ -1650,7 +2028,13 @@ function BarDB:SetBackdropBorderColor(BoxNumber, TextureFrameNumber, r, g, b, a)
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber]
     end
+
+    -- Clear if no color is specified.
+    if r == nil then
+      r, g, b, a = 1, 1, 1, 1
+    end
     Frame:SetBackdropBorderColor(r, g, b, a)
+    SetColor(Frame, 'backdrop border', r, g, b, a)
   until LastBox
 end
 
@@ -1742,7 +2126,7 @@ end
 -- Makes a textureframe be excluded from the bounding rectangle of its parent
 -- boxframe.
 --
--- Enable               If false the boxframe will not be include this texture
+-- Enable               If false the boxframe will not include this texture
 --                      frame in its border, otherwise it will.
 -- BoxNumber            Box containing the texture frame.
 -- TextureFrameNumber   TextureFrame to setpoint.
@@ -1764,20 +2148,144 @@ end
 -------------------------------------------------------------------------------
 -- SetBackdropTexture
 --
--- Sets a backdrop for a texture
+-- Sets the background texture to the backdrop.
 --
 -- BoxNumber             Box containing the texture.
 -- TextureNumber         Texture to set the backdrop to.
--- BackdropSettings      Backdrop settings table.  Can also be a wow formatted backdrop table.
+-- TextureName           New texture to set to backdrop
+-- PathName              If true then TextureName is a pathname. Otherwise nil
 -------------------------------------------------------------------------------
-function BarDB:SetBackdropTexture(BoxNumber, TextureNumber, BackdropSettings)
+function BarDB:SetBackdropTexture(BoxNumber, TextureNumber, TextureName, PathName)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
 
-    Texture:SetBackdrop(CreateBackdrop(BackdropSettings))
+    Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
+    Texture:SetBackdrop(Backdrop)
 
     -- Need to set color since it gets lost when setting backdrop.
     Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
+    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropBorderTexture
+--
+-- Sets the border texture to the backdrop.
+--
+-- BoxNumber             Box containing the texture.
+-- TextureNumber         Texture to set the backdrop to.
+-- TextureName           New texture to set to backdrop border.
+-- PathName              If true then TextureName is a pathname. Otherwise nil
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropBorderTexture(BoxNumber, TextureNumber, TextureName, PathName)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+
+    Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
+    Texture:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
+    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropTileTexture
+--
+-- Turns tiles off or on for the backdrop.
+--
+-- BoxNumber             Box containing the texture.
+-- TextureNumber         Texture to set the backdrop to.
+-- Tile                  If true then use tiles, otherwise false.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropTileTexture(BoxNumber, TextureNumber, Tile)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+
+    Backdrop.tile = Tile
+    Texture:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
+    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropTileSizeTexture
+--
+-- Sets the size of the tiles for the backdrop.
+--
+-- BoxNumber             Box containing the texture.
+-- TextureNumber         Texture to set the backdrop to.
+-- TileSize              Set the size of each tile for the backdrop texture.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropTileSizeTexture(BoxNumber, TextureNumber, TileSize)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+
+    Backdrop.tileSize = TileSize
+    Texture:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
+    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropBorderSizeTexture
+--
+-- Sets the size of the border texture of the backdrop.
+--
+-- BoxNumber             Box containing the texture.
+-- TextureNumber         Texture to set the backdrop to.
+-- BorderSize            Set the size of the border.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropBorderSizeTexture(BoxNumber, TextureNumber, BorderSize)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+
+    Backdrop.edgeSize = BorderSize
+    Texture:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
+    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdropPaddingTexture
+--
+-- Sets the amount of space between the background and the border.
+--
+-- BoxNumber                  Box containing the texture.
+-- TextureNumber              Texture to set the backdrop to.
+-- Left, Right, Top, Bottom   Amount of distance to set between border and background.
+-------------------------------------------------------------------------------
+function BarDB:SetBackdropPaddingTexture(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Insets = Backdrop.insets
+
+    Insets.left = Left
+    Insets.right = Right
+    Insets.top = Top
+    Insets.bottom = Bottom
+    Texture:SetBackdrop(Backdrop)
+
+    -- Need to set color since it gets lost when setting backdrop.
+    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
+    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
   until LastBox
 end
 
@@ -1807,12 +2315,21 @@ end
 -- BoxNumber             Box containing the texture.
 -- TextureNumber         Texture to set the backdrop to.
 -- r, g, b, a            red, green, blue, alpha
+--
+-- Notes: To clear color just set nil instead of r, g, b, a.
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropBorderColorTexture(BoxNumber, TextureNumber, r, g, b, a)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     Texture:SetBackdropBorderColor(r, g, b, a)
+
+    -- Clear if no color is specified.
+    if r == nil then
+      r, g, b, a = 1, 1, 1, 1
+    end
+    Texture:SetBackdropBorderColor(r, g, b, a)
+    SetColor(Texture, 'backdrop border', r, g, b, a)
   until LastBox
 end
 
@@ -1849,7 +2366,7 @@ end
 -- Changes a texture based on boxnumber.  SetChange must be called prior.
 --
 -- ChangeNumber         Number you assigned the textures to.
--- BarFunction          Bar function that can be called by BarDB:Function
+-- BarFn                Bar function that can be called by BarDB:Function
 --                      Must be a function that can take boxnumber, texturenumber.
 --                      Function must be a string.
 -- BoxNumber            BoxNumber containing the texture.
@@ -1860,8 +2377,8 @@ end
 --                This would be the same as:
 --                BarDB:SetFillTexture(2, MyTextureFrameNumber, Value)
 -------------------------------------------------------------------------------
-function BarDB:ChangeTexture(ChangeNumber, BarFunction, BoxNumber, ...)
-  local Fn = self[BarFunction]
+function BarDB:ChangeTexture(ChangeNumber, BarFn, BoxNumber, ...)
+  local Fn = self[BarFn]
   local TextureNumbers = self.ChangeTextures[ChangeNumber]
 
   if BoxNumber > 0 then
@@ -2188,7 +2705,7 @@ function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
       Spark = Texture.Spark
     end
     SetFill(Texture, Value, Spark)
-    if Spark and not ShowSpark then
+    if Spark and ShowSpark == false then
       Spark:Hide()
     end
   end
@@ -2381,12 +2898,21 @@ end
 function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Fade = Texture.Fade
+
+    if Fade then
+      Fade:SetAnimation('pause')
+    end
 
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetStatusBarColor(r, g, b, a)
       SetColor(Texture, 'statusbar', r, g, b, a)
     else
       Texture.SubTexture:SetVertexColor(r, g, b, a)
+    end
+
+    if Fade then
+      Fade:SetAnimation('resume')
     end
   until LastBox
 end
@@ -2419,24 +2945,37 @@ end
 function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Fade = Texture.Fade
+
+    if Fade then
+      Fade:SetAnimation('pause')
+    end
 
     if Texture.Type == 'statusbar' then
-      local SubFrame = Texture.SubFrame
+      if Texture.CurrentTexture ~= TextureName then
+        local SubFrame = Texture.SubFrame
 
-      SubFrame:SetStatusBarTexture(LSM:Fetch('statusbar', TextureName))
-      local SubTexture = SubFrame:GetStatusBarTexture()
+        SubFrame:SetStatusBarTexture(LSM:Fetch('statusbar', TextureName))
+        Texture.CurrentTexture = TextureName
 
-      SubTexture:SetHorizTile(false)
-      SubTexture:SetVertTile(false)
-      SubFrame:SetOrientation(Texture.FillDirection)
-      SubFrame:SetReverseFill(Texture.ReverseFill)
-      SubFrame:SetRotatesTexture(Texture.RotateTexture)
-      Texture.SubTexture = SubTexture
+        local SubTexture = SubFrame:GetStatusBarTexture()
 
-      SubFrame:SetStatusBarColor(GetColor(Texture, 'statusbar'))
+        SubTexture:SetHorizTile(false)
+        SubTexture:SetVertTile(false)
+        SubFrame:SetOrientation(Texture.FillDirection)
+        SubFrame:SetReverseFill(Texture.ReverseFill)
+        SubFrame:SetRotatesTexture(Texture.RotateTexture)
+        Texture.SubTexture = SubTexture
+        SubFrame:SetStatusBarColor(GetColor(Texture, 'statusbar'))
+      end
     else
       Texture.SubTexture:SetTexture(TextureName)
     end
+
+    if Fade then
+      Fade:SetAnimation('resume')
+    end
+
   until LastBox
 end
 
@@ -2533,12 +3072,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetScaleTexture(BoxNumber, TextureNumber, Scale)
   repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Point, RelativeFrame, RelativePoint, OffsetX, OffsetY = Texture:GetPoint()
-    local OldScale = Texture:GetScale()
-
-    Texture:SetScale(Scale)
-    Texture:SetPoint(Point, RelativeFrame, RelativePoint, OffsetX * OldScale / Scale, OffsetY * OldScale / Scale)
+    NextBox(self, BoxNumber).TFTextures[TextureNumber]:SetScale(Scale)
   until LastBox
 end
 
@@ -3279,7 +3813,7 @@ function BarDB:SetValueTimeFont(BoxNumber, TextureFrameNumber, StartTime, Durati
 end
 
 -------------------------------------------------------------------------------
--- FontGetLayout
+-- GetLayoutFont
 --
 -- ValueName      Array containing the names.
 -- ValueType      Array containing the types.
@@ -3330,7 +3864,7 @@ function BarDB:UpdateFont(BoxNumber, TextureFrameNumber, ColorIndex)
   local TopFrame = self.TopFrame
   local UBD = DUB[self.BarType]
   local DefaultTextSettings = UBD.Text[1]
-  local Multi = UBD.Text.Multi
+  local Multi = UBD.Text._Multi
 
   repeat
     local Frame, BoxIndex = NextBox(self, BoxNumber)
@@ -3482,8 +4016,8 @@ end
 --
 
 -- TableName    This is the name that is looked up in DoFunction()
---              Only part of this name needs to match the TableName passed to DoFunction()
--- KeyName      This is the keyname that is looked up in DoFunction()
+--              Only part of this name needs to match the TableName passed to DoOption()
+-- KeyName      This is the keyname that is looked up in DoOption()
 --              KeyName can be virtual by prefixing it with an underscore.
 -- Fn           function to call for TableName and KeyName
 -----------------------------------------------------------------------------
@@ -3544,7 +4078,7 @@ function BarDB:SetOptionData(TableName, ...)
     OptionsData[TableName] = OptionData
   end
   for Index = 1, select('#', ...) do
-    OptionData['p' .. Index] = (select(Index, ...))
+    OptionData[format('p%s', Index)] = (select(Index, ...))
   end
 end
 
@@ -3636,3 +4170,945 @@ function BarDB:DoOption(OTableName, OKeyName)
     end
   end
 end
+
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--
+-- Trigger functions
+--
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-------------------------------------------------------------------------------
+-- FindTypeTriggers
+--
+-- Returns the Index that matches Type.  If not found then searches
+-- by TypeID.
+--
+-- Group     Group to search
+-- TypeID    Identifier for Type
+-- Type      String that describes the type
+--
+-- Returns
+--   Index   Position found. Returns 0 if not found.
+-------------------------------------------------------------------------------
+local function FindTypeTriggers(Group, TypeID, Type)
+  local Objects = Group.Objects
+  local NumObjects = #Objects
+  Type = strlower(Type)
+
+  -- Search by type
+  for Index = 1, NumObjects do
+    if strlower(Objects[Index].Type) == Type then
+      return Index
+    end
+  end
+
+  -- Didn't find Type search by TypeID
+  for Index = 1, NumObjects do
+    if Objects[Index].TypeID == TypeID then
+      return Index
+    end
+  end
+  return 0
+end
+
+-------------------------------------------------------------------------------
+-- FindValueTypeTrigger
+--
+-- Returns the index that matches ValueType. If not found then searches by ValueTypeID
+--
+-- Group   Group that contains the IDs
+-- ValueTypeID    Indentifier for ValueType
+-- ValueType      String that describes the ValueType
+--
+-- Returns
+--   Index       Position found.  Returns 1 info found.
+-------------------------------------------------------------------------------
+local function FindValueTypeTrigger(Group, ValueTypeID, ValueType)
+  local ValueTypes = Group.ValueTypes
+  local ValueTypeIDs = Group.ValueTypeIDs
+  local NumValueTypes = #Group.ValueTypes
+  ValueType = strlower(ValueType)
+
+  -- Search by value type
+  for Index = 1, NumValueTypes do
+    if strlower(ValueTypes[Index]) == ValueType then
+      return Index
+    end
+  end
+
+  -- Didn't find value type search by ValueTypeID
+  for Index = 1, NumValueTypes do
+    if ValueTypeIDs[Index] == ValueTypeID then
+      return Index
+    end
+  end
+  return 0
+end
+
+-------------------------------------------------------------------------------
+-- GetGroupsTrigger
+--
+-- Returns the BarFunctions table
+-------------------------------------------------------------------------------
+function BarDB:GetGroupsTriggers()
+  return self.Triggers.Groups
+end
+
+-------------------------------------------------------------------------------
+-- GroupsCreatedTrigger
+--
+-- Returns true if any trigger groups were created.
+-------------------------------------------------------------------------------
+function BarDB:GroupsCreatedTriggers()
+  local Triggers = self.Triggers
+
+  if Triggers then
+    if Triggers.Groups then
+      return true
+    end
+  end
+  return false
+end
+
+-------------------------------------------------------------------------------
+-- CreateGroupTriggers
+--
+-- Creates a group for one or more triggers to use.
+--
+-- GroupNumber       Number to assign 1 or more triggers under. Group numbers must be contiguous.
+-- ...               1 or more ValueType[s]
+--                   Contains a ValueTypeID and ValueType.  Example: 'percent:Health'
+--                   The ID is 'percent' and what you would see in the options is 'Health'.
+--                     'boolean'   Trigger can support true and false values.
+--                     'whole'     Trigger can support whole numbers (integers).
+--                     'percent'   Trigger can support percentages.
+--                     'aura'      Trigger can support a buff or debuff.
+-------------------------------------------------------------------------------
+function BarDB:CreateGroupTriggers(GroupNumber, ...)
+  local Triggers = self.Triggers
+  local Objects = nil
+
+  if Triggers == nil then
+    Triggers = {}
+    Triggers.NumTriggers = 0
+    self.Triggers = Triggers
+  end
+
+  if Triggers.ActiveGroups == nil then
+    Triggers.ActiveGroups = {}
+  end
+
+  if Triggers.LastValues == nil then
+    Triggers.LastValues = {}
+  end
+
+  local Groups = Triggers.Groups
+  if Groups == nil then
+    Groups = {}
+    Triggers.Groups = Groups
+  end
+
+  local Group = Groups[GroupNumber]
+  if Group == nil then
+    local ValueTypeIDs = {}
+    local ValueTypes = {}
+
+    for Index = 1, select('#', ...) do
+      local ValueTypeID, ValueType = strsplit(':', select(Index, ...), 2)
+
+      ValueTypeIDs[Index] = strtrim(ValueTypeID)
+      ValueTypes[Index] = strtrim(ValueType)
+    end
+    Group = {}
+    Group.ValueTypeIDs = ValueTypeIDs
+    Group.ValueTypes = ValueTypes
+    Groups[GroupNumber] = Group
+  end
+end
+
+
+-------------------------------------------------------------------------------
+-- CreateTypeTriggers
+--
+-- Creates a type for a trigger group
+--
+-- GroupNumber       Number to assign 1 or more triggers under. Group numbers must be contiguous.
+-- TypeID            Defines what type of barfunction.
+--                     'border'           backdrop border
+--                     'bordercolor'
+--                     'backgroundcolor'
+--                     'bartexturecolor'  color
+--                     'background'       backdrop texture
+--                     'bartexture'       Statusbar texture
+--                     'texturesize'      Size of a texture
+--                     'sound'            Play a sound file
+-- Type              Name of the type.  Appears in the option menus.
+-- BarFunctionName   Name of the function to call for GroupNumber and Type
+--                     'PlaySound'.  Plays a sound.
+-- BoxNumber         0 for all boxes, 1+ for a box.
+-- ...               One or more TextureNumber or TextureFrameNumber
+--
+-- Notes: If BarFunctionName is a Region function.  Then BoxNumber and ... can be left as nil.
+--        PlaySound needs just a BoxNumber.
+--        The ValueTypes does not need to be specified on other CreateGroupTriggers calls if you're
+--        using the same group number.
+--------------------------------------------------------------------------------
+function BarDB:CreateTypeTriggers(GroupNumber, TypeID, Type, BarFunctionName, BoxNumber, ...)
+  local Triggers = self.Triggers
+  local Group = Triggers.Groups[GroupNumber]
+
+  local BarFunctions = Triggers.BarFunctions
+  if BarFunctions == nil then
+    BarFunctions = {}
+    Triggers.BarFunctions = BarFunctions
+  end
+
+  local Objects = Group.Objects
+  if Objects == nil then
+    Objects = {}
+    Group.Objects = Objects
+  end
+
+  local OldBarFunction = nil
+  local Tpars = nil
+  local CustomFn = nil
+
+  -- Set up for sound.
+  if BarFunctionName == 'PlaySound' then
+    CustomFn = function(self, BoxNumber, Tpar, p1, p2)
+      if not Main.ProfileChanged then
+        PlaySoundFile(LSM:Fetch('sound', p1), p2)
+      end
+    end
+    Tpars = {1} -- Fake paramter since sound dont have any.
+  else
+    if strfind(BarFunctionName, 'Region') then
+      BoxNumber = RegionTrigger
+      Tpars = {1}      -- Fake paramater for same reasons as sound.
+    else
+      Tpars = {...}
+    end
+    OldBarFunction = BarDB[BarFunctionName]
+  end
+
+  local NumTpars = #Tpars
+  local NumBoxes = self.NumBoxes
+  local AllIndex = 0
+  local All = nil
+  local FirstBF = nil
+
+  -- Iterate thru the Texture paramaters.
+  for TparIndex = 1, NumTpars do
+    local Tpar = Tpars[TparIndex]
+    local BarFunctionID = format(BarFunctionIDTrigger, BarFunctionName, BoxNumber, Tpar)
+    local BF = BarFunctions[BarFunctionID]
+
+    if BF == nil then
+      BF = {}
+      BF.FnPars = {}
+      BarFunctions[BarFunctionID] = BF
+    end
+
+    -- Initialize the first BarFunction.
+    if TparIndex == 1 then
+      if BoxNumber == 0 or NumTpars > 1 then
+
+        -- Create a virtual barfunction
+        FirstBF = {}
+        All = {}
+        FirstBF.All = All
+      else
+        FirstBF = BF
+      end
+      Objects[#Objects + 1] = {TypeID = TypeID, Type = Type, BarFunction = FirstBF}
+      if CustomFn then
+        FirstBF.Custom = true
+      end
+    end
+    BF.BoxNumber = BoxNumber
+    BF.Tpar = Tpar
+
+    if All then
+      AllIndex = AllIndex + 1
+      All[AllIndex] = BF
+    end
+
+    -- Check for all boxes.
+    if BoxNumber == 0 then
+      local AllBoxes = {}
+
+      for Index = 1, NumBoxes do
+        local BarFunctionID = format(BarFunctionIDTrigger, BarFunctionName, Index, Tpar)
+        local BarFunction = BarFunctions[BarFunctionID]
+
+        if BarFunction == nil then
+          BarFunction = {}
+          BarFunction.FnPars = {}
+          BarFunctions[BarFunctionID] = BarFunction
+        end
+        AllBoxes[Index] = BarFunction
+
+        AllIndex = AllIndex + 1
+        All[AllIndex] = BarFunction
+      end
+      BF.AllBoxes = AllBoxes
+    end
+
+    if BF.Fn == nil then
+      if CustomFn then
+        BF.Fn = CustomFn
+        BF.Custom = true
+      else
+        local Fn = nil
+
+        -- Wrapper function for Region.  No BoxNumber, Tpar is used here.
+        if BoxNumber == RegionTrigger then
+          Fn = function(self, p1, p2, p3, p4)
+            local FnPars = BF.FnPars
+
+            FnPars[1] = p1
+            FnPars[2] = p2
+            FnPars[3] = p3
+            FnPars[4] = p4
+
+            OldBarFunction(self, p1, p2, p3, p4)
+          end
+        else
+          -- Future function calls for BarFunction will now call the wrapper function instead.
+          Fn = function(self, BoxNumber, Tpar, p1, p2, p3, p4)
+            local BF = BarFunctions[format(BarFunctionIDTrigger, BarFunctionName, BoxNumber, Tpar)]
+
+            if BF then
+              local AllBoxes = BF.AllBoxes
+
+              if BoxNumber == 0 then
+                for Index = 1, NumBoxes do
+                  local FP = AllBoxes[Index].FnPars
+
+                  FP[1] = p1
+                  FP[2] = p2
+                  FP[3] = p3
+                  FP[4] = p4
+                end
+              else
+                local FnPars = BF.FnPars
+
+                FnPars[1] = p1
+                FnPars[2] = p2
+                FnPars[3] = p3
+                FnPars[4] = p4
+              end
+            end
+            OldBarFunction(self, BoxNumber, Tpar, p1, p2, p3, p4)
+          end
+        end
+        self[BarFunctionName] = Fn
+        BF.Fn = OldBarFunction
+      end
+      BF.BarFunctionName = BarFunctionName
+    end
+  end
+  if All then
+    FirstBF.NumAll = AllIndex
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SwapTriggers
+--
+-- Swaps one trigger with another.
+--
+-- Source
+-- Dest    Source and Dest triggers to swap.
+-------------------------------------------------------------------------------
+function BarDB:SwapTriggers(Source, Dest)
+  local Triggers = self.Triggers
+
+  Triggers[Source], Triggers[Dest] = Triggers[Dest], Triggers[Source]
+end
+
+-------------------------------------------------------------------------------
+-- ModifyTriggers
+--
+-- Change a trigger based on trigger data
+--
+-- TriggerNumber   Trigger to modify
+-- TD              Trigger data to apply to the trigger
+-- TypeIndex       Type index for BarFunction. If nil then doesn't change
+--                 bar function.
+-- Sort            If true will cause triggers to get sorted on the next DoTriggers().
+-------------------------------------------------------------------------------
+function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
+  local Triggers = self.Triggers
+  local Trigger = Triggers[TriggerNumber]
+  local GroupNumber = TD.GroupNumber
+  local Type = TD.Type
+  local TypeID = TD.TypeID
+  local Active = Trigger.Active
+  local Enabled = TD.Enabled
+
+  if Sort == nil or Sort == false then
+    Sort = Trigger.Enabled ~= Enabled
+  end
+
+  -- Check for static trigger and store it.
+  local TriggerCondition = Trigger.Condition
+  local Condition = TD.Condition
+
+  if TriggerCondition ~= Condition then
+    if TriggerCondition == 'static' or Condition == 'static' then
+      local StaticTriggers = Triggers.StaticTriggers
+
+      if StaticTriggers == nil then
+        StaticTriggers = {}
+        Triggers.StaticTriggers = StaticTriggers
+      end
+
+      if TriggerCondition == 'static' then
+        StaticTriggers[TriggerNumber] = nil
+      else
+        StaticTriggers[TriggerNumber] = Trigger
+      end
+      Sort = true
+    end
+  end
+
+  Trigger.Active      = Active and Active or {}
+  Trigger.Enabled     = TD.Enabled
+  Trigger.GroupNumber = GroupNumber
+  Trigger.Condition   = Condition
+  Trigger.ValueType   = strlower(TD.ValueType)
+  Trigger.ValueTypeID = TD.ValueTypeID
+  Trigger.SortValue   = TD.Value
+  Trigger.Value       = TD.Value
+
+  if TypeIndex then
+    local Object = self.Triggers.Groups[GroupNumber].Objects[TypeIndex]
+
+    Trigger.BarFunction = Object.BarFunction
+    Type = Object.Type
+    TypeID = Object.TypeID
+
+    -- Reset active groups and set new ones
+    local ActiveGroups = Triggers.ActiveGroups
+
+    for Index, _ in pairs(ActiveGroups) do
+      ActiveGroups[Index] = false
+    end
+    for Index = 1, Triggers.NumTriggers do
+      ActiveGroups[Triggers[Index].GroupNumber] = true
+    end
+  end
+
+  Trigger.Type   = strlower(Type)
+  Trigger.TypeID = TypeID
+
+  local TriggerPars = Trigger.Pars
+  local TDPars = TD.Pars
+
+  TriggerPars[1] = TDPars[1]
+  TriggerPars[2] = TDPars[2]
+  TriggerPars[3] = TDPars[3]
+  TriggerPars[4] = TDPars[4]
+
+  if Sort then
+    print('sorted = false')
+    Triggers.Sorted = false
+  end
+
+  Triggers.Modified = true
+end
+
+-------------------------------------------------------------------------------
+-- InsertTriggers
+--
+-- Inserts a Trigger at TriggerNumber
+--
+-- TriggerNumber      Trigger position to insert at.
+-- TriggerData        Trigger data to insert.
+--
+-- Returns false if trigger wasn't inserted.
+-------------------------------------------------------------------------------
+function BarDB:InsertTriggers(TriggerNumber, TD)
+  local Triggers = self.Triggers
+  local Group = Triggers.Groups[TD.GroupNumber]
+  local TypeIndex = Group and FindTypeTriggers(Group, TD.TypeID, TD.Type) or 0
+
+  -- if Type or TypeID exists then insert trigger.
+  if TypeIndex > 0 then
+    local ActiveGroups = Triggers.ActiveGroups
+    local Condition = TD.Condition
+    local Value = TD.Value
+    local ValueTypeID = TD.ValueTypeID
+    local Object = Group.Objects[TypeIndex]
+    local ValueTypes = Group.ValueTypes
+    local ValueTypeIDs = Group.ValueTypeIDs
+    local NumValueTypes = #Group.ValueTypes
+    local ValueType = strlower(TD.ValueType)
+    local ValueTypeIndex = 0
+
+    -- Search by value type
+    for Index = 1, NumValueTypes do
+      if strlower(ValueTypes[Index]) == ValueType then
+        ValueTypeIndex = Index
+        break
+      end
+    end
+
+    -- Didn't find value type search by ValueTypeID
+    if ValueTypeIndex == 0 then
+      ValueTypeIndex = 1
+      for Index = 1, NumValueTypes do
+        if ValueTypeIDs[Index] == ValueTypeID then
+          ValueTypeIndex = Index
+          break
+        end
+      end
+    end
+
+    -- Makes sure ValueTypes and ID are correct.
+    ValueTypeID = ValueTypeIDs[ValueTypeIndex]
+    TD.ValueTypeID = ValueTypeID
+    TD.ValueType = ValueTypes[ValueTypeIndex]
+
+    -- Update Trigger data Type and TypeID to match the Group.
+    local Type = strlower(Object.Type)
+    local TypeID = Object.TypeID
+
+    -- Type check trigger data since triggers can be copied from other bars.
+    if ValueTypeID == 'boolean' then
+      if Condition ~= 'static' and Condition ~= '=' then
+        Condition = '='
+      end
+      if Value < 1 or Value > 2 then
+        Value = 1 -- true
+      end
+    end
+
+    TD.Value = Value
+    TD.Type = Type
+    TD.TypeID = TypeID
+    TD.Condition = Condition
+
+    local Trigger = {}
+    Trigger.Pars = {}
+
+    tinsert(Triggers, TriggerNumber, Trigger)
+
+    local NumTriggers = #Triggers
+    Triggers.NumTriggers = NumTriggers
+
+    self:ModifyTriggers(TriggerNumber, TD, TypeIndex, true)
+
+    return true
+  else
+    return false
+  end
+end
+
+-------------------------------------------------------------------------------
+-- RemoveTriggers
+--
+-- Removes a Trigger at TriggerNumber
+--
+-- TriggerNumber      Trigger position to delete at.
+-------------------------------------------------------------------------------
+function BarDB:RemoveTriggers(TriggerNumber)
+  local Triggers = self.Triggers
+  local ActiveGroups = Triggers.ActiveGroups
+  local StaticTriggers = Triggers.StaticTriggers
+
+  tremove(Triggers, TriggerNumber)
+
+  local NumTriggers = #Triggers
+  Triggers.NumTriggers = NumTriggers
+  Triggers.Sorted = false
+
+  if StaticTriggers then
+    StaticTriggers[TriggerNumber] = nil
+  end
+
+  -- Reset active groups and set new ones
+  for Index, _ in pairs(ActiveGroups) do
+    ActiveGroups[Index] = false
+  end
+  for Index = 1, NumTriggers do
+    ActiveGroups[Triggers[Index].GroupNumber] = true
+  end
+end
+
+-------------------------------------------------------------------------------
+-- UpdateTriggers
+--
+-- Sets triggers based on whats stored in the profile.
+-------------------------------------------------------------------------------
+function BarDB:UpdateTriggers()
+  local TriggerData = self.UnitBarF.UnitBar.Triggers
+  local NumTriggerData = #TriggerData
+  local Triggers = self.Triggers
+  local NumTriggers = Triggers.NumTriggers
+
+  -- Remove all triggers if profile changed or no trigger data.
+  if NumTriggers > 0 and (Main.ProfileChanged or Main.CopyPasted or NumTriggerData == 0) then
+    local StaticTriggers = Triggers.StaticTriggers
+
+    for Index = 1, NumTriggers do
+      Triggers[Index] = nil
+      if StaticTriggers then
+        StaticTriggers[Index] = nil
+      end
+    end
+    Triggers.ActiveGroups = {}
+
+    NumTriggers = 0
+    Triggers.NumTriggers = NumTriggers
+  end
+
+  if NumTriggers == 0 and NumTriggerData > 0 then
+    local DefaultTriggerSettings = DUB[self.BarType].Triggers.Default
+    local TriggerIndex = 1
+
+    while TriggerIndex <= #TriggerData do
+      local TD = TriggerData[TriggerIndex]
+
+      -- Since Triggrs are dynamic we need to make sure no values are missing.
+      -- If they are they'll be copied from the default.
+      Main:CopyMissingTableValues(DefaultTriggerSettings, TD)
+
+      if self:InsertTriggers(TriggerIndex, TD) then
+        TriggerIndex = TriggerIndex + 1
+      else
+        -- Delete trigger data that nots accepted.
+        tremove(TriggerData, TriggerIndex)
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- UndoTriggers
+--
+-- Undoes all the settings any trigger has done.
+-------------------------------------------------------------------------------
+function BarDB:UndoTriggers()
+  local Triggers = self.Triggers
+
+  if Triggers then
+    local BarFunctions = Triggers.BarFunctions
+
+    if BarFunctions then
+      for _, BarFunction in pairs(BarFunctions) do
+        local Fn = BarFunction.Fn
+        local BoxNumber = BarFunction.BoxNumber
+
+        if BarFunction.Custom == nil and BoxNumber ~= 0 then
+          local FnPars = BarFunction.FnPars
+
+          -- Undo the trigger.
+          if BoxNumber == RegionTrigger then
+            Fn(self, FnPars[1], FnPars[2], FnPars[3], FnPars[4])
+          else
+            Fn(self, BoxNumber, BarFunction.Tpar, FnPars[1], FnPars[2], FnPars[3], FnPars[4])
+          end
+        end
+      end
+    end
+
+    -- Reset all active flags
+    for TriggerIndex = 1, Triggers.NumTriggers do
+      local Active = Triggers[TriggerIndex].Active
+
+      for BarFunction, _ in pairs(Active) do
+        Active[BarFunction] = false
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- ClearTriggers
+--
+-- Deletes all triggers and bar functions
+--
+-- Returns:  false if no triggers were cleared, otherwise true.
+--
+-- Note:  Clear triggers also undoes all the changes any trigger may have done.
+-------------------------------------------------------------------------------
+function BarDB:ClearTriggers()
+  local Triggers = self.Triggers
+
+  if Triggers then
+    local BarFunctions = Triggers.BarFunctions
+
+    if BarFunctions then
+      for _, BarFunction in pairs(BarFunctions) do
+        local Fn = BarFunction.Fn
+        local BoxNumber = BarFunction.BoxNumber
+
+        if BarFunction.Custom == nil and BoxNumber ~= 0 then
+          local FnPars = BarFunction.FnPars
+          self[BarFunction.BarFunctionName] = Fn
+
+          -- Undo the trigger.
+          if BoxNumber == RegionTrigger then
+            Fn(self, FnPars[1], FnPars[2], FnPars[3], FnPars[4])
+          else
+            Fn(self, BoxNumber, BarFunction.Tpar, FnPars[1], FnPars[2], FnPars[3], FnPars[4])
+          end
+        end
+      end
+    end
+    self.Triggers = nil
+    return true
+  end
+  return false
+end
+
+-------------------------------------------------------------------------------
+-- SetTriggers
+--
+-- Usage:  SetParTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumber)
+--         SetParTriggers(GroupNumber, 'off', ValueType or nil, nil, BoxNumber)
+--
+-- GroupNumber     Will check triggers using this group.
+-- ValueType       Will check triggers using this valuetype.
+-- 'off'           Turns off all triggers matching GroupNumber. If a ValueType is
+--                 specified then the ValueType also has to match before being turned off.
+-- CurrValue       Used to compare against the trigger.
+--
+-- MaxValue        Maximum value. Needed for percentage calculations.
+-- BoxNumber       Changes the boxnumber the trigger would normally change.  If nil then nothing.
+--
+-- NOTES:   When using a BoxNumber a BarFunction must exist for that BoxNumber.
+--          BoxNumber will use BarFunction for that Box instead of the one assigned to the trigger.
+-------------------------------------------------------------------------------
+local function SortTriggers(a, b)
+  return a.SortValue < b.SortValue
+end
+
+function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumber)
+  local Triggers = self.Triggers
+  local NumTriggers = Triggers.NumTriggers or 0
+
+  if NumTriggers > 0 and Triggers.ActiveGroups[GroupNumber] then
+    local SortedTriggers = Triggers.SortedTriggers or {}
+    local NumSortedTriggers = Triggers.NumSortedTriggers
+    local Modified = Triggers.Modified
+    local NumBoxes = self.NumBoxes
+    local LastValues = Triggers.LastValues
+    local BarFunctions = Triggers.BarFunctions
+    local Off = ValueType == 'off'
+    local ActiveIndex = BoxNumber and BoxNumber or -1
+
+    Triggers.Modified = false
+
+    if ValueType == 'off' then
+      ValueType = CurrValue
+    else
+      ValueType = ValueType
+    end
+    CurrValue = CurrValue == true and 1 or CurrValue == false and 2 or CurrValue
+    MaxValue = MaxValue or 1
+
+    -- Sort triggers once.
+    if not Triggers.Sorted then
+      Triggers.Sorted = true
+      NumSortedTriggers = 0
+
+      -- Turn all percentages into whole values.
+      -- Load sorted triggers.
+      for Index = 1, NumTriggers do
+        local Trigger = Triggers[Index]
+
+        if Trigger.ValueTypeID == 'percent' then
+          Trigger.SortValue = MaxValue * Trigger.Value
+        end
+
+        if Trigger.Enabled and Trigger.Condition ~= 'static' then
+          NumSortedTriggers = NumSortedTriggers + 1
+          SortedTriggers[NumSortedTriggers] = Trigger
+        end
+      end
+
+      -- Truncate sorted triggers.
+      for Index = NumTriggers + 1, #SortedTriggers do
+        SortedTriggers[Index] = nil
+      end
+      Triggers.SortedTriggers = SortedTriggers
+      Triggers.NumSortedTriggers = NumSortedTriggers
+
+      sort(SortedTriggers, SortTriggers)
+    end
+
+    for Index = 1, NumSortedTriggers do
+      local Trigger = SortedTriggers[Index]
+      local TriggerValueType = Trigger.ValueType
+
+      if Trigger.GroupNumber == GroupNumber and
+         (ValueType == nil and Off or ValueType == TriggerValueType) then
+
+        local Condition = Trigger.Condition
+        local Value = Trigger.Value
+        local BarFunction = Trigger.BarFunction
+        local CompValue = CurrValue
+        local TriggerActive = Trigger.Active
+        local Active = TriggerActive[ActiveIndex]
+        local Custom = BarFunction.Custom
+
+        -- Convert to percentage if needed.
+        if Trigger.ValueTypeID == 'percent' then
+          CompValue = ceil(CurrValue / MaxValue * 100)
+        end
+
+        -- Check to see if trigger should be activated
+        if not Off and
+          ( Condition == '<'  and CompValue <  Value or
+            Condition == '>'  and CompValue >  Value or
+            Condition == '<=' and CompValue <= Value or
+            Condition == '>=' and CompValue >= Value or
+            Condition == '='  and CompValue == Value or
+            Condition == '<>' and CompValue ~= Value ) then
+
+          -- Store value for later
+          Active = Active == nil and true or Active
+          if Custom == nil or Custom and Active and not Modified then
+            local All = BarFunction.All
+
+            if All then
+              for AllIndex = 1, BarFunction.NumAll do
+                if BoxNumber then
+                  local BF = All[AllIndex]
+
+                  if BF.BoxNumber == BoxNumber then
+                    LastValues[BF] = Trigger.Pars
+                  end
+                else
+                  LastValues[All[AllIndex]] = Trigger.Pars
+                end
+              end
+            else
+              local Pars = Trigger.Pars
+              LastValues[BarFunction] = Trigger.Pars
+            end
+          end
+
+          if Active then
+            TriggerActive[ActiveIndex] = false
+          end
+
+        elseif Off or not Active then
+          local All = BarFunction.All
+
+          if All then
+            for AllIndex = 1, BarFunction.NumAll do
+              local BF = All[AllIndex]
+              local LastValue = -1
+
+              if BoxNumber then
+                if BF.BoxNumber == BoxNumber then
+                  LastValue = LastValues[BF]
+                end
+              else
+                LastValue = LastValues[BF]
+              end
+
+              if LastValue == nil or LastValue == 0 then
+                LastValues[BF] = BF.FnPars
+              end
+            end
+          else
+            local LastValue = LastValues[BarFunction]
+
+            if LastValue == nil or LastValue == 0 then
+              LastValues[BarFunction] = BarFunction.FnPars
+            end
+          end
+          TriggerActive[ActiveIndex] = true
+        end
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- DoTriggers
+--
+-- Executes the results from SetTriggers
+-------------------------------------------------------------------------------
+function BarDB:DoTriggers()
+  local Triggers = self.Triggers
+  local LastValues = Triggers.LastValues
+  local StaticTriggers = Triggers.StaticTriggers
+
+  -- Do static triggers
+  if StaticTriggers then
+    for TriggerNumber, Trigger in pairs(StaticTriggers) do
+      if Trigger.Enabled then
+        local BarFunction = Trigger.BarFunction
+        local All = BarFunction.All
+
+        if All then
+          for Index = 1, BarFunction.NumAll do
+            LastValues[All[Index]] = Trigger.Pars
+          end
+        else
+          LastValues[BarFunction] = Trigger.Pars
+        end
+      end
+    end
+  end
+
+  for BarFunction, Pars in pairs(LastValues) do
+    if Pars ~= 0 then
+      local BoxNumber = BarFunction.BoxNumber
+
+      if BoxNumber == RegionTrigger then
+        BarFunction.Fn(self, Pars[1], Pars[2], Pars[3], Pars[4])
+      else
+        BarFunction.Fn(self, BoxNumber, BarFunction.Tpar, Pars[1], Pars[2], Pars[3], Pars[4])
+      end
+      LastValues[BarFunction] = 0
+    end
+  end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

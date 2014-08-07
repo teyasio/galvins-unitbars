@@ -23,7 +23,8 @@ flags active at the same time.  A flag with a higher priority will always overri
 below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the
 bars, The only flag it can't override is never show.
 
-   Hide not usable      Hides the bar if it's not usable by the class, spec, form, stance etc.
+   Hide not Usable      Hides the bar if it's not usable by the class, spec, form, stance etc.
+   Show Always          Always show the bar.  This doesn't override Hide not usable.
    Hide when Dead       Hide the bar when the player is dead.
    Hide in Vehicle      Hide the bar if a vehicle.
    Hide in Pet Battle   Hide the bar if in a pet battle.
@@ -56,9 +57,6 @@ For more information you can check out the following links:
 For Text: https://www.youtube.com/watch?v=mQVCDJLrCNI
 UI escape codes: http://www.wowwiki.com/UI_escape_sequences
 
-* Eclipse Bar - Predicted Power
-When eclipse power is turned on.  The mod will show what state the eclipse bar will be in before the cast is finished.
-
 * Cut and Paste
 Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of
 buttons. Click on the bottom button you want to copy then pick another bar in the options and click
@@ -67,7 +65,7 @@ the same button to do the paste.  For text lines you can copy and paste within t
 * Align and Swap
 Right click on any bar to open this tool up.  Then click on align or swap.
 Align will allow you to line up a bar with another bar.  Just drag the bar near another till you see a green
-rectangle.  The bar will then jump next the other bar based on where you place it.  You can keep doing this
+rectangle.  The bar will then jump next to the other bar based on where you place it.  You can keep doing this
 with more bars.  The tool remembers all the bars you aligned as long as you don't close the tool or
 uncheck align or switch to swap.
 
@@ -81,6 +79,9 @@ you place it there the two bars will switch places.
 This same tool can be used on bar objects.  When you go to the bar options under layout you'll see swap and float.
 Clicking float will open up the align tool further down.
 
+You can also set the bar position manually by unchecking align.  You'll have a Horizontal and Vertical input box just
+type in the location.  Moving the bar will automatically update the input boxes with the new location.
+
 For more you can watch the video:
 http://www.youtube.com/watch?v=STYa5d6riuk
 
@@ -90,6 +91,44 @@ you to make changes to the bar without having to go into combat to make certain 
 
 Additional options will be found at the option panel for the bar when test mode is active
 
+* Triggers
+Triggers let you create an option that will only become active when a condition is met.
+
+When you first go to triggers you'll see a pull down called Bar Object.  Health and power bars
+only have one bar object, but bars like Ember Bar have more than one.  Select the bar
+object you want if there is more than one.  Then click the add button.
+
+You'll then see a trigger options panel come up.  There is no limit to how many triggers
+you can create, create too many and you may experience lag in the options panel.  Minimizing
+can help with this.
+
+Action: The action pull down lets you pick an action.  Then a UI option will become visible.
+
+  Add       Adds another copy of the current trigger.
+  Delete    Removes the current trigger.
+  Name      Changes the name of the trigger (Bar Object name) will be appear before the name.
+  Swap      Lets you swap one trigger with another.
+  Disable   Deactivates a trigger.  Triggers that are disabled do not consume cpu.
+  Move      Move a trigger to a different bar object.
+  Copy      Copy a trigger to a different bar object.
+  None      To prevent accidents.
+
+Value Type: lets you pick what type of value you want to trigger off of.  Each bar has its
+own set of value types.
+Type: lets you pick different parts of the bar.  Border, color, background, etc.
+
+Condition: The condition that needs to be met for the trigger to activate
+
+  <         Less than
+  >         Greater than
+  <=        Less than or equal
+  >=        Greater than or equal
+  =         Equal
+  <>        No equal
+  Static    Always on, static triggers use less cpu.
+
+Value: The value you want to trigger off of based on condition.  If the condition is
+met the trigger will activate. For percentages only 0 to 100 needs to be entered.
 
 * Profiles
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just

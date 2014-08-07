@@ -10,17 +10,18 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -47,13 +48,19 @@ local C_PetBattles, UIParent =
 -- BoxMode                           Textureframe number used for boxmode.
 -- AnticipationSBar                  Texture for anticipation charges and time.
 -- Anticipation                      Changebox number for all the anticipation boxframes.
--- AnticipationTime                  The boxnumber for the time statusbar.
+-- AnticipationTime                  The boxnumber or triggergroup for the time statusbar.
 --
 -- AnticipationAura                  Buff containing the anticipation charges.
 -- AnticipationSpell                 Spell the player knows or doens't know to gain anticipation.
+--
+-- TriggerGroups                     Table to create each group for triggers.
+-- AnyAnticipationChargeTrigger      Trigger group for the any active anticipation boxes that are active.
+-- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+--                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxAnticipationCharges = 5
 local Display = false
+local DoTriggers = false
 
 local BoxMode = 1
 local AnticipationCharges = 2
@@ -62,6 +69,22 @@ local AnticipationTime = MaxAnticipationCharges + 1
 local AnticipationSBar = 10
 local AnticipationAura = 115189
 local AnticipationSpell = 114015
+
+local AnticipationTimeTrigger = 6
+local AnyAnticipationChargeTrigger = 7
+local TGBoxNumber = 1
+local TGName = 2
+local TGValueTypes = 3
+local VTs = {'whole:Anticipation Charges'}
+local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
+  {1, 'Anticipation Charge 1',  VTs},                  -- 1
+  {2, 'Anticipation Charge 2',  VTs},                  -- 2
+  {3, 'Anticipation Charge 3',  VTs},                  -- 3
+  {4, 'Anticipation Charge 4',  VTs},                  -- 4
+  {5, 'Anticipation Charge 5',  VTs},                  -- 5
+  {6, 'Anticipation Time',      VTs},                  -- 6
+  {0, 'Any Anti. Charge',       {'boolean: Active'}},  -- 7
+}
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -87,19 +110,33 @@ local function UpdateTestMode(AnticipationBar, Testing)
   local UB = AnticipationBar.UnitBar
 
   if Testing then
-    local MaxResource = UB.TestMode.MaxResource
-    local Charges = MaxResource and MaxAnticipationCharges or 0
+    local TestMode = UB.TestMode
+    local Charges = floor(MaxAnticipationCharges * TestMode.Value)
+    local Time = TestMode.Time
+    local EnableTriggers = UB.Layout.EnableTriggers
 
     for AnticipationIndex = 1, MaxAnticipationCharges do
-      BBar:SetHiddenTexture(AnticipationIndex, AnticipationSBar, not MaxResource)
+      BBar:SetHiddenTexture(AnticipationIndex, AnticipationSBar, AnticipationIndex > Charges)
+
+      if EnableTriggers then
+        BBar:SetTriggers(AnyAnticipationChargeTrigger, 'active', AnticipationIndex <= Charges, nil, AnticipationIndex)
+        BBar:SetTriggers(AnticipationIndex, 'anticipation charges', Charges)
+      end
     end
-    BBar:SetFillTexture(AnticipationTime, AnticipationSBar, 0.5, true)
+    BBar:SetFillTexture(AnticipationTime, AnticipationSBar, Time , true)
     if not UB.Layout.HideText then
-      BBar:SetValueFont(AnticipationTime, nil, 'time', 9, 'charges', Charges)
+      BBar:SetValueFont(AnticipationTime, nil, 'time', 10 * Time, 'charges', Charges)
     else
       BBar:SetValueRawFont(AnticipationTime, nil, '')
     end
+
+    if EnableTriggers then
+      BBar:SetTriggers(AnticipationTimeTrigger, 'anticipation charges', Charges)
+      BBar:DoTriggers()
+    end
   else
+    BBar:SetHiddenTexture(0, AnticipationSBar, true)
+    BBar:SetHiddenTexture(AnticipationTime, AnticipationSBar, false)
     BBar:SetFillTexture(AnticipationTime, AnticipationSBar, 0, true)
     BBar:SetValueRawFont(AnticipationTime, nil, '')
   end
@@ -108,12 +145,13 @@ end
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Event     Event that called this function.  If nil then it wasn't called by an event.
+--           'update' bypasses visible and isactive flags.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.AnticipationBar:Update(Event)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -128,15 +166,23 @@ function Main.UnitBarsF.AnticipationBar:Update(Event)
   end
 
   local BBar = self.BBar
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
   local AnticipationCharges = 0
 
   -- Display anticipation charges
   if IsSpellKnown(AnticipationSpell) then
     local SpellID, Duration, Charges = Main:CheckAura('o', AnticipationAura)
+    local DurationChanged = Duration == nil or Duration >= self.OldDuration
 
+    print(Duration, '>', self.OldDuration)
+
+    self.OldDuration = Duration or 0
     AnticipationCharges = Charges or 0
+
     if self.NumCharges ~= AnticipationCharges or AnticipationCharges == MaxAnticipationCharges then
-      BBar:SetFillTimeTexture(AnticipationTime, AnticipationSBar, nil, Duration, 1, 0)
+      if DurationChanged then
+        BBar:SetFillTimeTexture(AnticipationTime, AnticipationSBar, nil, Duration, 1, 0)
+      end
       if not self.UnitBar.Layout.HideText then
         BBar:SetValueTimeFont(AnticipationTime, nil, nil, Duration or 0, Duration, -1, 'charges', AnticipationCharges)
       end
@@ -144,6 +190,15 @@ function Main.UnitBarsF.AnticipationBar:Update(Event)
     end
     for AnticipationIndex = 1, MaxAnticipationCharges do
       BBar:SetHiddenTexture(AnticipationIndex, AnticipationSBar, AnticipationIndex > AnticipationCharges)
+
+      if EnableTriggers then
+        BBar:SetTriggers(AnyAnticipationChargeTrigger, 'active', AnticipationIndex <= AnticipationCharges, nil, AnticipationIndex)
+        BBar:SetTriggers(AnticipationIndex, 'anticipation charges', AnticipationCharges)
+      end
+    end
+    if EnableTriggers then
+      BBar:SetTriggers(AnticipationTimeTrigger, 'anticipation charges', AnticipationCharges)
+      BBar:DoTriggers()
     end
   end
 
@@ -181,7 +236,6 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
   local BBar = self.BBar
 
   if not BBar:OptionsSet() then
-
     BBar:SetOptionData('BackgroundCharges', AnticipationCharges)
     BBar:SetOptionData('BackgroundTime', AnticipationTime)
     BBar:SetOptionData('BarCharges', AnticipationCharges)
@@ -190,6 +244,40 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(AnticipationTime) end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          for GroupNumber = 1, #TriggerGroups do
+            local TG = TriggerGroups[GroupNumber]
+            local BoxNumber = TG[TGBoxNumber]
+
+            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, AnticipationSBar)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, AnticipationSBar)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', 1)
+          end
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, AnticipationSBar, v) end)
@@ -213,14 +301,37 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
     BBar:SO('General', 'HideTime',    function(v) BBar:SetHidden(AnticipationTime, nil, v) Display = true end)
     BBar:SO('General', 'ShowSpark',   function(v) BBar:SetHiddenSpark(0, AnticipationSBar, not v) end)
 
-    BBar:SO('Background', 'BackdropSettings',  function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdrop', BoxMode, v) end)
-    BBar:SO('Background', 'Color',             function(v, UB, OD)
+
+    BBar:SO('Background', 'BgTexture',     function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdrop', BoxMode, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropBorder', BoxMode, v) end)
+    BBar:SO('Background', 'BgTile',        function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropTile', BoxMode, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropTileSize', BoxMode, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropBorderSize', BoxMode, v) end)
+    BBar:SO('Background', 'Padding',       function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropPadding', BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v, UB, OD)
       if OD.TableName == 'BackgroundCharges' then
         BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a)
       else
         BBar:SetBackdropColor(AnticipationTime, BoxMode, v.r, v.g, v.b, v.a)
       end
     end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
+      local TableName = OD.TableName
+      local EnableBorderColor = UB[TableName].EnableBorderColor
+
+      if TableName == 'BackgroundCharges' then
+        if EnableBorderColor then
+          BBar:SetBackdropBorderColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a)
+        else
+          BBar:SetBackdropBorderColor(OD.Index, BoxMode, nil)
+        end
+      elseif EnableBorderColor then
+        BBar:SetBackdropBorderColor(AnticipationTime, BoxMode, v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropBorderColor(AnticipationTime, BoxMode, nil)
+      end
+    end)
+
     BBar:SO('Bar', 'StatusBarTexture', function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetTexture', AnticipationSBar, v) end)
     BBar:SO('Bar', 'FillDirection',    function(v)         BBar:SetFillDirectionTexture(AnticipationTime, AnticipationSBar, v) end)
     BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetRotateTexture', AnticipationSBar, v) end)
@@ -238,8 +349,9 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
-    self:Update()
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
   end
 
   if Display then
@@ -258,7 +370,9 @@ end
 function GUB.AnticipationBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxAnticipationCharges + 1)
 
-  local ColorAllNames = {}
+  local Names = {Trigger = {}, Color = {}}
+  local Trigger = Names.Trigger
+  local Color = Names.Color
 
   BBar:CreateTextureFrame(0, BoxMode, 0)
     BBar:CreateTexture(0, BoxMode, 'statusbar', 1, AnticipationSBar)
@@ -271,21 +385,24 @@ function GUB.AnticipationBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Name = nil
 
   for AnticipationIndex = 1, MaxAnticipationCharges do
-    Name = 'Anticipation Charge ' .. AnticipationIndex
-
-    ColorAllNames[AnticipationIndex] = Name
+    Name = TriggerGroups[AnticipationIndex][TGName]
+    Color[AnticipationIndex] = Name
+    Trigger[AnticipationIndex] = Name
     BBar:SetTooltip(AnticipationIndex, nil, Name)
   end
-  Name = 'Anticipation Time'
-  ColorAllNames[AnticipationTime] = Name
+  Name = TriggerGroups[AnticipationTime][TGName]
+  Color[AnticipationTime] = Name
+  Trigger[AnticipationTimeTrigger] = Name
+  Trigger[AnyAnticipationChargeTrigger] = TriggerGroups[AnyAnticipationChargeTrigger][TGName]
+
   BBar:SetTooltip(AnticipationTime, nil, Name)
 
-  UnitBarF.ColorAllNames = ColorAllNames
   BBar:ChangeBox(AnticipationCharges, 'SetHidden', BoxMode, false)
   BBar:SetHidden(AnticipationTime, BoxMode, false)
   BBar:SetHiddenTexture(AnticipationTime, AnticipationSBar, false)
   BBar:SetFillTexture(AnticipationTime, AnticipationSBar, 0)
 
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

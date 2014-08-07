@@ -10,6 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
@@ -19,12 +20,12 @@ local ConvertPowerType = Main.ConvertPowerType
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -54,8 +55,11 @@ local C_PetBattles, UIParent =
 -- SpellCobraShot        Hunter Spells to track for predicted power.
 -- PredictedSpellValue   Predicted focus value based on the two above spells.
 -- SteadyFocusAura       Buff hunters get that adds bonus focus.
+-- DoTriggers            'update' bypasses visible and isactive flags. If not nil then calls
+--                       self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local Display = false
+local DoTriggers = false
 
 local StatusBar = 1
 local PredictedBar = 2
@@ -211,12 +215,13 @@ end
 --
 -- self         UnitBarF contains the health bar to display.
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
+--              'update' by passes visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -230,9 +235,12 @@ local function UpdateHealthBar(self, Event, Unit)
   local PredictedHealing = Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
 
   if Main.UnitBars.Testing then
-    PredictedHealing = Gen.PredictedHealth and 2500 or 0
-    MaxValue = 10000
-    CurrValue = 5000
+    local TestMode = UB.TestMode
+    local PredictedValue = TestMode.PredictedValue
+
+    MaxValue = MaxValue == 0 and 10000 or MaxValue
+    CurrValue = floor(MaxValue * TestMode.Value)
+    PredictedHealing = PredictedValue and floor(MaxValue * PredictedValue) or 0
   end
 
   -- Get the class color if classcolor flag is true.
@@ -268,6 +276,14 @@ local function UpdateHealthBar(self, Event, Unit)
     BBar:SetValueFont(1, nil, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedHealing, 'unit', Unit)
   end
 
+  -- Check triggers
+  if UB.Layout.EnableTriggers then
+    BBar:SetTriggers(1, 'health', CurrValue)
+    BBar:SetTriggers(1, 'health (percent)', CurrValue, MaxValue)
+    BBar:SetTriggers(1, 'predicted health', PredictedHealing)
+    BBar:DoTriggers()
+  end
+
   -- Set the IsActive flag.
   self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
 
@@ -298,6 +314,7 @@ end
 --
 -- self          UnitBarF contains the power bar to display.
 -- Event         Event that called this function.  If nil then it wasn't called by an event.
+--               'update' bypasses visible and isactive flags.
 -- Unit          Unit name 'player' ,'target', etc
 -- PowerType2    PowerType from server or when PowerMana update is called.
 --               If nil then the unit's powertype is used if nots a ManaPower bar.
@@ -305,7 +322,7 @@ end
 local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -342,9 +359,12 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local Color = Bar.Color[ConvertPowerType[PowerType]]
 
   if Main.UnitBars.Testing then
-    PredictedPower = Gen and Gen.PredictedPower and 2500 or 0
-    MaxValue = 10000
-    CurrValue = 5000
+    local TestMode = UB.TestMode
+    local PredictedValue = TestMode.PredictedValue
+
+    MaxValue = MaxValue == 0 and 10000 or MaxValue
+    CurrValue = floor(MaxValue * TestMode.Value)
+    PredictedPower = PredictedValue and floor(MaxValue * PredictedValue) or 0
   end
 
   -- Set the color and display the predicted health.
@@ -370,6 +390,14 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   BBar:SetFillTexture(1, StatusBar, Value)
   if not UB.Layout.HideText then
     BBar:SetValueFont(1, nil, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
+  end
+
+  -- Check triggers
+  if UB.Layout.EnableTriggers then
+    BBar:SetTriggers(1, 'power', CurrValue)
+    BBar:SetTriggers(1, 'power (percent)', CurrValue, MaxValue)
+    BBar:SetTriggers(1, 'predicted power', PredictedPower)
+    BBar:DoTriggers()
   end
 
   -- Set the IsActive flag.
@@ -441,8 +469,46 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) self:Update() end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'ReverseFill', function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
-    BBar:SO('Layout', 'HideText',    function(v)
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          local ValueTypes = nil
+
+          if strfind(BarType, 'Power') then
+            BBar:CreateGroupTriggers(1, 'whole:Power', 'percent:Power (percent)', 'whole:Predicted Power')
+          else
+            BBar:CreateGroupTriggers(1, 'whole:Health', 'percent:Health (percent)', 'whole:Predicted Health')
+          end
+
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             'SetBackdropBorder', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        'SetBackdropBorderColor', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         'SetBackdrop', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              'SetBackdropColor', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture,                   'SetTexture', 1, StatusBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor,                     'SetColorTexture', 1, StatusBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted)', 'SetTexture', 1, PredictedBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted)',   'SetColorTexture', 1, PredictedBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                 TT.Type_Sound,                        'PlaySound', 1)
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
+    BBar:SO('Layout', 'HideText',       function(v)
       if v then
         BBar:SetValueRawFont(1, nil, '')
       else
@@ -464,8 +530,20 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       end)
     end
 
-    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(1, 1, v) end)
-    BBar:SO('Background', 'Color',            function(v) BBar:SetBackdropColor(1, 1, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(1, 1, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(1, 1, v) end)
+    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(1, 1, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(1, 1, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(1, 1, v) end)
+    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(1, 1, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v) BBar:SetBackdropColor(1, 1, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB)
+      if UB.Background.EnableBorderColor then
+        BBar:SetBackdropBorderColor(1, 1, v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropBorderColor(1, 1, nil)
+      end
+    end)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(1, StatusBar, v) end)
     BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(StatusBars, 'SetFillDirectionTexture', 1, v) end)
@@ -513,6 +591,11 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
+  end
+
   if Display then
     BBar:Display()
     Display = false
@@ -530,6 +613,11 @@ end)
 function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
+  local Names = {Trigger = {}, Color = {}}
+  local Trigger = Names.Trigger
+  local Color = Names.Color
+  local Name = UB.Name
+
   -- Create the health and predicted bar
   BBar:CreateTextureFrame(1, 1, 0)
     BBar:CreateTexture(1, 1, 'statusbar', 1, PredictedBar)
@@ -539,7 +627,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont(1, nil, PercentFn)
 
   -- Enable tooltip
-  BBar:SetTooltip(1, nil, UB.Name)
+  BBar:SetTooltip(1, nil, Name)
 
   -- Use setchange for both statusbars.
   BBar:SetChangeTexture(StatusBars, PredictedBar, StatusBar)
@@ -549,7 +637,11 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:ChangeTexture(StatusBars, 'SetHiddenTexture', 1, false)
   BBar:ChangeTexture(StatusBars, 'SetFillTexture', 1, 0)
 
-  -- save the health and power bar
+  Color[1] = Name
+  Trigger[1] = Name
+  Trigger[2] = 'Predicted Value'
+
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

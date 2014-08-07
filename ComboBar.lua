@@ -10,17 +10,18 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -48,13 +49,32 @@ local C_PetBattles, UIParent =
 -- BoxMode                           Boxframe number for boxmode.
 -- Combo                             Changebox number for all the combo points.
 -- ComboSBar                         Texture for combo point.
+-- TriggerGroups                     Table to create triggers for condition type and box number.
+-- AnyComboTrigger                   Contains the groupnumber for a trigger to use any combo point.
+-- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+--                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
 local Display = false
+local DoTriggers = false
 
 local BoxMode = 1
 local Combo = 3
 local ComboSBar = 10
+
+local AnyComboTrigger = 6
+local TGBoxNumber = 1
+local TGName = 2
+local TGValueTypes = 3
+local VTs = {'whole:Combo Points'}
+local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
+  {1, 'Combo Point 1',    VTs},                 -- 1
+  {2, 'Combo Point 2',    VTs},                 -- 2
+  {3, 'Combo Point 3',    VTs},                 -- 3
+  {4, 'Combo Point 4',    VTs},                 -- 4
+  {5, 'Combo Point 5',    VTs},                 -- 5
+  {0, 'Any Combo Point', {'boolean:Active'}},   -- 6
+}
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -70,12 +90,13 @@ Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
+-- Event     Event that called this function.  If nil then it wasn't called by an event.
+--           'update' bypasses visible and isactive flags.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:Update(Event)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -84,16 +105,22 @@ function Main.UnitBarsF.ComboBar:Update(Event)
   local BBar = self.BBar
 
   if Main.UnitBars.Testing then
-    if self.UnitBar.TestMode.MaxResource then
-      ComboPoints = MaxComboPoints
-    else
-      ComboPoints = 0
-    end
+    ComboPoints = floor(MaxComboPoints * self.UnitBar.TestMode.Value)
   end
 
   -- Display the combo points
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+
   for ComboIndex = 1, MaxComboPoints do
     BBar:SetHiddenTexture(ComboIndex, ComboSBar, ComboIndex > ComboPoints)
+    if EnableTriggers then
+      BBar:SetTriggers(AnyComboTrigger, 'active', ComboIndex <= ComboPoints, nil, ComboIndex)
+      BBar:SetTriggers(ComboIndex, 'combo points', ComboPoints)
+    end
+  end
+
+  if EnableTriggers then
+    BBar:DoTriggers()
   end
 
   -- Set the IsActive flag
@@ -112,7 +139,7 @@ end
 -------------------------------------------------------------------------------
 -- EnableMouseClicks    UnitBarsF function
 --
--- This will enable or disbale mouse clicks for the combo bar.
+-- This will enable or disable mouse clicks for the combo bar.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:EnableMouseClicks(Enable)
   local BBar = self.BBar
@@ -133,6 +160,41 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          for GroupNumber = 1, #TriggerGroups do
+            local TG = TriggerGroups[GroupNumber]
+            local BoxNumber = TG[TGBoxNumber]
+
+            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, ComboSBar)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, ComboSBar)
+            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', BoxNumber)
+          end
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
+
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
@@ -146,8 +208,21 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    BBar:SO('Background', 'BackdropSettings',  function(v) BBar:SetBackdrop(0, BoxMode, v) end)
-    BBar:SO('Background', 'Color',             function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(0, BoxMode, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(0, BoxMode, v) end)
+    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(0, BoxMode, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(0, BoxMode, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(0, BoxMode, v) end)
+    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
+      if UB.Background.EnableBorderColor then
+        BBar:SetBackdropBorderColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a)
+      else
+        BBar:SetBackdropBorderColor(OD.Index, BoxMode, nil)
+      end
+    end)
+
     BBar:SO('Bar', 'StatusBarTexture',         function(v) BBar:ChangeBox(Combo, 'SetTexture', ComboSBar, v) end)
     BBar:SO('Bar', 'RotateTexture',            function(v) BBar:ChangeBox(Combo, 'SetRotateTexture', ComboSBar, v) end)
     BBar:SO('Bar', 'Color',                    function(v, UB, OD) BBar:SetColorTexture(OD.Index, ComboSBar, OD.r, OD.g, OD.b, OD.a) end)
@@ -158,8 +233,9 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
-    self:Update()
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
   end
 
   if Display then
@@ -179,7 +255,9 @@ end
 function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxComboPoints)
 
-  local ColorAllNames = {}
+  local Names = {Trigger = {}, Color = {}}
+  local Trigger = Names.Trigger
+  local Color = Names.Color
 
   BBar:CreateTextureFrame(0, BoxMode, 0)
     BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ComboSBar)
@@ -187,16 +265,18 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeBox(Combo, 1, 2, 3, 4, 5)
 
   for ComboIndex = 1, MaxComboPoints do
-    local Name = nil
+    local Name = TriggerGroups[ComboIndex][TGName]
 
-    Name = 'Combo Point ' .. ComboIndex
-    ColorAllNames[ComboIndex] = Name
+    Color[ComboIndex] = Name
+    Trigger[ComboIndex] = Name
     BBar:SetTooltip(ComboIndex, nil, Name)
   end
 
-  UnitBarF.ColorAllNames = ColorAllNames
+  Trigger[AnyComboTrigger] = TriggerGroups[AnyComboTrigger][TGName]
+
   BBar:ChangeBox(Combo, 'SetHidden', BoxMode, false)
 
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

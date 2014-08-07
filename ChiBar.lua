@@ -10,6 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
@@ -17,12 +18,12 @@ local ConvertPowerType = Main.ConvertPowerType
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -59,9 +60,16 @@ local C_PetBattles, UIParent =
 -- OrbDarkTexture                    Dark texture for orb in texture mode.
 -- OrbLightTexture                   Light texture for orb in texture mode.
 -- Orbs                              Change texture for OrbSBar and OrbLightTexture
+--
+-- ActiveOrbTrigger                  Trigger for any chi orb that is currently active.
+-- RegionTrigger                     Trigger to make changes to the region.
+-- TriggerGroups                     Trigger groups for boxnumber and condition type.
+-- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+--                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 5
 local Display = false
+local DoTriggers = false
 
 -- Powertype constants
 local PowerChi = ConvertPowerType['CHI']
@@ -75,6 +83,22 @@ local Orbs = 3
 local OrbSBar = 10
 local OrbDarkTexture = 20
 local OrbLightTexture = 21
+
+local AnyOrbTrigger = 6
+local RegionTrigger = 7
+local TGBoxNumber = 1
+local TGName = 2
+local TGValueTypes = 3
+local VTs = {'whole:Chi'}
+local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
+  {1,  'Chi Orb 1',    VTs},                    -- 1
+  {2,  'Chi Orb 2',    VTs},                    -- 2
+  {3,  'Chi Orb 3',    VTs},                    -- 3
+  {4,  'Chi Orb 4',    VTs},                    -- 4
+  {5,  'Chi Orb 5',    VTs},                    -- 5
+  {0,  'Any Chi Orb', {'boolean:Active'}},      -- 6
+  {-1, 'Region',         VTs},                  -- 7
+}
 
 local ChiData = {
   Texture = [[Interface\PlayerFrame\MonkUI]],
@@ -108,13 +132,14 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 -- Update the number of chi orbs of the player
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
+--              'update' bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -127,10 +152,22 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
 
   local ChiOrbs = UnitPower('player', PowerChi)
   local NumOrbs = UnitPowerMax('player', PowerChi)
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   -- Set default value if ChiOrbs returns zero.
   NumOrbs = NumOrbs > 0 and NumOrbs or MaxChiOrbs - 1
   local BBar = self.BBar
+
+  if Main.UnitBars.Testing then
+    local TestMode = self.UnitBar.TestMode
+
+    if TestMode.ShowExtraChiOrb then
+      NumOrbs = MaxChiOrbs
+    else
+      NumOrbs = MaxChiOrbs - 1
+    end
+    ChiOrbs = floor(NumOrbs * TestMode.Value)
+  end
 
   -- Check for max chi change
   if NumOrbs ~= self.NumOrbs then
@@ -142,16 +179,18 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     self.NumOrbs = NumOrbs
   end
 
-  if Main.UnitBars.Testing then
-    if self.UnitBar.TestMode.MaxResource then
-      ChiOrbs = MaxChiOrbs
-    else
-      ChiOrbs = 0
+  for OrbIndex = 1, MaxChiOrbs do
+    BBar:ChangeTexture(Orbs, 'SetHiddenTexture', OrbIndex, OrbIndex > ChiOrbs)
+
+    if EnableTriggers then
+      BBar:SetTriggers(AnyOrbTrigger, 'active', OrbIndex <= ChiOrbs, nil, OrbIndex)
+      BBar:SetTriggers(OrbIndex, 'chi', ChiOrbs)
     end
   end
 
-  for OrbIndex = 1, MaxChiOrbs do
-    BBar:ChangeTexture(Orbs, 'SetHiddenTexture', OrbIndex, OrbIndex > ChiOrbs)
+  if EnableTriggers then
+    BBar:SetTriggers(RegionTrigger, 'chi', ChiOrbs)
+    BBar:DoTriggers()
   end
 
   -- Set this IsActive flag
@@ -188,6 +227,52 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          for GroupNumber = 1, #TriggerGroups do
+            local TG = TriggerGroups[GroupNumber]
+            local BoxNumber = TG[TGBoxNumber]
+
+            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
+            if BoxNumber ~= -1 then
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, OrbSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, OrbSBar)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_TextureSize,           TT.Type_TextureSize,           'SetScaleTexture', BoxNumber, OrbDarkTexture, OrbLightTexture)
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', BoxNumber)
+            else
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorder,          TT.Type_RegionBorder,          'SetBackdropBorderRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,     'SetBackdropBorderColorRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackground,      TT.Type_RegionBackground,      'SetBackdropRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor, 'SetBackdropColorRegion')
+              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', 1)
+            end
+          end
+          -- Set the texture scale for Texture Size triggers.
+          BBar:SetScaleTexture(0, OrbDarkTexture, 1)
+          BBar:SetScaleTexture(0, OrbLightTexture, 1)
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
     BBar:SO('Layout', 'BoxMode',       function(v)
       if v then
         -- Box mode
@@ -216,11 +301,35 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    BBar:SO('Region', 'BackdropSettings', function(v) BBar:SetBackdropRegion(v) end)
-    BBar:SO('Region', 'Color',            function(v) BBar:SetBackdropColorRegion(v.r, v.g, v.b, v.a) end)
+    BBar:SO('Region', 'BgTexture',     function(v) BBar:SetBackdropRegion(v) end)
+    BBar:SO('Region', 'BorderTexture', function(v) BBar:SetBackdropBorderRegion(v) end)
+    BBar:SO('Region', 'BgTile',        function(v) BBar:SetBackdropTileRegion(v) end)
+    BBar:SO('Region', 'BgTileSize',    function(v) BBar:SetBackdropTileSizeRegion(v) end)
+    BBar:SO('Region', 'BorderSize',    function(v) BBar:SetBackdropBorderSizeRegion(v) end)
+    BBar:SO('Region', 'Padding',       function(v) BBar:SetBackdropPaddingRegion(v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Region', 'Color',         function(v) BBar:SetBackdropColorRegion(v.r, v.g, v.b, v.a) end)
+    BBar:SO('Region', 'BorderColor',   function(v, UB)
+      if UB.Region.EnableBorderColor then
+        BBar:SetBackdropBorderColorRegion(v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropBorderColorRegion(nil)
+      end
+    end)
 
-    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(0, BoxMode, v) end)
-    BBar:SO('Background', 'Color',            function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(0, BoxMode, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(0, BoxMode, v) end)
+    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(0, BoxMode, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(0, BoxMode, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(0, BoxMode, v) end)
+    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
+      if UB.Background.EnableBorderColor then
+        BBar:SetBackdropBorderColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a)
+      else
+        BBar:SetBackdropBorderColor(OD.Index, BoxMode, nil)
+      end
+    end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, OrbSBar, v) end)
     BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, OrbSBar, v) end)
@@ -232,8 +341,9 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
-    self:Update()
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
   end
 
   if Display then
@@ -252,7 +362,9 @@ end
 function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxChiOrbs)
 
-  local ColorAllNames = {}
+  local Names = {Trigger = {}, Color = {}}
+  local Trigger = Names.Trigger
+  local Color = Names.Color
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
@@ -271,11 +383,15 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
         BBar:SetSizeTexture(OrbIndex, TextureNumber, SD.Width, SD.Height)
       end
     end
-    local Name = 'Chi Orb ' .. OrbIndex
+    local Name = TriggerGroups[OrbIndex][TGName]
 
     BBar:SetTooltip(OrbIndex, nil, Name)
-    ColorAllNames[OrbIndex] = Name
+    Color[OrbIndex] = Name
+    Trigger[OrbIndex] = Name
   end
+
+  Trigger[AnyOrbTrigger] = TriggerGroups[AnyOrbTrigger][TGName]
+  Trigger[RegionTrigger] = TriggerGroups[RegionTrigger][TGName]
 
   BBar:SetHiddenTexture(0, OrbSBar, false)
   BBar:SetHiddenTexture(0, OrbDarkTexture, false)
@@ -285,9 +401,9 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetChangeTexture(Orbs, OrbLightTexture, OrbSBar)
 
-  BBar:SetTooltipRegion(UB.Name)
-  UnitBarF.ColorAllNames = ColorAllNames
+  BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

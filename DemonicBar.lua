@@ -10,6 +10,7 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
+local TT = GUB.DefaultUB.TriggerTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
@@ -17,12 +18,12 @@ local ConvertPowerType = Main.ConvertPowerType
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
-local strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber =
-      strfind, strsplit, strsub, strupper, strlower, strmatch, format, strconcat, gsub, tonumber
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip
+local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
+      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
+      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
@@ -69,6 +70,14 @@ local C_PetBattles, UIParent =
 --
 -- MetaAura                          SpellID for the metamorphosis aura.
 --
+-- BothValueTrigger                  Trigger works in metamorphosis or normal.
+-- NormalValueTrigger                Trigger for fury when not in metamorphosis
+-- MetaValueTrigger                  Trigger for fury when in metamorphosis
+-- MetaTrigger                       Trigger for detecting metamorphosis
+-- TriggerGroups                     Contains the condition type for each trigger.
+-- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+--                                   self:Update(DoTriggers)
+--
 -- DemonicData                       Table containing all the data to build the demonic fury bar.
 --   Texture                         Path to the texture file.
 --   BoxWidth, BoxHeight             Width and Height of the bars border for texture mode.
@@ -82,6 +91,7 @@ local C_PetBattles, UIParent =
 --      Left, Right, Top, Bottom     Texcoordinates of the texture.
 -------------------------------------------------------------------------------
 local Display = false
+local DoTriggers = false
 
 -- Powertype constants
 local PowerDemonicFury = ConvertPowerType['DEMONIC_FURY']
@@ -189,13 +199,13 @@ end
 -- Update the amount of demonic fury.
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
+--              'update' by passes visible and isactive flags.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if not self.Visible and self.IsActive ~= 0 then
+  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -210,13 +220,17 @@ function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
   local UB = self.UnitBar
   local DemonicFury = UnitPower('player', PowerDemonicFury)
   local MaxDemonicFury = UnitPowerMax('player', PowerDemonicFury)
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   -- Check for metamorphosis.
   local Meta = Main:CheckAura('a', MetaAura)
 
   if Main.UnitBars.Testing then
-    DemonicFury = MaxDemonicFury * 0.5
-    Meta = UB.TestMode.ShowMeta
+    local TestMode = UB.TestMode
+
+    MaxDemonicFury = 1000
+    DemonicFury = floor(MaxDemonicFury * TestMode.Value)
+    Meta = TestMode.ShowMeta
   end
 
   -- If meta then change texture or box color.
@@ -238,6 +252,26 @@ function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
   BBar:ChangeTexture(FBar, 'SetFillTexture', 1, Value)
   if not UB.Layout.HideText then
     BBar:SetValueFont(1, nil, 'current', DemonicFury, 'maximum', MaxDemonicFury, 'unit', 'player')
+  end
+
+  if EnableTriggers then
+    BBar:SetTriggers(1, 'fury both', DemonicFury, MaxDemonicFury)
+    BBar:SetTriggers(1, 'fury both (percent)', DemonicFury, MaxDemonicFury)
+
+    if not Meta then
+      BBar:SetTriggers(1, 'off', 'fury meta')
+      BBar:SetTriggers(1, 'off', 'fury meta (percent)')
+      BBar:SetTriggers(1, 'fury normal', DemonicFury, MaxDemonicFury)
+      BBar:SetTriggers(1, 'fury normal (percent)', DemonicFury, MaxDemonicFury)
+    else
+      BBar:SetTriggers(1, 'off', 'fury normal')
+      BBar:SetTriggers(1, 'off', 'fury normal (percent)')
+      BBar:SetTriggers(1, 'fury meta', DemonicFury, MaxDemonicFury)
+      BBar:SetTriggers(1, 'fury meta (percent)', DemonicFury, MaxDemonicFury)
+    end
+    BBar:SetTriggers(1, 'metamorphosis', Meta)
+
+    BBar:DoTriggers()
   end
 
   -- Set this IsActive flag when not 20% or in metamorphosis.
@@ -274,6 +308,43 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
     BBar:SO('Text', '_Font', function()  BBar:UpdateFont(1) self:Update() end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', '_UpdateTriggers', function(v)
+      if v.EnableTriggers then
+        DoTriggers = true
+        Display = true
+      end
+    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v)
+      if v then
+        if not BBar:GroupsCreatedTriggers() then
+          BBar:CreateGroupTriggers(1, 'whole:Fury Both',   'percent:Fury Both (percent)',
+                                      'whole:Fury Normal', 'percent:Fury Normal (percent)',
+                                      'whole:Fury Meta',   'percent:Fury Meta (percent)',
+                                      'boolean: Metamorphosis')
+
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,          'SetBackdropBorder', 1, BoxMode)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,     'SetBackdropBorderColor', 1, BoxMode)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,      'SetBackdrop', 1, BoxMode)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,           'SetBackdropColor', 1, BoxMode)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (both)',   'SetTexture', 1, FurySBar, FuryMetaSBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (both)',   'SetColorTexture', 1, FurySBar, FuryMetaSBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (normal)', 'SetTexture', 1, FurySBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (normal)', 'SetColorTexture', 1, FurySBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (meta)',   'SetTexture', 1, FuryMetaSBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (meta)',   'SetColorTexture', 1, FuryMetaSBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                 TT.Type_Sound,                     'PlaySound', 1)
+
+          -- Do this since all defaults need to be set first.
+          BBar:DoOption()
+        end
+        BBar:UpdateTriggers()
+
+        DoTriggers = 'update'
+        Display = true
+      elseif BBar:ClearTriggers() then
+        Display = true
+      end
+    end)
     BBar:SO('Layout', 'BoxMode',        function(v)
       if v then
 
@@ -313,8 +384,20 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
     end)
     BBar:SO('Layout', 'SmoothFill',  function(v) BBar:ChangeTexture(FBar, 'SetFillSmoothTimeTexture', 1, v) end)
 
-    BBar:SO('Background', 'BackdropSettings', function(v) BBar:SetBackdrop(1, BoxMode, v) end)
-    BBar:SO('Background', 'Color',            function(v) BBar:SetBackdropColor(1, BoxMode, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(1, BoxMode, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(1, BoxMode, v) end)
+    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(1, BoxMode, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(1, BoxMode, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(1, BoxMode, v) end)
+    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(1, BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v) BBar:SetBackdropColor(1, BoxMode, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Background', 'BorderColor',   function(v, UB)
+      if UB.Background.EnableBorderColor then
+        BBar:SetBackdropBorderColor(1, BoxMode, v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropBorderColor(1, BoxMode, nil)
+      end
+    end)
 
     BBar:SO('Bar', 'StatusBarTexture',     function(v) BBar:SetTexture(1, FurySBar, v) end)
     BBar:SO('Bar', 'MetaStatusBarTexture', function(v) BBar:SetTexture(1, FuryMetaSBar, v) end)
@@ -332,8 +415,9 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
-    self:Update()
+  if DoTriggers or Main.UnitBars.Testing then
+    self:Update(DoTriggers)
+    DoTriggers = false
   end
 
   if Display then
@@ -351,6 +435,9 @@ end
 -------------------------------------------------------------------------------
 function GUB.DemonicBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
+
+  local Names = {Trigger = {}}
+  local Trigger = Names.Trigger
 
   -- Create box mode
   BBar:CreateTextureFrame(1, BoxMode, 0)
@@ -375,18 +462,20 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, ScaleFrame)
       BBar:SetHiddenTexture(1, TextureNumber, false)
     end
   end
+  local Name = UB.Name
+  Trigger[1] = Name
 
   -- Create font for displaying power.
   BBar:CreateFont(1, nil, PercentFn)
 
   -- Save the name for tooltips for normal mode.
-  BBar:SetTooltip(1, nil, UB.Name)
+  BBar:SetTooltip(1, nil, Name)
 
   -- Set up set change
   BBar:SetChangeTexture(FMeta, FuryMetaTexture, FuryBdMetaTexture, FuryNotchMetaTexture, FuryMetaSBar)
   BBar:SetChangeTexture(FNormal, FuryTexture, FuryBdTexture, FuryNotchTexture, FurySBar)
 
-  -- Save the demonic bar
+  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 
