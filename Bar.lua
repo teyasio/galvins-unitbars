@@ -4612,7 +4612,6 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
   TriggerPars[4] = TDPars[4]
 
   if Sort then
-    print('sorted = false')
     Triggers.Sorted = false
   end
 
