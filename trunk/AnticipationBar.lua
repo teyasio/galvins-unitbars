@@ -174,8 +174,6 @@ function Main.UnitBarsF.AnticipationBar:Update(Event)
     local SpellID, Duration, Charges = Main:CheckAura('o', AnticipationAura)
     local DurationChanged = Duration == nil or Duration >= self.OldDuration
 
-    print(Duration, '>', self.OldDuration)
-
     self.OldDuration = Duration or 0
     AnticipationCharges = Charges or 0
 
