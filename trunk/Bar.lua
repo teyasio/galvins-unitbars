@@ -26,18 +26,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -143,7 +143,6 @@ local C_PetBattles, UIParent =
 --   TexBottom                       Text coords for a texture.  Used by SetFill() and SetTexCoord()
 --
 --   CooldownFrame                   Frame used to do a cooldown on the texture.
---   CooldownFrameLine               Frame used to show a line in the clockface cooldown.
 --
 --   Backdrop                        Table containing the backdrop.
 --
@@ -157,6 +156,7 @@ local C_PetBattles, UIParent =
 --    TextureFillTime                Amount of times per second the fill timer is called.
 --    TextureSmoothFillTime          Amount of times per second the smooth fill timer is called.
 --    DoOptionData                   Resusable table for passing back information. Used by DoOption().
+--    DoTriggersRecursive            Prevents an infinite recursive function call loop.  Used by DoTriggers()
 --
 --  RotationPoint data structure
 --
@@ -333,6 +333,13 @@ local C_PetBattles, UIParent =
 --                            to Triggers which is sorted uneffecting Triggers.
 --   StaticTriggers           Contains a list of any trigger that has a Condition of 'static'. Static Triggers always
 --                            execute as long as DoTriggers() is called.
+--   Auras[SpellID]           Array of auras listed by SpellID
+--     Units                  Table of one or more units
+--     StackCondition         Condition to be compared based on stacks for the aura.
+--     Stacks                 Number of stacks compare with StackCondition.
+--
+--   AuraTriggers[Trigger]    The key and value is equal to the same Trigger.
+--                            This table keeps track of what triggers are for auras only.
 --
 -- Groups[GroupNumber]                Array containing ValueTypes
 --   ValueTypes[]                     Array that contains the name of each ValueType.  Name can be anything.
@@ -391,6 +398,14 @@ local C_PetBattles, UIParent =
 -- that the final trigger result is the one to use. When a trigger resets it stores the last value set to
 -- BarFunction that was called outside of the trigger system.  This value is stored in LastValues[BarFunction]
 -- assuming nothing is set to it already.
+--
+-- Notes: Auras only exist if the triggerdata ValuTypeID is 'auras'.  The table will get removed
+-- only during an InsertTriggers() if the ValueTypeID is not 'auras'.
+--
+-- TriggerData.Auras[SpellID] data structure
+--   Units            Table containing units.
+--   StackCondition   Condition to be compared based on stacks for the aura.
+--   Stacks           Number of stacks compare with StackCondition.
 -------------------------------------------------------------------------------
 local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this object'
 
@@ -400,6 +415,7 @@ local FontStrings = {}
 
 local DoOptionData = {}
 local VirtualFrameLevels = nil
+local DoTriggersRecursive = false
 
 local BoxFrames = nil
 local NextBoxFrame = 0
@@ -2584,29 +2600,25 @@ end
 -- Fills a bar over time
 -------------------------------------------------------------------------------
 local function SetFillTimer(self)
-  local CurrentTime = GetTime()
+  local TimeElapsed = GetTime() - self.StartTime
+  local Duration = self.Duration
 
-  if CurrentTime >= self.StartTime then
-    local TimeElapsed = CurrentTime - self.StartTime
-    local Duration = self.Duration
+  if TimeElapsed <= Duration then
 
-    if TimeElapsed <= Duration then
+    -- Calculate current value.
+    local Value = self.StartValue + self.Range * (TimeElapsed / Duration)
+    SetFill(self, Value, self.Spark)
+  else
 
-      -- Calculate current value.
-      local Value = self.StartValue + self.Range * (TimeElapsed / Duration)
-      SetFill(self, Value, self.Spark)
-    else
+    -- Stop timer
+    Main:SetTimer(self, nil)
 
-      -- Stop timer
-      Main:SetTimer(self, nil)
+    -- set the end value.
+    SetFill(self, self.EndValue)
 
-      -- set the end value.
-      SetFill(self, self.EndValue)
-
-      -- Hide spark
-      if self.Spark then
-        self.Spark:Hide()
-      end
+    -- Hide spark
+    if self.Spark then
+      self.Spark:Hide()
     end
   end
 end
@@ -2622,7 +2634,7 @@ end
 -- TPS               Times per second.  This is how many times per second
 --                   The timer will be called. The higher the number the smoother
 --                   the animation but also the more cpu is consumed.
--- StartTime         Starting time if nil the starts instantly.
+-- StartTime         Starting time if nil then starts instantly.
 -- Duration          Time it will take to reach from StartValue to EndValue.
 -- StartValue        Starting value between 0 and 1.  If nill the current value
 --                   is used instead.
@@ -2638,7 +2650,9 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
   if StartValue ~= EndValue and Duration > 0 then
 
     -- Set up the paramaters.
-    Texture.StartTime = StartTime and StartTime or GetTime()
+    local CurrentTime = GetTime()
+    StartTime = StartTime and StartTime or CurrentTime
+    Texture.StartTime = StartTime
 
     Texture.Duration = Duration
     Texture.Range = EndValue - StartValue
@@ -2646,7 +2660,7 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
     Texture.StartValue = StartValue
     Texture.EndValue = EndValue
 
-    Main:SetTimer(Texture, TPS, SetFillTimer)
+    Main:SetTimer(Texture, SetFillTimer, TPS, StartTime - CurrentTime)
   else
     local Spark = Texture.Spark
 
@@ -2760,45 +2774,14 @@ end
 --
 -- NOTES:  To stop timer just set duration to 0
 -------------------------------------------------------------------------------
-local function HideFlashTimer(self, Elapsed)
-  Main:SetTimer(self, nil)
-
-  self:SetCooldown(0, 0)
-  if self.HideFlash then
-    self:SetBlingDuration(0)
-  end
-  local CooldownFrameLine = self.CooldownFrameLine
-  CooldownFrameLine:SetCooldown(0, 0)
-  CooldownFrameLine:SetBlingDuration(0)
-end
-
 function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration, Line, HideFlash)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
   local CooldownFrame = Texture.CooldownFrame
-  local CooldownFrameLine = Texture.CooldownFrameLine
 
-  if HideFlash ~= nil then
-    CooldownFrame.HideFlash = HideFlash
-  end
+  CooldownFrame:SetDrawEdge(Line or false)
+  CooldownFrame:SetDrawBling(HideFlash)
 
-  Duration = Duration or 0
-  StartTime = StartTime or 0
-
-  CooldownFrame:SetCooldown(StartTime, Duration)
-
-  if Line or Duration == 0 then
-    CooldownFrameLine:SetCooldown(StartTime, Duration, 1, 1)
-  end
-  if Duration == 0 then
-    if CooldownFrame.HideFlash then
-      CooldownFrame:SetBlingDuration(0)
-      CooldownFrameLine:SetBlingDuration(0)
-    end
-  else
-    Main:SetTimer(CooldownFrame, nil)
-    CooldownFrame.CooldownFrameLine = CooldownFrameLine
-    Main:SetTimer(CooldownFrame, StartTime - GetTime() + Duration, HideFlashTimer)
-  end
+  CooldownFrame:SetCooldown(StartTime or 0, Duration or 0)
 end
 
 -------------------------------------------------------------------------------
@@ -3320,15 +3303,11 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
       if TextureType == 'cooldown' then
         TextureType = 'texture'
 
-        local CooldownFrame = CreateFrame('Cooldown', nil, SubFrame)
+        local CooldownFrame = CreateFrame('Cooldown', nil, SubFrame, 'CooldownFrameTemplate')
+        CooldownFrame:ClearAllPoints()  -- Undoing template SetAllPoints
         CooldownFrame:SetPoint('CENTER', SubTexture, 'CENTER', 0, 0)
         Texture.CooldownFrame = CooldownFrame
-
-        local CooldownFrameLine = CreateFrame('Cooldown', nil, CooldownFrame)
-        CooldownFrameLine:SetAllPoints(CooldownFrame)
-        Texture.CooldownFrameLine = CooldownFrameLine
-
-        FrameLevel = FrameLevel + 2
+        FrameLevel = FrameLevel + 1
       end
     end
 
@@ -3666,66 +3645,48 @@ end
 -------------------------------------------------------------------------------
 local function SetValueTimer(self)
   local TimeElapsed = GetTime() - self.StartTime
-  local TimeReached = self.TimeReached
 
-  if not TimeReached then
-    TimeReached = true
-    self.TimeReached = true
+  if TimeElapsed < self.Duration then
     local Counter = self.Counter
+    local FS = self.FS
+    local Text = FS.Text
 
-    if self.Step < 0 then
-      Counter = self.Duration - TimeElapsed
-    else
-      Counter = Counter + TimeElapsed
-    end
-    -- Truncate down to 1 decimal place.
-    self.Counter = abs(Counter - (Counter % 0.1))
-    Main:SetTimer(self, 0.1, SetValueTimer)
-  end
+    FS.time = Counter
 
-  if TimeReached then
-    if TimeElapsed < self.Duration then
-      local Counter = self.Counter
-      local FS = self.FS
-      local Text = FS.Text
-
-      FS.time = Counter
-
-      if FS.Multi then
-        for Index = 1, FS.NumStrings do
-          local FontString = FS[Index]
-          local TS = Text[Index]
-          local ValueName = TS.ValueName
-
-          -- Display the font string
-          local ReturnOK, Msg = pcall(SetValue, FS, FontString, TS.Layout, #ValueName, ValueName, TS.ValueType)
-
-          if not ReturnOK then
-            FontString:SetFormattedText('Err (%d)', Index)
-          end
-        end
-      else
-        local TS = FS.Text[1]
+    if FS.Multi then
+      for Index = 1, FS.NumStrings do
+        local FontString = FS[Index]
+        local TS = Text[Index]
         local ValueName = TS.ValueName
 
         -- Display the font string
-        local ReturnOK, Msg = pcall(SetValue, FS, FS[1], TS.Layout, #ValueName, ValueName, TS.ValueType)
+        local ReturnOK, Msg = pcall(SetValue, FS, FontString, TS.Layout, #ValueName, ValueName, TS.ValueType)
 
         if not ReturnOK then
-          FS[1]:SetFormattedText('Err (%d)', 1)
+          FontString:SetFormattedText('Err (%d)', Index)
         end
       end
-      Counter = Counter + self.Step
-      Counter = Counter > 0 and Counter or 0
-      self.Counter = Counter
     else
+      local TS = FS.Text[1]
+      local ValueName = TS.ValueName
 
-      -- stop timer
-      Main:SetTimer(self, nil)
-      local FS = self.FS
-      for Index = 1, FS.NumStrings do
-        FS[Index]:SetText('')
+      -- Display the font string
+      local ReturnOK, Msg = pcall(SetValue, FS, FS[1], TS.Layout, #ValueName, ValueName, TS.ValueType)
+
+      if not ReturnOK then
+        FS[1]:SetFormattedText('Err (%d)', 1)
       end
+    end
+    Counter = Counter + self.Step
+    Counter = Counter > 0 and Counter or 0
+    self.Counter = Counter
+  else
+
+    -- stop timer
+    Main:SetTimer(self, nil)
+    local FS = self.FS
+    for Index = 1, FS.NumStrings do
+      FS[Index]:SetText('')
     end
   end
 end
@@ -3741,7 +3702,7 @@ end
 -- Duration             Duration in seconds.  Duration of 0 or less will stop the current timer.
 -- StartValue           Starting value in seconds.  This will start dipslaying seconds from this value.
 -- Direction            Direction to go in +1 or -1
--- ...                  Type, Value pairs.  Example:
+-- ...                  Additional Type, Value pairs. Optional.  Example:
 --                        'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
 -------------------------------------------------------------------------------
 function BarDB:SetValueTimeFont(BoxNumber, TextureFrameNumber, StartTime, Duration, StartValue, Direction, ...)
@@ -3767,15 +3728,32 @@ function BarDB:SetValueTimeFont(BoxNumber, TextureFrameNumber, StartTime, Durati
 
     if Duration > 0 then
       local CurrentTime = GetTime()
+      local WaitTime = 0
+      local TimeElapsed = 0
+
+      StartTime = StartTime and StartTime or CurrentTime
+
+      if StartTime > CurrentTime then
+        WaitTime = StartTime - CurrentTime
+      else
+        TimeElapsed = CurrentTime - StartTime
+      end
+
+      if Step < 0 then
+        StartValue = Duration - TimeElapsed
+      else
+        StartValue = StartValue + TimeElapsed
+      end
+
+      -- Truncate down to 1 decimal place.
+      StartValue = abs(StartValue - (StartValue % 0.1))
 
       -- Set up the paramaters.
-      StartTime = StartTime and StartTime or CurrentTime
       FontTime.StartTime = StartTime
       FontTime.Duration = Duration
       FontTime.StartValue = StartValue
       FontTime.Counter = StartValue
       FontTime.Step = Step
-      FontTime.TimeReached = false
       FontTime.FS = FS
       FontTime.Frame = Frame
 
@@ -3799,11 +3777,7 @@ function BarDB:SetValueTimeFont(BoxNumber, TextureFrameNumber, StartTime, Durati
         end
       end
 
-      local WaitTime = 0
-      if StartTime > CurrentTime then
-        WaitTime = StartTime - CurrentTime
-      end
-      Main:SetTimer(FontTime, WaitTime, SetValueTimer)
+      Main:SetTimer(FontTime, SetValueTimer, 0.1, WaitTime)
     else
       for Index = 1, FS.NumStrings do
         FS[Index]:SetText('')
@@ -4212,40 +4186,6 @@ local function FindTypeTriggers(Group, TypeID, Type)
 end
 
 -------------------------------------------------------------------------------
--- FindValueTypeTrigger
---
--- Returns the index that matches ValueType. If not found then searches by ValueTypeID
---
--- Group   Group that contains the IDs
--- ValueTypeID    Indentifier for ValueType
--- ValueType      String that describes the ValueType
---
--- Returns
---   Index       Position found.  Returns 1 info found.
--------------------------------------------------------------------------------
-local function FindValueTypeTrigger(Group, ValueTypeID, ValueType)
-  local ValueTypes = Group.ValueTypes
-  local ValueTypeIDs = Group.ValueTypeIDs
-  local NumValueTypes = #Group.ValueTypes
-  ValueType = strlower(ValueType)
-
-  -- Search by value type
-  for Index = 1, NumValueTypes do
-    if strlower(ValueTypes[Index]) == ValueType then
-      return Index
-    end
-  end
-
-  -- Didn't find value type search by ValueTypeID
-  for Index = 1, NumValueTypes do
-    if ValueTypeIDs[Index] == ValueTypeID then
-      return Index
-    end
-  end
-  return 0
-end
-
--------------------------------------------------------------------------------
 -- GetGroupsTrigger
 --
 -- Returns the BarFunctions table
@@ -4282,7 +4222,7 @@ end
 --                     'boolean'   Trigger can support true and false values.
 --                     'whole'     Trigger can support whole numbers (integers).
 --                     'percent'   Trigger can support percentages.
---                     'aura'      Trigger can support a buff or debuff.
+--                     'auras'      Trigger can support a buff or debuff.
 -------------------------------------------------------------------------------
 function BarDB:CreateGroupTriggers(GroupNumber, ...)
   local Triggers = self.Triggers
@@ -4325,7 +4265,6 @@ function BarDB:CreateGroupTriggers(GroupNumber, ...)
     Groups[GroupNumber] = Group
   end
 end
-
 
 -------------------------------------------------------------------------------
 -- CreateTypeTriggers
@@ -4376,7 +4315,7 @@ function BarDB:CreateTypeTriggers(GroupNumber, TypeID, Type, BarFunctionName, Bo
   -- Set up for sound.
   if BarFunctionName == 'PlaySound' then
     CustomFn = function(self, BoxNumber, Tpar, p1, p2)
-      if not Main.ProfileChanged then
+      if not Main.ProfileChanged and not Main.IsDead then
         PlaySoundFile(LSM:Fetch('sound', p1), p2)
       end
     end
@@ -4514,6 +4453,118 @@ function BarDB:CreateTypeTriggers(GroupNumber, TypeID, Type, BarFunctionName, Bo
 end
 
 -------------------------------------------------------------------------------
+-- ModifyAuraTriggers
+--
+-- Updates the aura triggers list, enanbles/disables aura tracking, etc.
+--
+-- TriggerNumber    Aura Trigger to modify
+-- TD               Trigger data
+--
+-- If TriggerNumber is nil then just the units are done.
+-------------------------------------------------------------------------------
+function BarDB:ModifyAuraTriggers(TriggerNumber, TD)
+  local Triggers = self.Triggers
+  local Trigger = Triggers[TriggerNumber]
+  local AuraTriggers = Triggers.AuraTriggers
+
+  if TriggerNumber then
+    local TDAuras = TD.Auras
+
+    if AuraTriggers == nil then
+      AuraTriggers = {}
+      Triggers.AuraTriggers = AuraTriggers
+    end
+    local AuraTrigger = AuraTriggers[Trigger]
+
+    -- Create new aura trigger if one doesn't exist.
+    if AuraTrigger == nil then
+      AuraTriggers[Trigger] = Trigger
+    end
+
+    -- Remove or add if TDAuras exists.
+    if TDAuras then
+      local Auras = Trigger.Auras or {}
+      Trigger.Auras = Auras
+
+      Main:CopyTableValues(TDAuras, Trigger.Auras, true)
+    else
+      Trigger.Auras = nil
+    end
+  end
+
+  -- Build list of units
+  local Units = nil
+  local ParUnits = nil
+
+  -- find all units in use.
+  if AuraTriggers then
+    for _, Trigger in pairs(AuraTriggers) do
+      if Trigger.Enabled then
+        local UnitsFound = false
+        local Auras = Trigger.Auras
+
+        if Auras then
+          for SpellID, Aura in pairs(Auras) do
+            if type(Aura) == 'table' then
+              local AuraUnits = Aura.Units
+
+              if AuraUnits then
+                for Unit, _ in pairs(AuraUnits) do
+                  if Units == nil then
+                    Units = {}
+                  end
+                  Units[Unit] = true
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  if Units then
+    ParUnits = {}
+    local Index = 0
+    for Unit, _ in pairs(Units) do
+      Index = Index + 1
+      ParUnits[Index] = Unit
+    end
+  end
+  if Units == nil then
+    Main:SetAuraTracker(self.UnitBarF, 'off')
+  else
+    Main:SetAuraTracker(self.UnitBarF, 'fn', function(Auras, Unit)
+                                               self:SetAuraTriggers(Auras, Unit)
+                                             end)
+    Main:SetAuraTracker(self.UnitBarF, 'units', unpack(ParUnits))
+  end
+end
+
+-------------------------------------------------------------------------------
+-- RemoveAuraTriggers
+--
+-- Removes an aura trigger
+--
+-- Trigger     Table of the trigger you want to remove.
+-------------------------------------------------------------------------------
+function BarDB:RemoveAuraTriggers(Trigger)
+  local Triggers = self.Triggers
+  local AuraTriggers = Triggers.AuraTriggers
+
+  if AuraTriggers then
+
+    AuraTriggers[Trigger] = nil
+
+    -- Check for any aura triggers remaining
+    if next(AuraTriggers) == nil then
+      Triggers.AuraTriggers = nil
+    end
+    self:ModifyAuraTriggers()
+  end
+end
+
+-------------------------------------------------------------------------------
 -- SwapTriggers
 --
 -- Swaps one trigger with another.
@@ -4546,6 +4597,9 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
   local TypeID = TD.TypeID
   local Active = Trigger.Active
   local Enabled = TD.Enabled
+  local ValueTypeID = TD.ValueTypeID
+  local EnabledChanged = Trigger.Enabled ~= Enabled
+  local ValueTypeIDChanged = Trigger.ValueType ~= ValueTypeID
 
   if Sort == nil or Sort == false then
     Sort = Trigger.Enabled ~= Enabled
@@ -4565,6 +4619,8 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
       end
 
       if TriggerCondition == 'static' then
+
+        -- Static will be going non static so set to nil
         StaticTriggers[TriggerNumber] = nil
       else
         StaticTriggers[TriggerNumber] = Trigger
@@ -4578,7 +4634,7 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
   Trigger.GroupNumber = GroupNumber
   Trigger.Condition   = Condition
   Trigger.ValueType   = strlower(TD.ValueType)
-  Trigger.ValueTypeID = TD.ValueTypeID
+  Trigger.ValueTypeID = ValueTypeID
   Trigger.SortValue   = TD.Value
   Trigger.Value       = TD.Value
 
@@ -4610,6 +4666,22 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
   TriggerPars[2] = TDPars[2]
   TriggerPars[3] = TDPars[3]
   TriggerPars[4] = TDPars[4]
+
+  -- Aura trigger checks
+  local AuraTriggers = Triggers.AuraTriggers
+
+  if ValueTypeID == 'auras' and (ValueTypeIDChanged and Condition ~= 'static' or EnabledChanged and Enabled) then
+    self:ModifyAuraTriggers(TriggerNumber, TD)
+
+  elseif AuraTriggers then
+    local AuraTrigger = AuraTriggers[Trigger]
+    local ValueTypeID = TD.ValueTypeID
+
+    if (ValueTypeID ~= 'auras' or Condition == 'static' or
+        ValueTypeID == 'auras' and EnabledChanged and not Enabled) and AuraTrigger then
+      self:RemoveAuraTriggers(Trigger)
+    end
+  end
 
   if Sort then
     Triggers.Sorted = false
@@ -4668,12 +4740,18 @@ function BarDB:InsertTriggers(TriggerNumber, TD)
     -- Makes sure ValueTypes and ID are correct.
     ValueTypeID = ValueTypeIDs[ValueTypeIndex]
     TD.ValueTypeID = ValueTypeID
-    TD.ValueType = ValueTypes[ValueTypeIndex]
+    TD.ValueType = strlower(ValueTypes[ValueTypeIndex])
 
     -- Update Trigger data Type and TypeID to match the Group.
     local Type = strlower(Object.Type)
     local TypeID = Object.TypeID
 
+    -- Remove auras if ValueTypeID is not auras or condition is static
+    -- Do this here so on a reloadIO aura data is reset if the user switches from auras
+    -- to something else.
+    if ValueTypeID ~= 'auras' or Condition == 'static' then
+      TD.Auras = nil
+    end
     -- Type check trigger data since triggers can be copied from other bars.
     if ValueTypeID == 'boolean' then
       if Condition ~= 'static' and Condition ~= '=' then
@@ -4699,6 +4777,10 @@ function BarDB:InsertTriggers(TriggerNumber, TD)
 
     self:ModifyTriggers(TriggerNumber, TD, TypeIndex, true)
 
+    if ValueTypeID == 'auras' then
+      self:ModifyAuraTriggers(TriggerNumber, TD)
+    end
+
     return true
   else
     return false
@@ -4716,6 +4798,8 @@ function BarDB:RemoveTriggers(TriggerNumber)
   local Triggers = self.Triggers
   local ActiveGroups = Triggers.ActiveGroups
   local StaticTriggers = Triggers.StaticTriggers
+
+  self:RemoveAuraTriggers(Triggers[TriggerNumber])
 
   tremove(Triggers, TriggerNumber)
 
@@ -4747,10 +4831,11 @@ function BarDB:UpdateTriggers()
   local Triggers = self.Triggers
   local NumTriggers = Triggers.NumTriggers
 
+  self:UndoTriggers()
+
   -- Remove all triggers if profile changed or no trigger data.
   if NumTriggers > 0 and (Main.ProfileChanged or Main.CopyPasted or NumTriggerData == 0) then
     local StaticTriggers = Triggers.StaticTriggers
-
     for Index = 1, NumTriggers do
       Triggers[Index] = nil
       if StaticTriggers then
@@ -4758,6 +4843,7 @@ function BarDB:UpdateTriggers()
       end
     end
     Triggers.ActiveGroups = {}
+    Triggers.AuraTriggers = nil
 
     NumTriggers = 0
     Triggers.NumTriggers = NumTriggers
@@ -4858,6 +4944,9 @@ function BarDB:ClearTriggers()
       end
     end
     self.Triggers = nil
+
+    -- Turn off aura tracking for this bar.
+    Main:SetAuraTracker(self.UnitBarF, 'off')
     return true
   end
   return false
@@ -4899,8 +4988,6 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
     local Off = ValueType == 'off'
     local ActiveIndex = BoxNumber and BoxNumber or -1
 
-    Triggers.Modified = false
-
     if ValueType == 'off' then
       ValueType = CurrValue
     else
@@ -4922,8 +5009,7 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
         if Trigger.ValueTypeID == 'percent' then
           Trigger.SortValue = MaxValue * Trigger.Value
         end
-
-        if Trigger.Enabled and Trigger.Condition ~= 'static' then
+        if Trigger.Enabled and Trigger.Condition ~= 'static' and Trigger.ValueTypeID ~= 'auras' then
           NumSortedTriggers = NumSortedTriggers + 1
           SortedTriggers[NumSortedTriggers] = Trigger
         end
@@ -4956,7 +5042,13 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
 
         -- Convert to percentage if needed.
         if Trigger.ValueTypeID == 'percent' then
-          CompValue = ceil(CurrValue / MaxValue * 100)
+
+          -- Check for div by zero.
+          if MaxValue == 0 then
+            CompValue = 0
+          else
+            CompValue = ceil(CurrValue / MaxValue * 100)
+          end
         end
 
         -- Check to see if trigger should be activated
@@ -4986,7 +5078,6 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
                 end
               end
             else
-              local Pars = Trigger.Pars
               LastValues[BarFunction] = Trigger.Pars
             end
           end
@@ -5030,84 +5121,173 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
 end
 
 -------------------------------------------------------------------------------
+-- SetAuraTriggers
+--
+-- Activates or deacivates a trigger that has an aura attached.
+--
+-- TrackedAuras  Table list of auras by spell ID
+-- Unit          Unit the auras are applied to.
+-------------------------------------------------------------------------------
+function BarDB:SetAuraTriggers(TrackedAuras)
+  local Triggers = self.Triggers
+  local AuraTriggers = Triggers.AuraTriggers
+
+  if AuraTriggers then
+    local Modified = Triggers.Modified
+    local LastValues = Triggers.LastValues
+
+    for Trigger, _ in pairs(AuraTriggers) do
+      local Auras = Trigger.Auras
+
+      if Auras then
+        local Condition = Trigger.Condition
+        local NumAuras = 0
+        local NumCorrect = 0
+
+        -- Compare each aura to unitauras
+        for SpellID, Aura in pairs(Auras) do
+          if type(Aura) == 'table' then
+            NumAuras = NumAuras + 1
+            local TrackedAura = TrackedAuras[SpellID]
+            local CastByPlayer = Aura.CastByPlayer
+
+            if TrackedAura and (CastByPlayer and TrackedAura.CastByPlayer or not CastByPlayer) then
+              local SourceUnits = TrackedAura.SourceUnits
+
+              if SourceUnits then
+                local AllUnitsFound = true
+
+                -- Make sure all units are found on this SpellID
+                for Unit, _ in pairs(Aura.Units) do
+                  if SourceUnits[Unit] ~= true then
+                    AllUnitsFound = false
+                  end
+                end
+
+                if AllUnitsFound then
+                  local StackCondition = Aura.StackCondition
+                  local Stacks = Aura.Stacks
+                  local TrackedAuraStacks = TrackedAura.Stacks
+
+                  local StackCheck = StackCondition == '<'  and TrackedAuraStacks <  Stacks or
+                                     StackCondition == '>'  and TrackedAuraStacks >  Stacks or
+                                     StackCondition == '<=' and TrackedAuraStacks <= Stacks or
+                                     StackCondition == '>=' and TrackedAuraStacks >= Stacks or
+                                     StackCondition == '='  and TrackedAuraStacks == Stacks or
+                                     StackCondition == '<>' and TrackedAuraStacks ~= Stacks
+                  if StackCheck then
+                    NumCorrect = NumCorrect + 1
+                    if Condition == 'or' then
+                      break
+                    end
+                  elseif Condition == 'and' then
+                    break
+                  end
+                end
+              end
+            end
+          end
+        end
+        local BarFunction = Trigger.BarFunction
+        local Custom = BarFunction.Custom
+        local TriggerActive = Trigger.Active
+        local Active = TriggerActive[-1]
+
+        -- Set trigger if conditions met
+        if Condition == 'or' and NumCorrect > 0 or Condition == 'and' and NumAuras > 0 and NumAuras == NumCorrect then
+          Active = Active == nil and true or Active
+          if Custom == nil or Custom and Active and not Modified then
+            local All = BarFunction.All
+
+            if All then
+              for AllIndex = 1, BarFunction.NumAll do
+                LastValues[All[AllIndex]] = Trigger.Pars
+              end
+            else
+              local Pars = Trigger.Pars
+              LastValues[BarFunction] = Trigger.Pars
+            end
+          end
+
+          if Active then
+            TriggerActive[-1] = false
+          end
+        else
+          local All = BarFunction.All
+
+          if All then
+            for AllIndex = 1, BarFunction.NumAll do
+              local BF = All[AllIndex]
+              local LastValue = LastValues[BF]
+
+              if LastValue == nil or LastValue == 0 then
+                LastValues[BF] = BF.FnPars
+              end
+            end
+          else
+            local LastValue = LastValues[BarFunction]
+
+            if LastValue == nil or LastValue == 0 then
+              LastValues[BarFunction] = BarFunction.FnPars
+            end
+          end
+          TriggerActive[-1] = true
+        end
+      end
+    end
+    -- Show the trigger changes on the bar
+    self:DoTriggers()
+  end
+end
+
+-------------------------------------------------------------------------------
 -- DoTriggers
 --
 -- Executes the results from SetTriggers
 -------------------------------------------------------------------------------
 function BarDB:DoTriggers()
-  local Triggers = self.Triggers
-  local LastValues = Triggers.LastValues
-  local StaticTriggers = Triggers.StaticTriggers
+  if not DoTriggersRecursive then
+    local Triggers = self.Triggers
+    local LastValues = Triggers.LastValues
+    local StaticTriggers = Triggers.StaticTriggers
 
-  -- Do static triggers
-  if StaticTriggers then
-    for TriggerNumber, Trigger in pairs(StaticTriggers) do
-      if Trigger.Enabled then
-        local BarFunction = Trigger.BarFunction
-        local All = BarFunction.All
+    -- Do aura triggers
+    if Triggers.AuraTriggers then
+      DoTriggersRecursive = true
+      Main:AuraUpdate(self.UnitBarF)
+      DoTriggersRecursive = false
+    end
 
-        if All then
-          for Index = 1, BarFunction.NumAll do
-            LastValues[All[Index]] = Trigger.Pars
+    -- Do static triggers
+    if StaticTriggers then
+      for TriggerNumber, Trigger in pairs(StaticTriggers) do
+        if Trigger.Enabled then
+          local BarFunction = Trigger.BarFunction
+          local All = BarFunction.All
+
+          if All then
+            for Index = 1, BarFunction.NumAll do
+              LastValues[All[Index]] = Trigger.Pars
+            end
+          else
+            LastValues[BarFunction] = Trigger.Pars
           end
-        else
-          LastValues[BarFunction] = Trigger.Pars
         end
       end
     end
-  end
 
-  for BarFunction, Pars in pairs(LastValues) do
-    if Pars ~= 0 then
-      local BoxNumber = BarFunction.BoxNumber
+    for BarFunction, Pars in pairs(LastValues) do
+      if Pars ~= 0 then
+        local BoxNumber = BarFunction.BoxNumber
 
-      if BoxNumber == RegionTrigger then
-        BarFunction.Fn(self, Pars[1], Pars[2], Pars[3], Pars[4])
-      else
-        BarFunction.Fn(self, BoxNumber, BarFunction.Tpar, Pars[1], Pars[2], Pars[3], Pars[4])
+        if BoxNumber == RegionTrigger then
+          BarFunction.Fn(self, Pars[1], Pars[2], Pars[3], Pars[4])
+        else
+          BarFunction.Fn(self, BoxNumber, BarFunction.Tpar, Pars[1], Pars[2], Pars[3], Pars[4])
+        end
+        LastValues[BarFunction] = 0
       end
-      LastValues[BarFunction] = 0
     end
+    Triggers.Modified = false
   end
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

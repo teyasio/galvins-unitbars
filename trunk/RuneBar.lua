@@ -24,18 +24,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -67,7 +67,7 @@ local C_PetBattles, UIParent =
 -- BarEnergizeBorder                 Border texture used to show an energize border for the bars.
 -- TriggerGroups                     Table to create all the rune bar triggers.
 -- AnyRuneTrigger                    Trigger to work on any rune that is currently recharging.
--- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxRunes = 6
@@ -101,7 +101,7 @@ local AnyRuneTrigger = 9
 local TGBoxNumber = 1
 local TGName = 2
 local TGValueTypes = 3
-local VTs = {'boolean:Recharging', 'boolean:Empowered'}
+local VTs = {'boolean:Recharging', 'boolean:Empowered', 'auras:Auras'}
 local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
   {1, 'Blood Rune 1',  VTs}, -- 1
   {2, 'Blood Rune 2',  VTs}, -- 2
@@ -273,7 +273,7 @@ local function DoEnergize(RuneBar, RuneID)
   end
 
   Main:SetTimer(EnergizeTimer, nil)
-  Main:SetTimer(EnergizeTimer, Gen.EnergizeTime, DoEnergizeTimer)
+  Main:SetTimer(EnergizeTimer, DoEnergizeTimer, Gen.EnergizeTime)
 end
 
 --*****************************************************************************
@@ -429,14 +429,14 @@ end
 -- Update    UnitBarsF function
 --
 -- Event                    Event that called this function.  If nil then it wasn't called by an event.
---                          'update' bypasses visible and isactive flags.
+--                          True bypasses visible and isactive flags.
 -- ...        RuneID        RuneId from 1 to 6.
 -- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.RuneBar:Update(Event, ...)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -486,6 +486,7 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
 
     for Index = 1, MaxRunes do
       local Start, Duration, RuneReady = GetRuneCooldown(Index)
+
       local RuneType = GetRuneType(Index)
       local LRT = LastRuneType[Index]
       local ColorIndex = GetColorIndex(RuneType, Index)
@@ -587,7 +588,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true

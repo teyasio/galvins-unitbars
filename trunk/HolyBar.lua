@@ -26,18 +26,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -57,7 +57,7 @@ local C_PetBattles, UIParent =
 -- AnyRuneTrigger                    Trigger for any rune that is currently active.
 -- RegionTrigger                     Trigger for region changes.
 -- TriggerGroups                     Table containing boxnumber and condition type for triggers.
--- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 -- HolyData                          Contains the data to create the holy bar.
 --   Texture                         Texture that contains the holy runes.
@@ -92,15 +92,15 @@ local RegionTrigger = 7
 local TGBoxNumber = 1
 local TGName = 2
 local TGValueTypes = 3
-local VTs = {'whole:Holy Power'}
+local VTs = {'whole:Holy Power', 'auras:Auras'}
 local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1,  'Holy Rune 1',    VTs},                 -- 1
-  {2,  'Holy Rune 2',    VTs},                 -- 2
-  {3,  'Holy Rune 3',    VTs},                 -- 3
-  {4,  'Holy Rune 4',    VTs},                 -- 4
-  {5,  'Holy Rune 5',    VTs},                 -- 5
-  {0,  'Any Holy Rune', {'boolean:Active'}},   -- 6
-  {-1, 'Region',         VTs},                 -- 7
+  {1,  'Holy Rune 1',    VTs}, -- 1
+  {2,  'Holy Rune 2',    VTs}, -- 2
+  {3,  'Holy Rune 3',    VTs}, -- 3
+  {4,  'Holy Rune 4',    VTs}, -- 4
+  {5,  'Holy Rune 5',    VTs}, -- 5
+  {0,  'Any Holy Rune', {'boolean:Active', 'auras:Auras'}},   -- 6
+  {-1, 'Region',         VTs},                                -- 7
 }
 
 
@@ -154,14 +154,14 @@ Main.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
 -- Update the holy power level of the player
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
---              'update' bypasses visible and isactive flags.
+--              True bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -274,7 +274,7 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true

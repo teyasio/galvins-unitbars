@@ -130,6 +130,31 @@ Condition: The condition that needs to be met for the trigger to activate
 Value: The value you want to trigger off of based on condition.  If the condition is
 met the trigger will activate. For percentages only 0 to 100 needs to be entered.
 
+Trigger can also use auras.  Pick "auras" under value type. Then you'll see a box
+to enter an aura name or ID into.  Type in the name then pick it from the list.  If you
+already know the spellID then you can type that instead.
+
+After the aura is added you change the following:
+Cast by Player:   If checked then the aura has to have come from you.
+Units: You can enter any number of units here seperated by a space.  But the aura will have to be on
+all of them at the same time.
+
+Condition:  Can set what type of condition you want to compare stacks to.
+Stacks: 0 means no stacks so match any aura.
+
+Under condition next to the aura name box.  You can change it to "or" for all auras
+or "and" for just one aura out of the list to match.
+
+For more you can watch the video:
+https://www.youtube.com/watch?v=LUhCXoh6Ytk
+
+
+* Aura List
+Found under Utility.  This will list any auras the mod comes in contact with.  Type the different
+units into the unit box.  The mod will only list auras from the units specified.
+Then click refresh to update the aura list with the latest auras.
+
+
 * Profiles
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just
 create a new profile named backup.  Then copy your config to backup.  All characters by default start with a new

@@ -35,18 +35,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -64,23 +64,12 @@ local C_PetBattles, UIParent =
 -- SolarSBar                         Texture number for solar texture.
 -- SunSBar                           Texture number for sun texture.
 -- SliderSBar                        Texture number for slider texture.
--- IndicatorSBar                     Texture number for indicator texture.
 --
--- SolarAura                         SpellID for the solar aura.
--- LunarAura                         SpellID for the lunar aura.
--- CAAura                            SpellID for Celestial Alignment aura.
--- SoTF                              Soul of the forest talent number. Used to check to see if the player has this
---                                   talent active.
--- SoTFPower                         Amount of power soul of the forest gives.
--- SpellWrath                        SpellID for wrath.
--- SpellStarfire                     SpellID for starefire.
--- SpellStarsurge                    SpellID for starsurge.
--- SpellEnergize                     SpellID for energize that come back from the server when
---                                   Wrath, Starfire, or Starsurge is cast.
--- PredictedSpellValue               Table containing the power that each of the spells gives.  Used for prediction.
+-- SolarPeakAura                     SpellID for the solar peak aura.
+-- LunarPeakAura                     SpellID for the lunar peak aura.
 --
 -- TriggerGroups                     Table containing data needed to do DoTriggers() and create the trigger groups.
--- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local Display = false
@@ -98,97 +87,26 @@ local SunSBar = 21
 local LunarSBar = 30
 local SolarSBar = 31
 local SliderSBar = 40
-local IndicatorSBar = 41
 
-local SolarAura = 48517
-local LunarAura = 48518
-local CAAura = 112071    -- Celestial Alignment
---local SoTF = 114107  -- Soul of the forest
---local SoTFPower = 20 -- Amount of power that soul of the forest gives.
-
--- Predicted spell ID constants.
-local SpellWrath     = 5176
-local SpellStarfire  = 2912
-local SpellStarsurge = 78674
-local SpellEnergize  = 89265 -- Wrath, Starfire, Starsurge
-
-local PredictedSpellValue = {
-  [SpellWrath] = 15,
-  [SpellStarfire] = 20,
-  [SpellStarsurge] = 20
-}
+local LunarPeakAura = 171743
+local SolarPeakAura = 171744
 
 local TGBoxNumber = 1
 local TGTpar = 2
 local TGName = 3
 local TGValueTypes = 4
-local VTs = {'whole:Lunar Energy', 'whole:Solar Energy', 'whole:Lunar Energy (predicted)', 'whole:Solar Energy (predicted)',
-             'boolean:Solar Eclipse', 'boolean:Lunar Eclipse'}
+local VTs = {'whole:Lunar Energy', 'whole:Solar Energy', 'boolean:Lunar Peak', 'boolean:Solar Peak', 'auras:Auras'}
 local TriggerGroups = { -- BoxNumber, TPar, Name, ValueTypes,
   {MoonBox,  MoonSBar,      'Moon',      VTs}, -- 1
   {SunBox,   SunSBar,       'Sun',       VTs}, -- 2
   {PowerBox, 0,             'Power',     VTs}, -- 3
   {PowerBox, SliderSBar,    'Slider',    VTs}, -- 4
-  {PowerBox, IndicatorSBar, 'Indicator', VTs}, -- 5
 }
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
 Main.UnitBarsF.EclipseBar.StatusCheck = GUB.Main.StatusCheck
-
---*****************************************************************************
---
--- Eclipsebar predicted power and initialization
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- Sets UnitBarF.PredictedSpell
---
--- If Celestial Alignment is active at the end of the cast then the spell
--- will generate no energy and cause no energize event.
---
--- So the function checks to see if the spell will finish without a CA aura.
--- If the spell will finish before CA drops off then the PredictedSpell is set
--- to the spellID otherwise its set to 0.
--------------------------------------------------------------------------------
-local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
-  local PredictedSpell = 0
-
-  if SpellID < 0 then
-    if Message == 'start' then
-      SpellID = abs(SpellID)
-
-      -- Check for Celestial Alignment aura.  Will the aura drop off before spell
-      -- is done casting?
-      local Spell, TimeLeft = Main:CheckAura('o', CAAura)
-      if Spell then
-        if CastTime < TimeLeft then
-          PredictedSpell = SpellID
-        end
-      else
-        PredictedSpell = SpellID
-      end
-    end
-  end
-
-  -- Set PredictedSpell
-  UnitBarF.PredictedSpell = PredictedSpell
-
-  -- afterstart, end, failed, energize.
-  -- Show the predicted power changes on the bar.
-  UnitBarF:Update()
-end
-
--------------------------------------------------------------------------------
--- Set Wrath, Starfire, Starsurge. Since 'energize' is being used the energize
--- spell has to be added as well.
--------------------------------------------------------------------------------
-Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellWrath,     'energize', CheckSpell)
-Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellStarfire,  'energize', CheckSpell)
-Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellStarsurge, 'energize', CheckSpell)
-Main:SetSpellTracker(UnitBarsF.EclipseBar, SpellEnergize,  'energize', CheckSpell)
 
 --*****************************************************************************
 --
@@ -221,105 +139,6 @@ local function GetEclipsePowerType(Power, Direction)
   end
 end
 
--------------------------------------------------------------------------------
--- GetPredictedEclipsePower
---
--- Calculates different parts of the eclipse bar for prediction.
---
--- SpellID         ID of the value being added.  See GetPredictedSpell()
--- Value           Positive value to add to Power.
--- Power           Current eclipse power.
--- MaxPower        Maximum eclipse power (constant)
--- Direction       Current direction the power is going in 'sun', 'moon', or 'none'.
--- PowerType       Type of power -1 lunar, 1 solar
--- Eclipse         -1 = lunar eclipse, 1 = solar eclipse, 0 = none
--- SoTFActive      If true then soul of the forest is active, otherwise false
---
--- The returned values are based on the Value passed being added to Power.
---
--- Returns:
---   PPower          Value added to Power.
---   PEclipse        -1 = lunar eclipse, 1 = solar eclipse, 0 = none
---   PPowerType      -1 = lunar, 1 = solar, 0 = nuetral
---   PDirection      'moon' = lunar, 'sun' = solar, or 'none'.
---   PowerChange     If true then the SpellID actually caused a power change.
--------------------------------------------------------------------------------
-local function GetPredictedEclipsePower(SpellID, Value, Power, MaxPower, Direction, PowerType, Eclipse) --, SoTFActive)
-  local PowerChange = false
-  local OldPower = Power
-
-  -- Double power if there is no eclipse state.
-  if Eclipse == 0 then
-    Value = Value * 2
-  end
-
-  -- Add value based on eclipse direction.
-  if Direction == 'moon' then
-    if SpellID == SpellWrath or SpellID == SpellStarsurge then
-      Power = Power - Value
-      PowerChange = true
-    end
-  elseif Direction == 'sun' then
-    if SpellID == SpellStarfire or SpellID == SpellStarsurge then
-      Power = Power + Value
-      PowerChange = true
-    end
-  elseif SpellID == SpellWrath then
-    Power = Power - Value
-    PowerChange = true
-  elseif SpellID == SpellStarfire then
-    Power = Power + Value
-    PowerChange = true
-  elseif SpellID == SpellStarsurge then
-    if PowerType == 0 then
-      Power = Power + Value
-    else
-      Power = Power + Value * PowerType
-    end
-    PowerChange = true
-  end
-
-  -- Clip power if its greater than maxpower.
-  if abs(Power) > MaxPower then
-    Power = MaxPower * PowerType
-  end
-
-  -- Calc direction. Check to see if power went out of bounds.
-  if PowerChange then
-    if Power == -MaxPower then
-      Direction = 'sun'
-    elseif Power == MaxPower then
-      Direction = 'moon'
-    end
-  end
-
-  -- Check for soul of the forest and add the correct power.
- -- if SoTFActive then
-
-    -- Lost solar eclipse.
- --   if OldPower > 0 and Power <= 0 then
- --     Power = Power - SoTFPower
-
-    -- Lost lunar eclipse.
- --   elseif OldPower < 0 and Power >= 0 then
- --     Power = Power + SoTFPower
- --   end
- -- end
-
-  -- Calc eclipse.
-  if Direction == 'moon' and Power > 0 and Power <= MaxPower or
-     Direction == 'sun' and Power < 0 and Power >= -MaxPower then
-
-    -- Set the eclipse state.
-    Eclipse = PowerType
-  else
-
-    -- No eclipse state.
-    Eclipse = 0
-  end
-
-  return Power, Eclipse, GetEclipsePowerType(Power, Direction), Direction, PowerChange
-end
 
 --*****************************************************************************
 --
@@ -356,8 +175,8 @@ local function DisplayEclipseSlider(UB, BBar, KeyName, Power, MaxPower, Directio
 
   if KeyName == 'Slider' then
     Slider = SliderSBar
-  else
-    Slider = IndicatorSBar
+--  else
+--    Slider = IndicatorSBar
   end
 
   -- Clip eclipsepower if out of range.
@@ -416,12 +235,12 @@ end
 -- Update the eclipse bar power, sun, and moon.
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
---              'update' bypasses visible flag.
+--              True bypasses visible flag.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
-  if Event ~= 'update' and not self.Visible then
+function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType, ...)
+  if Event ~= true and not self.Visible then
     return
   end
   local BBar = self.BBar
@@ -436,12 +255,12 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   local Testing = Main.UnitBars.Testing
   local UB = self.UnitBar
   local Gen = UB.General
-  local PredictedPower = Gen.PredictedPower
 
   local EclipsePower = UnitPower('player', PowerEclipse)
   local EclipseMaxPower = UnitPowerMax('player', PowerEclipse)
-  local SpellID = Main:CheckAura('o', SolarAura, LunarAura)
-  local Eclipse = SpellID == SolarAura and 1 or SpellID == LunarAura and -1 or 0
+  local SpellID = Main:CheckAura('o', SolarPeakAura, LunarPeakAura)
+  local LunarPeak = SpellID == LunarPeakAura and true or false
+  local SolarPeak = SpellID == SolarPeakAura and true or false
   local EclipseDirection = GetEclipseDirection()
 
   local EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
@@ -451,21 +270,12 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
   local FadeOutTime = Gen.EclipseFadeOutTime
   local PowerHalfLit = Gen.PowerHalfLit
   local HideSlider = Gen.HideSlider
-  local PredictedEclipse = Gen.PredictedEclipse
-  local PredictedPowerHalfLit = Gen.PredictedPowerHalfLit
-
-  local Value = 0
-  local PC = false
-  local PEclipseDirection = nil
-  local PEclipsePower = nil
-  local PEclipsePowerType = nil
-  local PEclipse = nil
+  local HidePeak = Gen.HidePeak
 
   if Testing then
     local TestMode = UB.TestMode
     local TestEclipsePower = self.TestEclipsePower
 
-    SpellID = SpellStarsurge
     EclipseMaxPower = 100
     EclipsePower = floor(EclipseMaxPower * 2 * TestMode.Value) - abs(EclipseMaxPower)
 
@@ -486,16 +296,8 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     end
     EclipsePowerType = GetEclipsePowerType(EclipsePower, EclipseDirection)
 
-    if abs(EclipsePower) == EclipseMaxPower then
-      Eclipse = EclipsePowerType
-      self.TestEclipse = Eclipse
-    else
-      Eclipse = self.TestEclipse or 0
-    end
-    if Eclipse == -1 and EclipsePower > 0 or Eclipse == 1 and EclipsePower < 0 then
-      Eclipse = 0
-      self.TestEclipse = 0
-    end
+    LunarPeak = EclipsePower == -EclipseMaxPower
+    SolarPeak = EclipsePower == EclipseMaxPower
   end
 
   -- Check hide slider option.
@@ -503,92 +305,22 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
     DisplayEclipseSlider(UB, BBar, 'Slider', EclipsePower, EclipseMaxPower, EclipseDirection, EclipsePowerType)
   end
 
-  -- Calculate predicted power.
-  if PredictedPower then
-
-    -- Check to see if soul of the forest talent is active.
-    -- local SoTFActive = false --IsSpellKnown(SoTF)
-
-    local PowerChange = false
-    PEclipseDirection = EclipseDirection
-    PEclipsePower = EclipsePower
-    PEclipsePowerType = EclipsePowerType
-    PEclipse = Eclipse
-
-    if not Testing then
-      SpellID = self.PredictedSpell or 0
-    end
-
-    if SpellID ~= 0 then
-      Value = PredictedSpellValue[SpellID]
-      PEclipsePower, PEclipse, PEclipsePowerType, PEclipseDirection, PowerChange =
-        GetPredictedEclipsePower(SpellID, Value, PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType, PEclipse)--, SoTFActive)
-
-      -- Set power change flag.
-      if PowerChange then
-        PC = true
-      end
-    end
-
-    -- Display indicator based on predicted power options.
-    if PC and IndicatorHideShow ~= 'hidealways' or IndicatorHideShow == 'showalways' then
-      BBar:SetHiddenTexture(PowerBox, IndicatorSBar, false)
-      if PC or IndicatorHideShow == 'showalways' then
-        DisplayEclipseSlider(UB, BBar, 'Indicator', PEclipsePower, EclipseMaxPower, PEclipseDirection, PEclipsePowerType)
-      end
-    else
-      BBar:SetHiddenTexture(PowerBox, IndicatorSBar, true)
-    end
-  else
-    BBar:SetHiddenTexture(PowerBox, IndicatorSBar, true)
-  end
-
   -- Display the eclipse power.
-  Value = nil
-
-  -- if PC is true then we had predicted power.
-  if PC and Gen.PredictedPowerText then
-    Value = PEclipsePower
-
-  -- Otherwise get current power.
-  elseif Gen.PowerText then
-    Value = EclipsePower
-  end
   if not UB.Layout.HideText then
-    if Value then
-      BBar:SetValueFont(PowerBox, nil, 'number', abs(Value))
-    else
-      BBar:SetValueRawFont(PowerBox, nil, '')
-    end
+    BBar:SetValueFont(PowerBox, nil, 'number', abs(EclipsePower))
+  else
+    BBar:SetValueRawFont(PowerBox, nil, '')
   end
 
-  -- Use PEclise if PredictedEclipse and PEclipse are set.
-  if PredictedEclipse and PEclipse ~= nil then
-    Eclipse = PEclipse
-  end
-  BBar:SetHiddenTexture(SunBox, SunSBar, Eclipse ~= 1)
-  BBar:SetHiddenTexture(MoonBox, MoonSBar, Eclipse ~= -1)
+  BBar:SetHiddenTexture(SunBox, SunSBar, HidePeak or not SolarPeak)
+  BBar:SetHiddenTexture(MoonBox, MoonSBar, HidePeak or not LunarPeak)
 
-  -- Use PEclipseDirection if PowerHalfLit and PredictedPowerHalfLit is true and there is PEclispeDirection.
-  if PowerHalfLit and PredictedPowerHalfLit and PEclipseDirection ~= nil then
-    EclipseDirection = PEclipseDirection
-  end
   BBar:SetHiddenTexture(PowerBox, LunarSBar, PowerHalfLit and EclipseDirection == 'sun')
   BBar:SetHiddenTexture(PowerBox, SolarSBar, PowerHalfLit and EclipseDirection == 'moon')
 
   -- Triggers
   if UB.Layout.EnableTriggers then
     for Index = 1, #TriggerGroups do
-      if PredictedPower then
-        if PEclipsePower <= 0 then
-          BBar:SetTriggers(Index, 'off', 'solar energy (predicted)')
-          BBar:SetTriggers(Index, 'lunar energy (predicted)', abs(PEclipsePower))
-        else
-          BBar:SetTriggers(Index, 'off', 'lunar energy (predicted)')
-          BBar:SetTriggers(Index, 'solar energy (predicted)', PEclipsePower)
-        end
-      end
-
       if EclipsePower <= 0 then
         BBar:SetTriggers(Index, 'off', 'solar energy')
         BBar:SetTriggers(Index, 'lunar energy', abs(EclipsePower))
@@ -597,8 +329,8 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType)
         BBar:SetTriggers(Index, 'solar energy', EclipsePower)
       end
 
-      BBar:SetTriggers(Index, 'lunar eclipse', Eclipse < 0)
-      BBar:SetTriggers(Index, 'solar eclipse', Eclipse > 0)
+      BBar:SetTriggers(Index, 'lunar peak', LunarPeak)
+      BBar:SetTriggers(Index, 'solar peak', SolarPeak)
     end
     BBar:DoTriggers()
   end
@@ -638,12 +370,10 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     BBar:SetOptionData('BackgroundSun', '', SunBox, BoxMode)
     BBar:SetOptionData('BackgroundPower', '', PowerBox, BoxMode)
     BBar:SetOptionData('BackgroundSlider', 'Texture', PowerBox, SliderSBar)
-    BBar:SetOptionData('BackgroundIndicator', 'Texture', PowerBox, IndicatorSBar)
     BBar:SetOptionData('BarMoon', MoonBox,  MoonSBar)
     BBar:SetOptionData('BarSun', SunBox, SunSBar)
     BBar:SetOptionData('BarPower', PowerBox)
     BBar:SetOptionData('BarSlider', PowerBox, SliderSBar)
-    BBar:SetOptionData('BarIndicator', PowerBox, IndicatorSBar)
 
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(PowerBox) self:Update() end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
@@ -691,7 +421,7 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true
@@ -820,9 +550,6 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     if KeyName == nil or KeyName == 'HideSlider' then
       BBar:SetHiddenTexture(PowerBox, SliderSBar, Gen.HideSlider)
     end
-    if KeyName == nil or KeyName == 'PredictedPower' then
-      Main:SetSpellTracker(self, Gen.PredictedPower)
-    end
     self:Update()
     Display = true
   end
@@ -862,7 +589,6 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
     -- Create slider and indicator
     BBar:CreateTexture(PowerBox, BoxMode, 'statusbar', 2, SliderSBar)
-    BBar:CreateTexture(PowerBox, BoxMode, 'statusbar', 3, IndicatorSBar)
 
   BBar:CreateTextureFrame(MoonBox, BoxMode, 4)
     BBar:CreateTexture(MoonBox, BoxMode, 'statusbar', 5, MoonSBar)
@@ -878,9 +604,7 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   -- Set up the default slider/indicator positions
   BBar:ClearAllPointsTexture(PowerBox, SliderSBar)
-  BBar:ClearAllPointsTexture(PowerBox, IndicatorSBar)
   BBar:SetPointTexture(PowerBox, SliderSBar, 'CENTER')
-  BBar:SetPointTexture(PowerBox, IndicatorSBar, 'CENTER')
 
   -- Create font for displaying power.
   -- This will be displayed on the powerbar section.
@@ -910,7 +634,7 @@ end
 
 function Main.UnitBarsF.EclipseBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'UNIT_AURA', self.Update, 'player')
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
   Main:RegEventFrame(Enable, self, 'ECLIPSE_DIRECTION_CHANGE', self.Update, 'player')
 end
 

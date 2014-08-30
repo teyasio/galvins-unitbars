@@ -26,18 +26,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -75,7 +75,7 @@ local C_PetBattles, UIParent =
 -- MetaValueTrigger                  Trigger for fury when in metamorphosis
 -- MetaTrigger                       Trigger for detecting metamorphosis
 -- TriggerGroups                     Contains the condition type for each trigger.
--- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 --
 -- DemonicData                       Table containing all the data to build the demonic fury bar.
@@ -199,13 +199,13 @@ end
 -- Update the amount of demonic fury.
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
---              'update' by passes visible and isactive flags.
+--              True by passes visible and isactive flags.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -320,7 +320,7 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
           BBar:CreateGroupTriggers(1, 'whole:Fury Both',   'percent:Fury Both (percent)',
                                       'whole:Fury Normal', 'percent:Fury Normal (percent)',
                                       'whole:Fury Meta',   'percent:Fury Meta (percent)',
-                                      'boolean: Metamorphosis')
+                                      'boolean: Metamorphosis', 'auras:Auras')
 
           BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,          'SetBackdropBorder', 1, BoxMode)
           BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,     'SetBackdropBorderColor', 1, BoxMode)
@@ -339,7 +339,7 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true

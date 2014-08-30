@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 301
+GUB.DefaultUB.Version = 310
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -59,6 +59,7 @@ GUB.DefaultUB.Version = 301
 --                            Class has to be druid and any of the 4 specs can be used.
 --                          Example2: {DRUID = '12', DEATHKNIGHT = ''}
 --                            Class has to be druid or deathknight.  Spec 1 or 2 on the druid has to be used. Deathknight, spec isn't checked.
+--                          '0' (zero) can be used for no specialization.
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
 --   Status               - Table that contains a list of flags marked as true or false.
@@ -268,6 +269,8 @@ GUB.DefaultUB.Default = {
     FadeInTime = DefaultFadeInTime,
     FadeOutTime = DefaultFadeOutTime,
     HighlightDraggedBar = false,
+    AuraListOn = false,
+    AuraListUnits = 'player',
     Reset = {
       Minimize = false,
 
@@ -292,6 +295,7 @@ GUB.DefaultUB.Default = {
       x = -200,
       y = 230,
       Status = {
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -310,6 +314,7 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedHealth = true,
+        FactionColors = false,
       },
       Other = {
         Scale = 1,
@@ -378,6 +383,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -399,6 +405,7 @@ GUB.DefaultUB.Default = {
       x = -200,
       y = 200,
       Status = {
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -481,6 +488,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -502,6 +510,7 @@ GUB.DefaultUB.Default = {
       x = -200,
       y = 170,
       Status = {
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -520,6 +529,8 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedHealth = true,
+        FactionColors = false,
+        Tagged = false,
       },
       Other = {
         Scale = 1,
@@ -552,6 +563,7 @@ GUB.DefaultUB.Default = {
           r = 0, g = 1, b = 0, a = 1,
         },
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+        TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
       },
       Text = {
         _DC = 0,
@@ -588,6 +600,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -609,6 +622,7 @@ GUB.DefaultUB.Default = {
       x = -200,
       y = 140,
       Status = {
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -685,6 +699,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -706,6 +721,7 @@ GUB.DefaultUB.Default = {
       x = -200,
       y = 110,
       Status = {
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -724,6 +740,8 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedHealth = true,
+        FactionColors = false,
+        Tagged = false,
       },
       Other = {
         Scale = 1,
@@ -756,6 +774,7 @@ GUB.DefaultUB.Default = {
           r = 0, g = 1, b = 0, a = 1,
         },
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+        TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
       },
       Text = {
         _DC = 0,
@@ -792,6 +811,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -813,6 +833,7 @@ GUB.DefaultUB.Default = {
       x = -200,
       y = 80,
       Status = {
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -889,6 +910,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -913,6 +935,7 @@ GUB.DefaultUB.Default = {
       y = 50,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -996,6 +1019,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1020,6 +1044,7 @@ GUB.DefaultUB.Default = {
       y = 20,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1098,6 +1123,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1122,6 +1148,7 @@ GUB.DefaultUB.Default = {
       y = -10,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1198,6 +1225,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1221,6 +1249,7 @@ GUB.DefaultUB.Default = {
       BoxOrder = {1, 2, 5, 6, 3, 4},
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1378,6 +1407,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1400,6 +1430,7 @@ GUB.DefaultUB.Default = {
       y = 201,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1483,6 +1514,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1505,6 +1537,7 @@ GUB.DefaultUB.Default = {
       y = 201,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1645,6 +1678,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1667,6 +1701,7 @@ GUB.DefaultUB.Default = {
       y = 171,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1766,6 +1801,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1789,6 +1825,7 @@ GUB.DefaultUB.Default = {
       y = 134,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1885,6 +1922,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -1908,6 +1946,7 @@ GUB.DefaultUB.Default = {
       y = 98,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -1989,6 +2028,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -2012,6 +2052,7 @@ GUB.DefaultUB.Default = {
       y = 60,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -2158,6 +2199,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -2181,6 +2223,7 @@ GUB.DefaultUB.Default = {
       y = 11,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -2210,12 +2253,8 @@ GUB.DefaultUB.Default = {
         HideSlider = false,
         PowerHalfLit = false,
         PowerText = true,
+        HidePeak = false,
         SliderDirection = 'HORIZONTAL',
-        PredictedPower = false,
-        IndicatorHideShow = 'auto',
-        PredictedEclipse = true,
-        PredictedPowerHalfLit = false,
-        PredictedPowerText = true,
       },
       Other = {
         Scale = 1,
@@ -2258,18 +2297,6 @@ GUB.DefaultUB.Default = {
         BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       BackgroundSlider = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundIndicator = {
         PaddingAll = true,
         BgTexture = DefaultBgTexture,
         BorderTexture = DefaultBorderTexture,
@@ -2324,17 +2351,6 @@ GUB.DefaultUB.Default = {
         StatusBarTexture = GUBStatusBarTexture,
         Color = {r = 0, g = 1, b = 0, a = 1},
       },
-      BarIndicator = {
-        Advanced = false,
-        SunMoon = false,
-        Width = 16,
-        Height = 20,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
       Text = {
         _ValueNameMenu = 'eclipse',
 
@@ -2368,6 +2384,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -2390,6 +2407,7 @@ GUB.DefaultUB.Default = {
       y = 60,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -2397,6 +2415,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
+        ShowEnhancedShadowOrbs = true,
         Value = 0.50,
       },
       Layout = {
@@ -2448,6 +2467,8 @@ GUB.DefaultUB.Default = {
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
           {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
+          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 5
         },
         EnableBorderColor = false,
         BorderColor = {
@@ -2456,6 +2477,8 @@ GUB.DefaultUB.Default = {
           {r = 1, g = 1, b = 1, a = 1},  -- 1
           {r = 1, g = 1, b = 1, a = 1},  -- 2
           {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+          {r = 1, g = 1, b = 1, a = 1},  -- 5
         },
       },
       Bar = {
@@ -2472,6 +2495,8 @@ GUB.DefaultUB.Default = {
           {r = 0.729, g = 0.466, b = 1, a = 1}, -- 1
           {r = 0.729, g = 0.466, b = 1, a = 1}, -- 2
           {r = 0.729, g = 0.466, b = 1, a = 1}, -- 3
+          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 4
+          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 5
         },
       },
       Triggers = {
@@ -2483,6 +2508,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -2505,6 +2531,7 @@ GUB.DefaultUB.Default = {
       y = 98,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -2512,7 +2539,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        ShowExtraChiOrb = true,
+        ShowEmpoweredChi = true,
         Value = 0.50,
       },
       Layout = {
@@ -2605,6 +2632,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -2627,6 +2655,7 @@ GUB.DefaultUB.Default = {
       y = 231,
       Status = {
         HideNotUsable   = true,
+        ShowAlways      = false,
         HideWhenDead    = true,
         HideInVehicle   = true,
         HideInPetBattle = true,
@@ -2767,6 +2796,7 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Minimize = false,
+          HideAuras = false,
           Name = '',
           GroupNumber = 1,
           Value = 1,
@@ -2887,6 +2917,26 @@ Condition: The condition that needs to be met for the trigger to activate
 
 Value: The value you want to trigger off of based on condition.  If the condition is met the trigger will activate. For percentages only 0 to 100 needs to be entered.
 
+Trigger can also use auras.  Pick "auras" under value type. Then you'll see a box to enter an aura name or ID into.  Type in the name then pick it from the list.  If you already know the spellID then you can type that instead.
+
+After the aura is added you change the following:
+Cast by Player:   If checked then the aura has to have come from you.
+Units: You can enter any number of units here seperated by a space.  But the aura will have to be on
+all of them at the same time.
+
+Condition:  Can set what type of condition you want to compare stacks to.
+Stacks: 0 means no stacks so match any aura.
+
+Under condition next to the aura name box.  You can change it to "or" for all auras
+or "and" for just one aura out of the list to match.
+
+For more you can watch the video:
+|Cffffff00http://www.youtube.com/watch?v=LUhCXoh6Ytk|r
+
+
+|cff00ff00Aura List|r
+Found under Utility.  This will list any auras the mod comes in contact with.  Type the different units into the unit box.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
+
 
 |cff00ff00Profiles|r
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just create a new profile named backup.  Then copy your config to backup.  All characters by default start with a new config, but you can share one across all characters or any of your choosing.
@@ -2904,8 +2954,20 @@ Tons of changes have been made.  Please read the help text.  If something is not
 * Border color can be changed.  Found under Region and Background options.
 * In testmode you can change the resource value up or down.  You can use this to test triggers without being in combat.
 * Triggers - Can change color, textures, or play a sound, etc.  When a condition is met based on the resource value, time, etc.
-* Align and Swap has bar location setting.  Align has to be turned off first.  The bar that was right clicked on is the one that you can set the location to.
+* Align and Swap has bar location setting.  Align has to be turned off first.  The bar that was right clicked on is the
+one that you can set the location to.
 * Reset Defauls has been recoded as reset.  You can choose what parts of the bar to reset.
+* Options can not be opened during combat.  Having options opened during combat could cause a lua error.  With the test mode
+recode theres no need to have this.
+
+3.10 changes (warlords)
+* Combo bar is now only visible as a rogue or as a druid when in catform or no form.
+* Show Always flag added to Status.
+* Faction Colors added to the health bars.  Displays if you're hated, etc.
+* Tagged Color added to target health and focus health.  Shows if the target is tagged by another player.
 
 For a full list of changes go to http://www.curse.com/addons/wow/galvins-unitbars
 ]]
+
+
+

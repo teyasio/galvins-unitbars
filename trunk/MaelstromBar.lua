@@ -24,18 +24,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -56,7 +56,7 @@ local C_PetBattles, UIParent =
 -- TriggerGroups                  Table to create each group for triggers.
 -- AnyMaelstromTrigger            Trigger group for any active Maelstrom boxes lit.
 -- MaelstromTimeTrigger           Trigger group to modify the Maelstrom time box.
--- DoTriggers                     'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                     True by passes visible and isactive flags. If not nil then calls
 --                                self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxMaelstromCharges = 5
@@ -76,15 +76,15 @@ local AnyMaelstromChargeTrigger = 7
 local TGBoxNumber = 1
 local TGName = 2
 local TGValueTypes = 3
-local VTs = {'whole:Maelstrom Charges'}
+local VTs = {'whole:Maelstrom Charges', 'auras:Auras'}
 local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Maelstrom Charge 1',    VTs},                  -- 1
-  {2, 'Maelstrom Charge 2',    VTs},                  -- 2
-  {3, 'Maelstrom Charge 3',    VTs},                  -- 3
-  {4, 'Maelstrom Charge 4',    VTs},                  -- 4
-  {5, 'Maelstrom Charge 5',    VTs},                  -- 5
-  {6, 'Maelstrom Time',        VTs},                  -- 6
-  {0, 'Any Maelstrom Charge',  {'boolean: Active'}},  -- 7
+  {1, 'Maelstrom Charge 1',    VTs}, -- 1
+  {2, 'Maelstrom Charge 2',    VTs}, -- 2
+  {3, 'Maelstrom Charge 3',    VTs}, -- 3
+  {4, 'Maelstrom Charge 4',    VTs}, -- 4
+  {5, 'Maelstrom Charge 5',    VTs}, -- 5
+  {6, 'Maelstrom Time',        VTs}, -- 6
+  {0, 'Any Maelstrom Charge',  {'boolean: Active', 'auras:Auras'}},  -- 7
 }
 
 -------------------------------------------------------------------------------
@@ -147,12 +147,12 @@ end
 -- Update    UnitBarsF function
 --
 -- Event     Event that called this function.  If nil then it wasn't called by an event.
---           'update' bypasses visible and isactive flags.
+--           True bypasses visible and isactive flags.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.MaelstromBar:Update(Event)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -273,7 +273,7 @@ function Main.UnitBarsF.MaelstromBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true
