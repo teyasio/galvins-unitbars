@@ -24,6 +24,7 @@ local Options = GUB.Options
 
 local UnitBarsF = Main.UnitBarsF
 local PowerColorType = Main.PowerColorType
+local ConvertFaction = Main.ConvertFaction
 local LSM = Main.LSM
 
 local HelpText = GUB.DefaultUB.HelpText
@@ -32,15 +33,14 @@ local HelpText = GUB.DefaultUB.HelpText
 local _
 local floor, ceil =
       floor, ceil
-local strupper, strlower, strfind, format, strconcat, strmatch, strsplit, strsub =
-      strupper, strlower, strfind, format, strconcat, strmatch, strsplit, strsub
+local strupper, strlower, strfind, format, strmatch, strsplit, strsub, strtrim =
+      strupper, strlower, strfind, format, strmatch, strsplit, strsub, strtrim
 local tonumber, gsub, min, max, tremove, tinsert, wipe, strsub =
       tonumber, gsub, min, max, tremove, tinsert, wipe, strsub
-local ipairs, pairs, type, next =
-      ipairs, pairs, type, next
-local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip =
-      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip
-
+local ipairs, pairs, type, next, sort, select =
+      ipairs, pairs, type, next, sort, select
+local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo =
+      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo
 -------------------------------------------------------------------------------
 -- Locals
 --
@@ -71,7 +71,6 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameToo
 -- DirectionDropdown             Table used to pick vertical or horizontal.
 -- RuneModeDropdown              Table used to pick which mode runes are shown in.
 -- RuneEnergizeDropdown          Table used for changing rune energize.
--- IndicatorDropdown             Table used to for the indicator for predicted power.
 -- FrameStrataDropdown           Table used for changing the frame strats for any unitbar.
 -- MainOptionsHideFrame          Frame used for when the main options window is closed.
 -------------------------------------------------------------------------------
@@ -410,12 +409,6 @@ local RuneEnergizeDropdown = {
   none = 'None',
 }
 
-local IndicatorDropdown = {
-  showalways = 'Show Always',
-  hidealways = 'Hide Always',
-  auto       = 'Auto',
-}
-
 local FrameStrataDropdown = {
   'Background',
   'Low',
@@ -461,10 +454,17 @@ local Condition_BooleanDropdown = {
   'Static', -- 2
 }
 
+local Condition_AurasDropdown = {
+  'and',    -- 1
+  'or',     -- 2
+  'Static', -- 3
+}
+
 local TriggerConditionDropdown = {
   ['whole']        = Condition_WholePercentDropdown,
   ['percent']      = Condition_WholePercentDropdown,
   ['boolean']      = Condition_BooleanDropdown,
+  ['auras']        = Condition_AurasDropdown,
 }
 
 local TriggerBooleanDropdown = {
@@ -477,6 +477,7 @@ local TriggerSoundChannelDropdown = {
   Master = 'Master',
   Music = 'Music',
   SFX = 'Sound Effects',
+  Dialog = 'Dialog',
 }
 
 local TriggerActionDropdown = {
@@ -488,6 +489,15 @@ local TriggerActionDropdown = {
   'Move',
   'Copy',
   'None',
+}
+
+local AuraStackConditionDropdown = {
+  '<',             -- 1
+  '>',             -- 2
+  '<=',            -- 3
+  '>=',            -- 4
+  '=',             -- 5
+  '<>',            -- 6
 }
 
 --*****************************************************************************
@@ -991,8 +1001,6 @@ end
 -- BarType   Type of options being created.
 -- Order     Position in the options list.
 -- Name      Name of the options.
---
--- PowerColorsOptions    Options table for class color.
 -------------------------------------------------------------------------------
 local function CreateClassColorOptions(BarType, Order, Name)
   local UBF = UnitBarsF[BarType]
@@ -1085,6 +1093,61 @@ local function CreateClassColorOptions(BarType, Order, Name)
   end
 
   return ClassColorOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateFactionColorOptions
+--
+-- Creates option to change faction colors.
+--
+-- Subfunction of CreateBarOptions()
+--
+-- BarType   Type of options being created.
+-- Order     Position in the options list.
+-- Name      Name of the options.
+-------------------------------------------------------------------------------
+local function CreateFactionColorOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+  local FactionColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local c = UBF.UnitBar.Bar.FactionColor
+
+            c = c[ConvertFaction[KeyName]]
+
+            return c.r, c.g, c.b, c.a
+          end,
+    set = function(Info, r, g, b, a)
+            local KeyName = Info[#Info]
+            local c = UBF.UnitBar.Bar.FactionColor
+
+            c = c[ConvertFaction[KeyName]]
+            c.r, c.g, c.b, c.a = r, g, b, a
+
+            -- Set the color to the bar
+            UBF:SetAttr('Bar', 'FactionColor')
+          end,
+    args = {},
+  }
+
+  local FCOA = FactionColorOptions.args
+  for Index, Reputation in pairs(ConvertFaction) do
+    if type(Index) == 'number' then
+      FCOA[Reputation] = {
+        type = 'color',
+        name = Reputation,
+        order = 3 + Index,
+        width = 'half',
+        hasAlpha = true,
+      }
+    end
+  end
+
+  return FactionColorOptions
 end
 
 -------------------------------------------------------------------------------
@@ -1702,7 +1765,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     }
   end
 
-  -- Predicted color
+  -- Predicted color or tagged color
   if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' or
      BarType == 'PlayerPower' then
     GeneralArgs.PredictedColor = {
@@ -1711,6 +1774,14 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       hasAlpha = true,
       order = 22,
     }
+    if UBD[TableName].TaggedColor ~= nil then
+      GeneralArgs.TaggedColor = {
+        type = 'color',
+        name = 'Color (tagged)',
+        hasAlpha = true,
+        order = 23,
+      }
+    end
   end
   GeneralArgs.Spacer30 = CreateSpacer(30)
 
@@ -1770,6 +1841,20 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
 
   if Color and Color.Class ~= nil then
     GeneralArgs.ClassColor = CreateClassColorOptions(BarType, 32, 'Color')
+  end
+
+  local FactionColor = UBD[TableName].FactionColor
+
+  if FactionColor then
+    GeneralArgs.FactionColor = CreateFactionColorOptions(BarType, 32, 'Faction Colors')
+    if GeneralArgs.ClassColor then
+      GeneralArgs.ClassColor.hidden = function()
+                                        return UBF.UnitBar.General.FactionColors
+                                      end
+    end
+    GeneralArgs.FactionColor.hidden = function()
+                                        return not UBF.UnitBar.General.FactionColors
+                                      end
   end
 
   -- Add power colors for power bars only.
@@ -2519,14 +2604,32 @@ local function CreateTextOptions(BarType, Order, Name)
 end
 
 -------------------------------------------------------------------------------
--- CreateTriggerListOptions
+-- AurasFound
 --
--- Creates a list of trigger options.
+-- Returns true if any auras are found
 --
--- SubFunction of CreateTriggerOptions
+-- Subfunction of AddTriggerOption()
+-------------------------------------------------------------------------------
+local function AurasFound(Auras)
+  local Found = false
+
+  if Auras then
+    for SpellID, Aura in pairs(Auras) do
+      if type(Aura) == 'table' then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+-------------------------------------------------------------------------------
+-- TriggersFound
 --
--- BarType          Options will be added for this bar.
--- TriggerOptions   Options table for the triggers.
+-- Subfunction CreateTriggerListOptions()
+--
+-- returns true if there are any triggers found based on the
+-- TriggerData.GroupNumber selected.
 -------------------------------------------------------------------------------
 local function TriggersFound(TriggerData)
   local GroupNumber = TriggerData.GroupNumber
@@ -2539,7 +2642,21 @@ local function TriggersFound(TriggerData)
   return false
 end
 
--- Update the Trigger Order Index.
+-------------------------------------------------------------------------------
+-- UpdateTriggerOrderNumbers
+--
+-- Subfunction of AddTriggerOption(), , CreateTriggerListOptions()
+--
+-- This updates the index counters for each of the triggers.
+-- Instead of showing the real trigger numbers, I keep a sequencial list
+-- in each bar group.
+--
+-- TriggerData         All the triggers
+-- GroupNames          Each name for bar objects.
+-- TriggerOrderNumber  Turns a trigger number into an order number.
+--                     This also can returns the max number of triggers
+--                     for a certain group.
+-------------------------------------------------------------------------------
 local function UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNumber)
   local NumTriggers = #TriggerData
 
@@ -2562,8 +2679,25 @@ local function UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNu
   end
 end
 
--- Set trigger data to a new GroupNumber.
--- Returns TypeIndex
+-------------------------------------------------------------------------------
+-- UpdateTriggerData
+--
+-- Modifies the trigger data based on the values set in TD.
+-- If anything is incorrect this corrects it.
+--
+-- SubFunction of AddTriggerOption(), CreateTriggerListOptions()
+--
+-- TD                         Trigger data
+-- GroupNumber                Bar object
+-- TriggerTypeDropdown        Menu for different trigger types. Background, Border Color, etc
+-- TriggerValueTypeDropdown   Value types for TriggerTypeDropdown
+-- TriggerConditionDropdown   Menu for picking a condition, <, >, >=, etc
+-- TypeIDs                    Contains the different Type identifiers for each group.
+-- ValueTypeIDs               Contains the valueType identifiers for each group.
+--
+-- Returns
+--   TypeIndex                This is used to get the correct barfunction inside of ModifyTriggers in bar.lua.
+-------------------------------------------------------------------------------
 local function UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerValueTypeDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs)
   local TypeIndex = nil
   local ValueType = nil
@@ -2642,6 +2776,197 @@ local function UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerVa
   return TypeIndex
 end
 
+-------------------------------------------------------------------------------
+-- ModifyAuraOptions
+--
+-- Manages the aura options
+--
+-- Subfunction of AddTriggerOption()
+--
+-- Usage:  ModifyAuraOptions('create', Order, BBar, TriggerNumber, TO, TD)
+--         ModifyAuraOptions('add', Order, BBar, TriggerNumber, TO, TD, Index, SpellID)
+--         ModifyAuraOptions('clear', TO, TD)
+--
+-- TO             TriggerOptions aceconfig table options
+-- Action          'create' will create all the aura options
+--                 'add'    will add one aura option
+--                 'clear'  will only clear the aura options, not the auras.
+-- Order          What position to start placing the aura options in the trigger options panel.
+-- BBar           Contains the bar object being used by this bar.
+-- TriggerNumber  Current trigger the aura options belong to.
+-- Index          Order + Index position for the aura.
+-- TD             Trigger data
+-- SpellID        ID of the aura to add an option for.
+-------------------------------------------------------------------------------
+local function ModifyAuraOptions(Action, ...)
+  local AuraGroupSt = 'AuraGroup%s'
+
+  if Action == 'create' then
+    local Order = select(1, ...)
+    local BBar = select(2, ...)
+    local TriggerNumber = select(3, ...)
+    local TO = select(4, ...)
+    local TD = select(5, ...)
+    local Auras = TD.Auras
+
+    if Auras then
+      local Index = 0
+
+      for SpellID, Aura in pairs(Auras) do
+        if type(Aura) == 'table' then
+          Index = Index + 1
+          ModifyAuraOptions('add', Order, BBar, TriggerNumber, TO, TD, Index, SpellID)
+        end
+      end
+    end
+  elseif Action == 'clear' then
+    local TOA = (select(1, ...)).args
+    local Auras = (select(2, ...)).Auras
+
+    if Auras then
+      for SpellID, Aura in pairs(Auras) do
+        if type(Aura) == 'table' then
+          TOA[format(AuraGroupSt, SpellID)] = nil
+        end
+      end
+    end
+  elseif Action == 'add' then
+    local Order = select(1, ...)
+    local BBar = select(2, ...)
+    local TriggerNumber = select(3, ...)
+    local TO = select(4, ...)
+    local TD = select(5, ...)
+    local Index = select(6, ...)
+    local SpellID = select(7, ...)
+
+    local Name, _, Icon = GetSpellInfo(SpellID)
+    local Auras = TD.Auras
+    local AuraGroup = format(AuraGroupSt, SpellID)
+    local TOA = TO.args
+
+    TOA[AuraGroup] = {
+      type = 'group',
+      name = format('|T%s:20:20:0:5|t |cFFFFFFFF%s|r (%s)', Icon, Name, SpellID),
+      order = Order + Index,
+      dialogInline = true,
+      hidden = function()
+                 return TD.Minimize or TD.HideAuras or TD.Condition == 'static' or TD.ValueTypeID ~= 'auras'
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+      get = function(Info)
+              local KeyName = Info[#Info]
+              local Aura = Auras[SpellID]
+
+              if KeyName == 'StackCondition' then
+                return FindMenuItem(AuraStackConditionDropdown, Aura.StackCondition)
+              elseif KeyName == 'Stacks' then
+                return format('%s', Aura.Stacks or 0)
+              elseif KeyName == 'Units' then
+                local St = ''
+                for Unit, _ in pairs(Aura.Units) do
+                  St = St .. Unit .. ' '
+                end
+                return strtrim(St)
+              else
+                return Aura[KeyName]
+              end
+            end,
+      set = function(Info, Value)
+              local KeyName = Info[#Info]
+
+              if KeyName == 'Stacks' then
+                Value = tonumber(Value) or 0
+              elseif KeyName == 'StackCondition' then
+                Value = AuraStackConditionDropdown[Value]
+              elseif KeyName == 'Units' then
+                local Units = {Main:StringSplit(' ', Value)}
+                Value = {}
+                for Index = 1, #Units do
+                  Value[Units[Index]] = true
+                end
+              end
+
+              Auras[SpellID][KeyName] = Value
+
+              BBar:ModifyAuraTriggers(TriggerNumber, TD)
+            end,
+      args = {
+        RemoveAura = {
+          type = 'execute',
+          name = 'Remove',
+          desc = 'Remove aura',
+          order = 1,
+          width = 'half',
+          func = function()
+                   TOA[AuraGroup] = nil
+                   Auras[SpellID] = nil
+
+                   -- Delete auras if Auras is empty
+                   if next(Auras) == nil then
+                     TD.Auras = nil
+                   end
+                   BBar:ModifyAuraTriggers(TriggerNumber, TD)
+
+                   HideTooltip(true)
+                 end,
+        },
+        SpacerHalf = CreateSpacer(2, 'half'),
+        CastByPlayer = {
+          type = 'toggle',
+          name = 'Cast by Player',
+          desc = 'This aura must be cast by your self',
+          order = 3,
+        },
+        Spacer10 = CreateSpacer(10),
+        Units = {
+          type = 'input',
+          name = 'Units',
+          desc = 'Enter one or more units seperated by a space',
+          order = 11,
+        },
+        StackCondition = {
+          type = 'select',
+          name = 'Condition',
+          width = 'half',
+          order = 12,
+          values = AuraStackConditionDropdown,
+        },
+        Stacks = {
+          type = 'input',
+          name = 'Stacks',
+          width = 'half',
+          order = 13,
+        },
+      },
+    }
+
+    -- Update trigger aura since this option was just created.
+    BBar:ModifyAuraTriggers(TriggerNumber, TD)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- AddTriggerOption
+--
+-- Adds a trigger options panel
+--
+-- SubFunction of CreateTriggerListOptions
+--
+-- BarType                    Options will be added for this bar.
+-- TOA                        TriggerOptions.args
+-- TriggerNumber              Trigger to make options for.
+-- GroupNames                 List of names for the trigger group.
+-- TriggerTypeDropdown        Menu for different trigger types. Background, Border Color, etc
+-- TriggerValueTypeDropdown   Value types for TriggerTypeDropdown
+-- TriggerActionDropdown      Menu for picking an action. move, copy, etc
+-- TriggerConditionDropdown   Menu for picking a condition, <, >, >=, etc
+-- TypeIDs                    Contains the different Type identifiers for each group.
+-- ValueTypeIDs               Contains the valueType identifiers for each group.
+-- TriggerOrderNumber         Position in the options list for the trigger options panel to be listed at.
+-- SwapTriggers               Clipboard for swapping one trigger with another.
+-------------------------------------------------------------------------------
 local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
                                 TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
   local UBF = UnitBarsF[BarType]
@@ -2649,18 +2974,37 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
   local Names = UBF.Names.Trigger
   local TriggerData = UBF.UnitBar.Triggers
   local TD = TriggerData[TriggerNumber]
+  local UnitType = DUB[BarType].UnitType or 'player'
   local TriggerKey = 'Trigger' .. TriggerNumber
+  local TriggerLineKey = 'TriggerLine' .. TriggerNumber
   local TriggerSt = 'Trigger%s'
+  local TriggerLineSt = 'TriggerLine%s'
+  local InvalidSpell = false
+  local AuraGroupOrder = 200
+
+  local AuraName = nil
 
   local TO = {}
+
+  TOA[TriggerLineKey] = {
+    type = 'header',
+    name = '',
+    order = function()
+              return TriggerOrderNumber[TriggerNumber] - 0.01
+            end,
+    hidden = function()
+               return TD.GroupNumber ~= TriggerData.GroupNumber
+             end
+  }
+
   TO.type = 'group'
   TO.name = function()
               local Name = TD.Name
               local Index = TriggerOrderNumber[TriggerNumber]
+              local BarObject = GroupNames[TD.GroupNumber]
 
               if Name == '' then
                 local Value = TD.Value
-                local BarObject = GroupNames[TD.GroupNumber]
                 local Condition = TD.Condition
                 local Type = TD.Type
 
@@ -2674,10 +3018,10 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                   if TD.ValueTypeID == 'boolean' then
                     Value = Value == 1 and 'true' or 'false'
                   end
-                  return format('|cFF00FF00%d TN:%d|r:|cFFFFFF00%s||%s||%s||%s||%s|r', Index, TriggerNumber, BarObject or '', Type, TD.ValueType, Condition, Value)
+                  return format('|cFF00FF00%d|r:|cFFFFFF00%s||%s||%s||%s||%s|r', Index, BarObject, Type, TD.ValueType, Condition, Value)
                 end
               else
-                return format('|cFF00FF00%d|r:|cFFFFFF00%s|r', Index, Name)
+                return format('|cFF00FF00%d|r:|cFFFFFF00 (%s) %s|r', Index, BarObject, Name)
               end
             end
   TO.order = function(Info, Value)
@@ -2765,12 +3109,14 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                end
                UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNumber)
 
+               BBar:InsertTriggers(Index, TD)
                AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
                                 TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
 
+
                -- Update bar to reflect trigger changes
                BBar:UndoTriggers()
-               BBar:InsertTriggers(Index, TD)
+
                UBF:SetAttr('Layout', '_UpdateTriggers')
 
                HideTooltip(true)
@@ -2795,14 +3141,17 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                -- Delete trigger data option
                for TriggerIndex = TriggerNumber, NumTriggers do
                  local t = nil
+                 local tl = nil
 
                  if TriggerIndex < NumTriggers then
                    t = TOA[format(TriggerSt, TriggerIndex + 1)]
+                   tl = TOA[format(TriggerLineSt, TriggerIndex + 1)]
 
                    -- Update the upvalues in the function containing the options for trigger.
                    t.order('update', TriggerIndex)
                  end
                  TOA[format(TriggerSt, TriggerIndex)] = t
+                 TOA[format(TriggerLineSt, TriggerIndex)] = tl
                end
 
                -- Update bar to reflect trigger changes
@@ -2863,23 +3212,29 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
 
                if Source == nil then
                  SwapTriggers.Source = TriggerNumber
+                 SwapTriggers.TO = TO
                else
                  -- Swap by group number or trigger number.
                  local SourceTriggerNumber = SwapTriggers.Source
+                 local SourceTO = SwapTriggers.TO
+                 local SourceTD = TriggerData[SourceTriggerNumber]
+
                  local SourceGroupNumber = TriggerData[SourceTriggerNumber].GroupNumber
                  local GroupNumber = TD.GroupNumber
                  local Tdata = {}
 
+                 -- Clear aura options before swapping
+                 ModifyAuraOptions('clear', SourceTO,  SourceTD)
+                 ModifyAuraOptions('clear', TO, TD)
+
                  -- Since each trigger option uses its own upvalues for trigger number and trigger data.
                  -- A copy needs to be done instead.
-                 Main:CopyTableValues(TriggerData[SourceTriggerNumber], Tdata, true)
-                 Main:CopyTableValues(TriggerData[TriggerNumber], TriggerData[SourceTriggerNumber], true)
-                 Main:CopyTableValues(Tdata, TriggerData[TriggerNumber], true)
+                 Main:CopyTableValues(SourceTD, Tdata, true)
+                 Main:CopyTableValues(TD, SourceTD, true)
+                 Main:CopyTableValues(Tdata, TD, true)
                  BBar:SwapTriggers(SourceTriggerNumber, TriggerNumber)
 
                  if SourceGroupNumber ~= GroupNumber then
-                   local SourceTD = TriggerData[SourceTriggerNumber]
-
                    local SourceTypeIndex = UpdateTriggerData(SourceTD, SourceGroupNumber, TriggerTypeDropdown,
                                                              TriggerValueTypeDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs)
                    local TypeIndex = UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown,
@@ -2891,8 +3246,16 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                    BBar:ModifyTriggers(TriggerNumber, TD, TypeIndex, true)
                  end
 
+                 -- Recreate aura options if there any auras
+                 ModifyAuraOptions('create', AuraGroupOrder, BBar, SourceTriggerNumber, SourceTO, SourceTD)
+                 ModifyAuraOptions('create', AuraGroupOrder, BBar, TriggerNumber, TO, TD)
+
                  UBF:SetAttr('Layout', '_UpdateTriggers')
+
+                 -- Clear the clipboard
                  SwapTriggers.Source = nil
+                 SwapTriggers.TO = nil
+
                  HideTooltip(true)
                end
              end,
@@ -2950,14 +3313,14 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
 
               -- Set Trigger to selected group.
               TD.GroupNumber = Value
-              UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNumber)
-
-              AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
-                               TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
-
               -- Update bar to reflect changes.
               BBar:UndoTriggers()
               BBar:InsertTriggers(Index, TD)
+
+              UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNumber)
+              AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
+                               TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
+
               UBF:SetAttr('Layout', '_UpdateTriggers')
             end,
       disabled = function()
@@ -3000,64 +3363,10 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                  end,
     },
     Spacer30 = CreateSpacer(30),
-    Condition = {
-      type = 'select',
-      name = 'Condition',
-      width = 'half',
-      desc = 'Set the condition to activate at. Static means always on',
-      order = 31,
-      values = function()
-                 return TriggerConditionDropdown[TD.ValueTypeID]
-               end,
-      style = 'dropdown',
-      hidden = function()
-                 return TD.Minimize
-               end,
-      disabled = function()
-                   return not TD.Enabled
-                 end,
-    },
-    Value = {
-      type = 'input',
-      name = function()
-               return format('Value (%s)', TD.ValueTypeID)
-             end,
-      order = 32,
-      desc = function()
-               if TD.ValueTypeID == 'percent' then
-                 return 'Enter a number between 0 and 100'
-               else
-                 return 'Enter any number'
-               end
-             end,
-      hidden = function()
-                 return TD.Minimize or TD.Condition == 'static' or TD.ValueTypeID == 'boolean'
-               end,
-      disabled = function()
-                   return not TD.Enabled
-                 end,
-    },
-    ValueBoolean = {
-      type = 'select',
-      name = function()
-               return format('Value (%s)', TD.ValueTypeID)
-             end,
-      width = 'half',
-      order = 33,
-      values = TriggerBooleanDropdown,
-      style = 'dropdown',
-      hidden = function()
-                 return TD.Minimize or TD.Condition == 'static' or TD.ValueTypeID ~= 'boolean'
-               end,
-      disabled = function()
-                   return not TD.Enabled
-                 end,
-    },
-    Spacer40 = CreateSpacer(40),
     ParsColor = {
       type = 'color',
       name = 'Color',
-      order = 41,
+      order = 31,
       width = 'half',
       hasAlpha = true,
       hidden = function()
@@ -3071,7 +3380,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
     ParsTexture = {
       type = 'select',
       name = 'Texture',
-      order = 42,
+      order = 32,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
       hidden = function()
@@ -3084,7 +3393,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
     ParsTextureSize = {
       type = 'range',
       name = 'Texture Size',
-      order = 43,
+      order = 33,
       desc = 'Change the texture size',
       step = .01,
       width = 'double',
@@ -3101,7 +3410,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
     ParsBorder = {
       type = 'select',
       name = 'Border',
-      order = 44,
+      order = 34,
       dialogControl = 'LSM30_Border',
       values = LSMBorderDropdown,
       hidden = function()
@@ -3114,7 +3423,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
     ParsBackground = {
       type = 'select',
       name = 'Background',
-      order = 45,
+      order = 35,
       dialogControl = 'LSM30_Background',
       values = LSMBackgroundDropdown,
       hidden = function()
@@ -3127,7 +3436,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
     ParsSound = {
       type = 'select',
       name = 'Sound',
-      order = 46,
+      order = 36,
       dialogControl = 'LSM30_Sound',
       values = LSMSoundDropdown,
       hidden = function()
@@ -3140,7 +3449,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
     ParsSoundChannel = {
       type = 'select',
       name = 'Sound Channel',
-      order = 47,
+      order = 37,
       style = 'dropdown',
       values = TriggerSoundChannelDropdown,
       hidden = function()
@@ -3150,6 +3459,161 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                    return not TD.Enabled
                  end,
     },
+    Spacer100 = CreateSpacer(100),
+    Condition = {
+      type = 'select',
+      name = 'Condition',
+      width = 'half',
+      desc = function()
+               if TD.ValueTypeID ~= 'auras' then
+                 return 'Set the condition to activate at. Static means always on'
+               else
+                 return '"and" means all auras\n"or" at least one aura\nStactic means always on'
+               end
+             end,
+      order = 101,
+      values = function()
+                 return TriggerConditionDropdown[TD.ValueTypeID]
+               end,
+      style = 'dropdown',
+      hidden = function()
+                 return TD.Minimize
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+    },
+    Value = {
+      type = 'input',
+      name = function()
+               return format('Value (%s)', TD.ValueTypeID)
+             end,
+      order = 102,
+      desc = function()
+               if TD.ValueTypeID == 'percent' then
+                 return 'Enter a number between 0 and 100'
+               else
+                 return 'Enter any number'
+               end
+             end,
+      hidden = function()
+                 return TD.Minimize or TD.Condition == 'static' or
+                        TD.ValueTypeID == 'boolean' or TD.ValueTypeID == 'auras'
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+    },
+    ValueBoolean = {
+      type = 'select',
+      name = function()
+               return format('Value (%s)', TD.ValueTypeID)
+             end,
+      width = 'half',
+      order = 103,
+      values = TriggerBooleanDropdown,
+      style = 'dropdown',
+      hidden = function()
+                 return TD.Minimize or TD.Condition == 'static' or TD.ValueTypeID ~= 'boolean'
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+    },
+    AuraValue = {
+      type = 'input',
+      name = function()
+               if InvalidSpell then
+                 return 'Invalid aura'
+               else
+                 return 'Aura name or Spell ID'
+               end
+             end,
+      order = 104,
+      dialogControl = 'GUB_Aura_EditBox',
+      set = function(Info, Value, SpellID)
+              InvalidSpell = false
+              Value = strtrim(Value)
+
+              if Value == '' then
+                return
+              end
+
+              -- Must be valid SpellID or selected spell.
+              if SpellID == nil then
+
+                -- Check to make sure spellID is a number
+                Value = tonumber(Value)
+                if Value == nil then
+                  InvalidSpell = true
+                else
+                  -- Check to make sure the spellID exists.
+                  local Name = GetSpellInfo(Value)
+
+                  if Name == nil or Name == '' then
+                    InvalidSpell = true
+                  else
+                    SpellID = Value
+                  end
+                end
+              end
+
+              -- Add aura to TD.Auras
+              -- And create aura menu
+              if not InvalidSpell then
+                local Auras = TD.Auras
+
+                if Auras == nil then
+                  Auras = {}
+                  TD.Auras = Auras
+                end
+
+                local Aura = Auras[SpellID]
+                local Index = 0
+
+                if Aura == nil then
+                  Aura = {Units = {[UnitType] = true}, StackCondition = '>=', Stacks = 0}
+                  Auras[SpellID] = Aura
+
+                  for _, Aura in pairs(Auras) do
+                    if type(Aura) == 'table' then
+                      Index = Index + 1
+                    end
+                  end
+                  -- Add aura option
+                  ModifyAuraOptions('add', AuraGroupOrder, BBar, TriggerNumber, TO, TD, Index, SpellID)
+                end
+              end
+            end,
+      get = function()
+            end,
+      hidden = function()
+                 return TD.Minimize or TD.Condition == 'static' or TD.ValueTypeID ~= 'auras'
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+    },
+    AurasHide = {
+      type = 'execute',
+      name = function()
+               if TD.HideAuras then
+                 return 'Show'
+               else
+                 return 'Hide'
+               end
+             end,
+      desc = 'Hide auras',
+      width = 'half',
+      order = 105,
+      func = function()
+               TD.HideAuras = not TD.HideAuras
+               HideTooltip(true)
+             end,
+      hidden = function()
+                 return TD.Minimize or TD.Auras == nil or TD.Condition == 'static' or TD.ValueTypeID ~= 'auras'
+               end,
+    },
   }
 
   TO.args.SpacerHalf.hidden = function()
@@ -3157,8 +3621,21 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
                                        TriggerData.Action == 'copy' or
                                        TriggerData.Action == 'swap' and SwapTriggers.Source ~= nil
                               end
+
+  -- Add aura options
+  ModifyAuraOptions('create', AuraGroupOrder, BBar, TriggerNumber, TO, TD)
 end
 
+-------------------------------------------------------------------------------
+-- CreateTriggerListOptions
+--
+-- Creates a list of trigger options.
+--
+-- SubFunction of CreateTriggerOptions
+--
+-- BarType          Options will be added for this bar.
+-- TriggerOptions   Options table for the triggers.
+-------------------------------------------------------------------------------
 local function CreateTriggerListOptions(BarType, TriggerOptions)
   local UBF = UnitBarsF[BarType]
   local Names = UBF.Names.Trigger
@@ -3210,7 +3687,6 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
     end
   end
 
-  Groups = nil
   local AddTriggerData = {}
 
   -- GET
@@ -3414,12 +3890,14 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
              UpdateTriggerData(TD, TriggerData.GroupNumber, TriggerTypeDropdown, TriggerValueTypeDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs)
              UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNumber)
 
+             BBar:InsertTriggers(Index, TD)
+
              AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
                               TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
 
              -- Update bar to reflect changes.
              BBar:UndoTriggers()
-             BBar:InsertTriggers(Index, TD)
+
              UBF:SetAttr('Layout', '_UpdateTriggers')
              HideTooltip(true)
            end,
@@ -3516,36 +3994,42 @@ local function CreateStatusOptions(BarType, Order, Name)
       desc = 'Hides the bar if it can not be used by your class or spec.  Bar will stay hidden even with bars unlocked or in test mode',
     }
   end
+  StatusArgs.ShowAlways = {
+    type = 'toggle',
+    name = 'Show Always',
+    order = 2,
+    desc = "Always show the bar in and out of combat.  Doesn't override Hide not Usuable",
+  }
   StatusArgs.HideWhenDead = {
     type = 'toggle',
     name = 'Hide when Dead',
-    order = 2,
+    order = 3,
     desc = "Hides the bar when you're dead",
   }
   StatusArgs.HideInVehicle = {
     type = 'toggle',
     name = 'Hide in Vehicle',
-    order = 3,
+    order = 4,
     desc = "Hides the bar when you're in a vehicle",
   }
   StatusArgs.HideInPetBattle = {
     type = 'toggle',
     name = 'Hide in Pet Battle',
-    order = 4,
+    order = 5,
     desc = "Hides the bar when you're in a pet battle",
   }
   if UBD.Status.HideNotActive ~= nil then
     StatusArgs.HideNotActive = {
       type = 'toggle',
       name = 'Hide not Active',
-      order = 5,
+      order = 6,
       desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
     }
   end
   StatusArgs.HideNoCombat = {
     type = 'toggle',
     name = 'Hide no Combat',
-    order = 6,
+    order = 7,
     desc = 'When not in combat the bar will be hidden',
   }
 
@@ -3587,11 +4071,10 @@ local function CreateTestModeOptions(BarType, Order, Name)
   }
   local TestModeArgs = TestModeOptions.args
 
-  if UBD.TestMode.ShowExtraChiOrb ~= nil then
-    TestModeArgs.ShowExtraChiOrb = {
+  if UBD.TestMode.ShowEmpoweredChi ~= nil then
+    TestModeArgs.ShowEmpoweredChi = {
       type = 'toggle',
-      name = 'Show Extra Chi Orb',
-      desc = 'Shows the extra chi orb taken with a talent',
+      name = 'Show Empowered Chi',
       order = 1,
     }
   end
@@ -3619,11 +4102,19 @@ local function CreateTestModeOptions(BarType, Order, Name)
       order = 4,
     }
   end
+  if UBD.TestMode.ShowEnhancedShadowOrbs then
+    TestModeArgs.ShowEnhancedShadowOrbs = {
+      type = 'toggle',
+      name = 'Show Enhanced Shadow Orbs',
+      order = 5,
+      width = 'double',
+    }
+  end
   if UBD.TestMode.Value ~= nil then
     TestModeArgs.Value = {
       type = 'range',
       name = 'Value',
-      order = 5,
+      order = 100,
       desc = 'Change the bars value',
       step = .01,
       width = 'double',
@@ -3636,7 +4127,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.PredictedValue = {
       type = 'range',
       name = 'Predicted Value',
-      order = 6,
+      order = 101,
       desc = 'Change the precicted value',
       step = .01,
       width = 'double',
@@ -3649,7 +4140,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.Time = {
       type = 'range',
       name = 'Time',
-      order = 7,
+      order = 102,
       desc = 'Change the amount of time',
       step = .01,
       width = 'double',
@@ -3662,7 +4153,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.Recharge = {
       type = 'range',
       name = 'Recharge',
-      order = 8,
+      order = 103,
       desc = 'Change the number of runes recharging',
       width = 'double',
       step = 1,
@@ -3674,7 +4165,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.Energize = {
       type = 'range',
       name = 'Empowerment',
-      order = 9,
+      order = 104,
       desc = 'Change a rune to empowered. Max turns them all to empowered',
       width = 'double',
       step = 1,
@@ -4102,6 +4593,22 @@ local function CreateGeneralOptions(BarType, Order, Name)
       desc = 'Predicted power will be shown (Hunters Only)',
     }
   end
+  if UBD.General.FactionColors ~= nil then
+    GeneralArgs.FactionColors = {
+      type = 'toggle',
+      name = 'Faction Colors',
+      order = 2,
+      desc = 'Shows faction colors instead of class colors',
+    }
+  end
+  if UBD.General.Tagged ~= nil then
+    GeneralArgs.TaggedColor = {
+      type = 'toggle',
+      name = 'Tagged',
+      order = 3,
+      desc = 'Shows if the target is tagged by another player',
+    }
+  end
 
   if BarType == 'AnticipationBar' or BarType == 'MaelstromBar' then
     local BarName = BarType == 'AnticipationBar' and 'anticipation' or 'maelstrom'
@@ -4381,61 +4888,17 @@ local function CreateGeneralEclipseBarOptions(BarType, Order, Name)
                      return UBF.UnitBar.Layout.HideText
                    end,
       },
-      PredictedPower = {
+      HidePeak = {
         type = 'toggle',
-        name = 'Predicted Power',
+        name = 'Hide Peak',
         order = 5,
-        desc = 'The energy from wrath, starfire and starsurge will be shown ahead of time. Predicted options group will open up below',
+        desc = 'The sun and moon will not light up during a solar or lunar peak',
       },
       Spacer10 = CreateSpacer(10),
-      PredictedOptions = {
-        type = 'group',
-        name = 'Predicted Options',
-        dialogInline = true,
-        order = 11,
-        hidden = function()
-                   return not UBF.UnitBar.General.PredictedPower
-                 end,
-        args = {
-          PredictedPowerHalfLit = {
-            type = 'toggle',
-            name = 'Power Half Lit',
-            order = 1,
-            desc = 'Power Half Lit is based on predicted power',
-            disabled = function()
-                         return not UBF.UnitBar.General.PowerHalfLit
-                       end,
-          },
-          PredictedPowerText = {
-            type = 'toggle',
-            name = 'Power Text',
-            order = 2,
-            desc = 'Predicted power text will be shown instead',
-            disabled = function()
-                         return UBF.UnitBar.Layout.HideText
-                       end,
-          },
-          PredictedEclipse = {
-            type = 'toggle',
-            name = 'Eclipse',
-            order = 3,
-            desc = 'The sun or moon will light up based on predicted power',
-          },
-          IndicatorHideShow  = {
-            type = 'select',
-            name = 'Indicator (predicted power)',
-            order = 4,
-            desc = 'Hide or Show the indicator',
-            values = IndicatorDropdown,
-            style = 'dropdown',
-          },
-        },
-      },
-      Spacer20 = CreateSpacer(20),
       SliderDirection = {
         type = 'select',
         name = 'Slider Direction',
-        order = 21,
+        order = 11,
         values = DirectionDropdown,
         style = 'dropdown',
         desc = 'Specifies the direction the slider will move in'
@@ -4774,9 +5237,8 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
       {Name = 'Power'     , Order = 12, All = true,  Type = 'Background', TablePath = 'BackgroundPower'},
       {Name = 'Sun'       , Order = 13, All = true,  Type = 'Background', TablePath = 'BackgroundSun'},
       {Name = 'Slider'    , Order = 14, All = true,  Type = 'Background', TablePath = 'BackgroundSlider'},
-      {Name = 'Indicator' , Order = 15, All = true,  Type = 'Background', TablePath = 'BackgroundIndicator'},
-      {Name = 'Charges'   , Order = 16, All = true,  Type = 'Background', TablePath = 'BackgroundCharges'},
-      {Name = 'Time'      , Order = 17, All = true,  Type = 'Background', TablePath = 'BackgroundTime'}},
+      {Name = 'Charges'   , Order = 15, All = true,  Type = 'Background', TablePath = 'BackgroundCharges'},
+      {Name = 'Time'      , Order = 16, All = true,  Type = 'Background', TablePath = 'BackgroundTime'}},
 
     {Name = 'Bar', Order = 7,
       {Name = 'Bar'       , Order = 10, All = true,  Type = 'Bar',        TablePath = 'Bar'},
@@ -4784,9 +5246,8 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
       {Name = 'Power'     , Order = 12, All = true,  Type = 'Bar',        TablePath = 'BarPower'},
       {Name = 'Sun'       , Order = 13, All = true,  Type = 'Bar',        TablePath = 'BarSun'},
       {Name = 'Slider'    , Order = 14, All = true,  Type = 'Bar',        TablePath = 'BarSlider'},
-      {Name = 'Indicator' , Order = 15, All = true,  Type = 'Bar',        TablePath = 'BarIndicator'},
-      {Name = 'Charges'   , Order = 16, All = true,  Type = 'Bar',        TablePath = 'BarCharges'},
-      {Name = 'Time'      , Order = 17, All = true,  Type = 'Bar',        TablePath = 'BarTime'}},
+      {Name = 'Charges'   , Order = 15, All = true,  Type = 'Bar',        TablePath = 'BarCharges'},
+      {Name = 'Time'      , Order = 16, All = true,  Type = 'Bar',        TablePath = 'BarTime'}},
 
     {Name = 'Text', Order = 8,
       {Name = 'All Text'  , Order = 10, All = true,   Type = 'TextAll',   TablePath = 'Text'},
@@ -5077,7 +5538,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Sun = CreateBackdropOptions(BarType, 'BackgroundSun', 2, 'Sun'),
         Power = CreateBackdropOptions(BarType, 'BackgroundPower', 3, 'Power'),
         Slider = CreateBackdropOptions(BarType, 'BackgroundSlider', 4, 'Slider'),
-        PredictedSlider = CreateBackdropOptions(BarType, 'BackgroundIndicator', 5, 'Indicator'),
       }
     end
     OptionArgs.Bar = {
@@ -5097,7 +5557,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Sun = CreateBarOptions(BarType, 'BarSun', 2, 'Sun'),
         Power = CreateBarOptions(BarType, 'BarPower', 3, 'Power'),
         Slider = CreateBarOptions(BarType, 'BarSlider', 4, 'Slider'),
-        PredictedSlider = CreateBarOptions(BarType, 'BarIndicator', 5, 'Indicator'),
       }
     end
   else
@@ -5244,6 +5703,141 @@ local function CreateEnableUnitBarOptions(BarGroups, Order, Name, Desc)
   end
 
   return EnableUnitBarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateAuraUtilityOptions
+--
+-- Creates options that let you view the aura list.
+--
+-- Order     Position in the options list.
+-- Name      Name of the options.
+-- Desc      Description when mousing over the options name.
+-------------------------------------------------------------------------------
+local function AuraSort(a, b)
+  return a.Name < b.Name
+end
+
+local function RefreshAuraList(AL, TrackedAuras)
+  if TrackedAuras and Main.UnitBars.AuraListOn then
+    AL.args = {}
+    local ALA = AL.args
+    local Order = 0
+    local SortList = {}
+
+    for SpellID, _ in pairs(TrackedAuras) do
+      if type(SpellID) == 'number' then
+        local AuraKey = format('Auras%s', SpellID)
+
+        if ALA[AuraKey] == nil then
+          local Name, _, Icon = GetSpellInfo(SpellID)
+          Order = Order + 1
+
+          local AuraDesc = {
+            type = 'description',
+            width = 'full',
+            fontSize = 'medium',
+            order = Order,
+            image = Icon,
+            imageWidth = 20,
+            imageHeight = 20,
+            name = format('%s (|cFF00FF00%s|r)', Name, SpellID),
+          }
+
+          SortList[Order] = {Name = Name, AuraDesc = AuraDesc}
+          ALA[AuraKey] = AuraDesc
+        end
+      end
+    end
+    sort(SortList, AuraSort)
+    for Index = 1, #SortList do
+      SortList[Index].AuraDesc.order = Index
+    end
+  end
+end
+
+local function CreateAuraUtilityOptions(Order, Name, Desc)
+  local AL = nil
+
+  local UpdateAuras = Options:DoFunction('AuraList', 'UpdateAuras', function()
+    if not Main.UnitBars.AuraListOn then
+      AL.args = {}
+    end
+  end)
+
+  local AuraUtilityOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    desc = Desc,
+    get = function(Info)
+            return Main.UnitBars[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            if KeyName == 'AuraListOn' and not Value then
+              AL.args = {}
+            end
+            Main.UnitBars[KeyName] = Value
+            Main:UnitBarsSetAllOptions()
+            GUB:UnitBarsUpdateStatus()
+          end,
+    args = {
+      Description = {
+        type = 'description',
+        name = 'List auras in the box below from the units specified',
+        order = 1,
+      },
+      AuraListOn = {
+        type = 'toggle',
+        name = 'Enable This Utility',
+        order = 2,
+      },
+      Spacer10 = CreateSpacer(10),
+      AuraListUnits = {
+        type = 'input',
+        name = 'Units',
+        order = 11,
+        desc = 'Enter the units to track auras',
+        disabled = function()
+                     return not Main.UnitBars.AuraListOn
+                   end,
+      },
+      RefreshAuras = {
+        type = 'execute',
+        name = 'Refresh',
+        desc = 'Refresh aura list',
+        width = 'half',
+        order = 12,
+        hidden = function()  -- use this to build list when aura list is first visible.
+                   RefreshAuraList(AL, Main.TrackedAuras)
+                   return false
+                 end,
+        func = function()
+                 RefreshAuraList(AL, Main.TrackedAuras)
+               end,
+        disabled = function()
+                     return not Main.UnitBars.AuraListOn
+                   end
+      },
+      Spacer20 = CreateSpacer(20),
+      Auras = {
+        type = 'group',
+        name = 'Auras',
+        order = 21,
+        dialogInline = true,
+        disabled = function()
+                     return not Main.UnitBars.AuraListOn
+                   end,
+        args = {},
+      },
+    },
+  }
+
+  AL = AuraUtilityOptions.args.Auras
+
+  return AuraUtilityOptions
 end
 
 -------------------------------------------------------------------------------
@@ -5409,6 +6003,7 @@ local function CreateMainOptions()
       },
     },
   }
+
 --=============================================================================
 -------------------------------------------------------------------------------
 --    BARS group.
@@ -5426,20 +6021,20 @@ local function CreateMainOptions()
   -- Enable Unitbar options.
   MainOptionsArgs.UnitBars.args.EnableBars = CreateEnableUnitBarOptions(MainOptionsArgs.UnitBars.args, 0, 'Enable', 'Enable or Disable bars')
 
---[[
 --=============================================================================
 -------------------------------------------------------------------------------
---    TOOLS group.
+--    UTILITY group.
 -------------------------------------------------------------------------------
 --=============================================================================
-      Tools = {
-        type = 'group',
-        name = 'Tools',
-        order = 3,
-        args = {
-        },
-      },
---]]
+  MainOptionsArgs.Utility = {
+    type = 'group',
+    name = 'Utility',
+    order = 3,
+    args = {
+      AuraUtility = CreateAuraUtilityOptions(1, 'Aura List'),
+    },
+  }
+
 --=============================================================================
 -------------------------------------------------------------------------------
 --    PROFILES group.

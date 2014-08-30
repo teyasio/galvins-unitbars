@@ -26,18 +26,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -64,7 +64,7 @@ local C_PetBattles, UIParent =
 -- ActiveOrbTrigger                  Trigger for any chi orb that is currently active.
 -- RegionTrigger                     Trigger to make changes to the region.
 -- TriggerGroups                     Trigger groups for boxnumber and condition type.
--- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 5
@@ -89,15 +89,15 @@ local RegionTrigger = 7
 local TGBoxNumber = 1
 local TGName = 2
 local TGValueTypes = 3
-local VTs = {'whole:Chi'}
+local VTs = {'whole:Chi', 'auras:Auras'}
 local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1,  'Chi Orb 1',    VTs},                    -- 1
-  {2,  'Chi Orb 2',    VTs},                    -- 2
-  {3,  'Chi Orb 3',    VTs},                    -- 3
-  {4,  'Chi Orb 4',    VTs},                    -- 4
-  {5,  'Chi Orb 5',    VTs},                    -- 5
-  {0,  'Any Chi Orb', {'boolean:Active'}},      -- 6
-  {-1, 'Region',         VTs},                  -- 7
+  {1,  'Chi Orb 1',    VTs}, -- 1
+  {2,  'Chi Orb 2',    VTs}, -- 2
+  {3,  'Chi Orb 3',    VTs}, -- 3
+  {4,  'Chi Orb 4',    VTs}, -- 4
+  {5,  'Chi Orb 5',    VTs}, -- 5
+  {0,  'Any Chi Orb', {'boolean:Active', 'auras:Auras'}}, -- 6
+  {-1, 'Region',       VTs}, -- 7
 }
 
 local ChiData = {
@@ -132,14 +132,14 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 -- Update the number of chi orbs of the player
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
---              'update' bypasses visible and isactive flags.
+--              True bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -161,7 +161,7 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
 
-    if TestMode.ShowExtraChiOrb then
+    if TestMode.ShowEmpoweredChi then
       NumOrbs = MaxChiOrbs
     else
       NumOrbs = MaxChiOrbs - 1
@@ -267,7 +267,7 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true

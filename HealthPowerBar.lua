@@ -15,6 +15,7 @@ local TT = GUB.DefaultUB.TriggerTypes
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
 local ConvertPowerType = Main.ConvertPowerType
+local ConvertFaction = Main.ConvertFaction
 
 -- localize some globals.
 local _
@@ -28,18 +29,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -55,7 +56,7 @@ local C_PetBattles, UIParent =
 -- SpellCobraShot        Hunter Spells to track for predicted power.
 -- PredictedSpellValue   Predicted focus value based on the two above spells.
 -- SteadyFocusAura       Buff hunters get that adds bonus focus.
--- DoTriggers            'update' bypasses visible and isactive flags. If not nil then calls
+-- DoTriggers            True bypasses visible and isactive flags. If not nil then calls
 --                       self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local Display = false
@@ -73,14 +74,16 @@ local PowerFocus = ConvertPowerType['FOCUS']
 -- Predicted spell ID constants.
 local SpellSteadyShot = 56641
 local SpellCobraShot  = 77767
+local FocusingShot    = 163485
 
 local PredictedSpellValue = {
   [0]               = 0,
   [SpellSteadyShot] = 14,
   [SpellCobraShot]  = 14,
+  [FocusingShot]    = 50,
 }
 
-local SteadyFocusAura = 53220
+--local SteadyFocusAura = 53220
 
 -- Amount of focus that gets added on to SteadyShot.
 local SteadyFocusBonus = 3
@@ -118,20 +121,21 @@ HapFunction('StatusCheck', Main.StatusCheck)
 local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
   SpellID = abs(SpellID)
 
+  print('check spell', UnitBarF.BarType, SpellID, CastTime, Message)
   if Message == 'start' then
     local PredictedPower = PredictedSpellValue[SpellID]
 
     -- Check for steady focus.  Will the aura drop off before steadyshot is finished casting.
-    if SpellID == SpellSteadyShot then
-      local Spell, TimeLeft = Main:CheckAura('o', SteadyFocusAura)
-      if Spell then
+    --if SpellID == SpellSteadyShot then
+    --  local Spell, TimeLeft = Main:CheckAura('o', SteadyFocusAura)
+    --  if Spell then
 
         -- Add bonus focus if buff will be up by the time the cast is finished.
-        if CastTime < TimeLeft then
-          PredictedPower = PredictedPower + SteadyFocusBonus
-        end
-      end
-    end
+    --    if CastTime < TimeLeft then
+    --      PredictedPower = PredictedPower + SteadyFocusBonus
+    --    end
+    --  end
+    --end
 
     -- Check for two piece bonus tier 13. hunters only.
     if Main:GetSetBonus(13) >= 2 then
@@ -156,6 +160,7 @@ end
 -------------------------------------------------------------------------------
 Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellSteadyShot, 'casting', CheckSpell)
 Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellCobraShot,  'casting', CheckSpell)
+Main:SetSpellTracker(UnitBarsF.PlayerPower, FocusingShot,    'casting', CheckSpell)
 
 --*****************************************************************************
 --
@@ -215,13 +220,13 @@ end
 --
 -- self         UnitBarF contains the health bar to display.
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
---              'update' by passes visible and isactive flags.
+--              True by passes visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -243,13 +248,27 @@ local function UpdateHealthBar(self, Event, Unit)
     PredictedHealing = PredictedValue and floor(MaxValue * PredictedValue) or 0
   end
 
-  -- Get the class color if classcolor flag is true.
+  local FactionColors = Gen.FactionColors or false
   local Color = Bar.Color
-  if Color.Class then
+
+  -- Get faction color
+  if FactionColors then
+    local FactionColor = UnitReaction(Unit, 'player')
+    Color = Bar.FactionColor[FactionColor or ConvertFaction['None']]
+  end
+
+  -- Get the class color if classcolor flag is true.
+  if not FactionColors and Color.Class then
     local _, Class = UnitClass(Unit)
     if Class ~= nil then
       Color = Color[Class]
     end
+  end
+
+  -- Set tagged color
+  local Tagged = Gen.Tagged or false
+  if Tagged and not UnitPlayerControlled(Unit) and UnitIsTappedByPlayer(Unit) and not UnitIsTappedByAllThreatList(Unit) then
+    Color = Bar.TaggedColor
   end
 
   -- Set the color and display the predicted health.
@@ -314,7 +333,7 @@ end
 --
 -- self          UnitBarF contains the power bar to display.
 -- Event         Event that called this function.  If nil then it wasn't called by an event.
---               'update' bypasses visible and isactive flags.
+--               True bypasses visible and isactive flags.
 -- Unit          Unit name 'player' ,'target', etc
 -- PowerType2    PowerType from server or when PowerMana update is called.
 --               If nil then the unit's powertype is used if nots a ManaPower bar.
@@ -322,7 +341,7 @@ end
 local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -481,9 +500,9 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
           local ValueTypes = nil
 
           if strfind(BarType, 'Power') then
-            BBar:CreateGroupTriggers(1, 'whole:Power', 'percent:Power (percent)', 'whole:Predicted Power')
+            BBar:CreateGroupTriggers(1, 'whole:Power', 'percent:Power (percent)', 'whole:Predicted Power', 'auras:Auras')
           else
-            BBar:CreateGroupTriggers(1, 'whole:Health', 'percent:Health (percent)', 'whole:Predicted Health')
+            BBar:CreateGroupTriggers(1, 'whole:Health', 'percent:Health (percent)', 'whole:Predicted Health', 'auras:Auras')
           end
 
           BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             'SetBackdropBorder', 1, 1)
@@ -501,7 +520,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true
@@ -519,12 +538,30 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     local Gen = self.UnitBar.General
     if Gen and Gen.PredictedHealth ~= nil then
-      BBar:SO('General', 'PredictedHealth', function() self:Update() end)
+      BBar:SO('General', 'PredictedHealth', function(v) self:Update() end)
+    end
+
+    if Gen then
+      local FactionColors = Gen.FactionColors
+      if FactionColors ~= nil then
+        BBar:SO('General', 'FactionColors', function(v) self:Update() end)
+      end
+
+      local Tagged = Gen.Tagged
+      if Tagged ~= nil then
+        BBar:SO('General', 'Tagged', function(v) self:Update() end)
+      end
     end
 
     if BarType == 'PlayerPower' and Main.PlayerClass == 'HUNTER' then
       BBar:SO('General', 'PredictedPower', function(v)
-        Main:SetSpellTracker(self, v)
+        if v then
+          Main:SetSpellTracker(self, 'fn', SpellSteadyShot, 'casting', CheckSpell)
+          Main:SetSpellTracker(self, 'fn', SpellCobraShot,  'casting', CheckSpell)
+          Main:SetSpellTracker(self, 'fn', FocusingShot,    'casting', CheckSpell)
+        else
+          Main:SetSpellTracker(self, 'off')
+        end
         self.PredictedPower = 0
         self:Update()
       end)
@@ -553,34 +590,58 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(1, PredictedBar, v) end)
       BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(1, PredictedBar, v.r, v.g, v.b, v.a) end)
     end
-    BBar:SO('Bar', 'Color',               function(v, UB)
-      local BarColor = nil
+    BBar:SO('Bar', 'FactionColor',        function(v, UB)
+      local FactionColors = UB.General.FactionColors or false
+      local BarColor = v
 
-      -- Get the Unit and then Powertype for power bars.
-      if strfind(BarType, 'Power') then
-        local PowerType = nil
-
-        if BarType == 'ManaPower' then
-          PowerType = PowerMana
-        else
-          PowerType = UnitPowerType(UB.UnitType)
-        end
-        if PowerType then
-          BarColor = v[ConvertPowerType[PowerType]]
-        end
-
-      -- Get the class color on bars that support it.
-      else
-        BarColor = v
-        if BarColor.Class then
-          local _, Class = UnitClass(UB.UnitType)
-
-          if Class ~= nil then
-            BarColor = BarColor[Class]
-          end
-        end
+      -- Get faction color
+      if FactionColors then
+        local FactionColor = UnitReaction(UB.UnitType, 'player')
+        BarColor = UB.Bar.FactionColor[FactionColor or ConvertFaction['None']]
       end
       if BarColor then
+        BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+      end
+    end)
+    BBar:SO('Bar', 'Color',               function(v, UB)
+      local FactionColors = UB.General.FactionColors or false
+      if not FactionColors then
+        local BarColor = nil
+
+        -- Get the Unit and then Powertype for power bars.
+        if strfind(BarType, 'Power') then
+          local PowerType = nil
+
+          if BarType == 'ManaPower' then
+            PowerType = PowerMana
+          else
+            PowerType = UnitPowerType(UB.UnitType)
+          end
+          if PowerType then
+            BarColor = v[ConvertPowerType[PowerType]]
+          end
+
+        -- Get the class color on bars that support it.
+        else
+          BarColor = v
+          if BarColor.Class then
+            local _, Class = UnitClass(UB.UnitType)
+
+            if Class ~= nil then
+              BarColor = BarColor[Class]
+            end
+          end
+        end
+        if BarColor then
+          BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
+        end
+      end
+    end)
+    BBar:SO('Bar', 'TaggedColor',               function(v, UB)
+      local Tagged = UB.General.Tagged or false
+      local Unit = UB.UnitType
+      if Tagged and not UnitPlayerControlled(Unit) and UnitIsTappedByPlayer(Unit) and not UnitIsTappedByAllThreatList(Unit) then
+        local BarColor = v
         BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
       end
     end)

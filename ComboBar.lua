@@ -24,18 +24,18 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitBuff, UnitPowerMax
-local UnitName, UnitGetIncomingHeals, GetRealmName =
-      UnitName, UnitGetIncomingHeals, GetRealmName
-local GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, GetTalentInfo, PlaySound
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
+      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
+      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter,  UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -51,7 +51,7 @@ local C_PetBattles, UIParent =
 -- ComboSBar                         Texture for combo point.
 -- TriggerGroups                     Table to create triggers for condition type and box number.
 -- AnyComboTrigger                   Contains the groupnumber for a trigger to use any combo point.
--- DoTriggers                        'update' by passes visible and isactive flags. If not nil then calls
+-- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
@@ -66,14 +66,14 @@ local AnyComboTrigger = 6
 local TGBoxNumber = 1
 local TGName = 2
 local TGValueTypes = 3
-local VTs = {'whole:Combo Points'}
+local VTs = {'whole:Combo Points', 'auras:Auras'}
 local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Combo Point 1',    VTs},                 -- 1
-  {2, 'Combo Point 2',    VTs},                 -- 2
-  {3, 'Combo Point 3',    VTs},                 -- 3
-  {4, 'Combo Point 4',    VTs},                 -- 4
-  {5, 'Combo Point 5',    VTs},                 -- 5
-  {0, 'Any Combo Point', {'boolean:Active'}},   -- 6
+  {1, 'Combo Point 1',    VTs}, -- 1
+  {2, 'Combo Point 2',    VTs}, -- 2
+  {3, 'Combo Point 3',    VTs}, -- 3
+  {4, 'Combo Point 4',    VTs}, -- 4
+  {5, 'Combo Point 5',    VTs}, -- 5
+  {0, 'Any Combo Point', {'boolean:Active', 'auras:Auras'}},   -- 6
 }
 
 -------------------------------------------------------------------------------
@@ -91,12 +91,12 @@ Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 -- Update    UnitBarsF function
 --
 -- Event     Event that called this function.  If nil then it wasn't called by an event.
---           'update' bypasses visible and isactive flags.
+--           True bypasses visible and isactive flags.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:Update(Event)
 
   -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= 'update' and not self.Visible and self.IsActive ~= 0 then
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
@@ -188,7 +188,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
         end
         BBar:UpdateTriggers()
 
-        DoTriggers = 'update'
+        DoTriggers = true
         Display = true
       elseif BBar:ClearTriggers() then
         Display = true
