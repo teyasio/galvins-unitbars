@@ -24,7 +24,9 @@ local Options = GUB.Options
 
 local UnitBarsF = Main.UnitBarsF
 local PowerColorType = Main.PowerColorType
-local ConvertFaction = Main.ConvertFaction
+local ConvertPowerType = Main.ConvertPowerType
+local ConvertReputation = Main.ConvertReputation
+local ConvertCombatColor = Main.ConvertCombatColor
 local LSM = Main.LSM
 
 local HelpText = GUB.DefaultUB.HelpText
@@ -41,6 +43,8 @@ local ipairs, pairs, type, next, sort, select =
       ipairs, pairs, type, next, sort, select
 local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo =
       InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo
+local UnitReaction =
+      UnitReaction
 -------------------------------------------------------------------------------
 -- Locals
 --
@@ -511,15 +515,15 @@ local AuraStackConditionDropdown = {
 --
 -- Searches for a Value in an indexed array. Returns the Index found. or 0
 --
--- Table   Any indexed array
--- Value   Value to search for.  Must be an exact match. Case is not sensitive.
+-- Table       Any indexed array
+-- Value       Value to search for.  Must be an exact match. Case is not sensitive.
 --
 -- Returns:
 --   Index    Table element containing value
 --   Item     Returns the item found in the menu in lowercase. If item is not found then
 --            this equals the first item in the menu.
 -------------------------------------------------------------------------------
-local function FindMenuItem(Table, Value)
+local function FindMenuItem(Table, Value, IgnoreChar)
   local Item = nil
 
   Value = strlower(Value)
@@ -661,14 +665,17 @@ end
 -- line so that option elements appear in certain places on the screen.
 --
 -- Order         Order number
--- Table         Table for the spacer
+-- Width         Optional width.
+-- HiddenFn      If not nil then will supply a function that will make the
+--               spacer hidden or not.
 -------------------------------------------------------------------------------
-local function CreateSpacer(Order, Width)
+local function CreateSpacer(Order, Width, HiddenFn)
   return {
     type = 'description',
     name = '',
     order = Order,
     width = Width or 'full',
+    hidden = HiddenFn,
   }
 end
 
@@ -911,243 +918,6 @@ local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Ord
   end
 
   return ColorAllOptions
-end
-
--------------------------------------------------------------------------------
--- CreatePowerColorsOptions
---
--- Creates power color options for a UnitBar.
---
--- Subfunction of CreateBarOptions()
---
--- BarType   Type of options being created.
--- Order     Position in the options list.
--- Name      Name of the options.
---
--- PowerColorsOptions    Options table for power colors.
--------------------------------------------------------------------------------
-local function CreatePowerColorsOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-
-  local PowerColorsOptions = {
-    type = 'group',
-    name = Name,
-    order = Order,
-    dialogInline = true,
-    get = function(Info)
-            local c = UBF.UnitBar.Bar.Color[Info[#Info]]
-
-            return c.r, c.g, c.b, c.a
-          end,
-    set = function(Info, r, g, b, a)
-            local c = UBF.UnitBar.Bar.Color[Info[#Info]]
-
-            c.r, c.g, c.b, c.a = r, g, b, a
-
-             -- Update the bar to show the current power color change in real time.
-            UBF:SetAttr('Bar', 'Color')
-          end,
-    args = {},
-  }
-
-  -- Power types for the player power bar. '= 0' has no meaning.
-  -- These cover classes with more than one power type.
-  local PlayerPower = {
-    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0},
-    MONK  = {MANA = 0, ENERGY = 0},
-  }
-
-  local AllColor = true
-  local PCOA = PowerColorsOptions.args
-  if BarType == 'PlayerPower' or BarType == 'ManaPower' then
-    AllColor = false
-  end
-
-  local ClassPowerType = PlayerPower[Main.PlayerClass]
-
-  for PowerTypeName, PowerType in pairs(PowerColorType) do
-    local n = gsub(strlower(PowerTypeName), '%a', strupper, 1)
-
-    local Width = 'half'
-    if PowerTypeName == 'RUNIC_POWER' then
-      n = 'Runic Power'
-      Width = 'normal'
-    end
-
-    if AllColor or BarType == 'ManaPower' and PowerTypeName == 'MANA' or
-                   BarType ~= 'ManaPower' and
-                     ( ClassPowerType and ClassPowerType[PowerTypeName] or
-                       PowerType == Main.PlayerPowerType ) then
-      PCOA[PowerTypeName] = {
-        type = 'color',
-        name = n,
-        order = PowerType,
-        width = Width,
-        hasAlpha = true,
-      }
-    end
-  end
-
-  return PowerColorsOptions
-end
-
--------------------------------------------------------------------------------
--- CreateClassColorOptions
---
--- Creates class color options for a UnitBar.
---
--- Subfunction of CreateBarOptions()
---
--- BarType   Type of options being created.
--- Order     Position in the options list.
--- Name      Name of the options.
--------------------------------------------------------------------------------
-local function CreateClassColorOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-  local ClassColorMenu = {
-    'DEATHKNIGHT', 'DRUID',  'HUNTER', 'MAGE',  'MONK',
-    'PALADIN',     'PRIEST', 'PRIEST', 'ROGUE', 'SHAMAN',
-    'WARLOCK',     'WARRIOR'
-  }
-
-  local ClassColorOptions = {
-    type = 'group',
-    name = Name,
-    order = Order,
-    dialogInline = true,
-    get = function(Info)
-            -- info.arg is not nil then use the hash portion of Color.
-            local c = UBF.UnitBar.Bar.Color
-
-            if Info.arg == nil then
-              c = c[Info[#Info]]
-            end
-            return c.r, c.g, c.b, c.a
-          end,
-    set = function(Info, r, g, b, a)
-            -- info.arg is not nil then use the hash portion of Color.
-            local c = UBF.UnitBar.Bar.Color
-
-            if Info.arg == nil then
-              c = c[Info[#Info]]
-            end
-
-            c.r, c.g, c.b, c.a = r, g, b, a
-
-            -- Set the color to the bar
-            UBF:SetAttr('Bar', 'Color')
-          end,
-    args = {
-      ClassColorToggle = {
-        type = 'toggle',
-        name = 'Class Color',
-        order = 1,
-        desc = 'Class color will be used',
-        get = function()
-                return UBF.UnitBar.Bar.Color.Class
-              end,
-        set = function(Info, Value)
-                UBF.UnitBar.Bar.Color.Class = Value
-
-                -- Refresh color when changing between class color and normal.
-                UBF:SetAttr('Bar', 'Color')
-              end,
-      },
-      Spacer = CreateSpacer(2),
-      NormalColor = {
-        type = 'color',
-        name = 'Color',
-        order = 3,
-        hasAlpha = true,
-        desc = 'Set normal color',
-        hidden = function()
-                   return UBF.UnitBar.Bar.Color.Class
-                 end,
-        arg = 0,
-      },
-    },
-  }
-
-  local CCOA = ClassColorOptions.args
-  for Index, ClassName in ipairs(ClassColorMenu) do
-    local n = gsub(strlower(ClassName), '%a', strupper, 1)
-    local Width = 'half'
-    if Index == 1 then
-      n = 'Death Knight'
-      Width = 'normal'
-    end
-
-    -- Add class color option that will be used.
-    if BarType ~= 'PlayerHealth' or Main.PlayerClass == ClassName then
-      CCOA[ClassName] = {
-        type = 'color',
-        name = n,
-        order = 3 + Index,
-        width = Width,
-        hasAlpha = true,
-        hidden = function()
-                   return not UBF.UnitBar.Bar.Color.Class
-                 end,
-      }
-    end
-  end
-
-  return ClassColorOptions
-end
-
--------------------------------------------------------------------------------
--- CreateFactionColorOptions
---
--- Creates option to change faction colors.
---
--- Subfunction of CreateBarOptions()
---
--- BarType   Type of options being created.
--- Order     Position in the options list.
--- Name      Name of the options.
--------------------------------------------------------------------------------
-local function CreateFactionColorOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-  local FactionColorOptions = {
-    type = 'group',
-    name = Name,
-    order = Order,
-    dialogInline = true,
-    get = function(Info)
-            local KeyName = Info[#Info]
-            local c = UBF.UnitBar.Bar.FactionColor
-
-            c = c[ConvertFaction[KeyName]]
-
-            return c.r, c.g, c.b, c.a
-          end,
-    set = function(Info, r, g, b, a)
-            local KeyName = Info[#Info]
-            local c = UBF.UnitBar.Bar.FactionColor
-
-            c = c[ConvertFaction[KeyName]]
-            c.r, c.g, c.b, c.a = r, g, b, a
-
-            -- Set the color to the bar
-            UBF:SetAttr('Bar', 'FactionColor')
-          end,
-    args = {},
-  }
-
-  local FCOA = FactionColorOptions.args
-  for Index, Reputation in pairs(ConvertFaction) do
-    if type(Index) == 'number' then
-      FCOA[Reputation] = {
-        type = 'color',
-        name = Reputation,
-        order = 3 + Index,
-        width = 'half',
-        hasAlpha = true,
-      }
-    end
-  end
-
-  return FactionColorOptions
 end
 
 -------------------------------------------------------------------------------
@@ -1739,7 +1509,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   GeneralArgs.Spacer20 = CreateSpacer(20)
 
   -- Regular color for pet health or anticipation bar or eclipse bar
-  if BarType == 'PetHealth' or BarType == 'AnticipationBar' and TableName == 'BarTime' or
+  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or
+     BarType == 'PetHealth' or BarType == 'AnticipationBar' and TableName == 'BarTime' or
      BarType == 'EclipseBar' and  (TableName == 'BarMoon' or TableName == 'BarSun') then
     GeneralArgs.Color = {
       type = 'color',
@@ -1774,14 +1545,6 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       hasAlpha = true,
       order = 22,
     }
-    if UBD[TableName].TaggedColor ~= nil then
-      GeneralArgs.TaggedColor = {
-        type = 'color',
-        name = 'Color (tagged)',
-        hasAlpha = true,
-        order = 23,
-      }
-    end
   end
   GeneralArgs.Spacer30 = CreateSpacer(30)
 
@@ -1834,34 +1597,6 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         },
       },
     }
-  end
-
-  -- Health bars    Class colors
-  local Color = UBD[TableName].Color
-
-  if Color and Color.Class ~= nil then
-    GeneralArgs.ClassColor = CreateClassColorOptions(BarType, 32, 'Color')
-  end
-
-  local FactionColor = UBD[TableName].FactionColor
-
-  if FactionColor then
-    GeneralArgs.FactionColor = CreateFactionColorOptions(BarType, 32, 'Faction Colors')
-    if GeneralArgs.ClassColor then
-      GeneralArgs.ClassColor.hidden = function()
-                                        return UBF.UnitBar.General.FactionColors
-                                      end
-    end
-    GeneralArgs.FactionColor.hidden = function()
-                                        return not UBF.UnitBar.General.FactionColors
-                                      end
-  end
-
-  -- Add power colors for power bars only.
-  if BarType:find('Power') then
-
-    -- Add the Power color options.
-    GeneralArgs.PowerColors = CreatePowerColorsOptions(BarType, 32, 'Power Color')
   end
 
   -- Demonic bar.
@@ -2645,7 +2380,7 @@ end
 -------------------------------------------------------------------------------
 -- UpdateTriggerOrderNumbers
 --
--- Subfunction of AddTriggerOption(), , CreateTriggerListOptions()
+-- Subfunction of AddTriggerOption(), CreateTriggerListOptions()
 --
 -- This updates the index counters for each of the triggers.
 -- Instead of showing the real trigger numbers, I keep a sequencial list
@@ -2702,7 +2437,21 @@ local function UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerVa
   local TypeIndex = nil
   local ValueType = nil
 
+  -- Find menu items
   local TypeIndex, Type = FindMenuItem(TriggerTypeDropdown[GroupNumber], TD.Type)
+
+  -- Type not found, search by TypeID
+  if Type ~= TD.Type then
+    local TDTypeID = TD.TypeID
+
+    for Type2, TypeID in pairs(TypeIDs[GroupNumber]) do
+      if TypeID == TDTypeID then
+        TypeIndex, Type = FindMenuItem(TriggerTypeDropdown[GroupNumber], Type2)
+        break
+      end
+    end
+  end
+
   local TypeID = TypeIDs[GroupNumber][Type]
 
   _, ValueType = FindMenuItem(TriggerValueTypeDropdown[GroupNumber], TD.ValueType)
@@ -2711,10 +2460,15 @@ local function UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerVa
   _, TD.Condition = FindMenuItem(TriggerConditionDropdown[ValueTypeID], TD.Condition)
 
   local Pars = TD.Pars
+  local GetPars = TD.GetPars
   local Change = false
 
   if not ( strfind(TypeID, 'color') and strfind(TD.TypeID, 'color') ) then
     Change = TypeID ~= TD.TypeID
+  end
+
+  if TD.Condition == 'static' then
+    TD.GetFnTypeID = 'none'
   end
 
   -- Set default Pars when changing to a different type or moving to a different bar object.
@@ -2724,6 +2478,13 @@ local function UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerVa
       Pars[2] = 1
       Pars[3] = 1
       Pars[4] = 1
+    end
+  elseif TypeID == 'getclassbackgroundcolor' or TypeID == 'getclassbordercolor' or TypeID == 'getclassbartexturecolor' then
+    if Change then
+      GetPars[1] = ''
+      GetPars[2] = ''
+      GetPars[3] = ''
+      GetPars[4] = ''
     end
   else
     local Pars1 = Pars[1]
@@ -2968,7 +2729,7 @@ end
 -- SwapTriggers               Clipboard for swapping one trigger with another.
 -------------------------------------------------------------------------------
 local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
-                                TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
+                                TriggerActionDropdown, TriggerConditionDropdown, TriggerGetFnTypeDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
   local UBF = UnitBarsF[BarType]
   local BBar = UBF.BBar
   local Names = UBF.Names.Trigger
@@ -3111,7 +2872,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
 
                BBar:InsertTriggers(Index, TD)
                AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
-                                TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
+                                TriggerActionDropdown, TriggerConditionDropdown, TriggerGetFnTypeDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
 
 
                -- Update bar to reflect trigger changes
@@ -3319,7 +3080,7 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
 
               UpdateTriggerOrderNumbers(TriggerData, GroupNames, TriggerOrderNumber)
               AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
-                               TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
+                               TriggerActionDropdown, TriggerConditionDropdown, TriggerGetFnTypeDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
 
               UBF:SetAttr('Layout', '_UpdateTriggers')
             end,
@@ -3454,6 +3215,47 @@ local function AddTriggerOption(BarType, TOA, TriggerNumber, GroupNames, Trigger
       values = TriggerSoundChannelDropdown,
       hidden = function()
                  return TD.TypeID ~= 'sound'
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+    },
+    Spacer50 = CreateSpacer(50, nil, function()
+                                       local TypeID = TD.TypeID
+
+                                       return TypeID ~= 'bordercolor' and TypeID ~= 'backgroundcolor' and TypeID ~= 'bartexturecolor' or
+                                       TD.Condition == 'static' or next(TriggerGetFnTypeDropdown[TD.GroupNumber].color) == nil or
+                                       TD.GetFnTypeID == 'none'
+                                      end),
+    ParsGetColorMenu = {
+      type = 'select',
+      name = 'Color Type',
+      desc = 'This will override the current color, if there is a new one to replace it with',
+      order = 50,
+      values = function()
+                 return TriggerGetFnTypeDropdown[TD.GroupNumber].color
+               end,
+      hidden = function()
+                 HideTooltip(true)
+                 local TypeID = TD.TypeID
+                 return TypeID ~= 'bordercolor' and TypeID ~= 'backgroundcolor' and TypeID ~= 'bartexturecolor' or
+                        TD.Condition == 'static' or next(TriggerGetFnTypeDropdown[TD.GroupNumber].color) == nil
+               end,
+      disabled = function()
+                   return not TD.Enabled
+                 end,
+    },
+    GetParsColorUnit = {
+      type = 'input',
+      name = 'Color Unit',
+      desc = 'Enter the unit you want to get the color from',
+      order = 51,
+      hidden = function()
+                 local TypeID = TD.TypeID
+                 local GetFnTypeID = TD.GetFnTypeID
+                 return TypeID ~= 'bordercolor' and TypeID ~= 'backgroundcolor' and TypeID ~= 'bartexturecolor' or
+                        GetFnTypeID ~= 'classcolor' and GetFnTypeID ~= 'powercolor' and GetFnTypeID ~= 'combatcolor' and
+                        GetFnTypeID ~= 'taggedcolor'
                end,
       disabled = function()
                    return not TD.Enabled
@@ -3646,8 +3448,10 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
   local TriggerNameDropdown = {}
   local TriggerTypeDropdown = {}
   local TriggerValueTypeDropdown = {}
+  local TriggerGetFnTypeDropdown = {}
   local TypeIDs = {}
   local ValueTypeIDs = {}
+  local GetFnTypeIDs = {}
   local GroupNames = {}
   local Groups = BBar:GetGroupsTriggers()
   local TriggerOrderNumber = {}
@@ -3666,18 +3470,50 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
     local TypeID = {}
     local ValueTypeDropdown = {}
     local ValueTypeID = {}
+    local GetFnTypeDropdown = {}
+    local GetFnTypeID = {}
 
     TriggerTypeDropdown[GroupNumber] = TypeDropdown
     TypeIDs[GroupNumber] = TypeID
     TriggerValueTypeDropdown[GroupNumber] = ValueTypeDropdown
     ValueTypeIDs[GroupNumber] = ValueTypeID
+    TriggerGetFnTypeDropdown[GroupNumber] = GetFnTypeDropdown
+    GetFnTypeIDs[GroupNumber] = GetFnTypeID
 
     -- Buld Type menu.
     for TypeIndex, Object in ipairs(Group.Objects) do
       local Type = Object.Type
+      local GetFnMenuTypeID = Object.GetFnMenuTypeID
 
       TypeDropdown[TypeIndex] = Type
       TypeID[strlower(Type)] = Object.TypeID
+
+      -- Build the GetFunction menu.
+      if GetFnMenuTypeID then
+        local BarFunction = Object.BarFunction
+        local GetFnIndex = 0
+
+        for GetFnTypeIDKey, GetFn in pairs(BarFunction.GetFn) do
+          GetFnIndex = GetFnIndex + 1
+          local TypeDropdown = GetFnTypeDropdown[GetFnMenuTypeID]
+
+          if TypeDropdown == nil then
+            TypeDropdown = {}
+            GetFnTypeDropdown[GetFnMenuTypeID] = TypeDropdown
+          end
+
+          if GetFn == 'none' then
+            TypeDropdown[GetFnIndex] = 'None'
+            GetFnTypeID.None = 'none'
+            GetFnTypeID.none = 'None'
+          else
+            local GetFnType = GetFn.Type
+            TypeDropdown[GetFnIndex] = GetFnType
+            GetFnTypeID[GetFnType] = GetFnTypeIDKey
+            GetFnTypeID[GetFnTypeIDKey] = GetFnType
+          end
+        end
+      end
     end
 
     -- Build value type menu.
@@ -3699,14 +3535,37 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
     local GroupNumber = TD.GroupNumber
 
     if strfind(KeyName, 'Pars') then
-      local Pars = TD.Pars
+      if KeyName == 'ParsGetColorMenu' then
+        local MenuItem = GetFnTypeIDs[GroupNumber][TD.GetFnTypeID]
 
-      if strfind(KeyName, 'Color') then
-        return Pars[1], Pars[2], Pars[3], Pars[4]
-      elseif KeyName == 'ParsSoundChannel' then
-        return Pars[2]
+        return FindMenuItem(TriggerGetFnTypeDropdown[GroupNumber].color, MenuItem or 'None')
+      elseif KeyName == 'GetParsColorUnit' then
+        local GetPars1 = TD.GetPars[1]
+
+        if GetPars1 == nil or GetPars1 == '' then
+          GetPars1 = UBF.UnitBar.UnitType or 'player'
+          TD.GetPars[1] = GetPars1
+
+          -- Update trigger with new getpars
+          BBar:ModifyTriggers(TriggerIndex, TD)
+          UBF:SetAttr('Layout', '_UpdateTriggers')
+        end
+
+        return GetPars1
+      elseif strfind(KeyName, 'Get') then
+        local GetPars = TD.GetPars
+
+        return GetPars[1], GetPars[2], GetPars[3], GetPars[4]
       else
-        return Pars[1]
+        local Pars = TD.Pars
+
+        if strfind(KeyName, 'Color') then
+          return Pars[1], Pars[2], Pars[3], Pars[4]
+        elseif KeyName == 'ParsSoundChannel' then
+          return Pars[2]
+        else
+          return Pars[1]
+        end
       end
     elseif KeyName == 'Condition' then
       return FindMenuItem(TriggerConditionDropdown[TD.ValueTypeID], TD.Condition)
@@ -3739,7 +3598,6 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
     local TD = TriggerData[TriggerIndex]
     local GroupNumber = TD.GroupNumber
     local ValueType = TD.ValueType
-    local Pars = TD.Pars
     local Undo = true
     local Sort = true
     local TypeIndex = nil
@@ -3747,23 +3605,37 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
     if strfind(KeyName, 'Pars') then
       Undo = false
       Sort = false
-      if strfind(KeyName, 'Color') then
-        Pars[1] = Value
-        Pars[2] = g
-        Pars[3] = b
-        Pars[4] = a
-      elseif KeyName == 'ParsSound' or KeyName == 'ParsTextureSize' then
-        Pars[1] = Value
-      elseif KeyName == 'ParsSoundChannel' then
-        Pars[2] = Value
+      if KeyName == 'ParsGetColorMenu' then
+        local GetFnType = TriggerGetFnTypeDropdown[GroupNumber].color[Value]
+
+        TD.GetFnTypeID = GetFnTypeIDs[GroupNumber][GetFnType]
+      elseif strfind(KeyName, 'Get') then
+        local GetPars = TD.GetPars
+
+        GetPars[1] = Value
       else
-        Pars[1] = Value
-        Pars[2] = nil
-        Pars[3] = nil
-        Pars[4] = nil
+        local Pars = TD.Pars
+
+        if strfind(KeyName, 'Color') then
+          Pars[1] = Value
+          Pars[2] = g
+          Pars[3] = b
+          Pars[4] = a
+        elseif KeyName == 'ParsSound' or KeyName == 'ParsTextureSize' then
+          Pars[1] = Value
+        elseif KeyName == 'ParsSoundChannel' then
+          Pars[2] = Value
+        else
+          Pars[1] = Value
+          Pars[2] = nil
+          Pars[3] = nil
+          Pars[4] = nil
+        end
       end
     elseif KeyName == 'Condition' then
       TD.Condition = strlower(TriggerConditionDropdown[TD.ValueTypeID][Value])
+      UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerValueTypeDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs)
+
     elseif KeyName == 'ValueType' then
       TD.ValueType = strlower(TriggerValueTypeDropdown[GroupNumber][Value])
       UpdateTriggerData(TD, GroupNumber, TriggerTypeDropdown, TriggerValueTypeDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs)
@@ -3893,7 +3765,7 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
              BBar:InsertTriggers(Index, TD)
 
              AddTriggerOption(BarType, TOA, Index, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
-                              TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
+                              TriggerActionDropdown, TriggerConditionDropdown, TriggerGetFnTypeDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
 
              -- Update bar to reflect changes.
              BBar:UndoTriggers()
@@ -3910,7 +3782,7 @@ local function CreateTriggerListOptions(BarType, TriggerOptions)
 
   for TriggerIndex = 1, #TriggerData do
     AddTriggerOption(BarType, TOA, TriggerIndex, GroupNames, TriggerTypeDropdown, TriggerValueTypeDropdown,
-                     TriggerActionDropdown, TriggerConditionDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
+                     TriggerActionDropdown, TriggerConditionDropdown, TriggerGetFnTypeDropdown, TypeIDs, ValueTypeIDs, TriggerOrderNumber, SwapTriggers)
   end
 
   return TriggerOptions
@@ -4567,8 +4439,15 @@ local function CreateGeneralOptions(BarType, Order, Name)
           end,
     set = function(Info, Value)
             local KeyName = Info[#Info]
-            UBF.UnitBar.General[KeyName] = Value
+            local Gen = UBF.UnitBar.General
 
+            if KeyName == 'ClassColor' and Value then
+              Gen.CombatColor = false
+            elseif KeyName == 'CombatColor' and Value then
+              Gen.ClassColor = false
+            end
+
+            Gen[KeyName] = Value
             UBF:SetAttr('General', KeyName)
           end,
     args = {}
@@ -4589,23 +4468,31 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.PredictedPower = {
       type = 'toggle',
       name = 'Predicted Power',
-      order = 1,
+      order = 2,
       desc = 'Predicted power will be shown (Hunters Only)',
     }
   end
-  if UBD.General.FactionColors ~= nil then
-    GeneralArgs.FactionColors = {
+  if UBD.General.ClassColor ~= nil then
+    GeneralArgs.ClassColor = {
       type = 'toggle',
-      name = 'Faction Colors',
-      order = 2,
-      desc = 'Shows faction colors instead of class colors',
+      name = 'Class Color',
+      order = 3,
+      desc = 'Show class color',
     }
   end
-  if UBD.General.Tagged ~= nil then
+  if UBD.General.CombatColor ~= nil then
+    GeneralArgs.CombatColor = {
+      type = 'toggle',
+      name = 'Combat Color',
+      order = 4,
+      desc = 'Show combat color',
+    }
+  end
+  if UBD.General.TaggedColor ~= nil then
     GeneralArgs.TaggedColor = {
       type = 'toggle',
-      name = 'Tagged',
-      order = 3,
+      name = 'Tagged Color',
+      order = 5,
       desc = 'Shows if the target is tagged by another player',
     }
   end
@@ -5706,7 +5593,7 @@ local function CreateEnableUnitBarOptions(BarGroups, Order, Name, Desc)
 end
 
 -------------------------------------------------------------------------------
--- CreateAuraUtilityOptions
+-- CreateAuraOptions
 --
 -- Creates options that let you view the aura list.
 --
@@ -5743,7 +5630,6 @@ local function RefreshAuraList(AL, TrackedAuras)
             imageHeight = 20,
             name = format('%s (|cFF00FF00%s|r)', Name, SpellID),
           }
-
           SortList[Order] = {Name = Name, AuraDesc = AuraDesc}
           ALA[AuraKey] = AuraDesc
         end
@@ -5756,7 +5642,7 @@ local function RefreshAuraList(AL, TrackedAuras)
   end
 end
 
-local function CreateAuraUtilityOptions(Order, Name, Desc)
+local function CreateAuraOptions(Order, Name, Desc)
   local AL = nil
 
   local UpdateAuras = Options:DoFunction('AuraList', 'UpdateAuras', function()
@@ -5765,7 +5651,7 @@ local function CreateAuraUtilityOptions(Order, Name, Desc)
     end
   end)
 
-  local AuraUtilityOptions = {
+  local AuraListOptions = {
     type = 'group',
     name = Name,
     order = Order,
@@ -5791,7 +5677,7 @@ local function CreateAuraUtilityOptions(Order, Name, Desc)
       },
       AuraListOn = {
         type = 'toggle',
-        name = 'Enable This Utility',
+        name = 'Enable',
         order = 2,
       },
       Spacer10 = CreateSpacer(10),
@@ -5835,9 +5721,447 @@ local function CreateAuraUtilityOptions(Order, Name, Desc)
     },
   }
 
-  AL = AuraUtilityOptions.args.Auras
+  AL = AuraListOptions.args.Auras
 
-  return AuraUtilityOptions
+  return AuraListOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreatePowerColorOptions
+--
+-- Creates power color options for a UnitBar.
+--
+-- Subfunction of CreateMainOptions()
+--
+-- BarType   Type of options being created.
+-- Order     Position in the options list.
+-- Name      Name of the options.
+--
+-- PowerColorOptions    Options table for power colors.
+-------------------------------------------------------------------------------
+local function CreatePowerColorOptions(Order, Name)
+  local PowerColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local c = Main.UnitBars.PowerColor
+
+            c = c[ConvertPowerType[KeyName]]
+
+            return c.r, c.g, c.b, c.a
+          end,
+    set = function(Info, r, g, b, a)
+            local KeyName = Info[#Info]
+            local c = Main.UnitBars.PowerColor
+
+            c = c[ConvertPowerType[KeyName]]
+            c.r, c.g, c.b, c.a = r, g, b, a
+
+            -- Set the color to all the bars
+            for _, UBF in ipairs(Main.UnitBarsFE) do
+              UBF:Update()
+            end
+          end,
+    args = {
+      Spacer10 = CreateSpacer(10),
+      Spacer50 = CreateSpacer(50),
+      Spacer100 = CreateSpacer(100),
+      Reset = {
+        type = 'execute',
+        name = 'Reset',
+        desc = 'Reset colors back to defaults',
+        width = 'half',
+        confirm = true,
+        order = 101,
+        func = function()
+                 Main:CopyTableValues(DUB.PowerColor, Main.UnitBars.PowerColor)
+
+                 -- Set the color to all the bars
+                 for _, UBF in ipairs(Main.UnitBarsFE) do
+                   UBF:Update()
+                 end
+               end,
+      },
+    },
+  }
+
+  -- Power types for the player power bar. '= 0' has no meaning.
+  -- These cover classes with more than one power type.
+  local PlayerPower = {
+    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0},
+    MONK  = {MANA = 0, ENERGY = 0},
+  }
+
+  local PCOA = PowerColorOptions.args
+  local ClassPowerType = PlayerPower[Main.PlayerClass]
+  local Index = 0
+
+  for PowerType, _ in pairs(Main.UnitBars.PowerColor) do
+    local PowerTypeName = ConvertPowerType[PowerType]
+    Index = Index + 1
+    local Order = Index + 50
+    local n = gsub(strlower(PowerTypeName), '%a', strupper, 1)
+
+    if ClassPowerType and ClassPowerType[PowerTypeName] then
+      Order = Index
+    elseif PowerType == Main.PlayerPowerType then
+      Order = 1
+    end
+
+    local Width = 'half'
+    if PowerTypeName == 'RUNIC_POWER' then
+      n = 'Runic Power'
+      Width = 'normal'
+    end
+
+    PCOA[PowerTypeName] = {
+      type = 'color',
+      name = n,
+      order = Order,
+      width = Width,
+      hasAlpha = true,
+    }
+  end
+
+  return PowerColorOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateClassColorOptions
+--
+-- Creates class color options for a UnitBar.
+--
+-- Subfunction of CreateMainOptions()
+--
+-- Order     Position in the options list.
+-- Name      Name of the options.
+-------------------------------------------------------------------------------
+local function CreateClassColorOptions(Order, Name)
+  local ClassColorMenu = {
+    'DEATHKNIGHT', 'DRUID',  'HUNTER', 'MAGE',  'MONK',
+    'PALADIN',     'PRIEST', 'PRIEST', 'ROGUE', 'SHAMAN',
+    'WARLOCK',     'WARRIOR'
+  }
+
+  local ClassColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local KeyName = Info[#Info]
+
+            if KeyName == 'ClassTaggedColor' then
+              return Main.UnitBars.ClassTaggedColor
+            else
+              local c = Main.UnitBars.ClassColor[KeyName]
+              return c.r, c.g, c.b, c.a
+            end
+          end,
+    set = function(Info, r, g, b, a)
+            local KeyName = Info[#Info]
+
+            if KeyName == 'ClassTaggedColor' then
+              Main.UnitBars.ClassTaggedColor = r
+            else
+              local c = Main.UnitBars.ClassColor[KeyName]
+              c.r, c.g, c.b, c.a = r, g, b, a
+            end
+
+            -- Set the color to all the bars
+            for _, UBF in ipairs(Main.UnitBarsFE) do
+              UBF:Update()
+            end
+          end,
+    args = {
+      ClassTaggedColor = {
+        type = 'toggle',
+        name = 'Tagged Color',
+        desc = 'Include tagged color',
+        order = 9,
+      },
+      Spacer10 = CreateSpacer(10),
+      Spacer50 = CreateSpacer(50),
+      Spacer100 = CreateSpacer(100),
+      Reset = {
+        type = 'execute',
+        name = 'Reset',
+        desc = 'Reset colors back to defaults',
+        width = 'half',
+        confirm = true,
+        order = 101,
+        func = function()
+                 Main:CopyTableValues(DUB.ClassColor, Main.UnitBars.ClassColor)
+
+                 -- Set the color to all the bars
+                 for _, UBF in ipairs(Main.UnitBarsFE) do
+                   UBF:Update()
+                 end
+               end,
+      },
+    },
+  }
+
+  local CCOA = ClassColorOptions.args
+  for Index, ClassName in ipairs(ClassColorMenu) do
+    local Order = Index + 50
+    local n = gsub(strlower(ClassName), '%a', strupper, 1)
+
+    if ClassName == Main.PlayerClass then
+      Order = 1
+    end
+
+    local Width = 'half'
+    if Index == 1 then
+      n = 'Death Knight'
+      Width = 'normal'
+    end
+
+    CCOA[ClassName] = {
+      type = 'color',
+      name = n,
+      order = Order,
+      desc = n == 'None' and 'Used if the unit has no class' or nil,
+      width = Width,
+      hasAlpha = true,
+    }
+  end
+  CCOA.Spacer50 = CreateSpacer(50)
+
+  return ClassColorOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateCombatColorOptions
+--
+-- Creates option to change combat colors.
+--
+-- Subfunction of CreateMainOptions()
+--
+-- Order     Position in the options list.
+-- Name      Name of the options.
+-------------------------------------------------------------------------------
+local function CreateCombatColorOptions(Order, Name)
+  local CombatColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local UB = Main.UnitBars
+            local c = nil
+
+            if strfind(KeyName, 'Player') then
+              c = UB.PlayerCombatColor[strsub(KeyName, 7)]
+            else
+              c = UB.CombatColor[KeyName]
+            end
+            if type(c) ~= 'table' then
+              return UB[KeyName]
+            else
+              return c.r, c.g, c.b, c.a
+            end
+          end,
+    set = function(Info, r, g, b, a)
+            local KeyName = Info[#Info]
+            local UB = Main.UnitBars
+            local c = nil
+
+            if strfind(KeyName, 'Player') then
+              c = UB.PlayerCombatColor[strsub(KeyName, 7)]
+            else
+              c = UB.CombatColor[KeyName]
+            end
+            if type(c) ~= 'table' then
+              UB[KeyName] = r
+            else
+              c.r, c.g, c.b, c.a = r, g, b, a
+            end
+
+            -- Set the color to all the bars
+            for _, UBF in ipairs(Main.UnitBarsFE) do
+              UBF:Update()
+            end
+          end,
+    args = {
+      CombatClassColor = {
+        type = 'toggle',
+        name = 'Class Color',
+        desc = 'Replace Player Hostile and Attack with Class Color',
+        order = 1,
+      },
+      CombatTaggedColor = {
+        type = 'toggle',
+        name = 'Tagged Color',
+        desc = 'Include tagged color',
+        order = 2,
+      },
+      -- NPC
+      Player = {
+        type = 'header',
+        name = 'NPC',
+        order = 10,
+      },
+      -- Players
+      NPC = {
+        type = 'header',
+        name = 'Player',
+        order = 50,
+      },
+      Spacer100 = CreateSpacer(100),
+      Reset = {
+        type = 'execute',
+        name = 'Reset',
+        desc = 'Reset colors back to defaults',
+        width = 'half',
+        confirm = true,
+        order = 101,
+        func = function()
+                 Main:CopyTableValues(DUB.CombatColor, Main.UnitBars.CombatColor)
+                 Main:CopyTableValues(DUB.PlayerCombatColor, Main.UnitBars.PlayerCombatColor)
+
+                 -- Set the color to all the bars
+                 for _, UBF in ipairs(Main.UnitBarsFE) do
+                   UBF:Update()
+                 end
+               end,
+      },
+    },
+  }
+
+  local FCOA = CombatColorOptions.args
+  local Index = nil
+
+  -- Create NPC combat color options
+  for CombatColor, Color in pairs(DUB.CombatColor) do
+    local Order = ConvertCombatColor[CombatColor] + 10
+
+    FCOA[CombatColor] = {
+      type = 'color',
+      name = CombatColor,
+      order = Order,
+      width = 'half',
+      hasAlpha = true,
+    }
+  end
+
+  -- Create combat color options
+  for CombatColor, Color in pairs(DUB.PlayerCombatColor) do
+    local Order = ConvertCombatColor[CombatColor] + 50
+    local Desc = nil
+    local Disabled = nil
+
+    if CombatColor == 'Hostile' then
+      Desc = 'Target can attack you'
+    elseif CombatColor == 'Attack' then
+      Desc = "Target can't attack you, but you can attack them"
+    elseif CombatColor == 'Flagged' then
+      Desc = 'PvP flagged'
+    elseif CombatColor == 'Ally' then
+      Desc = 'Target is not PvP flagged'
+    end
+
+    if CombatColor == 'Hostile' or CombatColor == 'Attack' then
+      Disabled = function()
+                   return Main.UnitBars.CombatClassColor
+                 end
+    end
+
+    FCOA['Player' .. CombatColor] = {
+      type = 'color',
+      name = CombatColor,
+      desc = Desc,
+      order = Order,
+      width = 'half',
+      hasAlpha = true,
+      disabled = Disabled,
+    }
+  end
+
+  return CombatColorOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateTaggedColorOptions
+--
+-- Creates option to change tagged color.
+--
+-- Subfunction of CreateMainOptions()
+--
+-- Order     Position in the options list.
+-- Name      Name of the options.
+-------------------------------------------------------------------------------
+local function CreateTaggedColorOptions(Order, Name)
+  local TaggedColorOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local c = Main.UnitBars[KeyName]
+
+            if KeyName ~= 'TaggedTest' then
+              return c.r, c.g, c.b, c.a
+            else
+              return c
+            end
+          end,
+    set = function(Info, r, g, b, a)
+            local KeyName = Info[#Info]
+            local UB = Main.UnitBars
+
+            if KeyName ~= 'TaggedTest' then
+              local c = UB[KeyName]
+              c.r, c.g, c.b, c.a = r, g, b, a
+            else
+              UB.TaggedTest = r
+            end
+
+            -- Set the color to all the bars
+            for _, UBF in ipairs(Main.UnitBarsFE) do
+              UBF:Update()
+            end
+          end,
+    args = {
+      TaggedColor = {
+        type = 'color',
+        name = 'Tagged',
+        order = 1,
+        width = 'half',
+        hasAlpha = true,
+      },
+      TaggedTest = {
+        type = 'toggle',
+        name = 'Test',
+        order = 11,
+        desc = 'Tagging is always on for testing',
+      },
+      Spacer100 = CreateSpacer(100),
+      Reset = {
+        type = 'execute',
+        name = 'Reset',
+        desc = 'Reset colors back to defaults',
+        width = 'half',
+        confirm = true,
+        order = 101,
+        func = function()
+                 Main:CopyTableValues(DUB.TaggedColor, Main.UnitBars.TaggedColor)
+
+                 -- Set the color to all the bars
+                 for _, UBF in ipairs(Main.UnitBarsFE) do
+                   UBF:Update()
+                 end
+               end,
+      },
+    },
+  }
+
+  return TaggedColorOptions
 end
 
 -------------------------------------------------------------------------------
@@ -5860,6 +6184,7 @@ local function CreateMainOptions()
       General = {
         name = 'General',
         type = 'group',
+        childGroups = 'tab',
         order = 1,
         get = function(Info)
                 return Main.UnitBars[Info[#Info]]
@@ -5878,127 +6203,146 @@ local function CreateMainOptions()
               end,
         args = {
           Main = {
+            type = 'group',
             name = 'Main',
-            type = 'group',
             order = 1,
-            dialogInline = true,
             args = {
-              IsLocked = {
-                type = 'toggle',
-                name = 'Lock Bars',
+              Layout = {
+                type = 'group',
+                name = 'Layout',
                 order = 1,
-                desc = 'Prevent bars from being dragged around',
+                dialogInline = true,
+                args = {
+                  IsLocked = {
+                    type = 'toggle',
+                    name = 'Lock Bars',
+                    order = 1,
+                    desc = 'Prevent bars from being dragged around',
+                  },
+                  IsClamped = {
+                    type = 'toggle',
+                    name = 'Screen Clamp',
+                    order = 2,
+                    desc = 'Prevent bars from going off the screen',
+                  },
+                  IsGrouped = {
+                    type = 'toggle',
+                    name = 'Group Drag',
+                    order = 3,
+                    desc = 'Drag all the bars as one instead of one at a time',
+                  },
+                  AlignAndSwapEnabled = {
+                    type = 'toggle',
+                    name = 'Enable Align & Swap',
+                    order = 4,
+                    desc = 'If unchecked, right clicking a unitbar will not open align and swap',
+                  },
+                  HideTextHighlight = {
+                    type = 'toggle',
+                    name = 'Hide Text Highlight',
+                    order = 5,
+                    desc = 'Text will not be highlighted when options is opened',
+                  },
+                  HighlightDraggedBar = {
+                    type = 'toggle',
+                    name = 'Highlight Dragged Bar',
+                    order = 6,
+                    desc = 'The bar being dragged will show a box around it',
+                  },
+                  Testing = {
+                    type = 'toggle',
+                    name = 'Test Mode',
+                    order = 7,
+                    desc = 'All bars will be displayed using fixed values',
+                  },
+                },
               },
-              IsClamped = {
-                type = 'toggle',
-                name = 'Screen Clamp',
+              Tooltips = {
+                name = 'Tooltips',
+                type = 'group',
                 order = 2,
-                desc = 'Prevent bars from going off the screen',
+                dialogInline = true,
+                args = {
+                  HideTooltips = {
+                    type = 'toggle',
+                    name = 'Hide Tooltips',
+                    order = 1,
+                    desc = 'Turns off mouse over tooltips when bars are not locked',
+                  },
+                  HideTooltipsDesc = {
+                    type = 'toggle',
+                    name = 'Hide Tooltips Desc',
+                    order = 2,
+                    desc = 'Turns off the description in mouse over tooltips when bars are not locked',
+                  },
+                  HideLocationInfo = {
+                    type = 'toggle',
+                    name = 'Hide Location Info',
+                    order = 3,
+                    desc = 'Turns off the location information for bars and boxes in mouse over tooltips when bars are not locked',
+                  },
+                },
               },
-              IsGrouped = {
-                type = 'toggle',
-                name = 'Group Drag',
+              Fading = {
+                name = 'Fading',
+                type = 'group',
                 order = 3,
-                desc = 'Drag all the bars as one instead of one at a time',
-              },
-              AlignAndSwapEnabled = {
-                type = 'toggle',
-                name = 'Enable Align & Swap',
-                order = 4,
-                desc = 'If unchecked, right clicking a unitbar will not open align and swap',
-              },
-              HideTextHighlight = {
-                type = 'toggle',
-                name = 'Hide Text Highlight',
-                order = 5,
-                desc = 'Text will not be highlighted when options is opened',
-              },
-              HighlightDraggedBar = {
-                type = 'toggle',
-                name = 'Highlight Dragged Bar',
-                order = 6,
-                desc = 'The bar being dragged will show a box around it',
-              },
-              Testing = {
-                type = 'toggle',
-                name = 'Test Mode',
-                order = 7,
-                desc = 'All bars will be displayed using fixed values',
+                dialogInline = true,
+                args = {
+                  ReverseFading = {
+                    type = 'toggle',
+                    name = 'Reverse Fading',
+                    order = 1,
+                    desc = 'Fading in/out can switch direction smoothly',
+                  },
+                  FadeInTime = {
+                    type = 'range',
+                    name = 'Fade-in',
+                    order = 8,
+                    desc = 'The amount of time in seconds to fade in a bar',
+                    min = 0,
+                    max = O.FadeInTime,
+                    step = 0.1,
+                    get = function()
+                            return Main.UnitBars.FadeInTime
+                          end,
+                    set = function(Info, Value)
+                            Main.UnitBars.FadeInTime = Value
+                            Main:UnitBarsSetAllOptions()
+                          end,
+                  },
+                  FadeOutTime = {
+                    type = 'range',
+                    name = 'Fade-out',
+                    order = 9,
+                    desc = 'The amount of time in seconds to fade out a bar',
+                    min = 0,
+                    max = O.FadeOutTime,
+                    step = 0.1,
+                    get = function()
+                            return Main.UnitBars.FadeOutTime
+                          end,
+                    set = function(Info, Value)
+                            Main.UnitBars.FadeOutTime = Value
+                            Main:UnitBarsSetAllOptions()
+                          end,
+                  },
+                },
               },
             },
           },
-          Tooltips = {
-            name = 'Tooltips',
+          Colors = {
             type = 'group',
-            order = 2,
-            dialogInline = true,
+            name = 'Colors',
+            order = 4,
             args = {
-              HideTooltips = {
-                type = 'toggle',
-                name = 'Hide Tooltips',
-                order = 1,
-                desc = 'Turns off mouse over tooltips when bars are not locked',
-              },
-              HideTooltipsDesc = {
-                type = 'toggle',
-                name = 'Hide Tooltips Desc',
-                order = 2,
-                desc = 'Turns off the description in mouse over tooltips when bars are not locked',
-              },
-              HideLocationInfo = {
-                type = 'toggle',
-                name = 'Hide Location Info',
-                order = 3,
-                desc = 'Turns off the location information for bars and boxes in mouse over tooltips when bars are not locked',
-              },
+              PowerColors = CreatePowerColorOptions(5, 'Power Color'),
+              ClassColors = CreateClassColorOptions(6, 'Class Color'),
+              CombatColors = CreateCombatColorOptions(7, 'Combat Color'),
+              TaggedColor = CreateTaggedColorOptions(8, 'Tagged color'),
             },
           },
-          Fading = {
-            name = 'Fading',
-            type = 'group',
-            order = 3,
-            dialogInline = true,
-            args = {
-              ReverseFading = {
-                type = 'toggle',
-                name = 'Reverse Fading',
-                order = 1,
-                desc = 'Fading in/out can switch direction smoothly',
-              },
-              FadeInTime = {
-                type = 'range',
-                name = 'Fade-in',
-                order = 8,
-                desc = 'The amount of time in seconds to fade in a bar',
-                min = 0,
-                max = O.FadeInTime,
-                step = 0.1,
-                get = function()
-                        return Main.UnitBars.FadeInTime
-                      end,
-                set = function(Info, Value)
-                        Main.UnitBars.FadeInTime = Value
-                        Main:UnitBarsSetAllOptions()
-                      end,
-              },
-              FadeOutTime = {
-                type = 'range',
-                name = 'Fade-out',
-                order = 9,
-                desc = 'The amount of time in seconds to fade out a bar',
-                min = 0,
-                max = O.FadeOutTime,
-                step = 0.1,
-                get = function()
-                        return Main.UnitBars.FadeOutTime
-                      end,
-                set = function(Info, Value)
-                        Main.UnitBars.FadeOutTime = Value
-                        Main:UnitBarsSetAllOptions()
-                      end,
-              },
-            },
-          },
+          AuraList = CreateAuraOptions(5, 'Aura List'),
         },
       },
     },
@@ -6026,14 +6370,14 @@ local function CreateMainOptions()
 --    UTILITY group.
 -------------------------------------------------------------------------------
 --=============================================================================
-  MainOptionsArgs.Utility = {
-    type = 'group',
-    name = 'Utility',
-    order = 3,
-    args = {
-      AuraUtility = CreateAuraUtilityOptions(1, 'Aura List'),
-    },
-  }
+--  MainOptionsArgs.Utility = {
+--    type = 'group',
+--    name = 'Utility',
+--    order = 3,
+--    args = {
+--      AuraList = CreateAuraOptions(1, 'Aura List'),
+--    },
+--  }
 
 --=============================================================================
 -------------------------------------------------------------------------------

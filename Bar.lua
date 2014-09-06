@@ -314,6 +314,9 @@ local C_PetBattles, C_TimerAfter,  UIParent =
 --
 -- Triggers[] Data structure
 --   Pars[]                   Table of Values to pass to the function to modify the Object or play a sound.
+--   GetPars[]                Table of Values used with GetFunctions.  These are pars like Units, to pass off to the get function.
+--   SetPars[]                Copy of the values from Pars[].  Since the GetFunction overwrites Pars[].  The original value
+--                            needs to be preserved for each get function call.
 --   BarFunctions[]           Table that contains the function to modify the object. Can be referenced by BarFunctionID.
 --   Groups[]                 Contains the Groups which contains the BarFunctions.
 --   ActiveGroups[]           Contains a list of groups that are currently in use by any triggers.
@@ -347,11 +350,16 @@ local C_PetBattles, C_TimerAfter,  UIParent =
 --   Objects[TypeIndex]               List of objects that make up the Group.
 --     TypeID                         Identifier to ID what type it is.
 --     Type                           Name of the type.
+--     GetFnMenuTypeID                Used in the Trigger options. This defines different menus that can be accessed by this name.
+--                                    This only exists if GetFunctions were defined under this group.
 --     BarFunction
 --       All[]                        Contains references to all the boxes plus multiple textures.
 --       NumAll                       Contains the total number of items in All[].
 --       Custom                       If not nil then this BarFunction uses a custom function not found in the BarDB.  Custom functions
 --                                    only execute one time then the trigger has to rearm and execute again.
+--       GetFn[GetFnTypeID]           Table of current GetFunctions index by the GetFnTypeID
+--         Type                       Name used used to for the trigger options
+--         Fn                         Function to call.
 --   -----------------------          Fields below this line don't exist in a virtual barfunction.
 --                                    A virtual barfunction is created for boxnumber = 0 or when a group has more than one
 --                                    Tpar.
@@ -360,6 +368,7 @@ local C_PetBattles, C_TimerAfter,  UIParent =
 --                                    the function when called outside of the trigger system.
 --       Fn                           Call to the original function since the BarFunction gets rerouted to a wrapper function.
 --       BarFunctionName              Name of the BarDB:BarFunctionName to call.
+--       GetFunctionName              This is the function that is called before the BarFunction.  The GetFunction will modify the Par data.
 --       BoxNumber                      0  for all boxes,
 --                                      +1 for a single box.
 --                                      -1 for Region.
@@ -371,6 +380,8 @@ local C_PetBattles, C_TimerAfter,  UIParent =
 --   [1], [2], [3], [4]       Max of 4 elements each stores the paramater passed to the function.   These don't
 --                            include the BoxNumber, TextureNumber, or TextureFrameNumber.
 --
+-- GetPars[] and SetPars[] Data structure.
+--   [1], [2], [3], [4]       Max of 4 elements.  These store the values passed to the getfunction.
 --
 -- Before a trigger can be set.  A BarFunction needs to be created using CreateGroupTriggers(GroupNumber, ValueTypes, Type, Function Name, BoxNumber, ...)
 -- GroupNumber can be any number you want.  But can't skip numbers on different SetBarFunction calls.
@@ -4453,6 +4464,44 @@ function BarDB:CreateTypeTriggers(GroupNumber, TypeID, Type, BarFunctionName, Bo
 end
 
 -------------------------------------------------------------------------------
+-- CreateGetFunctionTriggers
+--
+-- Addres a get function to an existing barfunction
+--
+-- GroupNumber      Groupnumber created from CreateTypeTriggers()
+-- Type             Type created from CreateTypeTriggers()
+-- GetFnMenuTypeID  Used in option menus. Defines which type of menu to use.
+-- GetFnTypeID      Indentifier for the type of GetFunction
+-- GetFnType        Name that appears in the menus.
+-- GetFn            This function will be called before the BarFunction
+-------------------------------------------------------------------------------
+function BarDB:CreateGetFunctionTriggers(GroupNumber, Type, GetFnMenuTypeID, GetFnTypeID, GetFnType, GetFunction)
+  local Triggers = self.Triggers
+  local Group = Triggers.Groups[GroupNumber]
+  local TypeIndex = FindTypeTriggers(Group, '', Type)
+  local Object = Group.Objects[TypeIndex]
+
+  Object.GetFnMenuTypeID = GetFnMenuTypeID
+  local BarFunction = Object.BarFunction
+
+  local GetFn = BarFunction.GetFn
+  if GetFn == nil then
+    GetFn = {}
+    BarFunction.GetFn = GetFn
+    BarFunction.GetFn.none = 'none'
+  end
+
+  local GetFn = GetFn[GetFnTypeID]
+  if GetFn == nil then
+    GetFn = {}
+    BarFunction.GetFn[GetFnTypeID] = GetFn
+  end
+
+  GetFn.Type = GetFnType
+  GetFn.Fn = GetFunction
+end
+
+-------------------------------------------------------------------------------
 -- ModifyAuraTriggers
 --
 -- Updates the aura triggers list, enanbles/disables aura tracking, etc.
@@ -4656,6 +4705,7 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
     end
   end
 
+  Trigger.GetFnTypeID = Condition ~= 'static' and Trigger.BarFunction.GetFn ~= nil and TD.GetFnTypeID or 'none'
   Trigger.Type   = strlower(Type)
   Trigger.TypeID = TypeID
 
@@ -4666,6 +4716,36 @@ function BarDB:ModifyTriggers(TriggerNumber, TD, TypeIndex, Sort)
   TriggerPars[2] = TDPars[2]
   TriggerPars[3] = TDPars[3]
   TriggerPars[4] = TDPars[4]
+
+  -- Load Getpars if there are any.
+  if Trigger.BarFunction.GetFn then
+    local TDGetPars = TD.GetPars
+    local TriggerGetPars = Trigger.GetPars
+    local TriggerSetPars = Trigger.SetPars
+
+    if TriggerGetPars == nil then
+      TriggerGetPars = {}
+      Trigger.GetPars = TriggerGetPars
+    end
+    if TriggerSetPars == nil then
+      TriggerSetPars = {}
+      Trigger.SetPars = TriggerSetPars
+    end
+
+    TriggerGetPars[1] = TDGetPars[1]
+    TriggerGetPars[2] = TDGetPars[2]
+    TriggerGetPars[3] = TDGetPars[3]
+    TriggerGetPars[4] = TDGetPars[4]
+
+    TriggerSetPars[1] = TDPars[1]
+    TriggerSetPars[2] = TDPars[2]
+    TriggerSetPars[3] = TDPars[3]
+    TriggerSetPars[4] = TDPars[4]
+  else
+    -- Remove GetPars
+    Trigger.GetPars = nil
+    Trigger.SetPars = nil
+  end
 
   -- Aura trigger checks
   local AuraTriggers = Triggers.AuraTriggers
@@ -4711,6 +4791,7 @@ function BarDB:InsertTriggers(TriggerNumber, TD)
     local Condition = TD.Condition
     local Value = TD.Value
     local ValueTypeID = TD.ValueTypeID
+    local GetFnTypeID = TD.GetFnTypeID
     local Object = Group.Objects[TypeIndex]
     local ValueTypes = Group.ValueTypes
     local ValueTypeIDs = Group.ValueTypeIDs
@@ -4742,6 +4823,13 @@ function BarDB:InsertTriggers(TriggerNumber, TD)
     TD.ValueTypeID = ValueTypeID
     TD.ValueType = strlower(ValueTypes[ValueTypeIndex])
 
+    -- Make sure GetFnTypeID is correct
+    if Object.GetFnMenuTypeID == nil then
+      GetFnTypeID = 'none'
+    elseif GetFnTypeID == nil or GetFnTypeID == '' then
+      GetFnTypeID = 'none'
+    end
+
     -- Update Trigger data Type and TypeID to match the Group.
     local Type = strlower(Object.Type)
     local TypeID = Object.TypeID
@@ -4752,6 +4840,7 @@ function BarDB:InsertTriggers(TriggerNumber, TD)
     if ValueTypeID ~= 'auras' or Condition == 'static' then
       TD.Auras = nil
     end
+
     -- Type check trigger data since triggers can be copied from other bars.
     if ValueTypeID == 'boolean' then
       if Condition ~= 'static' and Condition ~= '=' then
@@ -4766,6 +4855,7 @@ function BarDB:InsertTriggers(TriggerNumber, TD)
     TD.Type = Type
     TD.TypeID = TypeID
     TD.Condition = Condition
+    TD.GetFnTypeID = GetFnTypeID
 
     local Trigger = {}
     Trigger.Pars = {}
@@ -4903,8 +4993,8 @@ function BarDB:UndoTriggers()
     for TriggerIndex = 1, Triggers.NumTriggers do
       local Active = Triggers[TriggerIndex].Active
 
-      for BarFunction, _ in pairs(Active) do
-        Active[BarFunction] = false
+      for Index, _ in pairs(Active) do
+        Active[Index] = false
       end
     end
   end
@@ -5063,22 +5153,57 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
           -- Store value for later
           Active = Active == nil and true or Active
           if Custom == nil or Custom and Active and not Modified then
+            local Pars = Trigger.Pars
+            local GetPars = Trigger.GetPars
+            local GetFnTypeID = Trigger.GetFnTypeID
             local All = BarFunction.All
 
             if All then
+              local GetFn = BarFunction.GetFn
+
               for AllIndex = 1, BarFunction.NumAll do
+                local BF = All[AllIndex]
+
+                -- Check for a GetFunction
+                if GetFnTypeID ~= 'none' then
+                  if GetFn then
+                    GetFn = GetFn[GetFnTypeID]
+                    if GetFn then
+                      local GetPars = Trigger.GetPars
+                      local SetPars = Trigger.SetPars
+
+                      Pars[1], Pars[2], Pars[3], Pars[4] = GetFn.Fn(nil, GetPars[1], GetPars[2], GetPars[3], GetPars[4],
+                                                                         SetPars[1], SetPars[2], SetPars[3], SetPars[4])
+                    end
+                  end
+                end
+
                 if BoxNumber then
-                  local BF = All[AllIndex]
 
                   if BF.BoxNumber == BoxNumber then
-                    LastValues[BF] = Trigger.Pars
+                    LastValues[BF] = Pars
                   end
                 else
-                  LastValues[All[AllIndex]] = Trigger.Pars
+                  LastValues[BF] = Pars
                 end
               end
             else
-              LastValues[BarFunction] = Trigger.Pars
+              -- Check for a GetFunction
+              if GetFnTypeID ~= 'none' then
+                local GetFn = BarFunction.GetFn
+
+                if GetFn then
+                  GetFn = GetFn[GetFnTypeID]
+                  if GetFn then
+                    local GetPars = Trigger.GetPars
+                    local SetPars = Trigger.SetPars
+
+                    Pars[1], Pars[2], Pars[3], Pars[4] = GetFn.Fn(nil, GetPars[1], GetPars[2], GetPars[3], GetPars[4],
+                                                                       SetPars[1], SetPars[2], SetPars[3], SetPars[4])
+                  end
+                end
+              end
+              LastValues[BarFunction] = Pars
             end
           end
 
@@ -5108,7 +5233,6 @@ function BarDB:SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue, BoxNumbe
             end
           else
             local LastValue = LastValues[BarFunction]
-
             if LastValue == nil or LastValue == 0 then
               LastValues[BarFunction] = BarFunction.FnPars
             end
@@ -5195,17 +5319,54 @@ function BarDB:SetAuraTriggers(TrackedAuras)
 
         -- Set trigger if conditions met
         if Condition == 'or' and NumCorrect > 0 or Condition == 'and' and NumAuras > 0 and NumAuras == NumCorrect then
+          local Pars = Trigger.Pars
+
           Active = Active == nil and true or Active
           if Custom == nil or Custom and Active and not Modified then
+            local GetFnTypeID = Trigger.GetFnTypeID
             local All = BarFunction.All
 
             if All then
               for AllIndex = 1, BarFunction.NumAll do
-                LastValues[All[AllIndex]] = Trigger.Pars
+                local BF = All[AllIndex]
+
+                -- Check for a GetFunction
+                if GetFnTypeID ~= 'none' then
+                  local GetFn = BF.GetFn
+
+                  -- Check for a GetFunction
+                  if GetFnTypeID ~= 'none' then
+                    if GetFn then
+                      GetFn = GetFn[GetFnTypeID]
+                      if GetFn then
+                        local GetPars = Trigger.GetPars
+                        local SetPars = Trigger.SetPars
+
+                        Pars[1], Pars[2], Pars[3], Pars[4] = GetFn.Fn(nil, GetPars[1], GetPars[2], GetPars[3], GetPars[4],
+                                                                           SetPars[1], SetPars[2], SetPars[3], SetPars[4])
+                      end
+                    end
+                  end
+                end
+                LastValues[BF] = Pars
               end
             else
-              local Pars = Trigger.Pars
-              LastValues[BarFunction] = Trigger.Pars
+              -- Check for a GetFunction
+              if GetFnTypeID ~= 'none' then
+                local GetFn = BarFunction.GetFn
+
+                if GetFn then
+                  GetFn = GetFn[GetFnTypeID]
+                  if GetFn then
+                    local GetPars = Trigger.GetPars
+                    local SetPars = Trigger.SetPars
+
+                    Pars[1], Pars[2], Pars[3], Pars[4] = GetFn.Fn(nil, GetPars[1], GetPars[2], GetPars[3], GetPars[4],
+                                                                       SetPars[1], SetPars[2], SetPars[3], SetPars[4])
+                  end
+                end
+              end
+              LastValues[BarFunction] = Pars
             end
           end
 
