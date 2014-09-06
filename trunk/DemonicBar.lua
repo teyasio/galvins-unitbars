@@ -28,8 +28,8 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
-local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
-      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP, UnitSelectionColor =
+      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP, UnitSelectionColor
 local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
       GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -333,6 +333,34 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
           BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (meta)',   'SetTexture', 1, FuryMetaSBar)
           BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (meta)',   'SetColorTexture', 1, FuryMetaSBar)
           BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                 TT.Type_Sound,                     'PlaySound', 1)
+
+          -- Class Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+
+          -- Power Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+
+          -- Combat Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+
+          -- Tagged Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
 
           -- Do this since all defaults need to be set first.
           BBar:DoOption()

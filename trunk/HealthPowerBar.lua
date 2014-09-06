@@ -31,8 +31,8 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
-local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
-      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP, UnitSelectionColor =
+      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP, UnitSelectionColor
 local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
       GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -248,27 +248,24 @@ local function UpdateHealthBar(self, Event, Unit)
     PredictedHealing = PredictedValue and floor(MaxValue * PredictedValue) or 0
   end
 
-  local FactionColors = Gen.FactionColors or false
-  local Color = Bar.Color
+  local ClassColor = Gen.ClassColor or false
+  local CombatColor = Gen.CombatColor or false
+  local TaggedColor = Gen.TaggedColor or false
+  local BarColor = Bar.Color
+  local r, g, b, a = BarColor.r, BarColor.g, BarColor.b, BarColor.a
+
+  -- Get class color
+  if ClassColor then
+    r, g, b, a = Main:GetClassColor(Unit, nil, nil, nil, r, g, b, a)
 
   -- Get faction color
-  if FactionColors then
-    local FactionColor = UnitReaction(Unit, 'player')
-    Color = Bar.FactionColor[FactionColor or ConvertFaction['None']]
+  elseif CombatColor then
+    r, g, b, a = Main:GetCombatColor(Unit, nil, nil, nil, r, g, b, a)
   end
 
-  -- Get the class color if classcolor flag is true.
-  if not FactionColors and Color.Class then
-    local _, Class = UnitClass(Unit)
-    if Class ~= nil then
-      Color = Color[Class]
-    end
-  end
-
-  -- Set tagged color
-  local Tagged = Gen.Tagged or false
-  if Tagged and not UnitPlayerControlled(Unit) and UnitIsTappedByPlayer(Unit) and not UnitIsTappedByAllThreatList(Unit) then
-    Color = Bar.TaggedColor
+  -- Get tagged color
+  if TaggedColor then
+    r, g, b, a = Main:GetTaggedColor(Unit, nil, nil, nil, r, g, b, a)
   end
 
   -- Set the color and display the predicted health.
@@ -284,7 +281,7 @@ local function UpdateHealthBar(self, Event, Unit)
   end
 
   -- Set the color and display the value.
-  BBar:SetColorTexture(1, StatusBar, Color.r, Color.g, Color.b, Color.a)
+  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
   local Value = 0
 
   if MaxValue > 0 then
@@ -375,7 +372,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
   local PredictedPower = Gen and Gen.PredictedPower and (self.PredictedPower or 0) or 0
-  local Color = Bar.Color[ConvertPowerType[PowerType]]
+
+  local r, g, b, a = Main:GetPowerColor(Unit)
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
@@ -400,7 +398,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   end
 
   -- Set the color and display the value.
-  BBar:SetColorTexture(1, StatusBar, Color.r, Color.g, Color.b, Color.a)
+  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
   local Value = 0
 
   if MaxValue > 0 then
@@ -481,6 +479,8 @@ end)
 HapFunction('SetAttr', function(self, TableName, KeyName)
   local BBar = self.BBar
   local BarType = self.BarType
+  local UB = self.UnitBar
+  local Gen = UB.General
 
   if not BBar:OptionsSet() then
     BBar:SetTexture(1, PredictedBar, 'GUB EMPTY')
@@ -505,17 +505,40 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
             BBar:CreateGroupTriggers(1, 'whole:Health', 'percent:Health (percent)', 'whole:Predicted Health', 'auras:Auras')
           end
 
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             'SetBackdropBorder', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        'SetBackdropBorderColor', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         'SetBackdrop', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              'SetBackdropColor', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture,                   'SetTexture', 1, StatusBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor,                     'SetColorTexture', 1, StatusBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted)', 'SetTexture', 1, PredictedBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted)',   'SetColorTexture', 1, PredictedBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                 TT.Type_Sound,                        'PlaySound', 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,           TT.Type_BackgroundBorder,             'SetBackdropBorder', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor,      TT.Type_BackgroundBorderColor,        'SetBackdropBorderColor', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBackground,       TT.Type_BackgroundBackground,         'SetBackdrop', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundColor,            TT.Type_BackgroundColor,              'SetBackdropColor', 1, 1)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,                 TT.Type_BarTexture,                   'SetTexture', 1, StatusBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,                   TT.Type_BarColor,                     'SetColorTexture', 1, StatusBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,                 TT.Type_BarTexture .. ' (predicted)', 'SetTexture', 1, PredictedBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,                   TT.Type_BarColor .. ' (predicted)',   'SetColorTexture', 1, PredictedBar)
+          BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                      TT.Type_Sound,                        'PlaySound', 1)
 
-          -- Do this since all defaults need to be set first.
+          -- Class Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
+
+          -- Power Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
+
+          -- Combat Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
+
+          -- Tagged Color
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
+
           BBar:DoOption()
         end
         BBar:UpdateTriggers()
@@ -536,20 +559,21 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end)
     BBar:SO('Layout', 'SmoothFill',  function(v) BBar:SetFillSmoothTimeTexture(1, StatusBar, v) end)
 
-    local Gen = self.UnitBar.General
-    if Gen and Gen.PredictedHealth ~= nil then
-      BBar:SO('General', 'PredictedHealth', function(v) self:Update() end)
-    end
-
     if Gen then
-      local FactionColors = Gen.FactionColors
-      if FactionColors ~= nil then
-        BBar:SO('General', 'FactionColors', function(v) self:Update() end)
+      if Gen.PredictedHealth ~= nil then
+        BBar:SO('General', 'PredictedHealth', function(v) self:Update() end)
       end
 
-      local Tagged = Gen.Tagged
-      if Tagged ~= nil then
-        BBar:SO('General', 'Tagged', function(v) self:Update() end)
+      if Gen.ClassColor ~= nil then
+        BBar:SO('General', 'ClassColor', function(v) self:Update() end)
+      end
+
+      if Gen.CombatColor ~= nil then
+        BBar:SO('General', 'CombatColor', function(v) self:Update() end)
+      end
+
+      if Gen.TaggedColor ~= nil then
+        BBar:SO('General', 'TaggedColor', function(v) self:Update() end)
       end
     end
 
@@ -586,67 +610,22 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(StatusBars, 'SetFillDirectionTexture', 1, v) end)
     BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(StatusBars, 'SetRotateTexture', 1, v) end)
 
-    if self.UnitBar.Bar.PredictedColor ~= nil then
+    if UB.Bar.PredictedColor ~= nil then
       BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(1, PredictedBar, v) end)
       BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(1, PredictedBar, v.r, v.g, v.b, v.a) end)
     end
-    BBar:SO('Bar', 'FactionColor',        function(v, UB)
-      local FactionColors = UB.General.FactionColors or false
-      local BarColor = v
 
-      -- Get faction color
-      if FactionColors then
-        local FactionColor = UnitReaction(UB.UnitType, 'player')
-        BarColor = UB.Bar.FactionColor[FactionColor or ConvertFaction['None']]
-      end
-      if BarColor then
-        BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-      end
-    end)
-    BBar:SO('Bar', 'Color',               function(v, UB)
-      local FactionColors = UB.General.FactionColors or false
-      if not FactionColors then
-        local BarColor = nil
+    if Gen and Gen.FactionColor ~= nil then
+      BBar:SO('Bar', 'FactionColor',        function(v, UB) self:Update() end)
+    end
 
-        -- Get the Unit and then Powertype for power bars.
-        if strfind(BarType, 'Power') then
-          local PowerType = nil
+    if UB.Bar.Color ~= nil then
+      BBar:SO('Bar', 'Color',               function(v) self:Update() end)
+    end
+    BBar:SO('Bar', 'TaggedColor',           function(v, UB) self:Update() end)
 
-          if BarType == 'ManaPower' then
-            PowerType = PowerMana
-          else
-            PowerType = UnitPowerType(UB.UnitType)
-          end
-          if PowerType then
-            BarColor = v[ConvertPowerType[PowerType]]
-          end
-
-        -- Get the class color on bars that support it.
-        else
-          BarColor = v
-          if BarColor.Class then
-            local _, Class = UnitClass(UB.UnitType)
-
-            if Class ~= nil then
-              BarColor = BarColor[Class]
-            end
-          end
-        end
-        if BarColor then
-          BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-        end
-      end
-    end)
-    BBar:SO('Bar', 'TaggedColor',               function(v, UB)
-      local Tagged = UB.General.Tagged or false
-      local Unit = UB.UnitType
-      if Tagged and not UnitPlayerControlled(Unit) and UnitIsTappedByPlayer(Unit) and not UnitIsTappedByAllThreatList(Unit) then
-        local BarColor = v
-        BBar:SetColorTexture(1, StatusBar, BarColor.r, BarColor.g, BarColor.b, BarColor.a)
-      end
-    end)
-    BBar:SO('Bar', '_Size',               function(v, UB) BBar:SetSizeTextureFrame(1, 1, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',             function(v) BBar:ChangeTexture(StatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', '_Size',                 function(v, UB) BBar:SetSizeTextureFrame(1, 1, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',               function(v) BBar:ChangeTexture(StatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -674,9 +653,8 @@ end)
 function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
-  local Names = {Trigger = {}, Color = {}}
+  local Names = {Trigger = {}}
   local Trigger = Names.Trigger
-  local Color = Names.Color
   local Name = UB.Name
 
   -- Create the health and predicted bar
@@ -698,7 +676,6 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:ChangeTexture(StatusBars, 'SetHiddenTexture', 1, false)
   BBar:ChangeTexture(StatusBars, 'SetFillTexture', 1, 0)
 
-  Color[1] = Name
   Trigger[1] = Name
   Trigger[2] = 'Predicted Value'
 
@@ -716,6 +693,7 @@ local function RegEventHealth(Enable, UnitBarF, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION', UpdateHealthBar, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT', UpdateHealthBar, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',       UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',         UpdateHealthBar, ...)
 end
 
 local function RegEventPower(Enable, UnitBarF, ...)

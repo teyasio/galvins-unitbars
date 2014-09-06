@@ -53,10 +53,10 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
-local UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName =
-      UnitName, UnitReaction, UnitGetIncomingHeals, UnitPlayerControlled, GetRealmName
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
       GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -152,22 +152,27 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.UnitBars          - Set by SharedData()
 -- Main.PlayerClass       - Set by SharedData()
 -- Main.PlayerPowerType   - Set by SharedData()
--- Main.ConvertFaction    - Converts Reaction number to name or vice versa.
+-- Main.ConvertReputation - Reference to ConvertReputation
+-- Main.ConvertCombatColor - Reference to ConvertCombatColor
 -- Main.PowerColorType    - Reference to PowerColorType.
 -- Main.ConvertPowerType  - Reference to ConvertPowerType.
 -- Main.InCombat          - set by UnitBarsUpdateStatus()
 -- Main.IsDead            - set by UnitBarsUpdateStatus()
+-- Main.HasTarget         - set by UnitBarsUpdateStatus()
 -- Main.TrackedAuras      - Set by SetAuraTracker()
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
 -- ConvertPowerType       - Table to convert a string powertype into a number or back into a number.
+-- ConvertReputation      - Converts reputation name into number or vice versa
+-- ConvertCombatColor     - Converts combat color into a number.
 -- InitOnce               - Used by OnEnable to initialize just one time.
 -- MessageBox             - Contains the message box to show a message on screeen.
 -- TrackingFrame          - Used by MoveFrameGetNearestFrame()
 -- MouseOverDesc          - Mouse over tooltip displayed to drag bar.
 -- UnitBarVersion         - Current version of the mod.
 -- AlignAndSwapTooltipDesc - Tooltip to be shown when the alignment tool is active.
+-- OtherEvents            - Used by UnitBarsUpdateStatus(). This will update all the bars if an Event matches this list.
 --
 -- InCombat               - True or false. If true then the player is in combat.
 -- InVehicle              - True or false. If true then the player is in a vehicle.
@@ -411,6 +416,7 @@ local PlayerClass = nil
 local PlayerStance = nil
 local PlayerSpecialization = nil
 local PlayerGUID = nil
+local OtherEvents = {}
 
 local MoonkinForm = MOONKIN_FORM
 local CatForm = CAT_FORM
@@ -542,13 +548,8 @@ local ConvertPowerType = {
   [13] = 'SHADOW_ORBS', [14] = 'BURNING_EMBERS', [15] = 'DEMONIC_FURY',
 }
 
-local ConvertFaction = {
-  Hated = 1, Hostile = 2, Unfriendly = 3, Neutral = 4,
-  Friendly = 5, Honored = 6, Revered = 7, Exalted = 8,
-  None = 100,
-  [1] = 'Hated', [2] = 'Hostile', [3] = 'Unfriendly', [4] = 'Neutral',
-  [5] = 'Friendly', [6] = 'Honored', [7] = 'Revered', [8] = 'Exalted',
-  [100] = 'None',
+local ConvertCombatColor = {
+  Hostile = 1, Attack = 2, Flagged = 3, Friendly = 4,
 }
 
 local PowerColorType = {
@@ -559,7 +560,8 @@ local PowerColorType = {
 Main.LSM = LSM
 Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
-Main.ConvertFaction = ConvertFaction
+Main.ConvertReputation = ConvertReputation
+Main.ConvertCombatColor = ConvertCombatColor
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
 
@@ -599,6 +601,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UNIT_DISPLAYPOWER',             GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_MAXPOWER',                 GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_FACTION',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_DISABLED',         GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_TARGET_CHANGED',         GUB.UnitBarsUpdateStatus)
@@ -612,6 +615,9 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UPDATE_SHAPESHIFT_FORM',        GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_OPENING_START',      GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_CLOSE',              GUB.UnitBarsUpdateStatus)
+
+    -- These events will always be checked even if unit is not player.
+    OtherEvents['UNIT_FACTION'] = 1
 
     -- Rest of the events are defined at the end of each lua file for the bars.
 
@@ -639,61 +645,20 @@ end
 local function InitializeColors()
 
   -- Copy the power colors.
-  for PCT, PowerType in pairs(PowerColorType) do
-    local Color = PowerBarColor[PCT]
+  for _, PowerType in pairs(PowerColorType) do
+    local Color = PowerBarColor[PowerType]
     local r, g, b = Color.r, Color.g, Color.b
 
-    for BarType, UB in pairs(DUB) do
-      if BarType == 'PlayerPower' or BarType == 'TargetPower' or
-         BarType == 'FocusPower' or BarType == 'PetPower' or BarType == 'ManaPower' then
-        local Bar = UB.Bar
-
-        Bar.Color = Bar.Color or {}
-        Bar.Color[PCT] = {r = r, g = g, b = b, a = 1}
-      end
-    end
+    DUB.PowerColor = DUB.PowerColor or {}
+    DUB.PowerColor[PowerType] = {r = r, g = g, b = b, a = 1}
   end
 
   -- Copy the class colors.
   for Class, Color in pairs(RAID_CLASS_COLORS) do
     local r, g, b = Color.r, Color.g, Color.b
 
-    for BarType, UB in pairs(DUB) do
-      if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
-        local Bar = UB.Bar
-
-        Bar.Color = Bar.Color or {}
-        Bar.Color[Class] = {r = r, g = g, b = b, a = 1}
-      end
-    end
-  end
-
-  -- Copy the faction bar colors.
-  for Index, Color in pairs(FACTION_BAR_COLORS) do
-    local r, g, b = Color.r, Color.g, Color.b
-
-    for BarType, UB in pairs(DUB) do
-      if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' then
-        local Bar = UB.Bar
-        local FactionColor = Bar.FactionColor or {}
-        Bar.FactionColor = FactionColor
-        FactionColor[Index] = {r = r, g = g, b = b, a = 1}
-
-        -- Additional colors starting at 100
-        if FactionColor[100] == nil then
-          FactionColor[ConvertFaction['None']] = {r = 1, g = 1, b = 1, a = 1}
-        end
- --[[          FactionColor[ConvertFaction['TargetHostile'] ] = {r = 1, g = 1, b = 1, a = 1}
-
-          local c = FACTION_BAR_COLORS[4]
-          FactionColor[ConvertFaction['TargetAttack'] ] = {r = c.r, g = c.g, b = c.b, a = 1}
-
-          local c = FACTION_BAR_COLORS[6]
-          FactionColor[ConvertFaction['Flagged'] ] = {r = c.r, g = c.g, b = c.b, a = 1}
-          FactionColor[ConvertFaction['None'] ] = {r = 1, g = 1, c = 1, a = 1}
-        end ]]
-      end
-    end
+    DUB.ClassColor = DUB.ClassColor or {}
+    DUB.ClassColor[Class] = {r = r, g = g, b = b, a = 1}
   end
 end
 
@@ -797,6 +762,158 @@ local function RegUnitEvent(Reg, Event, Fn, Table, ...)
       Frame:UnregisterEvent(Event)
     end
   end
+end
+
+-------------------------------------------------------------------------------
+-- GetTaggedColor (also used by triggers)
+--
+-- Returns the tagged color of a unit
+--
+-- Unit         Unit that may be tagged.
+-- p2 .. p4     Dummy pars, not used
+-- r, g, b, a   If there is no tagged color, then these values get passed back
+--
+-- Returns:
+--   r, g, b, a     Power color
+-------------------------------------------------------------------------------
+function GUB.Main:GetTaggedColor(Unit, p2, p3, p4, r, g, b, a)
+  if UnitExists(Unit) and UnitBars.TaggedTest or not UnitPlayerControlled(Unit) and UnitIsTapped(Unit) and not UnitIsTappedByPlayer(Unit) and not UnitIsTappedByAllThreatList(Unit) then
+    local Color = UnitBars.TaggedColor
+
+    return Color.r, Color.g, Color.b, Color.a
+  else
+    return r, g, b, a
+  end
+end
+local GetTaggedColor = Main.GetTaggedColor
+
+-------------------------------------------------------------------------------
+-- GetPowerColor (also used by triggers)
+--
+-- Returns the power color of a unit
+--
+-- Unit         Unit whos power color to be retrieved
+-- p2 .. p4     Dummy pars, not used
+-- r, g, b, a   If there is no power color, then these values get passed back
+--
+-- Returns:
+--   r, g, b, a     Power color
+-------------------------------------------------------------------------------
+function GUB.Main:GetPowerColor(Unit, p2, p3, p4, r, g, b, a)
+  local Color = UnitExists(Unit) and UnitBars.PowerColor[UnitPowerType(Unit)] or nil
+
+  if Color then
+    return Color.r, Color.g, Color.b, Color.a
+  else
+    return r, g, b, a
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetClassColor (also used by triggers)
+--
+-- Returns the class color of a unit
+--
+-- Unit     Unit whos class color to be retrieved
+-- p2 .. p4     Dummy pars, not used
+-- r, g, b, a   If there is no class color, then these values get passed back
+--
+-- Returns:
+--   r, g, b, a     Class color
+-------------------------------------------------------------------------------
+function GUB.Main:GetClassColor(Unit, p2, p3, p4, r, g, b, a)
+  if UnitExists(Unit) then
+    local ClassColor = UnitBars.ClassColor
+    local _, Class = UnitClass(Unit)
+
+    if Class then
+      local c = UnitBars.ClassColor[Class]
+      r, g, b, a = c.r, c.g, c.b, c.a
+    end
+
+    if UnitBars.ClassTaggedColor then
+      return GetTaggedColor(nil, Unit, p2, p3, p4, r, g, b, a)
+    end
+  end
+
+  return r, g, b, a
+end
+local GetClassColor = Main.GetClassColor
+
+-------------------------------------------------------------------------------
+-- GetCombatColor (also used by triggers)
+--
+-- Returns the combat state color of a target vs you.
+--
+-- Unit             Unit who you want to check the combat state of
+-- p2 .. p4         Dummy pars, not used
+-- r1, g1, b1, a1   If there is no combat color, then these values get passed back
+--
+-- Returns:
+--   r, g, b, a   Combat color
+-------------------------------------------------------------------------------
+function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
+  local r, g, b, a = 1, 1, 1, 1
+  local Color = nil
+
+  if UnitExists(Unit) then
+    if UnitPlayerControlled(Unit) then
+      local PlayerCombatColor = UnitBars.PlayerCombatColor
+      -- Check player characters first
+
+      if UnitCanAttack(Unit, 'player') then
+        -- Hostile
+        if UnitBars.CombatClassColor then
+          return GetClassColor(nil, Unit, p2, p3, p4, r1, g1, b1, a1)
+        else
+          Color = PlayerCombatColor.Hostile
+          return Color.r, Color.g, Color.b, Color.a
+        end
+      end
+      if UnitCanAttack('player', Unit) then
+        -- can be attacked, but can't attack you
+        if UnitBars.CombatClassColor then
+          return GetClassColor(nil, Unit, p2, p3, p4, r1, g1, b1, a1)
+        else
+          Color = PlayerCombatColor.Attack
+          return Color.r, Color.g, Color.b, Color.a
+        end
+      end
+      if UnitIsPVP(Unit) then
+        -- Player is flagged for pvp
+        Color = PlayerCombatColor.Flagged
+        return Color.r, Color.g, Color.b, Color.a
+      end
+      -- Player is a friendly
+      Color = PlayerCombatColor.Friendly
+      return Color.r, Color.g, Color.b, Color.a
+    else
+      -- NPCs
+      local CombatColor = UnitBars.CombatColor
+      local Reaction = UnitReaction(Unit, 'player')
+
+      if Reaction == 4 then -- yellow
+        -- Unit can be attacked, but cant attack you
+        Color = CombatColor.Attack
+
+      elseif Reaction < 4 then -- red
+        -- Hostile
+        Color = CombatColor.Hostile
+
+      elseif Reaction > 4 then -- green
+        -- Friendly
+        Color = CombatColor.Friendly
+      end
+
+      if UnitBars.CombatTaggedColor then
+        return GetTaggedColor(nil, Unit, p2, p3, p4, Color.r, Color.g, Color.b, Color.a)
+      else
+        return Color.r, Color.g, Color.b, Color.a
+      end
+    end
+  end
+
+  return r1, g1, b1, a1
 end
 
 -------------------------------------------------------------------------------
@@ -2511,7 +2628,7 @@ end
 function GUB.Main:StatusCheck(Event)
   local UB = self.UnitBar
   local Status = UB.Status
-  local Visible = false
+  local Visible = true
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
@@ -2530,56 +2647,53 @@ function GUB.Main:StatusCheck(Event)
       end
     end
 
-    -- Show bars if not locked.
+    -- Show bars if not locked or testing.
     if not UnitBars.IsLocked or UnitBars.Testing then
 
       -- use HideNotUsable visible flag if HideNotUsable is set.
       if not HideNotUsable then
         Visible = true
       end
-    else
-      -- Check for always visible flag, this overrids all flags below this.
-      if Status.ShowAlways then
-        Visible = true
-      else
 
-        -- Check to see if the bar has an enable function and call it.
-        if Visible then
-          local Fn = self.BarVisible
-          if Fn then
-            Visible = Fn()
-          end
+    -- Continue if show always if false.
+    elseif not Status.ShowAlways then
+
+      -- Check to see if the bar has an enable function and call it.
+      if Visible then
+        local Fn = self.BarVisible
+        if Fn then
+          Visible = Fn()
         end
+      end
 
-        if Visible then
+      if Visible then
 
-          -- Hide if the HideWhenDead status is set.
-          if IsDead and Status.HideWhenDead then
-            Visible = false
+        -- Hide if the HideWhenDead status is set.
+        if IsDead and Status.HideWhenDead then
+          Visible = false
 
-          -- Hide if in a vehicle if the HideInVehicle status is set
-          elseif InVehicle and Status.HideInVehicle then
-            Visible = false
+        -- Hide if in a vehicle if the HideInVehicle status is set
+        elseif InVehicle and Status.HideInVehicle then
+          Visible = false
 
-          -- Hide if in a pet battle and the HideInPetBattle status is set.
-          elseif InPetBattle and Status.HideInPetBattle then
-            Visible = false
+        -- Hide if in a pet battle and the HideInPetBattle status is set.
+        elseif InPetBattle and Status.HideInPetBattle then
+          Visible = false
 
-          -- Get the idle status based on HideNotActive when not in combat.
-          -- If the flag is not present the it defaults to false.
-          elseif not InCombat and Status.HideNotActive then
-            local IsActive = self.IsActive
-            Visible = IsActive == true
+        -- Get the idle status based on HideNotActive when not in combat.
+        -- If the flag is not present the it defaults to false.
+        elseif not InCombat and Status.HideNotActive then
+          local IsActive = self.IsActive
+          Visible = IsActive == true
 
-            -- if not visible then set IsActive to watch for activity.
-            if not Visible then
-              self.IsActive = 0
-            end
-
-          -- Hide if not in combat with the HideNoCombat status.
-          elseif not InCombat and Status.HideNoCombat then
-            Visible = false
+          -- if not visible then set IsActive to watch for activity.
+          if not Visible then
+            self.IsActive = 0
           end
+
+        -- Hide if not in combat with the HideNoCombat status.
+        elseif not InCombat and Status.HideNoCombat then
+          Visible = false
         end
       end
     end
@@ -3441,10 +3555,18 @@ end
 -- This also updates all unitbars that are visible.
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdateStatus(Event, Unit)
-
-  -- Do nothing if the unit is not 'player'.
-  if Unit ~= nil and Unit ~= 'player' then
-    return
+  if Unit ~= nil then
+    -- Check for other events.
+    if OtherEvents[Event] then
+      for _, UBF in ipairs(UnitBarsFE) do
+        UBF:Update()
+      end
+      return
+    end
+    -- Do nothing if the unit is not 'player'.
+    if Unit ~= 'player' then
+      return
+    end
   end
 
   InCombat = UnitAffectingCombat('player')
@@ -3460,6 +3582,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
 
   Main.InCombat = InCombat
   Main.IsDead = IsDead
+  Main.HasTarget = HasTarget
 
   -- Close options when in combat.
   if InCombat then

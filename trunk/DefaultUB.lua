@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 310
+GUB.DefaultUB.Version = 320
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -40,6 +40,14 @@ GUB.DefaultUB.Version = 310
 -- FadeOutTime            - Time in seconds before a bar completely goes hidden.
 -- FadeInTime             - Time in seconds before a bar completely becomes visible.
 -- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
+-- CombatClassColor       - If true thne then the combat colors will use player class colors.
+-- ReputationCombatColor  - If true then the reputation colors will use player combat colors.
+-- ReputationClassColor   - If true then the reputation colors will use player class colors.
+-- CombatColor            - Table containing the colors hostile, attack, friendly, flagged, none.
+-- PlayerCombatColor      - Same as CombatColor but for players only.
+-- CombatTaggedColor      - If true then Tagged color will be used along with combat color.
+-- PowerColor             - Table containing the power colors, rage, focus, etc.  Set in Main.lua
+-- ClassColor             - Table containing the class colors.  Set in Main.lua
 -- Reset                  - Table containing the default settings for Reset found in General options.
 --
 --
@@ -153,6 +161,8 @@ GUB.DefaultUB.Version = 310
 --     Type               - Can be anything that describes what type it is.
 --     ValueTypeID        - Indentifies what value type it is.
 --     ValueType          - Can be anything that best describes what type of value is being used.
+--     GetFnTypeID        - Identifier to determin which GetFunction to be used.
+--                          '' means not GetFunction is defined for this trigger.
 --     Condition          - Logical conditonal that is used to activate a trigger.
 --     Pars[1 to 4]       - Contains raw data that is used to modify the bar object.
 --
@@ -160,6 +170,13 @@ GUB.DefaultUB.Version = 310
 -- General (Health and power bars)
 --   PredictedHealth      - Boolean.  Used by health bars only.
 --                                    If true then predicted health will be shown.
+--   ClassColor           - Boolean.  Used by health bars only.
+--                                    If true then class color will be shown
+--   CombatColor          - Boolean.  Used by health bars only.
+--                                    If true then combat color will be shown
+--   TaggedColor          - Boolean.  Used by health bars only.
+--                                    If true then a tagged color will be shown if unit is tagged.
+--
 --   PredictedPower       - Boolean.  Used by Player Power for hunters only.
 --                                    If true predicted power will be shown.
 -- General (Rune Bar)
@@ -240,6 +257,11 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_RegionBackground      = 'background',      Type_RegionBackground      = 'Region Background',
   TypeID_RegionBackgroundColor = 'backgroundcolor', Type_RegionBackgroundColor = 'Region Background Color',
   TypeID_Sound                 = 'sound',           Type_Sound                 = 'Sound',
+
+  TypeID_ClassColorMenu  = 'color', TypeID_ClassColor  = 'classcolor',  Type_ClassColor  = 'Class Color',
+  TypeID_PowerColorMenu  = 'color', TypeID_PowerColor  = 'powercolor',  Type_PowerColor  = 'Power Color',
+  TypeID_CombatColorMenu = 'color', TypeID_CombatColor = 'combatcolor', Type_CombatColor = 'Combat Color',
+  TypeID_TaggedColorMenu = 'color', TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
 }
 
 GUB.DefaultUB.Default = {
@@ -271,6 +293,22 @@ GUB.DefaultUB.Default = {
     HighlightDraggedBar = false,
     AuraListOn = false,
     AuraListUnits = 'player',
+    CombatClassColor = false,
+    CombatTaggedColor = false,
+    CombatColor = {
+      Hostile  = {r = 1, g = 0, b = 0, a = 1},  -- Red
+      Attack   = {r = 1, g = 1, b = 0, a = 1},  -- Yellow Can attack, but can't attack you
+      Friendly = {r = 0, g = 1, b = 0, a = 1},  -- green  unit is friendly
+    },
+    PlayerCombatColor = {
+      Hostile  = {r = 1, g = 0, b = 0, a = 1},  -- Red
+      Attack   = {r = 1, g = 1, b = 0, a = 1},  -- Yellow Can attack, but can't attack you
+      Flagged  = {r = 0, g = 1, b = 0, a = 1},  -- Green  player is flagged of same faction
+      Friendly = {r = 0, g = 0, b = 1, a = 1},  -- Blue   player not engaged in pvp
+    },
+    TaggedTest = false,
+    TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},  -- grey
+    ClassTaggedColor = false,
     Reset = {
       Minimize = false,
 
@@ -314,7 +352,9 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedHealth = true,
-        FactionColors = false,
+        ClassColor = false,
+        CombatColor = false,
+        TaggedColor = false,
       },
       Other = {
         Scale = 1,
@@ -342,10 +382,7 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
         PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {
-          Class = false,
-          r = 0, g = 1, b = 0, a = 1,
-        },
+        Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
@@ -393,6 +430,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -498,6 +537,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -529,8 +570,9 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedHealth = true,
-        FactionColors = false,
-        Tagged = false,
+        ClassColor = false,
+        CombatColor = false,
+        TaggedColor = false,
       },
       Other = {
         Scale = 1,
@@ -558,10 +600,7 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
         PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {
-          Class = false,
-          r = 0, g = 1, b = 0, a = 1,
-        },
+        Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
         TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
       },
@@ -610,6 +649,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -709,6 +750,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -740,8 +783,9 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedHealth = true,
-        FactionColors = false,
-        Tagged = false,
+        ClassColor = false,
+        CombatColor = false,
+        TaggedColor = false,
       },
       Other = {
         Scale = 1,
@@ -769,10 +813,7 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
         PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {
-          Class = false,
-          r = 0, g = 1, b = 0, a = 1,
-        },
+        Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
         TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
       },
@@ -821,6 +862,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -920,6 +963,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1029,6 +1074,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1085,8 +1132,6 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Text = {
         _DC = 0,
@@ -1133,6 +1178,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1235,6 +1282,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1417,6 +1466,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '=',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1524,6 +1575,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1688,6 +1741,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1811,6 +1866,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -1932,6 +1989,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -2038,6 +2097,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -2209,6 +2270,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -2394,6 +2457,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -2518,6 +2583,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -2642,6 +2709,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
@@ -2806,6 +2875,8 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           Condition = '>',
           Pars = {1, 1, 1, 1},
+          GetFnTypeID = 'none',
+          GetPars = {'', '', '', ''},
         },
       },
     },
