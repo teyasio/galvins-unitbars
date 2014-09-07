@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 321
+GUB.DefaultUB.Version = 322
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3026,7 +3026,7 @@ For more you can watch the video:
 
 
 |cff00ff00Aura List|r
-Found under Utility.  This will list any auras the mod comes in contact with.  Type the different units into the unit box.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
+Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
 
 
 |cff00ff00Profiles|r
