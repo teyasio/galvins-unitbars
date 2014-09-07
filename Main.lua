@@ -1487,44 +1487,58 @@ function GUB.Main:SetTimer(Table, TimerFn, Delay, Wait)
   local AnimationGroup = nil
   local Animation = nil
 
-  Table.SetTimer = Table.SetTimer or function(Start, TimerFn2, Delay, Wait)
+  local SetTimer = Table._SetTimer
+  if SetTimer == nil then
 
-    local function WaitTimer()
-      TimerFn(Table)
-      Animation:SetDuration(Delay)
-      AnimationGroup:Play()
-    end
+    -- SetTimer
+    function SetTimer(Start, TimerFn2, Delay2, Wait)
 
-    -- Create an animation Group timer if one doesn't exist.
-    if AnimationGroup == nil then
-      AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
-      Animation = AnimationGroup:CreateAnimation('Animation')
-      Animation:SetOrder(1)
-      AnimationGroup:SetLooping('REPEAT')
+      -- Create an animation Group timer if one doesn't exist.
+      if AnimationGroup == nil then
+        AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
+        Animation = AnimationGroup:CreateAnimation('Animation')
+        Animation:SetOrder(1)
+        AnimationGroup:SetLooping('REPEAT')
 
-      AnimationGroup:SetScript('OnLoop', function(self) TimerFn(Table) end)
-    end
-    if Start then
-      TimerFn = TimerFn2
-      if Wait then
-        C_TimerAfter(Wait < 0 and 0 or Wait, WaitTimer)
-      else
-        Animation:SetDuration(Delay)
-        AnimationGroup:Play()
+        AnimationGroup:SetScript('OnLoop', function(self) TimerFn(Table) end)
       end
-    else
-      AnimationGroup:Stop()
+      if Start then
+        TimerFn = TimerFn2
+        if Wait then
+          local WaitTimer = Table._WaitTimer
+          if WaitTimer == nil then
+
+            -- WaitTimer
+            function WaitTimer()
+              TimerFn(Table)
+              Animation:SetDuration(Delay)
+              AnimationGroup:Play()
+            end
+
+            Table._WaitTimer = WaitTimer
+          end
+          Delay = Delay2
+          C_TimerAfter(Wait < 0 and 0 or Wait, WaitTimer)
+        else
+          Animation:SetDuration(Delay2)
+          AnimationGroup:Play()
+        end
+      else
+        AnimationGroup:Stop()
+      end
     end
+
+    Table._SetTimer = SetTimer
   end
 
   if TimerFn then
 
     -- Start timer since a function was passed
-    Table.SetTimer(true, TimerFn, Delay, Wait)
+    SetTimer(true, TimerFn, Delay, Wait)
   else
 
     -- Stop timer since no function was passed.
-    Table.SetTimer(false)
+    SetTimer(false)
   end
 end
 

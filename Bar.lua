@@ -2659,7 +2659,6 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
 
   -- Only start a timer if startvalue and endvalues are not equal.
   if StartValue ~= EndValue and Duration > 0 then
-
     -- Set up the paramaters.
     local CurrentTime = GetTime()
     StartTime = StartTime and StartTime or CurrentTime
@@ -2720,7 +2719,7 @@ function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
   local SmoothTime = Texture.SmoothTime or 0
 
-  -- If smoothtime > 0 then fill the texture from its current value to new value.
+  -- If smoothtime > 0 then fill the texture from its current value to a new value.
   if SmoothTime > 0 then
     SetFillTime(Texture, TextureSmoothFillTime, nil, SmoothTime, nil, Value)
   else

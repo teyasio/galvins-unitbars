@@ -6155,7 +6155,7 @@ local function CreateTaggedColorOptions(Order, Name)
         type = 'toggle',
         name = 'Test',
         order = 11,
-        desc = 'Tagging is always on for testing',
+        desc = 'Tagging is always on. For testing',
       },
       Spacer100 = CreateSpacer(100),
       Reset = {
