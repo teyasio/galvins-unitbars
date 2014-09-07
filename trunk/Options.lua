@@ -45,6 +45,7 @@ local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameToo
       InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo
 local UnitReaction =
       UnitReaction
+
 -------------------------------------------------------------------------------
 -- Locals
 --
@@ -1511,13 +1512,20 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   -- Regular color for pet health or anticipation bar or eclipse bar
   if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or
      BarType == 'PetHealth' or BarType == 'AnticipationBar' and TableName == 'BarTime' or
-     BarType == 'EclipseBar' and  (TableName == 'BarMoon' or TableName == 'BarSun') then
+     BarType == 'EclipseBar' and  (TableName == 'BarMoon' or TableName == 'BarSun') or
+     strfind(BarType, 'Power') then
     GeneralArgs.Color = {
       type = 'color',
       name = 'Color',
       hasAlpha = true,
       order = 21,
     }
+    if UBD.General.UseBarColor ~= nil then
+      GeneralArgs.Color.disabled = function()
+
+                                     return not UBF.UnitBar.General.UseBarColor
+                                   end
+    end
   end
 
   -- Lunar and solar color for power.
@@ -4456,11 +4464,19 @@ local function CreateGeneralOptions(BarType, Order, Name)
   local GeneralArgs = GeneralOptions.args
 
   -- Health and power bar options.
+  if UBD.General.UseBarColor ~= nil then
+    GeneralArgs.UseBarColor = {
+      type = 'toggle',
+      name = 'Use Bar Color',
+      order = 1,
+      desc = 'Use bar color instead of power color',
+    }
+  end
   if UBD.General.PredictedHealth ~= nil then
     GeneralArgs.PredictedHealth = {
       type = 'toggle',
       name = 'Predicted Health',
-      order = 1,
+      order = 2,
       desc = 'Predicted health will be shown',
     }
   end
@@ -4468,7 +4484,7 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.PredictedPower = {
       type = 'toggle',
       name = 'Predicted Power',
-      order = 2,
+      order = 3,
       desc = 'Predicted power will be shown (Hunters Only)',
     }
   end
@@ -4476,7 +4492,7 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.ClassColor = {
       type = 'toggle',
       name = 'Class Color',
-      order = 3,
+      order = 4,
       desc = 'Show class color',
     }
   end
@@ -4484,7 +4500,7 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.CombatColor = {
       type = 'toggle',
       name = 'Combat Color',
-      order = 4,
+      order = 5,
       desc = 'Show combat color',
     }
   end
@@ -4492,7 +4508,7 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.TaggedColor = {
       type = 'toggle',
       name = 'Tagged Color',
-      order = 5,
+      order = 6,
       desc = 'Shows if the target is tagged by another player',
     }
   end

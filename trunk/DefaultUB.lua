@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 320
+GUB.DefaultUB.Version = 321
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -40,14 +40,16 @@ GUB.DefaultUB.Version = 320
 -- FadeOutTime            - Time in seconds before a bar completely goes hidden.
 -- FadeInTime             - Time in seconds before a bar completely becomes visible.
 -- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
+-- AuraListOn             - If true then the aura list utility is active.
+-- AuraListUnits          - String. Contains a list of units seperated by spaces for the aura utility to track.
 -- CombatClassColor       - If true thne then the combat colors will use player class colors.
--- ReputationCombatColor  - If true then the reputation colors will use player combat colors.
--- ReputationClassColor   - If true then the reputation colors will use player class colors.
+-- CombatTaggedColor      - If true then Tagged color will be used along with combat color.
 -- CombatColor            - Table containing the colors hostile, attack, friendly, flagged, none.
 -- PlayerCombatColor      - Same as CombatColor but for players only.
--- CombatTaggedColor      - If true then Tagged color will be used along with combat color.
 -- PowerColor             - Table containing the power colors, rage, focus, etc.  Set in Main.lua
 -- ClassColor             - Table containing the class colors.  Set in Main.lua
+-- TaggedTest             - If true then Tagged Color will always show the tagged color.
+-- TaggedColor            - Table containing the color for tagged units.
 -- Reset                  - Table containing the default settings for Reset found in General options.
 --
 --
@@ -293,6 +295,7 @@ GUB.DefaultUB.Default = {
     HighlightDraggedBar = false,
     AuraListOn = false,
     AuraListUnits = 'player',
+    ClassTaggedColor = false,
     CombatClassColor = false,
     CombatTaggedColor = false,
     CombatColor = {
@@ -308,7 +311,6 @@ GUB.DefaultUB.Default = {
     },
     TaggedTest = false,
     TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},  -- grey
-    ClassTaggedColor = false,
     Reset = {
       Minimize = false,
 
@@ -463,6 +465,7 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedPower = true,
+        UseBarColor = false,
       },
       Other = {
         Scale = 1,
@@ -490,6 +493,7 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
         PredictedBarTexture = DefaultStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
       },
       Text = {
@@ -679,6 +683,9 @@ GUB.DefaultUB.Default = {
         HideText = false,
         SmoothFill = 0,
       },
+      General = {
+        UseBarColor = false,
+      },
       Other = {
         Scale = 1,
         FrameStrata = 'MEDIUM',
@@ -704,6 +711,7 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
         _DC = 0,
@@ -892,6 +900,9 @@ GUB.DefaultUB.Default = {
         HideText = false,
         SmoothFill = 0,
       },
+      General = {
+        UseBarColor = false,
+      },
       Other = {
         Scale = 1,
         FrameStrata = 'MEDIUM',
@@ -917,6 +928,7 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
         _DC = 0,
@@ -1107,6 +1119,9 @@ GUB.DefaultUB.Default = {
         HideText = false,
         SmoothFill = 0,
       },
+      General = {
+        UseBarColor = false,
+      },
       Other = {
         Scale = 1,
         FrameStrata = 'MEDIUM',
@@ -1132,6 +1147,7 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
         _DC = 0,
@@ -1211,6 +1227,9 @@ GUB.DefaultUB.Default = {
         HideText = false,
         SmoothFill = 0,
       },
+      General = {
+        UseBarColor = false,
+      },
       Other = {
         Scale = 1,
         FrameStrata = 'MEDIUM',
@@ -1236,6 +1255,7 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
       },
       Text = {
         _DC = 0,
