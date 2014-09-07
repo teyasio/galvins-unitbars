@@ -29,10 +29,10 @@ local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
-local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP, UnitSelectionColor =
-      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP, UnitSelectionColor
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
       GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
 local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
@@ -372,8 +372,15 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
   local PredictedPower = Gen and Gen.PredictedPower and (self.PredictedPower or 0) or 0
+  local UseBarColor = Gen.UseBarColor or false
+  local r, g, b, a = 1, 1, 1, 1
 
-  local r, g, b, a = Main:GetPowerColor(Unit)
+  if UseBarColor then
+    local Color = Bar.Color
+    r, g, b, a = Color.r, Color.g, Color.b, Color.a
+  else
+    r, g, b, a = Main:GetPowerColor(Unit)
+  end
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
@@ -560,6 +567,10 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Layout', 'SmoothFill',  function(v) BBar:SetFillSmoothTimeTexture(1, StatusBar, v) end)
 
     if Gen then
+      if Gen.UseBarColor ~= nil then
+        BBar:SO('General', 'UseBarColor', function(v) self:Update() end)
+      end
+
       if Gen.PredictedHealth ~= nil then
         BBar:SO('General', 'PredictedHealth', function(v) self:Update() end)
       end
