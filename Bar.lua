@@ -2789,7 +2789,7 @@ function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration,
   local CooldownFrame = Texture.CooldownFrame
 
   CooldownFrame:SetDrawEdge(Line or false)
-  CooldownFrame:SetDrawBling(HideFlash)
+  CooldownFrame:SetDrawBling(not HideFlash)
 
   CooldownFrame:SetCooldown(StartTime or 0, Duration or 0)
 end
