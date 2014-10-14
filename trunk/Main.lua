@@ -63,8 +63,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter,  UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -1495,32 +1495,43 @@ function GUB.Main:SetTimer(Table, TimerFn, Delay, Wait)
 
       -- Create an animation Group timer if one doesn't exist.
       if AnimationGroup == nil then
+
+        -- Create OnLoop function
+        if Table._OnLoop == nil then
+          Table._OnLoop = function()
+            TimerFn(Table)
+          end
+        end
+
         AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
         Animation = AnimationGroup:CreateAnimation('Animation')
         Animation:SetOrder(1)
         AnimationGroup:SetLooping('REPEAT')
-
-        AnimationGroup:SetScript('OnLoop', function(self) TimerFn(Table) end)
       end
       if Start then
         TimerFn = TimerFn2
-        if Wait then
+        if Wait and Wait > 0 then
           local WaitTimer = Table._WaitTimer
           if WaitTimer == nil then
 
             -- WaitTimer
             function WaitTimer()
               TimerFn(Table)
+              AnimationGroup:Stop()
               Animation:SetDuration(Delay)
+              AnimationGroup:SetScript('OnLoop', Table._OnLoop)
               AnimationGroup:Play()
             end
 
             Table._WaitTimer = WaitTimer
           end
           Delay = Delay2
-          C_TimerAfter(Wait < 0 and 0 or Wait, WaitTimer)
+          Animation:SetDuration(Wait)
+          AnimationGroup:SetScript('OnLoop', WaitTimer)
+          AnimationGroup:Play()
         else
           Animation:SetDuration(Delay2)
+          AnimationGroup:SetScript('OnLoop', Table._OnLoop)
           AnimationGroup:Play()
         end
       else

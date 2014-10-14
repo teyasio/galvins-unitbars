@@ -35,8 +35,8 @@ local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirectio
       GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter,  UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local C_PetBattles, UIParent =
+      C_PetBattles, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals

@@ -139,10 +139,12 @@ local function LoadSpells()
 
           -- Scan tooltip for debuff/buff
           ScanTooltip:SetHyperlink(format(HyperLinkSt, SpellID))
+
+          IsAura = true
           for i = 1, ScanTooltip:NumLines() do
             local Text = ScanTooltip['TextLeft' .. i]
 
-            if Text then
+            if Text and false then
               local r, g, b = Text:GetTextColor()
 
               r = floor(r + 0.10)
