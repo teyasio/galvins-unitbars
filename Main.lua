@@ -160,6 +160,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.IsDead            - set by UnitBarsUpdateStatus()
 -- Main.HasTarget         - set by UnitBarsUpdateStatus()
 -- Main.TrackedAuras      - Set by SetAuraTracker()
+-- Main.IgnoreZeroHealth  - Set by UnitBarsUpdateStatus() when the player has zero health but is not dead.
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
@@ -615,6 +616,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UPDATE_SHAPESHIFT_FORM',        GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_OPENING_START',      GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_CLOSE',              GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'ZONE_CHANGED',                  GUB.UnitBarsUpdateStatus)
 
     -- These events will always be checked even if unit is not player.
     OtherEvents['UNIT_FACTION'] = 1
@@ -3605,6 +3607,11 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization()
 
+  -- Check for zero health if not dead.
+  if UnitHealth('player') == 0 and not IsDead then
+    Main.IgnoreZeroHealth = true
+  end
+
   Main.InCombat = InCombat
   Main.IsDead = IsDead
   Main.HasTarget = HasTarget
@@ -3630,6 +3637,10 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   for _, UBF in ipairs(UnitBarsFE) do
     UBF:StatusCheck()
     UBF:Update()
+  end
+
+  if Main.IgnoreZeroHealth then
+    Main.IgnoreZeroHealth = false
   end
 end
 

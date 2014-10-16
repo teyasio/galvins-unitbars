@@ -4325,7 +4325,7 @@ function BarDB:CreateTypeTriggers(GroupNumber, TypeID, Type, BarFunctionName, Bo
   -- Set up for sound.
   if BarFunctionName == 'PlaySound' then
     CustomFn = function(self, BoxNumber, Tpar, p1, p2)
-      if not Main.ProfileChanged and not Main.IsDead then
+      if not Main.ProfileChanged and not Main.IsDead and not Main.IgnoreZeroHealth then
         PlaySoundFile(LSM:Fetch('sound', p1), p2)
       end
     end
