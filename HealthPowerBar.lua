@@ -379,7 +379,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     local Color = Bar.Color
     r, g, b, a = Color.r, Color.g, Color.b, Color.a
   else
-    r, g, b, a = Main:GetPowerColor(Unit)
+    r, g, b, a = Main:GetPowerColor(Unit, PowerType)
   end
 
   if Main.UnitBars.Testing then

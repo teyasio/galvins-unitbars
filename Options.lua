@@ -3886,30 +3886,36 @@ local function CreateStatusOptions(BarType, Order, Name)
     order = 3,
     desc = "Hides the bar when you're dead",
   }
+  StatusArgs.HideNoTarget = {
+    type = 'toggle',
+    name = 'Hide no Target',
+    order = 4,
+    desc = 'Hides the bar when you have no target selected',
+  }
   StatusArgs.HideInVehicle = {
     type = 'toggle',
     name = 'Hide in Vehicle',
-    order = 4,
+    order = 5,
     desc = "Hides the bar when you're in a vehicle",
   }
   StatusArgs.HideInPetBattle = {
     type = 'toggle',
     name = 'Hide in Pet Battle',
-    order = 5,
+    order = 6,
     desc = "Hides the bar when you're in a pet battle",
   }
   if UBD.Status.HideNotActive ~= nil then
     StatusArgs.HideNotActive = {
       type = 'toggle',
       name = 'Hide not Active',
-      order = 6,
+      order = 7,
       desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
     }
   end
   StatusArgs.HideNoCombat = {
     type = 'toggle',
     name = 'Hide no Combat',
-    order = 7,
+    order = 8,
     desc = 'When not in combat the bar will be hidden',
   }
 
