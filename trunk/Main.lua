@@ -447,8 +447,6 @@ local EventSpellEnergize    = 3
 local EventSpellMissed      = 4
 local EventSpellFailed      = 5
 
-DUB.TargetHealth.BarVisible = function() return HasTarget end
-DUB.TargetPower.BarVisible  = function() return HasTarget end
 DUB.FocusHealth.BarVisible  = function() return HasFocus end
 DUB.FocusPower.BarVisible   = function() return HasFocus end
 DUB.PetHealth.BarVisible    = function() return HasPet end
@@ -457,7 +455,7 @@ DUB.ManaPower.BarVisible    = function()
                                 return  -- PlayerPowerType 0 is mana
                                   (PlayerClass == 'DRUID' or PlayerClass == 'MONK') and PlayerPowerType ~= 0
                               end
-DUB.ComboBar.BarVisible     = function() return HasTarget and PlayerClass == 'ROGUE' or
+DUB.ComboBar.BarVisible     = function() return PlayerClass == 'ROGUE' or
                                                 (PlayerClass == 'DRUID' and PlayerStance == CatForm or PlayerStance == nil) end
 DUB.EclipseBar.BarVisible   = function() return PlayerClass == 'DRUID' and (PlayerStance == MoonkinForm or PlayerStance == nil) end
 
@@ -795,14 +793,15 @@ local GetTaggedColor = Main.GetTaggedColor
 -- Returns the power color of a unit
 --
 -- Unit         Unit whos power color to be retrieved
+-- PowerType    Powertype of the unit.
 -- p2 .. p4     Dummy pars, not used
 -- r, g, b, a   If there is no power color, then these values get passed back
 --
 -- Returns:
 --   r, g, b, a     Power color
 -------------------------------------------------------------------------------
-function GUB.Main:GetPowerColor(Unit, p2, p3, p4, r, g, b, a)
-  local Color = UnitExists(Unit) and UnitBars.PowerColor[UnitPowerType(Unit)] or nil
+function GUB.Main:GetPowerColor(Unit, PowerType, p2, p3, p4, r, g, b, a)
+  local Color = UnitExists(Unit) and UnitBars.PowerColor[PowerType] or nil
 
   if Color then
     return Color.r, Color.g, Color.b, Color.a
@@ -2656,16 +2655,20 @@ function GUB.Main:StatusCheck(Event)
   local UB = self.UnitBar
   local Status = UB.Status
   local Visible = true
+  local Spec = nil
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
   if UB.Enabled then
 
-    -- Check to see if the bar has a HideNotUsable flag.
-    local HideNotUsable = Status.HideNotUsable or false
-    if HideNotUsable then
-      local Spec = UB.UsedByClass[PlayerClass]
+    -- Check if the right class is using this bar.
+    local UsedByClass = UB.UsedByClass
+    Spec = UsedByClass and UsedByClass[PlayerClass]
 
+    -- Check to see if the bar has a HideNotUsable flag.
+    local HideNotUsableRaw = Status.HideNotUsable
+    local HideNotUsable = HideNotUsableRaw or false
+    if HideNotUsable then
       Visible = false
 
       -- Check if class found, then check spec.
@@ -2682,13 +2685,15 @@ function GUB.Main:StatusCheck(Event)
         Visible = true
       end
 
-    -- Continue if show always if false.
+    -- Continue if show always is false.
     elseif not Status.ShowAlways then
 
       -- Check to see if the bar has an enable function and call it.
+      -- Only call if the right class is using the bar or there is
+      -- no if there is no Hide not Usable option.
       if Visible then
         local Fn = self.BarVisible
-        if Fn then
+        if Fn and (HideNotUsableRaw == nil or Spec) then
           Visible = Fn()
         end
       end
@@ -2697,6 +2702,10 @@ function GUB.Main:StatusCheck(Event)
 
         -- Hide if the HideWhenDead status is set.
         if IsDead and Status.HideWhenDead then
+          Visible = false
+
+        -- Hide if the player has no target.
+        elseif not HasTarget and Status.HideNoTarget then
           Visible = false
 
         -- Hide if in a vehicle if the HideInVehicle status is set
@@ -3871,7 +3880,7 @@ local function CreateUnitBar(UnitBarF, BarType)
     UnitBarF.Created = true
 
     -- Create the anchor frame.
-    local Anchor = CreateFrame('Frame', nil, UnitBarsParent)
+    local Anchor = CreateFrame('Frame', 'GUB-Anchor-' .. BarType, UnitBarsParent)
     Anchor:SetPoint('TOPLEFT', UB.x, UB.y)
     Anchor:SetSize(1, 1)
 
