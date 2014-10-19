@@ -121,7 +121,6 @@ HapFunction('StatusCheck', Main.StatusCheck)
 local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
   SpellID = abs(SpellID)
 
-  print('check spell', UnitBarF.BarType, SpellID, CastTime, Message)
   if Message == 'start' then
     local PredictedPower = PredictedSpellValue[SpellID]
 
