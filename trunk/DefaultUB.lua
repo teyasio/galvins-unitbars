@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 340
+GUB.DefaultUB.Version = 341
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3071,12 +3071,12 @@ one that you can set the location to.
 * Reset Defauls has been recoded as reset.  You can choose what parts of the bar to reset.
 * Options can not be opened during combat.  Having options opened during combat could cause a lua error.  With the test mode
 recode theres no need to have this.
-
-3.10 changes (warlords)
 * Combo bar is now only visible as a rogue or as a druid when in catform or no form.
 * Show Always flag added to Status.
-* Faction Colors added to the health bars.  Displays if you're hated, etc.
 * Tagged Color added to target health and focus health.  Shows if the target is tagged by another player.
+* Added Hide no Target flag
+* Anchors now have a name that appears when using /framestack
+* Hide not Usable fixed to show the bar if not checked if not the class for that bar.
 
 For a full list of changes go to http://www.curse.com/addons/wow/galvins-unitbars
 ]]
