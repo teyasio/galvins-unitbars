@@ -67,7 +67,7 @@ local C_PetBattles, UIParent =
 -- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
 --                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
-local MaxChiOrbs = 5
+local MaxChiOrbs = 6
 local Display = false
 local DoTriggers = false
 
@@ -173,7 +173,9 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   if NumOrbs ~= self.NumOrbs then
 
     -- Change the number of boxes in the bar.
-    BBar:SetHidden(MaxChiOrbs, nil, NumOrbs ~= MaxChiOrbs)
+    for OrbIndex = 5, MaxChiOrbs do
+      BBar:SetHidden(OrbIndex, nil, OrbIndex > NumOrbs)
+    end
 
     BBar:Display()
     self.NumOrbs = NumOrbs
