@@ -84,8 +84,8 @@ local OrbSBar = 10
 local OrbDarkTexture = 20
 local OrbLightTexture = 21
 
-local AnyOrbTrigger = 6
-local RegionTrigger = 7
+local AnyOrbTrigger = 7
+local RegionTrigger = 8
 local TGBoxNumber = 1
 local TGName = 2
 local TGValueTypes = 3
@@ -96,8 +96,9 @@ local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
   {3,  'Chi Orb 3',    VTs}, -- 3
   {4,  'Chi Orb 4',    VTs}, -- 4
   {5,  'Chi Orb 5',    VTs}, -- 5
-  {0,  'Any Chi Orb', {'boolean:Active', 'auras:Auras'}}, -- 6
-  {-1, 'Region',       VTs}, -- 7
+  {6,  'Chi Orb 6',    VTs}, -- 6
+  {0,  'Any Chi Orb', {'boolean:Active', 'auras:Auras'}}, -- 7
+  {-1, 'Region',       VTs}, -- 8
 }
 
 local ChiData = {
