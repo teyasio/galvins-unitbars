@@ -48,7 +48,6 @@ local C_PetBattles, UIParent =
 -- UnitBarF = UnitBarsF[]
 --
 -- UnitBarF.BBar         Contains the Health and power bar displayed on screen.
--- Display               Flag used to determin if a Display() call is needed.
 -- StatusBar             TextureNumber for Status Bar
 -- PredictedBar          TextureNumber for Predicted Bar
 -- StatusBars            Change Texture for Status Bar and Predicted Bar.
@@ -56,11 +55,9 @@ local C_PetBattles, UIParent =
 -- SpellCobraShot        Hunter Spells to track for predicted power.
 -- PredictedSpellValue   Predicted focus value based on the two above spells.
 -- SteadyFocusAura       Buff hunters get that adds bonus focus.
--- DoTriggers            True bypasses visible and isactive flags. If not nil then calls
---                       self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local Display = false
-local DoTriggers = false
+local Update = false
 
 local StatusBar = 1
 local PredictedBar = 2
@@ -87,6 +84,39 @@ local PredictedSpellValue = {
 
 -- Amount of focus that gets added on to SteadyShot.
 local SteadyFocusBonus = 3
+
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             1 },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        1,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         1 },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              1,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted)', PredictedBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted)',   PredictedBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local HealthVTs = {'whole', 'Health', 'percent', 'Health (percent)', 'whole', 'Predicted Health', 'auras', 'Auras'}
+local PowerVTs = {'whole', 'Power', 'percent', 'Power (percent)', 'whole', 'Predicted Power', 'auras', 'Auras'}
+
+local HealthGroups = { -- BoxNumber, Name, ValueTypes,
+  {1, '', HealthVTs, TD}, -- 1
+}
+local PowerGroups = { -- BoxNumber, Name, ValueTypes,
+  {1, '', PowerVTs, TD}, -- 1
+}
 
 -------------------------------------------------------------------------------
 -- HapFunction
@@ -491,99 +521,47 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
   if not BBar:OptionsSet() then
     BBar:SetTexture(1, PredictedBar, 'GUB EMPTY')
 
-    BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) self:Update() end)
+    BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) Update = true end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          local ValueTypes = nil
-
-          if strfind(BarType, 'Power') then
-            BBar:CreateGroupTriggers(1, 'whole:Power', 'percent:Power (percent)', 'whole:Predicted Power', 'auras:Auras')
-          else
-            BBar:CreateGroupTriggers(1, 'whole:Health', 'percent:Health (percent)', 'whole:Predicted Health', 'auras:Auras')
-          end
-
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,           TT.Type_BackgroundBorder,             'SetBackdropBorder', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor,      TT.Type_BackgroundBorderColor,        'SetBackdropBorderColor', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBackground,       TT.Type_BackgroundBackground,         'SetBackdrop', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundColor,            TT.Type_BackgroundColor,              'SetBackdropColor', 1, 1)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,                 TT.Type_BarTexture,                   'SetTexture', 1, StatusBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,                   TT.Type_BarColor,                     'SetColorTexture', 1, StatusBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,                 TT.Type_BarTexture .. ' (predicted)', 'SetTexture', 1, PredictedBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,                   TT.Type_BarColor .. ' (predicted)',   'SetColorTexture', 1, PredictedBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                      TT.Type_Sound,                        'PlaySound', 1)
-
-          -- Class Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-          -- Power Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-          -- Combat Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-          -- Tagged Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,      TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,            TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor,                   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (predicted)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
+      if strfind(BarType, 'Power') then
+        BBar:EnableTriggers(v, PowerGroups)
+      else
+        BBar:EnableTriggers(v, HealthGroups)
       end
+      Display = true
     end)
+
     BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
     BBar:SO('Layout', 'HideText',       function(v)
       if v then
         BBar:SetValueRawFont(1, nil, '')
       else
-        self:Update()
+        Update = true
       end
     end)
     BBar:SO('Layout', 'SmoothFill',  function(v) BBar:SetFillSmoothTimeTexture(1, StatusBar, v) end)
 
     if Gen then
       if Gen.UseBarColor ~= nil then
-        BBar:SO('General', 'UseBarColor', function(v) self:Update() end)
+        BBar:SO('General', 'UseBarColor', function(v) Update = true end)
       end
 
       if Gen.PredictedHealth ~= nil then
-        BBar:SO('General', 'PredictedHealth', function(v) self:Update() end)
+        BBar:SO('General', 'PredictedHealth', function(v) Update = true end)
       end
 
       if Gen.ClassColor ~= nil then
-        BBar:SO('General', 'ClassColor', function(v) self:Update() end)
+        BBar:SO('General', 'ClassColor', function(v) Update = true end)
       end
 
       if Gen.CombatColor ~= nil then
-        BBar:SO('General', 'CombatColor', function(v) self:Update() end)
+        BBar:SO('General', 'CombatColor', function(v) Update = true end)
       end
 
       if Gen.TaggedColor ~= nil then
-        BBar:SO('General', 'TaggedColor', function(v) self:Update() end)
+        BBar:SO('General', 'TaggedColor', function(v) Update = true end)
       end
     end
 
@@ -597,7 +575,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
           Main:SetSpellTracker(self, 'off')
         end
         self.PredictedPower = 0
-        self:Update()
+        Update = true
       end)
     end
 
@@ -626,13 +604,13 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end
 
     if Gen and Gen.FactionColor ~= nil then
-      BBar:SO('Bar', 'FactionColor',        function(v, UB) self:Update() end)
+      BBar:SO('Bar', 'FactionColor',        function(v, UB) Update = true end)
     end
 
     if UB.Bar.Color ~= nil then
-      BBar:SO('Bar', 'Color',               function(v) self:Update() end)
+      BBar:SO('Bar', 'Color',               function(v) Update = true end)
     end
-    BBar:SO('Bar', 'TaggedColor',           function(v, UB) self:Update() end)
+    BBar:SO('Bar', 'TaggedColor',           function(v, UB) Update = true end)
 
     BBar:SO('Bar', '_Size',                 function(v, UB) BBar:SetSizeTextureFrame(1, 1, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',               function(v) BBar:ChangeTexture(StatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -641,12 +619,12 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Update or Main.UnitBars.Testing then
+    self:Update()
+    Update = false
   end
 
-  if Display then
+  if Display or Main.UnitBars.Testing then
     BBar:Display()
     Display = false
   end
@@ -663,10 +641,6 @@ end)
 function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
-  local Names = {Trigger = {}}
-  local Trigger = Names.Trigger
-  local Name = UB.Name
-
   -- Create the health and predicted bar
   BBar:CreateTextureFrame(1, 1, 0)
     BBar:CreateTexture(1, 1, 'statusbar', 1, PredictedBar)
@@ -676,7 +650,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont(1, nil, PercentFn)
 
   -- Enable tooltip
-  BBar:SetTooltip(1, nil, Name)
+  BBar:SetTooltip(1, nil, UB.Name)
 
   -- Use setchange for both statusbars.
   BBar:SetChangeTexture(StatusBars, PredictedBar, StatusBar)
@@ -686,10 +660,6 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:ChangeTexture(StatusBars, 'SetHiddenTexture', 1, false)
   BBar:ChangeTexture(StatusBars, 'SetFillTexture', 1, 0)
 
-  Trigger[1] = Name
-  Trigger[2] = 'Predicted Value'
-
-  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

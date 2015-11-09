@@ -149,6 +149,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.LSM               - Reference to Lib Shared Media.
 -- Main.ProfileChanged    - If true then profile is currently being changed. This is set by SetUnitBars()
 -- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
+-- Main.Reset             - If true then a reset happened.  This is set by CreateResetOptions() in options.lua.
 -- Main.UnitBars          - Set by SharedData()
 -- Main.PlayerClass       - Set by SharedData()
 -- Main.PlayerPowerType   - Set by SharedData()
@@ -159,8 +160,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.InCombat          - set by UnitBarsUpdateStatus()
 -- Main.IsDead            - set by UnitBarsUpdateStatus()
 -- Main.HasTarget         - set by UnitBarsUpdateStatus()
--- Main.TrackedAuras      - Set by SetAuraTracker()
--- Main.IgnoreZeroHealth  - Set by UnitBarsUpdateStatus() when the player has zero health but is not dead.
+-- Main.TrackedAurasList  - Set by SetAuraTracker()
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
@@ -274,17 +274,22 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- Tracks all auras on different units and caches them.
 --
--- TrackedAuras              - Table containing which bar has auras and doubles as
---                             holding tank for spell IDs.
--- TrackedAurasUnitList      - List of all units in use by the auras.
+-- TrackedAurasOnUpdateFrame - Frame containing the onupdate for updating auras.
 --
--- TrackedAuras[Object]
---   Enabled                 - If true then events for this bar are turned off.
---   Units                   - Contains the units being used by this bar.
--- TrackedAuras[SpellID]
---   Stacks                  - Amount of stacks the aura has.
---   SourceUnits             - One or more units where the aura is on.
---                             if True then this aura is on that unit, otherwise false or nil.
+-- TrackedAuras[Object]      - Table containing which bar has auras.
+--   Enabled                 - If true then events for this bar are turned on.
+--   Units                   - Hash table of units for this object.
+--   Fn                      - Function to call for this objeect.
+
+-- TrackedAurasList.All      - Contains a list of all the spells not broken by unit.
+--   All[SpellID]            - Reference to SpellID below, but only used by Spell.lua
+--
+-- TrackedAurasList[Unit]    - Table of units containing the auras
+--   [SpellID]               - SpellID of each aura
+--      Active               - If true then aura is on the unit, otherwise its false.
+--      Own                  - If true then the player created this aura.
+--      Stacks               - Amount of stacks the aura has.
+--
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -479,8 +484,9 @@ local SpellTrackerMessage = {         -- These variables are blizzard globals. M
   [SPELL_FAILED_SPELL_IN_PROGRESS] = 1, -- SPELL_FAILED_SPELL_IN_PROGRESS
 }
 
+local TrackedAurasOnUpdateFrame = nil
 local TrackedAuras = nil
-local TrackedAurasUnitList = nil
+local TrackedAurasList = nil
 
 -- letter before ID is only to format the data here making it easier to read.
 local EquipmentSet = {
@@ -614,7 +620,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UPDATE_SHAPESHIFT_FORM',        GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_OPENING_START',      GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_CLOSE',              GUB.UnitBarsUpdateStatus)
-    Main:RegEvent(true, 'ZONE_CHANGED',                  GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'ZONE_CHANGED_NEW_AREA',         GUB.UnitBarsUpdateStatus)
 
     -- These events will always be checked even if unit is not player.
     OtherEvents['UNIT_FACTION'] = 1
@@ -680,6 +686,8 @@ end
 -- Event    Event to register
 -- Fn       Function to call when event fires.
 -- Units    1 or 2 units. The event only fires if its unit matches.
+--
+-- Notes:  To access the "Frame" from the calling function "Fn" use self.Frame
 -------------------------------------------------------------------------------
 function GUB.Main:RegEventFrame(Reg, Frame, Event, Fn, ...)
   if Reg then
@@ -714,49 +722,41 @@ end
 --
 -- Works like RegisterUnitEvent, except it can take more than 2 units.
 --
--- Usage: RegUnitEvent(true, Event, Fn, Table, Units)
+-- Usage: RegUnitEvent(true, Event, Fn, Units)
 --        RegUnitEvent(false, Event, Fn)
 --
 -- Reg      If true then event gets registered otherwise unregistered.
--- Table    This is passed back to Fn as self.Table
 -- Event    Event to register
 -- Fn       Function to call when event fires
 --
--- Units    1 or more units.
+-- Units    1 or more units. Must have at least one unit.
 --          If units is nil, then it will register the event with
 --          all the existing units.
---
--- Notes: if no units are specified then it uses RegisterEvent
---        This was made for Aura Tracking.
---        Fn gets passed self.Table, self.Fn
 -------------------------------------------------------------------------------
-local function RegUnitEvent(Reg, Event, Fn, Table, ...)
+local function RegUnitEvent(Reg, Event, Fn, ...)
+
   local SubFrames = RegUnitEventFrames[Fn]
 
   if Reg then
-    if ... then
-      -- Create sub frames for units.
-      if SubFrames == nil then
-        SubFrames = {}
-        RegUnitEventFrames[Fn] = SubFrames
-      end
-
-      -- Register events
-      if Reg then
-        for Index = 1, select('#', ...) do
-          local Unit = select(Index, ...)
-          local Frame = SubFrames[Unit]
-
-          if Frame == nil then
-            Frame = CreateFrame('Frame')
-            SubFrames[Unit] = Frame
-          end
-          Frame.Table = Table
-          Frame:RegisterUnitEvent(Event, Unit)
-          Frame:SetScript('OnEvent', Fn)
-        end
-      end
+    -- Create sub frames for units.
+    if SubFrames == nil then
+      SubFrames = {}
+      RegUnitEventFrames[Fn] = SubFrames
     end
+
+    -- Register events
+    for Index = 1, select('#', ...) do
+      local Unit = select(Index, ...)
+      local Frame = SubFrames[Unit]
+
+      if Frame == nil then
+        Frame = CreateFrame('Frame')
+        SubFrames[Unit] = Frame
+      end
+      Frame:RegisterUnitEvent(Event, Unit)
+      Frame:SetScript('OnEvent', Fn)
+    end
+
   elseif SubFrames then
     for Unit, Frame in pairs(SubFrames) do
       Frame:UnregisterEvent(Event)
@@ -777,6 +777,7 @@ end
 --   r, g, b, a     Power color
 -------------------------------------------------------------------------------
 function GUB.Main:GetTaggedColor(Unit, p2, p3, p4, r, g, b, a)
+  Unit = Unit or ''
   if UnitExists(Unit) and UnitBars.TaggedTest or not UnitPlayerControlled(Unit) and UnitIsTapped(Unit) and not UnitIsTappedByPlayer(Unit) and not UnitIsTappedByAllThreatList(Unit) then
     local Color = UnitBars.TaggedColor
 
@@ -793,15 +794,21 @@ local GetTaggedColor = Main.GetTaggedColor
 -- Returns the power color of a unit
 --
 -- Unit         Unit whos power color to be retrieved
--- PowerType    Powertype of the unit.
--- p2 .. p4     Dummy pars, not used
+-- PowerType    Powertype of the unit. If nil uses the current power type of the unit.
+-- p3 .. p4     Dummy pars, not used
 -- r, g, b, a   If there is no power color, then these values get passed back
 --
 -- Returns:
 --   r, g, b, a     Power color
 -------------------------------------------------------------------------------
-function GUB.Main:GetPowerColor(Unit, PowerType, p2, p3, p4, r, g, b, a)
-  local Color = UnitExists(Unit) and UnitBars.PowerColor[PowerType] or nil
+function GUB.Main:GetPowerColor(Unit, PowerType, p3, p4, r, g, b, a)
+  local Color = nil
+
+  Unit = Unit or ''
+  if UnitExists(Unit) then
+    PowerType = PowerType or UnitPowerType(Unit)
+    Color = UnitBars.PowerColor[PowerType] or nil
+  end
 
   if Color then
     return Color.r, Color.g, Color.b, Color.a
@@ -823,6 +830,7 @@ end
 --   r, g, b, a     Class color
 -------------------------------------------------------------------------------
 function GUB.Main:GetClassColor(Unit, p2, p3, p4, r, g, b, a)
+  Unit = Unit or ''
   if UnitExists(Unit) then
     local ClassColor = UnitBars.ClassColor
     local _, Class = UnitClass(Unit)
@@ -857,6 +865,7 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
   local r, g, b, a = 1, 1, 1, 1
   local Color = nil
 
+  Unit = Unit or ''
   if UnitExists(Unit) then
     if UnitPlayerControlled(Unit) then
       local PlayerCombatColor = UnitBars.PlayerCombatColor
@@ -946,7 +955,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     MessageBox:SetFrameStrata('TOOLTIP')
 
     -- Create the scroll frame.
-    -- This is a window that shows a smaller part of the contenframe.
+    -- This is a window that shows a smaller part of the contentframe.
     local ScrollFrame = CreateFrame('ScrollFrame', nil, MessageBox)
     ScrollFrame:SetPoint('TOPLEFT', 15, -15)
     ScrollFrame:SetPoint('BOTTOMRIGHT', -30, 44)
@@ -962,6 +971,8 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
       FontString:SetJustifyH('LEFT')
       FontString:SetJustifyV('TOP')
       MessageBox.FontString = FontString
+
+    ScrollFrame:SetScrollChild(ContentFrame)
 
     -- Create the scroller that appears on the message box.
     local Scroller = CreateFrame('slider', nil, ScrollFrame, 'UIPanelScrollBarTemplate')
@@ -988,7 +999,12 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     OkButton:SetText('Okay')
     MessageBox.OkButton = OkButton
 
-    ScrollFrame:SetScrollChild(ContentFrame)
+    -- Add scroll wheel
+    MessageBox:SetScript('OnMouseWheel', function(self, Dir)
+                                           local Scroller = self.Scroller
+
+                                           Scroller:SetValue(Scroller:GetValue() + ( 17 * Dir * -1))
+                                         end)
   end
 
   -- Set the size of the content frame based on text
@@ -1012,7 +1028,7 @@ end
 -------------------------------------------------------------------------------
 -- StringSplit
 --
--- Splits a string and returns it as paramaters. Removes any extra spaces.
+-- Splits and trims a string and returns it as paramaters. Removes any extra spaces.
 --
 -- Sep       Separator
 -- St        String to split
@@ -1054,12 +1070,15 @@ end
 -- ConvertUBData
 --   Action
 --     remove         Remove a table that matches Key
---     copy           Copy a value from Source to Dest
---     move           Move a value from source to Dest
+--     copy           Copy a value from Source to Dest. Keys is the name of the value being copied.
+--     move           Move a value from source to Dest. Keys is thje name of the value being moved.
 --     movetable      Move a sub table from Source to Dest.  Keys is the subtable.
 --     custom         Calls ConvertCustom to make changes.
 --
---   []               Array of Keys.
+--   Source           Table to look in.  If not specified then uses the root of the table.
+--   Dest             Table to look in.  If not specified then uses the root of the table.
+--
+--   []               Array of Keys.  Keys are searched for inside of source.
 --     Key            If action is movetable then the key is the sub table to move.
 --                    The key only needs to partially match the key found in unitbars[BarType]
 --                    A key can have three different prefixes:
@@ -1073,76 +1092,214 @@ end
 --
 -- NOTES: copy, move, movetable.  These keys must not exist in the default profile.
 --        custom.  These keys can exist in the default profile.
+--        When a table is empty cause everything was removed or moved out of it'll then be deleted.
 -------------------------------------------------------------------------------
-local function ConvertCustom(BarType, SourceUB, DestUB, SourceKey, DestKey)
-  if BarType == 'RuneBar' then
+local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
+  if Ver < 3 then
+    if BarType == 'RuneBar' then
 
-    -- Convert RuneBarOrder to BoxOrder, then delete RuneBarOrder
-    if SourceKey == 'RuneBarOrder' then
-      local BoxOrder = DestUB.BoxOrder
+      -- Convert RuneBarOrder to BoxOrder, then delete RuneBarOrder
+      if SourceKey == 'RuneBarOrder' then
+        local BoxOrder = DestUB.BoxOrder
 
-      for k, v in pairs(SourceUB.RuneBarOrder) do
-        BoxOrder[k] = v
+        for k, v in pairs(SourceUB.RuneBarOrder) do
+          BoxOrder[k] = v
+        end
+        SourceUB.RuneBarOrder = nil
+
+      -- Convert RuneLocation to BoxLocations, then delete RuneLocation
+      elseif SourceKey == 'RuneLocation' then
+        local BoxLocations = {}
+
+        for k, v in pairs(SourceUB.RuneLocation) do
+          local BL = {}
+          local x, y = v.x, v.y
+
+          x = x == '' and 0 or x
+          y = y == '' and 0 or y
+          BL.x, BL.y = x, y
+          BoxLocations[k] = BL
+        end
+        DestUB.BoxLocations = BoxLocations
+        SourceUB.RuneLocation = nil
+
+      -- Convert RuneSize into TextureScale, then remove RuneSize
+      elseif SourceKey == 'RuneSize' then
+        local TextureScale = SourceUB.RuneSize / 22
+        DestUB.TextureScale = TextureScale - TextureScale % 0.01
+        SourceUB.RuneSize = nil
+
+      -- Convert rune mode and energize show
+      elseif SourceKey == 'RuneMode' or SourceKey == 'EnergizeShow' then
+        local Mode = SourceUB[SourceKey]
+
+        if Mode == 'cooldownbar' then
+          Mode = 'bar'
+        elseif Mode == 'runecooldownbar' then
+          Mode = 'runebar'
+        end
+        SourceUB[SourceKey] = Mode
       end
-      SourceUB.RuneBarOrder = nil
-
-    -- Convert RuneLocation to BoxLocations, then delete RuneLocation
-    elseif SourceKey == 'RuneLocation' then
-      local BoxLocations = {}
-
-      for k, v in pairs(SourceUB.RuneLocation) do
-        local BL = {}
-        local x, y = v.x, v.y
-
-        x = x == '' and 0 or x
-        y = y == '' and 0 or y
-        BL.x, BL.y = x, y
-        BoxLocations[k] = BL
-      end
-      DestUB.BoxLocations = BoxLocations
-      SourceUB.RuneLocation = nil
-
-    -- Convert RuneSize into TextureScale, then remove RuneSize
-    elseif SourceKey == 'RuneSize' then
-      local TextureScale = SourceUB.RuneSize / 22
-      DestUB.TextureScale = TextureScale - TextureScale % 0.01
-      SourceUB.RuneSize = nil
-
-    -- Convert rune mode and energize show
-    elseif SourceKey == 'RuneMode' or SourceKey == 'EnergizeShow' then
-      local Mode = SourceUB[SourceKey]
-
-      if Mode == 'cooldownbar' then
-        Mode = 'bar'
-      elseif Mode == 'runecooldownbar' then
-        Mode = 'runebar'
-      end
-      SourceUB[SourceKey] = Mode
     end
-  end
-  if BarType == 'EclipseBar' then
-    if SourceUB.IndicatorHideShow == 'none' then
-      SourceUB.IndicatorHideShow = 'auto'
+    if BarType == 'EclipseBar' then
+      if SourceUB.IndicatorHideShow == 'none' then
+        SourceUB.IndicatorHideShow = 'auto'
+      end
     end
-  end
-  if SourceKey == 'Text' then
-    local Text = SourceUB.Text
-    for Index = 1, #Text do
-      local TS = Text[Index]
-      local ValueName = TS.ValueName
-      local ValueType = TS.ValueType
+    if SourceKey == 'Text' then
+      local Text = SourceUB.Text
+      for Index = 1, #Text do
+        local TS = Text[Index]
+        local ValueName = TS.ValueName
+        local ValueType = TS.ValueType
 
-      for ValueIndex = 1, #ValueName do
-        local VName = ValueName[ValueIndex]
-        local VType = ValueType[ValueIndex]
+        for ValueIndex = 1, #ValueName do
+          local VName = ValueName[ValueIndex]
+          local VType = ValueType[ValueIndex]
 
-        if VName == 'unitname' or VName == 'realmname' or VName == 'unitnamerealm' then
-          ValueName[ValueIndex] = 'name'
-          ValueType[ValueIndex] = VName
-        elseif VType == 'plain' then
-          ValueType[ValueIndex] = 'whole'
+          if VName == 'unitname' or VName == 'realmname' or VName == 'unitnamerealm' then
+            ValueName[ValueIndex] = 'name'
+            ValueType[ValueIndex] = VName
+          elseif VType == 'plain' then
+            ValueType[ValueIndex] = 'whole'
+          end
         end
       end
+    end
+  elseif Ver == 3 then
+    if SourceKey == 'Triggers' then -- triggers
+      local Triggers = SourceUB.Triggers
+
+      for Index, Trigger in ipairs(SourceUB.Triggers) do
+
+        -- Convert auras to the new format.
+        local Auras = Trigger.Auras
+        if Auras then
+          for _, Aura in pairs(Auras) do
+            local Units = Aura.Units
+            local St = 'player'
+
+            if Units then
+              -- Convert table into a string
+              St = ''
+              for Unit, _ in pairs(Units) do
+                St = St .. Unit .. ' '
+              end
+              if St == '' then
+                St = 'player'
+              end
+            end
+            -- Remove table and add unit
+            Aura.Units = nil
+            Aura.Unit = strtrim(St)
+
+            -- Convert cast by player
+            if Aura.CastByPlayer then
+              Aura.Own = Aura.CastByPlayer
+              Aura.CastByPlayer = nil
+            else
+              Aura.Own = false
+            end
+            -- Convert StackCondition in to StackOperator
+            Aura.StackOperator = Aura.StackCondition or '>='
+            Aura.StackCondition = nil
+          end
+
+          if Trigger.Condition ~= 'static' then
+            Trigger.AuraOperator = Trigger.Condition
+          else
+            Trigger.AuraOperator = 'or'
+          end
+        else
+          Trigger.AuraOperator = 'or'
+        end
+        -- Convert static to new format.
+        local Condition = Trigger.Condition or '>'
+        local Value = Trigger.Value
+
+        if Condition == 'static' then
+          Trigger.Static = true
+          Condition = '>'
+        else
+          Trigger.Static = false
+          if Condition == 'or' or Condition == 'and' then
+            Condition = '>'
+          end
+        end
+        -- Convert boolean to state
+        if Trigger.ValueTypeID == 'boolean' then
+          Trigger.State = tonumber(Value) == 1
+          Condition = '>'
+          Value = 0
+        else
+          Trigger.State = true
+        end
+        local Pars = Trigger.Pars
+        local GetPars = Trigger.GetPars
+
+        if Pars == nil then
+          Pars = {}
+          Trigger.Pars = Pars
+        end
+        if GetPars == nil then
+          GetPars = {}
+          Trigger.GetPars = GetPars
+        end
+
+        -- Convert GetPars and Pars empty strings to nil
+        for Index = 1, 4 do
+          local Par = Pars[Index]
+          local GetPar = GetPars[Index]
+
+          if type(Par) == 'string' then
+            Par = strtrim(Par)
+            if Par == '' then
+              Par = nil
+            end
+          end
+          if type(GetPar) == 'string' then
+            GetPar = strtrim(GetPar)
+            if GetPar == '' then
+              GetPar = nil
+            end
+          end
+          Pars[Index] = Par
+          GetPars[Index] = GetPar
+        end
+
+        Trigger.Action = {Type = 1}
+
+        -- Convert Condition in to Conditions
+        Trigger.Conditions = { All = false, {Operator = Condition, Value = Value} }
+        Trigger.Condition = nil
+        Trigger.Value = nil
+
+        if BarType == 'DemonicBar' then
+          local ValueType = Trigger.ValueType
+          local GroupNumber = 1
+
+          if strfind(ValueType, 'normal') then
+            GroupNumber = 1
+          elseif strfind(ValueType, 'meta') then
+            GroupNumber = 2
+
+            if ValueType == 'metamorphosis' then
+              local Condition = Trigger.Conditions[1]
+
+              Trigger.ValueTypeID = 'whole'
+              Condition.Operator = '>'
+              Condition.Value = 0
+            end
+          elseif strfind(ValueType, 'both') then
+            GroupNumber = 3
+          end
+
+          Trigger.GroupNumber = GroupNumber
+        end
+      end
+
+      -- Remove action.
+      Triggers.Action = nil
     end
   end
 end
@@ -1215,6 +1372,10 @@ local function ConvertUnitBarData(Ver)
                                                                                                      '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
   }
 
+  local ConvertUBData3 = {
+    {Action = 'custom',    Source = '', '=Triggers'},
+  }
+
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
 
@@ -1225,6 +1386,8 @@ local function ConvertUnitBarData(Ver)
     end
   elseif Ver == 2 then -- For version 210 or lower.
     ConvertUBData = ConvertUBData2
+  elseif Ver == 3 then -- For version 350 or lower.
+    ConvertUBData = ConvertUBData3
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1282,7 +1445,7 @@ local function ConvertUnitBarData(Ver)
             local KeyFound = KeysFound[Index]
 
             if Action == 'custom' then
-              local ReturnOK, Msg = pcall(ConvertCustom, BarType, SourceUB, DestUB, SourceKey, DestKey)
+              local ReturnOK, Msg = pcall(ConvertCustom, Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
 
               if not ReturnOK then
                 print('ERROR (custom): Report message to author')
@@ -1629,7 +1792,7 @@ end
 --
 -- Checks to see if one or more auras are active
 --
--- Condition    - 'a' and.
+-- Operator     - 'a' and.
 --                   All auras must be found.
 --                'o' or.
 --                   Only one of the auras need to be found.
@@ -1644,7 +1807,7 @@ end
 --                  This only gets returned when using the 'o' option.
 --   Stacks       - Number of stacks of the buff gets returned when using the 'o' option.
 -------------------------------------------------------------------------------
-function GUB.Main:CheckAura(Condition, ...)
+function GUB.Main:CheckAura(Operator, ...)
   local Name = nil
   local SpellID = 0
   local MaxSpellID = select('#', ...)
@@ -1664,7 +1827,7 @@ function GUB.Main:CheckAura(Condition, ...)
       end
 
       -- When using the 'o' option then return on the first found aura.
-      if Condition == 'o' and Found > 0 then
+      if Operator == 'o' and Found > 0 then
         if ExpiresIn == 0 then
           return SpellID, -1, Stacks
         else
@@ -1674,7 +1837,7 @@ function GUB.Main:CheckAura(Condition, ...)
     end
     AuraIndex = AuraIndex + 1
   until Name == nil or Found == MaxSpellID
-  if Condition == 'a' then
+  if Operator == 'a' then
     return Found == MaxSpellID
   end
 end
@@ -1852,21 +2015,24 @@ end
 --        SetAuraTracker(Object, 'unregister' or 'register')
 --        SetAuraTracker('reset')
 --
--- Object         Name, table, etc to assign aura tracker to.
+-- Object         The table, string, etc to assign the aura tracker to.
 -- Fn             Turns on aura tracking and calls Fn when auras change.
 --                Function to call for this unitbar.
---                  Fn gets called with (TrackedAuras, Unit)
+--                  Fn gets called with (TrackedAurasList) from AuraUpdate()
 -- 'off'          Turns off all auratracking for this bar
 -- Units          List of units to add.  If nil then units are removed for this bar.
 -- 'reset'        Clears all units and turns off all events for all bars.
 -------------------------------------------------------------------------------
 local function EventUpdateAura(self, Event, Unit)
-  Main:AuraUpdate(nil, Unit)
+  Main:AuraUpdate()
 end
 
 function GUB.Main:SetAuraTracker(Object, Action, ...)
+  local RefreshAuraList = false
+
   if Object == 'reset' then
     TrackedAuras = nil
+    TrackedAurasList = nil
   else
     local TrackedAura = TrackedAuras and TrackedAuras[Object] or nil
 
@@ -1874,7 +2040,6 @@ function GUB.Main:SetAuraTracker(Object, Action, ...)
     if Action == 'fn' then
       if TrackedAuras == nil then
         TrackedAuras = {}
-        TrackedAurasUnitList = {}
       end
 
       if TrackedAura == nil then
@@ -1885,9 +2050,10 @@ function GUB.Main:SetAuraTracker(Object, Action, ...)
       TrackedAura.Fn = select(1, ...)
       return
 
-    -- Turn off aura tracking for this bar
+    -- Turn off aura tracking for this object
     elseif TrackedAuras and Action == 'off' then
       TrackedAuras[Object] = nil
+      RefreshAuraList = true
     end
 
     -- Register or unregister.
@@ -1895,58 +2061,83 @@ function GUB.Main:SetAuraTracker(Object, Action, ...)
       TrackedAura.Enabled = Action == 'register'
 
     elseif Action == 'units' then
-      -- Erase all units for this unitbar
-      if TrackedAura.Units then
-        TrackedAura.Units = nil
+      RefreshAuraList = true
+      if TrackedAurasList == nil then
+        TrackedAurasList = {All = {} }
       end
 
-      -- Add units
-      if ... then
-        local Units = {}
+      -- Add units to the object
+      local Units = {}
+      TrackedAura.Units = Units
 
-        TrackedAuras[Object].Units = Units
+      if ... then
         for Index = 1, select('#', ...) do
           local Unit = select(Index, ...)
-          Units[Unit] = true
+
+          if Unit ~= 'All' then
+            Units[Unit] = 1
+          end
+        end
+      end
+    end
+    if RefreshAuraList and TrackedAurasList then
+      local AllUnits = {}
+
+      for _, TrackedAura in pairs(TrackedAuras) do
+        local Units = TrackedAura.Units
+
+        if Units then
+          for Unit, _ in pairs(Units) do
+            AllUnits[Unit] = 1
+            if TrackedAurasList[Unit] == nil then
+              TrackedAurasList[Unit] = {}
+            end
+          end
+        end
+      end
+
+      for Unit, _ in pairs(TrackedAurasList) do
+        if Unit ~= 'All' then
+          if AllUnits[Unit] == nil then
+            TrackedAurasList[Unit] = nil
+          end
         end
       end
     end
   end
 
   RegUnitEvent(false, 'UNIT_AURA', EventUpdateAura)
-  TrackedAurasUnitList = nil
 
-  -- Register any events for each unit found in any bar.
-  -- Skip any bar that is currently inactive.
-  if TrackedAuras then
-    local TrackedAurasFound = false
-    for Obj, TrackedAura in pairs(TrackedAuras) do
+  local EventRegistered = false
 
-      -- Make sure we dont get a spellID table.
-      if type(TrackedAura) == 'table' and type(Obj) ~= 'number' then
-        TrackedAurasFound = true
-        if TrackedAura.Enabled then
-          local Units = TrackedAura.Units
+  -- Only register events if the tracked auras list table is not empty.
+  if TrackedAurasList and TrackedAuras and next(TrackedAuras) then
 
-          if Units then
-            if TrackedAurasUnitList == nil then
-              TrackedAurasUnitList = {}
-            end
-            for Unit, _ in pairs(Units) do
-              RegUnitEvent(true, 'UNIT_AURA', EventUpdateAura, nil, Unit)
-              TrackedAurasUnitList[Unit] = true
-            end
+    -- Reg events for any enabled units.
+    for Object, TrackedAura in pairs(TrackedAuras) do
+      if TrackedAura.Enabled then
+        local Units = TrackedAura.Units
+
+        if Units then
+          for _, Unit in pairs(Units) do
+            RegUnitEvent(true, 'UNIT_AURA', EventUpdateAura, Unit)
+            EventRegistered = true
           end
         end
       end
     end
-    -- update all bars with aura info
-    if TrackedAurasFound then
+
+    -- Refresh auras for anything listening to auras.
+    if EventRegistered then
       Main:AuraUpdate()
     end
   end
+  Main.TrackedAurasList = TrackedAurasList
 
-  Main.TrackedAuras = TrackedAuras
+  -- Update aura options
+  if RefreshAuraList then
+    Options:UpdateAuras()
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -1988,6 +2179,9 @@ function GUB.Main:ListTable(Table, Path, Exclude)
         local _, Address = strsplit(' ', tostring(k), 2)
 
         print(Path .. '.' .. Address .. ' = ', v)
+
+      elseif type(v) == 'boolean' then
+        print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
       else
         print(Path .. '.' .. kst .. ' = ', v)
       end
@@ -2038,17 +2232,18 @@ end
 --
 -- Gets a value or a table from a table based on BarType
 --
--- BarType      Type of bar to copy
+-- BarType      Type of bar to search.
 -- TablePath    String delimited by a '.'  Example 'table.1' = table[1] or 'table.subtable' = table['subtable']
 -- Table        If not nil then this table will be searched instead.  Must have a unitbar table format.
 --
 -- Returns:
 --   Value        Table or value returned
 --   DC           If true then a _DC tag was found. _DC tag is only searched in default unitbars.
---   Array        True if '#' is found after the last table in the path.
 --
 -- Notes:  If nil is found at anytime then a nil is returned.
 --         If TablePath is '' or nil then UnitBars[BarType] is returned.
+--         If '#' is at the end then then an array has to be found.  If found then
+--         The array table is returned.  If the array is empty then a nil value is returned.
 -------------------------------------------------------------------------------
 function GUB.Main:GetUB(BarType, TablePath, Table)
   local Value = Table and Table[BarType] or UnitBars[BarType]
@@ -2079,10 +2274,12 @@ function GUB.Main:GetUB(BarType, TablePath, Table)
 
       if type(Value) ~= 'table' then
         break
-      else
-        if TablePath == '#' then
-          TablePath = nil
-          Array = true
+
+      -- Check if theres array elements
+      elseif TablePath == '#' then
+        TablePath = nil
+        if #Value == 0 then
+          Value = nil
         end
       end
     else
@@ -2090,7 +2287,7 @@ function GUB.Main:GetUB(BarType, TablePath, Table)
     end
   end
 
-  return Value, DC, Array
+  return Value, DC
 end
 
 -------------------------------------------------------------------------------
@@ -2187,7 +2384,7 @@ end
 -------------------------------------------------------------------------------
 -- CopyMissingTableValues
 --
--- Copies the values that exist in the source but not in the destination.
+-- Copies the values that exist in the source but do not exist in the destination.
 -- Array indexes are skipped.
 --
 -- Source    The source table you're copying data from.
@@ -2227,8 +2424,6 @@ end
 -- Source            BarType
 -- Dest              BarType
 -- SourceTablePath   Path leading to the table or value to copy for source
---                   Source path can have a '#' at the end to copy Array
---                   index only.
 -- DestTablePath     Path leading to the table or value to copy for destination
 --
 -- NOTE:  If the _DC tag is found anywhere along the tablepath then a deep
@@ -2236,11 +2431,11 @@ end
 --        If path is not found in either source or dest no copy is done.
 -------------------------------------------------------------------------------
 function GUB.Main:CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
-  local Source, SourceDC, Array = Main:GetUB(Source, SourceTablePath)
+  local Source, SourceDC = Main:GetUB(Source, SourceTablePath)
   local Dest, DestDC = Main:GetUB(Dest, DestTablePath)
 
   if Source and Dest then
-    Main:CopyTableValues(Source, Dest, SourceDC and DestDC, Array)
+    Main:CopyTableValues(Source, Dest, SourceDC and DestDC)
   end
 end
 
@@ -3492,93 +3687,105 @@ end
 --
 -- Gets called when ever an aura changes on a unit.
 --
--- Object        If Object specified then uses TrackedAuras[Object]
---                 Nothing happens if Object is not found.
---               If object is nil then all bars get updated.
--- Unit          Unit to scan for auras. If unit is nil then all units are used.
---               Fn is called once for each unit.
+-- Object        If specified then uses TrackedAuras[Object]
+--               If nil all objects get updated.
 -------------------------------------------------------------------------------
-function GUB.Main:AuraUpdate(Object, Unit)
-  if TrackedAuras then
-    local Name = nil
-    local Stacks = nil
-    local SpellID = nil
-    local CastByPlayer = nil
-    local AuraUnit = nil
-    local LastUnit = false
-    local TrackedAura = nil
-    local UnitList = TrackedAurasUnitList
+local function OnUpdateAuraUpdate(self)
+  local BarCount = self.BarCount
+  local Object = self.Object
 
-    -- Object is not then use that objects unit list.
+  if TrackedAuras then
+    local TrackedAura = nil
+
+    -- Find the next UnitBar
+    Object, TrackedAura = next(TrackedAuras, Object)
+
+    if Object then
+      BarCount = BarCount + 1
+      if TrackedAura.Enabled then
+        TrackedAura.Fn(TrackedAurasList)
+      end
+    else
+      BarCount = 0
+    end
+  end
+
+  -- Check for end
+  if TrackedAuras == nil or BarCount == self.BarStop then
+    BarCount = 0
+    Object = nil
+    self.BarStop = 0
+    self:SetScript('OnUpdate', nil)
+  end
+
+  self.BarCount = BarCount
+  self.Object = Object
+end
+
+function GUB.Main:AuraUpdate(Object)
+  if TrackedAuras and TrackedAurasList then
+    local TrackedAura = nil
+    local All = TrackedAurasList.All
+
+    -- If Object is specified then just update the object instantly.
     if Object then
       TrackedAura = TrackedAuras[Object]
 
-      -- Return no trackedaura found
-      if TrackedAura == nil then
+      -- Return no trackedaura found or not enabled
+      if TrackedAura == nil or not TrackedAura.Enabled then
         return
       end
-      UnitList = TrackedAura.Units
     end
 
     -- Reset source unit status
-    for SpellID, TrackedAura in pairs(TrackedAuras) do
-      if type(SpellID) == 'number' then
-        TrackedAura.Stacks = 0
-        TrackedAura.CastByPlayer = false
-        local SourceUnits = TrackedAura.SourceUnits
-
-        if SourceUnits then
-          for SourceUnit, _ in pairs(SourceUnits) do
-            SourceUnits[SourceUnit] = false
-          end
-        end
+    for Unit, Auras in pairs(TrackedAurasList) do
+      for SpellID, Aura in pairs(Auras) do
+        Aura.Active = false
+        Aura.Stacks = 0
       end
     end
 
-    while not LastUnit do
-      if Unit == nil then
-        AuraUnit = next(UnitList, AuraUnit)
-        LastUnit = AuraUnit == nil
-      else
-        AuraUnit = Unit
-        LastUnit = true
-      end
-      if AuraUnit then
-        local AuraIndex = 1
+    for Unit, Auras in pairs(TrackedAurasList) do
+      local AuraIndex = 1
 
-        repeat
-          Name, _, _, Stacks, _, _, _, _, _, _, SpellID, _, _, CastByPlayer = UnitAura(AuraUnit, AuraIndex)
-          if Name then
-            local TrackedAura = TrackedAuras[SpellID]
-            if TrackedAura == nil then
-              TrackedAura = {}
-              TrackedAuras[SpellID] = TrackedAura
-            end
+      repeat
+        local Name, _, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HELPFUL')
+        if Name == nil then
+          Name, _, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HARMFUL')
+        end
+        if Name then
+          local Aura = Auras[SpellID]
 
-            local SourceUnits = TrackedAura.SourceUnits
-            if SourceUnits == nil then
-              SourceUnits = {}
-              TrackedAura.SourceUnits = SourceUnits
-            end
-
-            if Stacks >= (TrackedAura.Stacks or 0) then
-              TrackedAura.Stacks = Stacks
-            end
-            TrackedAura.CastByPlayer = CastByPlayer
-            SourceUnits[AuraUnit] = true
-            AuraIndex = AuraIndex + 1
+          if Aura == nil then
+            Aura = {}
+            Auras[SpellID] = Aura
+            All[SpellID] = Aura
           end
-        until Name == nil
-      end
+          Aura.Active = true
+          Aura.Stacks = Stacks or 0
+          Aura.Own = UnitCaster == 'player'
+          AuraIndex = AuraIndex + 1
+        end
+      until Name == nil
     end
 
     if Object then
-      TrackedAura.Fn(TrackedAuras)
+      TrackedAura.Fn(TrackedAurasList)
     else
-      for ObjectKey, TrackedAura in pairs(TrackedAuras) do
-        if type(TrackedAura) == 'table' and type(ObjectKey) ~= 'number' and TrackedAura.Enabled then
-          TrackedAura.Fn(TrackedAuras)
-        end
+      if TrackedAurasOnUpdateFrame == nil then
+        TrackedAurasOnUpdateFrame = CreateFrame('Frame')
+        TrackedAurasOnUpdateFrame.Object = nil
+        TrackedAurasOnUpdateFrame.BarCount = 0
+        TrackedAurasOnUpdateFrame.BarStop = 0
+      end
+      local BarCount = TrackedAurasOnUpdateFrame.BarCount
+
+      -- Check to see if an auraupdate onupdate is in progress.
+      if BarCount > 0 then
+        TrackedAurasOnUpdateFrame.BarStop = BarCount
+      else
+        -- Loop thru each bar one frame at a time to split the load.
+        TrackedAurasOnUpdateFrame:SetScript('OnUpdate', OnUpdateAuraUpdate)
       end
     end
   end
@@ -3616,11 +3823,6 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization()
 
-  -- Check for zero health if not dead.
-  if UnitHealth('player') == 0 and not IsDead then
-    Main.IgnoreZeroHealth = true
-  end
-
   Main.InCombat = InCombat
   Main.IsDead = IsDead
   Main.HasTarget = HasTarget
@@ -3646,10 +3848,6 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   for _, UBF in ipairs(UnitBarsFE) do
     UBF:StatusCheck()
     UBF:Update()
-  end
-
-  if Main.IgnoreZeroHealth then
-    Main.IgnoreZeroHealth = false
   end
 end
 
@@ -4111,6 +4309,7 @@ local function CleanUnitBars(DefaultTable, Table, TablePath, ExcludeList)
     elseif type(Key) == 'number' then
       PathKey = '#'
     end
+
     if ExcludeList[format('%s%s', TablePath, PathKey)] == nil then
       if DefaultValue ~= nil then
         if type(Value) == 'table' then
@@ -4141,6 +4340,10 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 300 then
     -- Convert profile from a version before 3.00
     ConvertUnitBarData(2)
+  end
+  if Ver == nil or Ver < 400 then
+    -- Convert profile from a version before 3.50
+    ConvertUnitBarData(3)
   end
   if Ver ~= Version then
     CleanUnitBars()
@@ -4218,8 +4421,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 2 then
-    GUBData.ShowMessage = 2
+  if GUBData.ShowMessage ~= 3 then
+    GUBData.ShowMessage = 3
     Main:MessageBox(DefaultUB.MessageText)
   end
 end

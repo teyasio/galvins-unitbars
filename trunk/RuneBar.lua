@@ -45,9 +45,7 @@ local C_PetBattles, UIParent =
 -- UnitBarF.BBar                     Contains the holy bar displayed on screen.
 -- UnitBarF.OnCooldown               Keeps track of each rune being on cooldown.
 -- UnitBarF.EnergizeTimers           Keeps track of the amount of time to show an energize frame.
--- UnitBarF.LastRuneType             Keeps track of rune change for triggers.
 --
--- Display                           Flag used to determin if a Display() call is needed.
 -- Color, BorderColor                Flag used to determin if any color should be changed.
 --
 -- BarMode                           Used to show bars.
@@ -65,15 +63,11 @@ local C_PetBattles, UIParent =
 --   RuneBlood .. RuneDeath          4 runes that make up the rune bar.
 --
 -- BarEnergizeBorder                 Border texture used to show an energize border for the bars.
--- TriggerGroups                     Table to create all the rune bar triggers.
--- AnyRuneTrigger                    Trigger to work on any rune that is currently recharging.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxRunes = 6
 local Display = false
-local DoTriggers = false
 local Color = false
+local NamePrefix = 'Rune '
 
 -- Rune type constants.
 local RuneBlood = 1
@@ -97,21 +91,38 @@ local RuneName = {
   [RuneDeath] = 'Death Rune',
 }
 
-local AnyRuneTrigger = 9
-local TGBoxNumber = 1
-local TGName = 2
-local TGValueTypes = 3
-local VTs = {'boolean:Recharging', 'boolean:Empowered', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Blood Rune 1',  VTs}, -- 1
-  {2, 'Blood Rune 2',  VTs}, -- 2
-  {3, 'Unholy Rune 1', VTs}, -- 3
-  {4, 'Unholy Rune 2', VTs}, -- 4
-  {5, 'Frost Rune 1',  VTs}, -- 5
-  {6, 'Frost Rune 2',  VTs}, -- 6
-  {0, 'Death Rune 1',  VTs}, -- 7
-  {0, 'Death Rune 2',  VTs}, -- 8
-  {0, 'Any Rune',      VTs}, -- 9
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BarMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BarMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BarMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BarMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            RuneSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
+    GF = GF },
+  { TT.TypeID_TextureSize,           TT.Type_TextureSize,           RuneTexture, RuneBorderTexture, RuneEnergizeTexture },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local VTs = {'state', 'Recharging', 'state', 'Empowered', 'auras', 'Auras'}
+local Groups = { -- BoxNumber, Name, ValueTypes,
+  {1,   'Blood 1',   VTs, TD}, -- 1
+  {2,   'Blood 2',   VTs, TD}, -- 2
+  {3,   'Unholy 1',  VTs, TD}, -- 3
+  {4,   'Unholy 2',  VTs, TD}, -- 4
+  {5,   'Frost 1',   VTs, TD}, -- 5
+  {6,   'Frost 2',   VTs, TD}, -- 6
+  {'v', 'Death 1',   VTs, TD, 1, 3, 5}, -- 7
+  {'v', 'Death 2',   VTs, TD, 2, 4, 6}, -- 8
+  {'a', 'All Runes', VTs, TD}, -- 9
 }
 
 local RuneTextureData = {
@@ -153,6 +164,37 @@ Main.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
 -------------------------------------------------------------------------------
 local function GetColorIndex(RuneType, RuneID)
   return RuneType * 2 - RuneID % 2
+end
+
+-------------------------------------------------------------------------------
+-- ChangeDeathRune
+--
+-- Helper function to deal with death runes.
+--
+-- RuneBar            The current rune bar object.
+-- LastRuneType       Contains the last rune type for each rune slot.
+-- RuneType           Type of rune.
+-- RuneID             Rune slot 1 through 6.
+-------------------------------------------------------------------------------
+local function ChangeDeathRune(RuneBar, RuneType, RuneID)
+  local BBar = RuneBar.BBar
+  local LastRuneType = RuneBar.LastRuneType
+  local LRT = LastRuneType[RuneID]
+  local ColorIndex = GetColorIndex(RuneType, RuneID)
+
+  -- Show death rune
+  if RuneType == RuneDeath then
+    BBar:HideVirtualGroupTriggers(ColorIndex, false, RuneID)
+  else
+    if LRT and LRT ~= RuneType and LRT == RuneDeath then
+
+      -- Hide the death rune trigger group.
+      BBar:HideVirtualGroupTriggers(GetColorIndex(RuneDeath, RuneID), true, RuneID)
+    end
+  end
+  if LRT ~= RuneType then
+    LastRuneType[RuneID] = RuneType
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -229,11 +271,11 @@ local function DoEnergizeTimer(self)
   BBar:SetHiddenTexture(RuneID, RuneEnergizeTexture, true)
 
   if self.Layout.EnableTriggers then
-    BBar:SetTriggers(AnyRuneTrigger, 'off', nil, nil, RuneID)
-    BBar:SetTriggers(GetColorIndex(self.RuneType, RuneID), 'off', nil, nil, RuneID)
+    BBar:SetTriggers(RuneID, 'off')
+    BBar:SetTriggers(RuneID, 'empowered', false)
     BBar:DoTriggers()
   end
-
+  self.Energized = false
   Main:SetTimer(self, nil)
 end
 
@@ -243,11 +285,6 @@ local function DoEnergize(RuneBar, RuneID)
   local Gen = UB.General
   local EnergizeShow = Gen.EnergizeShow
   local EnergizeTimers = RuneBar.EnergizeTimers
-
-  if EnergizeTimers == nil then
-    EnergizeTimers = {}
-    RuneBar.EnergizeTimers = EnergizeTimers
-  end
   local EnergizeTimer = EnergizeTimers[RuneID]
 
   if EnergizeTimer == nil then
@@ -259,6 +296,7 @@ local function DoEnergize(RuneBar, RuneID)
   EnergizeTimer.RuneID = RuneID
   EnergizeTimer.RuneType = GetRuneType(RuneID)
   EnergizeTimer.Layout = UB.Layout
+  EnergizeTimer.Energized = true
 
   if strfind(EnergizeShow, 'bar') then
     BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, false)
@@ -268,8 +306,8 @@ local function DoEnergize(RuneBar, RuneID)
   end
 
   if UB.Layout.EnableTriggers then
-    BBar:SetTriggers(AnyRuneTrigger, 'empowered', true, nil, RuneID)
-    BBar:SetTriggers(GetColorIndex(GetRuneType(RuneID), RuneID), 'empowered', true, nil, RuneID)
+    BBar:SetTriggers(RuneID, 'empowered', true)
+    BBar:DoTriggers()
   end
 
   Main:SetTimer(EnergizeTimer, nil)
@@ -295,7 +333,6 @@ local function UpdateTestMode(RuneBar, Testing)
 
   if Testing then
     local UB = RuneBar.UnitBar
-    local LastRuneType = RuneBar.LastRuneType
     local Layout = UB.Layout
     local HideText = Layout.HideText
     local EnableTriggers = Layout.EnableTriggers
@@ -307,46 +344,35 @@ local function UpdateTestMode(RuneBar, Testing)
     local Recharge = TestMode.Recharge
     local ShowEnergize = false
 
-    for Index = 1, MaxRunes do
-      local RuneType = ceil(Index / 2)
+    for RuneID = 1, MaxRunes do
+      local RuneType = ceil(RuneID / 2)
 
-      if ShowDeathRunes and Index > 2 and Index < 5 then
+      if ShowDeathRunes and RuneID > 0 and RuneID < 5 then
         RuneType = RuneDeath
       end
-      if Index == Energize or Energize > MaxRunes then
+      if RuneID == Energize or Energize > MaxRunes then
         ShowEnergize = true
       else
         ShowEnergize = false
       end
 
-      BBar:SetFillTexture(Index, RuneSBar, Value, true)
-      ChangeRune(RuneBar, Index, RuneType)
+      BBar:SetFillTexture(RuneID, RuneSBar, Value, true)
+      ChangeRune(RuneBar, RuneID, RuneType)
 
       if not HideText then
-        BBar:SetValueFont(Index, nil, 'time', 10 * Value)
+        BBar:SetValueFont(RuneID, nil, 'time', 10 * Value)
       else
-        BBar:SetValueRawFont(Index, nil, '')
+        BBar:SetValueRawFont(RuneID, nil, '')
       end
 
-      BBar:SetHiddenTexture(Index, RuneEnergizeSBar, not ShowEnergize or strfind(EnergizeShow, 'bar') == nil)
-      BBar:SetHiddenTexture(Index, RuneEnergizeTexture, not ShowEnergize or strfind(EnergizeShow, 'rune') == nil)
+      BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, not ShowEnergize or strfind(EnergizeShow, 'bar') == nil)
+      BBar:SetHiddenTexture(RuneID, RuneEnergizeTexture, not ShowEnergize or strfind(EnergizeShow, 'rune') == nil)
 
       if EnableTriggers then
-        local LRT = LastRuneType[Index]
+        ChangeDeathRune(RuneBar, RuneType, RuneID)
 
-        -- Disable trigger for the last rune type.
-        if LRT ~= RuneType then
-          if LRT then
-            BBar:SetTriggers(AnyRuneTrigger, 'off', nil, nil, Index)
-            BBar:SetTriggers(GetColorIndex(LRT, Index), 'off', nil, nil, Index)
-          end
-          LastRuneType[Index] = RuneType
-        end
-        BBar:SetTriggers(AnyRuneTrigger, 'recharging', Index <= Recharge, nil, Index)
-        BBar:SetTriggers(GetColorIndex(RuneType, Index), 'recharging', Index <= Recharge, nil, Index)
-
-        BBar:SetTriggers(AnyRuneTrigger, 'empowered', ShowEnergize, nil, Index)
-        BBar:SetTriggers(GetColorIndex(RuneType, Index), 'empowered', ShowEnergize, nil, Index)
+        BBar:SetTriggers(RuneID, 'recharging', RuneID <= Recharge)
+        BBar:SetTriggers(RuneID, 'empowered', ShowEnergize)
       end
     end
 
@@ -354,12 +380,12 @@ local function UpdateTestMode(RuneBar, Testing)
       BBar:DoTriggers()
     end
   else
-    for Index = 1, MaxRunes do
-      BBar:SetFillTexture(Index, RuneSBar, 0, false)
-      ChangeRune(RuneBar, Index)
+    for RuneID = 1, MaxRunes do
+      BBar:SetFillTexture(RuneID, RuneSBar, 0, false)
+      BBar:SetTriggers(RuneID, 'off')
 
-      BBar:SetHiddenTexture(Index, RuneEnergizeSBar, true)
-      BBar:SetHiddenTexture(Index, RuneEnergizeTexture, true)
+      BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, true)
+      BBar:SetHiddenTexture(RuneID, RuneEnergizeTexture, true)
     end
     BBar:SetValueRawFont(0, nil, '')
   end
@@ -451,6 +477,7 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
   end
 
   local RuneID = select(1, ...)
+  local Energize = false
 
   if RuneID then
     if Event == 'RUNE_TYPE_UPDATE' then
@@ -460,7 +487,7 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
 
     -- Update the rune cooldown.
     else  -- RUNE_POWER_UPDATE
-      local Energize = select(2, ...) or false
+      Energize = select(2, ...) or false
       local Start, Duration, RuneReady = GetRuneCooldown(RuneID)
 
       StartRuneCooldown(self, RuneID, Start, Duration, RuneReady, Energize)
@@ -470,10 +497,11 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
   -- Calculate active status.
   local BBar = self.BBar
   local Active = false
+  local EnergizeTimers = self.EnergizeTimers
 
   -- Find any rune that is recharging.
-  for Index = 1, MaxRunes do
-    local Start, Duration, RuneReady = GetRuneCooldown(Index)
+  for RuneID = 1, MaxRunes do
+    local Start, Duration, RuneReady = GetRuneCooldown(RuneID)
 
     if not RuneReady then
       Active = true
@@ -482,25 +510,18 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
   end
 
   if self.UnitBar.Layout.EnableTriggers then
-    local LastRuneType = self.LastRuneType
+    for RuneID = 1, MaxRunes do
+      local Start, Duration, RuneReady = GetRuneCooldown(RuneID)
 
-    for Index = 1, MaxRunes do
-      local Start, Duration, RuneReady = GetRuneCooldown(Index)
+      ChangeDeathRune(self, GetRuneType(RuneID), RuneID)
+      BBar:SetTriggers(RuneID, 'recharging', not RuneReady)
 
-      local RuneType = GetRuneType(Index)
-      local LRT = LastRuneType[Index]
-      local ColorIndex = GetColorIndex(RuneType, Index)
+      -- Do this so empowered inverse works.
+      local EnergizeTimer = EnergizeTimers[RuneID]
 
-      -- Disable trigger for the last rune type.
-      if LRT ~= RuneType then
-        if LRT then
-          BBar:SetTriggers(AnyRuneTrigger, 'off', nil, nil, Index)
-          BBar:SetTriggers(GetColorIndex(LRT, Index), 'off', nil, nil, Index)
-        end
-        LastRuneType[Index] = RuneType
+      if EnergizeTimer == nil or not EnergizeTimer.Energized then
+        BBar:SetTriggers(RuneID, 'empowered', false)
       end
-      BBar:SetTriggers(AnyRuneTrigger, 'recharging', not RuneReady, nil, Index)
-      BBar:SetTriggers(ColorIndex, 'recharging', not RuneReady, nil, Index)
     end
     BBar:DoTriggers()
   end
@@ -542,6 +563,8 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Text', '_Font', function() Color = true end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+
     BBar:SO('General', 'RuneMode', function(v)
       BBar:SetHidden(0, BarMode, true)
       BBar:SetHidden(0, RuneMode, true)
@@ -554,66 +577,6 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       Display = true
     end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber = TG[TGBoxNumber]
-
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BarMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BarMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BarMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BarMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, RuneSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, RuneSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_TextureSize,           TT.Type_TextureSize,           'SetScaleTexture', BoxNumber, RuneTexture, RuneBorderTexture, RuneEnergizeTexture)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', BoxNumber)
-
-            -- Class Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-            -- Power Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-            -- Combat Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-            -- Tagged Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          end
-
-          -- Set the texture scale for Texture Size triggers.
-          BBar:SetScaleTexture(0, RuneTexture, 1)
-          BBar:SetScaleTexture(0, RuneBorderTexture, 1)
-          BBar:SetScaleTexture(0, RuneEnergizeTexture, 1)
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) end)
@@ -658,15 +621,14 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
 
   -- Change color if flagged
   if Color then
-    for RuneIndex = 1, MaxRunes do
-      ChangeRune(self, RuneIndex)
+    for RuneID = 1, MaxRunes do
+      ChangeRune(self, RuneID)
     end
     Color = false
   end
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
   if Display then
@@ -687,9 +649,8 @@ end
 function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxRunes)
 
-  local Names = {Trigger = {}, Color = {}}
-  local Trigger = Names.Trigger
-  local Color = Names.Color
+  local Names = {}
+  local Name = nil
 
   BBar:CreateTextureFrame(0, BarMode, 0)
     BBar:CreateTexture(0, BarMode, 'statusbar', 1, RuneSBar)
@@ -721,21 +682,23 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
       BBar:SetTexture(RuneIndex, RuneEnergizeTexture, RuneTextureData.BorderEnergize)
       BBar:SetSizeTexture(RuneIndex, RuneEnergizeTexture, Width, Height)
 
-      local Name = TriggerGroups[RuneIndex][TGName]
-      Color[RuneIndex] = Name
-      Trigger[RuneIndex] = Name
+      Name = { strsplit(' ', Groups[RuneIndex][2], 2) }
+      Names[RuneIndex] = Name[1] .. NamePrefix .. Name[2]
   end
-  local DeathName1 = TriggerGroups[7][TGName]
-  local DeathName2 = TriggerGroups[8][TGName]
 
-  Color[7] = DeathName1
-  Color[8] = DeathName2
-  Trigger[7] = DeathName1
-  Trigger[8] = DeathName2
-  Trigger[AnyRuneTrigger] = TriggerGroups[AnyRuneTrigger][TGName]
+  Name = { strsplit(' ', Groups[7][2], 2) }
+  Names[7] = Name[1] .. NamePrefix .. Name[2]
+
+  Name = { strsplit(' ', Groups[8][2], 2) }
+  Names[8] = Name[1] .. NamePrefix .. Name[2]
 
   BBar:SetSizeTextureFrame(0, BarMode, UB.Bar.Width, UB.Bar.Height)
   BBar:SetSizeTextureFrame(0, RuneMode, RuneTextureData.Width, RuneTextureData.Height)
+
+  -- Set the texture scale for Texture Size triggers.
+  BBar:SetScaleTexture(0, RuneTexture, 1)
+  BBar:SetScaleTexture(0, RuneBorderTexture, 1)
+  BBar:SetScaleTexture(0, RuneEnergizeTexture, 1)
 
   BBar:SetHiddenTexture(0, RuneSBar, false)
   BBar:SetHiddenTexture(0, RuneTexture, false)
@@ -743,6 +706,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:CreateFont(0)
 
+  UnitBarF.EnergizeTimers = {}
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar
   UnitBarF.LastRuneType = {}

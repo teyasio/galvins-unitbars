@@ -49,31 +49,43 @@ local C_PetBattles, UIParent =
 -- BoxMode                           Boxframe number for boxmode.
 -- Combo                             Changebox number for all the combo points.
 -- ComboSBar                         Texture for combo point.
--- TriggerGroups                     Table to create triggers for condition type and box number.
--- AnyComboTrigger                   Contains the groupnumber for a trigger to use any combo point.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxComboPoints = 5
 local Display = false
-local DoTriggers = false
+local NamePrefix = 'Combo '
 
 local BoxMode = 1
 local Combo = 3
 local ComboSBar = 10
 
-local AnyComboTrigger = 6
-local TGBoxNumber = 1
-local TGName = 2
-local TGValueTypes = 3
-local VTs = {'whole:Combo Points', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Combo Point 1',    VTs}, -- 1
-  {2, 'Combo Point 2',    VTs}, -- 2
-  {3, 'Combo Point 3',    VTs}, -- 3
-  {4, 'Combo Point 4',    VTs}, -- 4
-  {5, 'Combo Point 5',    VTs}, -- 5
-  {0, 'Any Combo Point', {'boolean:Active', 'auras:Auras'}},   -- 6
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ComboSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              ComboSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local VTs = {'whole', 'Combo Points', 'auras', 'Auras'}
+local Groups = { -- BoxNumber, Name, ValueTypes,
+  {1,   'Point 1',    VTs, TD}, -- 1
+  {2,   'Point 2',    VTs, TD}, -- 2
+  {3,   'Point 3',    VTs, TD}, -- 3
+  {4,   'Point 4',    VTs, TD}, -- 4
+  {5,   'Point 5',    VTs, TD}, -- 5
+  {'a', 'All Points', {'whole', 'Combo Points', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 6
 }
 
 -------------------------------------------------------------------------------
@@ -114,7 +126,7 @@ function Main.UnitBarsF.ComboBar:Update(Event)
   for ComboIndex = 1, MaxComboPoints do
     BBar:SetHiddenTexture(ComboIndex, ComboSBar, ComboIndex > ComboPoints)
     if EnableTriggers then
-      BBar:SetTriggers(AnyComboTrigger, 'active', ComboIndex <= ComboPoints, nil, ComboIndex)
+      BBar:SetTriggers(ComboIndex, 'active', ComboIndex <= ComboPoints)
       BBar:SetTriggers(ComboIndex, 'combo points', ComboPoints)
     end
   end
@@ -160,60 +172,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber = TG[TGBoxNumber]
-
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, ComboSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, ComboSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', BoxNumber)
-
-            -- Class Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-            -- Power Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-            -- Combat Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-            -- Tagged Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          end
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
@@ -253,9 +212,8 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
   if Display then
@@ -275,9 +233,7 @@ end
 function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxComboPoints)
 
-  local Names = {Trigger = {}, Color = {}}
-  local Trigger = Names.Trigger
-  local Color = Names.Color
+  local Names = {}
 
   BBar:CreateTextureFrame(0, BoxMode, 0)
     BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ComboSBar)
@@ -285,14 +241,11 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeBox(Combo, 1, 2, 3, 4, 5)
 
   for ComboIndex = 1, MaxComboPoints do
-    local Name = TriggerGroups[ComboIndex][TGName]
+    local Name = NamePrefix .. Groups[ComboIndex][2]
 
-    Color[ComboIndex] = Name
-    Trigger[ComboIndex] = Name
+    Names[ComboIndex] = Name
     BBar:SetTooltip(ComboIndex, nil, Name)
   end
-
-  Trigger[AnyComboTrigger] = TriggerGroups[AnyComboTrigger][TGName]
 
   BBar:ChangeBox(Combo, 'SetHidden', BoxMode, false)
 
