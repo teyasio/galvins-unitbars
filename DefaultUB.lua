@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 343
+GUB.DefaultUB.Version = 400
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -159,6 +159,7 @@ GUB.DefaultUB.Version = 343
 --     Minimize           - True or False.  Minimizes just the trigger, not all.
 --     Name               - Name of trigger.  If blank then used a default name in the options.
 --     GroupNumber        - Group for the trigger.  Can be any number.
+--     OrderNumber        - Used by the options UI to position where the triggers will visual appear.
 --     Value              - Value of the trigger.  For boolean triggers 1 = true and 2 = false.
 --     TypeID             - Identifies what the type is. See Bar.lua for details.
 --     Type               - Can be anything that describes what type it is.
@@ -261,10 +262,10 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_RegionBackgroundColor = 'backgroundcolor', Type_RegionBackgroundColor = 'Region Background Color',
   TypeID_Sound                 = 'sound',           Type_Sound                 = 'Sound',
 
-  TypeID_ClassColorMenu  = 'color', TypeID_ClassColor  = 'classcolor',  Type_ClassColor  = 'Class Color',
-  TypeID_PowerColorMenu  = 'color', TypeID_PowerColor  = 'powercolor',  Type_PowerColor  = 'Power Color',
-  TypeID_CombatColorMenu = 'color', TypeID_CombatColor = 'combatcolor', Type_CombatColor = 'Combat Color',
-  TypeID_TaggedColorMenu = 'color', TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
+  TypeID_ClassColor  = 'classcolor',  Type_ClassColor  = 'Class Color',
+  TypeID_PowerColor  = 'powercolor',  Type_PowerColor  = 'Power Color',
+  TypeID_CombatColor = 'combatcolor', Type_CombatColor = 'Combat Color',
+  TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
 }
 
 GUB.DefaultUB.Default = {
@@ -418,24 +419,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -528,24 +534,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -641,24 +652,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -747,24 +763,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -860,24 +881,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -966,24 +992,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1078,24 +1109,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1187,24 +1223,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1296,24 +1337,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1481,24 +1527,29 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         Notes = 'Empowered uses the Time settings from Empowerment in General settings\neven if turned off',
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '=',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '=', Value = 1} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1591,24 +1642,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1758,24 +1814,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -1884,24 +1945,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2008,24 +2074,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2117,24 +2188,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color (both)',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2291,24 +2367,29 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         Notes = '"Full Burning Embers" go by the total number that are on fire \n "Burning Embers" are based on the amount of fill from 0 to 10 or percentage per ember',
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2479,24 +2560,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2606,24 +2692,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2733,24 +2824,29 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
@@ -2900,31 +2996,39 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         MinimizeAll = false,
-        GroupNumber = 1,
-        Action = 'none',
+        MenuSync = false,
+        HideTabs = false,
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
+          Static = false,
           Minimize = false,
           HideAuras = false,
+          Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
-          Value = 1,
+          OrderNumber = 0,
           TypeID = 'bartexturecolor',
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
-          Condition = '>',
-          Pars = {1, 1, 1, 1},
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
           GetFnTypeID = 'none',
-          GetPars = {'', '', '', ''},
+          GetPars = {},
         },
       },
     },
   },
 }
 
-GUB.DefaultUB.HelpText = [[
+local HelpText = {}
+
+GUB.DefaultUB.HelpText = HelpText
+HelpText[1] = [[
 
 After making a lot of changes if you wish to start over you can restore default settings.  Just go to the bar in the bars menu.  Click the bar you want to restore.  Then click the restore button you may have to scroll down to see it.
 
@@ -2965,12 +3069,15 @@ Health %d / Percentage %d%% -> Health 999 / Percentage 20%
 %.2fk -> 999.99k
 
 For more information you can check out the following links:
-For Text: |Cffffff00https://www.youtube.com/watch?v=mQVCDJLrCNI|r
-UI escape codes: |Cffffff00http://www.wowwiki.com/UI_escape_sequences|r
 
+For text:]]
+HelpText[#HelpText + 1] = [[https://www.youtube.com/watch?v=mQVCDJLrCNI]]
+HelpText[#HelpText + 1] = [[UI escape codes:]]
+HelpText[#HelpText + 1] = [[http://www.wowwiki.com/UI_escape_sequences]]
+HelpText[#HelpText + 1] = [[
 
 |cff00ff00Copy and Paste|r
-Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar in the options and click the same button to do the paste.  For text lines you can copy and paste within the same bar or to another bar.
+Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar and click "paste" to do the copy.  For text lines you can copy and paste within the same bar or to another bar.
 
 
 |cff00ff00Align and Swap|r
@@ -2987,64 +3094,73 @@ This same tool can be used on bar objects.  When you go to the bar options under
 
 You can also set the bar position manually by unchecking align.  You'll have a Horizontal and Vertical input box just type in the location.  Moving the bar will automatically update the input boxes with the new location.
 
-For more you can watch the video:
-|Cffffff00http://www.youtube.com/watch?v=STYa5d6riuk|r
-
+For more you can watch the video:]]
+HelpText[#HelpText + 1] = [[http://www.youtube.com/watch?v=STYa5d6riuk]]
+HelpText[#HelpText + 1] = [[
 
 |cff00ff00Test Mode|r
 When in test mode the bars will behave as if they were unlocked.  But you can't click on them.  Test mode allows you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
 
 Additional options will be found at the option panel for the bar when test mode is active
+]]
 
-
+HelpText[#HelpText + 1] = [[
 |cff00ff00Triggers|r
 Triggers let you create an option that will only become active when a condition is met.
+Triggers activate in the following order. Static first, Conditional second, and Auras last.
 
-When you first go to triggers you'll see a pull down called Bar Object.  Health and power bars only have one bar object, but bars like Ember Bar have more than one.  Select the bar object you want if there is more than one.  Then click the add button.
-You'll then see a trigger options panel come up.  There is no limit to how many triggers you can create, create too many and you may experience lag in the options panel.  Minimizing can help with this.
+Triggers are sorted by tabs.  Each tab is part of the bar.  If the tab is empty you'll see an 'add' button. Clicking this will add a new trigger options panel. There is no limit to how many triggers you can create, create too many and you may experience lag in the options panel.
+Minimizing can help with this.
 
-Action: The action pull down lets you pick an action.  Then a UI option will become visible.
+Each trigger has 4 menu buttons.  These can be minimized or maximized by clicking them more than once.
 
-  Add       Adds another copy of the current trigger.
-  Delete    Removes the current trigger.
-  Name      Changes the name of the trigger (Bar Object name) will be appear before the name.
-  Swap      Lets you swap one trigger with another.
-  Disable   Deactivates a trigger.  Triggers that are disabled do not consume cpu.
-  Move      Move a trigger to a different bar object.
-  Copy      Copy a trigger to a different bar object.
-  None      To prevent accidents.
+|cff00ffffTYPE|r: Creates the type of trigger, border, color, sound, etc.
+  * Value Type: Lets you pick what type of value you want to trigger off of.  Each bar has its own set of value types.
+  * Type: Lets you pick different parts of the bar.  Border, color, background, etc.
+  * Auras: Use a buff or debuff to execute a trigger.
 
-Value Type: lets you pick what type of value you want to trigger off of.  Each bar has its own set of value types.
-Type: lets you pick different parts of the bar.  Border, color, background, etc.
+|cff00ffffVALUE|r: Number to execute the trigger at, or can be inverse.  Depends on the Type.
+  * Inverse: For triggers that use 'active' then you can inverse this. Make it do the opposite.
 
-Condition: The condition that needs to be met for the trigger to activate
+  If the trigger is a conditional trigger.  Then you'll have Operator, Value, Add, and All
+  * Operator:
+    <   Less than
+    >   Greater than
+    <=  Less than or equal
+    >=  Greater than or equal
+    =   Equal
+    <>  Not equal
+  * Value: The trigger will execute at this value.  If this is a percentage then it must be between 0 and 100. You can also "add" another condition.  The 'all' option if checked will make it so that all conditions have to be met for the trigger to execute.
 
-  <         Less than
-  >         Greater than
-  <=        Less than or equal
-  >=        Greater than or equal
-  =         Equal
-  <>        No equal
-  Static    Always on, static triggers use less cpu.
+  If auras was selected under type.  Then you'll see Operator and "Aura name or SpellID"
+  * Operator
+    'or' Only one aura needs to be found on the unit.
+    'and' All auras needs to be found on the unit.
+  Under the spell ID.  Enter the exact spell or start type part of the spell name.  As you do this a dropdown box will appear.  If the mod already saw the spell then it will show it in white.  This works best if aura list is always on.
 
-Value: The value you want to trigger off of based on condition.  If the condition is met the trigger will activate. For percentages only 0 to 100 needs to be entered.
+  After the aura is added you change the following:
+  * Cast by Player: If checked then the aura has to have come from you.
+  * Unit: Name of the unit that will contain the aura.
+  * Condition: Can set what type of condition you want to compare stacks to.
+  * Stacks: 0 means no stacks so match any aura.
+  * Own: If checked the aura has to be cast from you.
 
-Trigger can also use auras.  Pick "auras" under value type. Then you'll see a box to enter an aura name or ID into.  Type in the name then pick it from the list.  If you already know the spellID then you can type that instead.
+|cff00ffffNAME|r: By default a trigger doesn't have a name.  Enter anything you want here.
 
-After the aura is added you change the following:
-Cast by Player:   If checked then the aura has to have come from you.
-Units: You can enter any number of units here seperated by a space.  But the aura will have to be on
-all of them at the same time.
+|cff00ffffUTIL|r: Allows you to Swap, Move, Copy, and Delete
 
-Condition:  Can set what type of condition you want to compare stacks to.
-Stacks: 0 means no stacks so match any aura.
+  * Swap:  Swap a places with another trigger.  This option may not be available if the two triggers are not compatible.
+  * Move:  Move a trigger to a different tab.  This option is not available with one tab.
+  * Copy:  Copy a trigger to a different tab.  This option is not available if the trigger is not compatible with the destination tab.
+  * Delete:  Removes the trigger.  This can not be undone.
 
-Under condition next to the aura name box.  You can change it to "or" for all auras
-or "and" for just one aura out of the list to match.
+Above the 4 menu buttons is Static and Disable.
+Static makes the trigger more like an option. It's always on.
+Disable makes the trigger not work.
 
-For more you can watch the video:
-|Cffffff00http://www.youtube.com/watch?v=LUhCXoh6Ytk|r
-
+For more you can watch the video:]]
+HelpText[#HelpText + 1] = [[https://youtu.be/bey_dQBZlmA]]
+HelpText[#HelpText + 1] = [[
 
 |cff00ff00Aura List|r
 Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
@@ -3058,10 +3174,31 @@ Its recommended that once you have your perfect configuration made you make a ba
 GUB.DefaultUB.MessageText = [[
 |Cffffff00Galvin's UnitBars|r
 
-Tons of changes have been made.  Please read the help text.  If something is not working please check that bar's settings.
+|cff00ff00New Changes|r
+
+* Message box that pops up when you first run the mod has mouse wheel scrolling.
+* When copy/append triggers from one bar to another.  The triggers may end up in a different spot than expected.  This is normal.
+* Demonic bar triggers may need to be checked if not working properly.  There was no way to convert them 100% to the new format.
+* Due to complexity each aura in a trigger can only have one unit.
+* You'll need to check each trigger that has more than one unit, and change it to one.
+
+* CastByPlayer fixed.
+* Only helpful auras were being tracked. Now harmful are tracked too.
+* Triggers have a draw priority now.  Static, then Conditional, and Auras
+* Auras do not get deleted if auras are not picked and you reload the ui.
+* Bar objects moved into tabs instead of using a pull down menu.
+* Fixed bugs with power color when used in a trigger.
+* "Any" under triggers been changed to 'all' and supports all the same conditions as normal triggers.
+* Condition renamed to Operator and StackCondition renamed to StackOperator
+* The spell searcher for auras in triggers has been imrpoved. Now has a scroller.
+* Trigger UI overhauled.
+* Copy and Paste UI overhauled.
+* Aura list UI overhauled.
+* Aura list now shows tooltip when mousing over the icon.
 
 
-|cff00ff00New Features|r
+|cff00ff00Old Changes|r
+
 * GUB Square Border added for border texture. This can be used thru shared media.
 * Border color can be changed.  Found under Region and Background options.
 * In testmode you can change the resource value up or down.  You can use this to test triggers without being in combat.

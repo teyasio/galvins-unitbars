@@ -61,15 +61,10 @@ local C_PetBattles, UIParent =
 -- OrbLightTexture                   Light texture for orb in texture mode.
 -- Orbs                              Change texture for OrbSBar and OrbLightTexture
 --
--- ActiveOrbTrigger                  Trigger for any chi orb that is currently active.
--- RegionTrigger                     Trigger to make changes to the region.
--- TriggerGroups                     Trigger groups for boxnumber and condition type.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 6
 local Display = false
-local DoTriggers = false
+local NamePrefix = 'Chi '
 
 -- Powertype constants
 local PowerChi = ConvertPowerType['CHI']
@@ -84,21 +79,49 @@ local OrbSBar = 10
 local OrbDarkTexture = 20
 local OrbLightTexture = 21
 
-local AnyOrbTrigger = 7
-local RegionTrigger = 8
-local TGBoxNumber = 1
-local TGName = 2
-local TGValueTypes = 3
-local VTs = {'whole:Chi', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1,  'Chi Orb 1',    VTs}, -- 1
-  {2,  'Chi Orb 2',    VTs}, -- 2
-  {3,  'Chi Orb 3',    VTs}, -- 3
-  {4,  'Chi Orb 4',    VTs}, -- 4
-  {5,  'Chi Orb 5',    VTs}, -- 5
-  {6,  'Chi Orb 6',    VTs}, -- 6
-  {0,  'Any Chi Orb', {'boolean:Active', 'auras:Auras'}}, -- 7
-  {-1, 'Region',       VTs}, -- 8
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,                BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,           BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,            BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,                 BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                      OrbSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,                        OrbSBar,
+    GF = GF },
+  { TT.TypeID_TextureSize,           TT.Type_TextureSize,                     OrbDarkTexture, OrbLightTexture },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local TDregion = { -- Trigger data for region
+  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
+  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
+    GF = GF },
+  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
+  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local RegionGroup = 8
+
+local VTs = {'whole', 'Chi', 'auras', 'Auras'}
+local Groups = { -- BoxNumber, Name, ValueTypes,
+  {1,   'Orb 1',    VTs, TD}, -- 1
+  {2,   'Orb 2',    VTs, TD}, -- 2
+  {3,   'Orb 3',    VTs, TD}, -- 3
+  {4,   'Orb 4',    VTs, TD}, -- 4
+  {5,   'Orb 5',    VTs, TD}, -- 5
+  {6,   'Orb 6',    VTs, TD}, -- 6
+  {'a', 'All Orbs', {'whole', 'Chi', 'state', 'Active', 'auras', 'Auras'}, TD}, -- 7
+  {'r', 'Region',   VTs, TDregion}, -- 8
 }
 
 local ChiData = {
@@ -186,13 +209,13 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     BBar:ChangeTexture(Orbs, 'SetHiddenTexture', OrbIndex, OrbIndex > ChiOrbs)
 
     if EnableTriggers then
-      BBar:SetTriggers(AnyOrbTrigger, 'active', OrbIndex <= ChiOrbs, nil, OrbIndex)
+      BBar:SetTriggers(OrbIndex, 'active', OrbIndex <= ChiOrbs)
       BBar:SetTriggers(OrbIndex, 'chi', ChiOrbs)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionTrigger, 'chi', ChiOrbs)
+    BBar:SetTriggers(RegionGroup, 'chi', ChiOrbs)
     BBar:DoTriggers()
   end
 
@@ -230,88 +253,8 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber = TG[TGBoxNumber]
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            if BoxNumber ~= -1 then
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, OrbSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, OrbSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_TextureSize,           TT.Type_TextureSize,           'SetScaleTexture', BoxNumber, OrbDarkTexture, OrbLightTexture)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', BoxNumber)
-
-              -- Class Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-              -- Power Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-              -- Combat Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-              -- Tagged Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            else
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorder,          TT.Type_RegionBorder,          'SetBackdropBorderRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,     'SetBackdropBorderColorRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackground,      TT.Type_RegionBackground,      'SetBackdropRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor, 'SetBackdropColorRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', 1)
-
-              -- Class Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-              -- Power Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-              -- Combat Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-              -- Tagged Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            end
-          end
-          -- Set the texture scale for Texture Size triggers.
-          BBar:SetScaleTexture(0, OrbDarkTexture, 1)
-          BBar:SetScaleTexture(0, OrbLightTexture, 1)
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'BoxMode',       function(v)
       if v then
         -- Box mode
@@ -380,9 +323,8 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
   if Display then
@@ -401,9 +343,7 @@ end
 function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxChiOrbs)
 
-  local Names = {Trigger = {}, Color = {}}
-  local Trigger = Names.Trigger
-  local Color = Names.Color
+  local Names = {}
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
@@ -422,15 +362,11 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
         BBar:SetSizeTexture(OrbIndex, TextureNumber, SD.Width, SD.Height)
       end
     end
-    local Name = TriggerGroups[OrbIndex][TGName]
+    local Name = NamePrefix .. Groups[OrbIndex][2]
 
     BBar:SetTooltip(OrbIndex, nil, Name)
-    Color[OrbIndex] = Name
-    Trigger[OrbIndex] = Name
+    Names[OrbIndex] = Name
   end
-
-  Trigger[AnyOrbTrigger] = TriggerGroups[AnyOrbTrigger][TGName]
-  Trigger[RegionTrigger] = TriggerGroups[RegionTrigger][TGName]
 
   BBar:SetHiddenTexture(0, OrbSBar, false)
   BBar:SetHiddenTexture(0, OrbDarkTexture, false)
@@ -441,6 +377,10 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(Orbs, OrbLightTexture, OrbSBar)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
+
+  -- Set the texture scale for Texture Size triggers.
+  BBar:SetScaleTexture(0, OrbDarkTexture, 1)
+  BBar:SetScaleTexture(0, OrbLightTexture, 1)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

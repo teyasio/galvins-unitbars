@@ -72,16 +72,11 @@ local C_PetBattles, UIParent =
 --
 -- BarOffsetX, BarOffsetY            Offset the whole bar within the border.
 --
--- AnyFullEmberTrigger               Trigger for any ember that is currently on fire.
--- AnyEmberTrigger                   Trigger for any ember that is activly filling.
--- RegionTrigger                     Trigger to make changes to the region.
--- TriggerGroups                     Trigger groups for boxnumber and condition type.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxEmbers = 4
 local Display = false
-local DoTriggers = false
+local Update = false
+local NamePrefix = 'Burning '
 
 local MaxPowerPerEmber = MAX_POWER_PER_EMBER
 local WarlockGreenFire = WARLOCK_GREEN_FIRE
@@ -105,19 +100,50 @@ local EmberFieryTexture = 22
 local BarOffsetX = 0
 local BarOffsetY = 0.5
 
-local AnyEmberTrigger = 5
-local RegionTrigger = 6
-local TGBoxNumber = 1
-local TGName = 2
-local TGValueTypes = 3
-local VTs = {'whole:Full Burning Embers', 'whole:Burning Embers', 'percent:Burning Embers (percent)', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1,  'Burning Ember 1',    VTs}, -- 1
-  {2,  'Burning Ember 2',    VTs}, -- 2
-  {3,  'Burning Ember 3',    VTs}, -- 3
-  {4,  'Burning Ember 4',    VTs}, -- 4
-  {0,  'Any Burning Ember',  {'boolean:Active', 'auras:Auras'}},  -- 5
-  {-1, 'Region',             VTs}, -- 6
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,                BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,           BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,            BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,                 BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                      EmberSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,                        EmberSBar,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (fiery embers)', EmberFierySBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (fiery embers)', EmberFierySBar,
+    GF = GF },
+  { TT.TypeID_TextureSize,           TT.Type_TextureSize,                     EmberBgTexture, EmberTexture, EmberFieryTexture },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local TDregion = { -- Trigger data for region
+  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
+  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
+    GF = GF },
+  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
+  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local RegionGroup = 6
+
+local VTs = {'whole', 'Full Burning Embers', 'whole', 'Burning Embers', 'percent', 'Burning Embers (percent)', 'auras', 'Auras'}
+local Groups = { -- BoxNumber, Name, ValueTypes,
+  {1,   'Ember 1',    VTs, TD}, -- 1
+  {2,   'Ember 2',    VTs, TD}, -- 2
+  {3,   'Ember 3',    VTs, TD}, -- 3
+  {4,   'Ember 4',    VTs, TD}, -- 4
+  {'a', 'All Embers', {'whole', 'Full Burning Embers', 'whole', 'Burning Embers', 'percent', 'Burning Embers (percent)', 'state', 'Active', 'auras', 'Auras'}, TD},  -- 5
+  {'r', 'Region',     VTs, TDregion}, -- 6
 }
 
 local EmberData = {
@@ -236,18 +262,15 @@ function Main.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
     end
 
     if EnableTriggers then
-      BBar:SetTriggers(AnyEmberTrigger, 'active', EmberIndex <= Embers, nil, EmberIndex)
-      BBar:SetTriggers(AnyEmberTrigger, 'burning embers', Value * MaxPowerPerEmber, nil, EmberIndex)
-      BBar:SetTriggers(AnyEmberTrigger, 'burning embers (percent)', Value * MaxPowerPerEmber, MaxPowerPerEmber, EmberIndex)
-
+      BBar:SetTriggers(EmberIndex, 'active', EmberIndex <= Embers)
       BBar:SetTriggers(EmberIndex, 'full burning embers', Embers)
       BBar:SetTriggers(EmberIndex, 'burning embers', Value * MaxPowerPerEmber)
       BBar:SetTriggers(EmberIndex, 'burning embers (percent)', Value * MaxPowerPerEmber, MaxPowerPerEmber)
 
       -- Base off of the current ember filling.
       if EmberIndex - 1 == Embers then
-        BBar:SetTriggers(RegionTrigger, 'burning embers', Value * MaxPowerPerEmber)
-        BBar:SetTriggers(RegionTrigger, 'burning embers (percent)', Value * MaxPowerPerEmber, MaxPowerPerEmber)
+        BBar:SetTriggers(RegionGroup, 'burning embers', Value * MaxPowerPerEmber)
+        BBar:SetTriggers(RegionGroup, 'burning embers (percent)', Value * MaxPowerPerEmber, MaxPowerPerEmber)
       end
     end
 
@@ -256,7 +279,7 @@ function Main.UnitBarsF.EmberBar:Update(Event, Unit, PowerType)
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionTrigger, 'full burning embers', Embers)
+    BBar:SetTriggers(RegionGroup, 'full burning embers', Embers)
     BBar:DoTriggers()
   end
 
@@ -300,96 +323,8 @@ function Main.UnitBarsF.EmberBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber = TG[TGBoxNumber]
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            if BoxNumber ~= -1 then
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,                'SetBackdropBorder', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,           'SetBackdropBorderColor', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,            'SetBackdrop', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,                 'SetBackdropColor', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,                      'SetTexture', BoxNumber, EmberSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,                        'SetColorTexture', BoxNumber, EmberSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (fiery embers)', 'SetTexture', BoxNumber, EmberFierySBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (fiery embers)', 'SetColorTexture', BoxNumber, EmberFierySBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_TextureSize,           TT.Type_TextureSize,                     'SetScaleTexture', BoxNumber, EmberBgTexture, EmberTexture, EmberFieryTexture)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                           'PlaySound', BoxNumber)
-
-              -- Class Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor,         TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,               TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,                      TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (fiery embers)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-              -- Power Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor,         TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,               TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,                      TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (fiery embers)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-              -- Combat Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor,         TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,               TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,                      TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (fiery embers)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-              -- Tagged Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor,         TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,               TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,                      TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (fiery embers)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            else
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorder,          TT.Type_RegionBorder,                    'SetBackdropBorderRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,               'SetBackdropBorderColorRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackground,      TT.Type_RegionBackground,                'SetBackdropRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,           'SetBackdropColorRegion')
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                           'PlaySound', 1)
-
-              -- Class Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-              -- Power Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-              -- Combat Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-              -- Tagged Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBorderColor,     TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_RegionBackgroundColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            end
-          end
-
-          -- Set the texture scale for Texture Size triggers.
-          BBar:SetScaleTexture(0, EmberBgTexture, 1)
-          BBar:SetScaleTexture(0, EmberTexture, 1)
-          BBar:SetScaleTexture(0, EmberFieryTexture, 1)
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'BoxMode',        function(v)
       if v then
 
@@ -424,9 +359,9 @@ function Main.UnitBarsF.EmberBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    BBar:SO('General', 'GreenFire',     function(v) self:Update() end)
+    BBar:SO('General', 'GreenFire',     function(v) Update = true end)
     BBar:SO('General', 'GreenFireAuto', function(v)
-      self:Update()
+      Update = true
       local GreenFire = self.GreenFire
 
       for EmberIndex = 1, MaxEmbers do
@@ -522,9 +457,9 @@ function Main.UnitBarsF.EmberBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Main.UnitBars.Testing then
+    self:Update()
+    Update = false
   end
 
   if Display then
@@ -543,9 +478,7 @@ end
 function GUB.EmberBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxEmbers)
 
-  local Names = {Trigger = {}, Color = {}}
-  local Trigger = Names.Trigger
-  local Color = Names.Color
+  local Names = {}
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
@@ -571,15 +504,11 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:SetFillDirectionTexture(EmberIndex, EmberSBar, 'VERTICAL')
     BBar:SetFillDirectionTexture(EmberIndex, EmberTexture, 'VERTICAL')
 
-    local Name = TriggerGroups[EmberIndex][TGName]
+    local Name = NamePrefix .. Groups[EmberIndex][2]
 
     BBar:SetTooltip(EmberIndex, nil, Name)
-    Color[EmberIndex] = Name
-    Trigger[EmberIndex] = Name
+    Names[EmberIndex] = Name
   end
-
-  Trigger[AnyEmberTrigger] = TriggerGroups[AnyEmberTrigger][TGName]
-  Trigger[RegionTrigger] = TriggerGroups[RegionTrigger][TGName]
 
   -- Show the ember background and fill
   BBar:SetHiddenTexture(0, EmberSBar, false)
@@ -592,6 +521,11 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(Fiery, EmberFieryTexture, EmberFierySBar)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
+
+  -- Set the texture scale for Texture Size triggers.
+  BBar:SetScaleTexture(0, EmberBgTexture, 1)
+  BBar:SetScaleTexture(0, EmberTexture, 1)
+  BBar:SetScaleTexture(0, EmberFieryTexture, 1)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

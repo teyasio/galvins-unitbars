@@ -48,19 +48,15 @@ local C_PetBattles, UIParent =
 -- BoxMode                           Textureframe number used for boxmode.
 -- AnticipationSBar                  Texture for anticipation charges and time.
 -- Anticipation                      Changebox number for all the anticipation boxframes.
--- AnticipationTime                  The boxnumber or triggergroup for the time statusbar.
+-- AnticipationTime                  The boxnumber for the time statusbar.
 --
 -- AnticipationAura                  Buff containing the anticipation charges.
 -- AnticipationSpell                 Spell the player knows or doens't know to gain anticipation.
 --
--- TriggerGroups                     Table to create each group for triggers.
--- AnyAnticipationChargeTrigger      Trigger group for the any active anticipation boxes that are active.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxAnticipationCharges = 5
 local Display = false
-local DoTriggers = false
+local NamePrefix = 'Anticipation '
 
 local BoxMode = 1
 local AnticipationCharges = 2
@@ -70,20 +66,38 @@ local AnticipationSBar = 10
 local AnticipationAura = 115189
 local AnticipationSpell = 114015
 
-local AnticipationTimeTrigger = 6
-local AnyAnticipationChargeTrigger = 7
-local TGBoxNumber = 1
-local TGName = 2
-local TGValueTypes = 3
-local VTs = {'whole:Anticipation Charges', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Anticipation Charge 1',  VTs}, -- 1
-  {2, 'Anticipation Charge 2',  VTs}, -- 2
-  {3, 'Anticipation Charge 3',  VTs}, -- 3
-  {4, 'Anticipation Charge 4',  VTs}, -- 4
-  {5, 'Anticipation Charge 5',  VTs}, -- 5
-  {6, 'Anticipation Time',      VTs}, -- 6
-  {0, 'Any Anti. Charge',       {'boolean: Active', 'auras:Auras'}},  -- 7
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            AnticipationSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              AnticipationSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local AnticipationTimeGroup = 6
+
+local VTs = {'whole', 'Anticipation Charges', 'auras', 'Auras'}
+
+local Groups = { -- BoxNumber, Name, ValueTypes,
+  {1,   'Charge 1',    VTs,    TD}, -- 1
+  {2,   'Charge 2',    VTs,    TD}, -- 2
+  {3,   'Charge 3',    VTs,    TD}, -- 3
+  {4,   'Charge 4',    VTs,    TD}, -- 4
+  {5,   'Charge 5',    VTs,    TD}, -- 5
+  {6,   'Time',        VTs,    TD}, -- 6
+  {'a', 'All Charges', {'whole', 'Anticipation Charges', 'state', 'Active', 'auras', 'Auras'}, TD}, -- 7
 }
 
 -------------------------------------------------------------------------------
@@ -119,7 +133,7 @@ local function UpdateTestMode(AnticipationBar, Testing)
       BBar:SetHiddenTexture(AnticipationIndex, AnticipationSBar, AnticipationIndex > Charges)
 
       if EnableTriggers then
-        BBar:SetTriggers(AnyAnticipationChargeTrigger, 'active', AnticipationIndex <= Charges, nil, AnticipationIndex)
+        BBar:SetTriggers(AnticipationIndex, 'active', AnticipationIndex <= Charges)
         BBar:SetTriggers(AnticipationIndex, 'anticipation charges', Charges)
       end
     end
@@ -131,7 +145,7 @@ local function UpdateTestMode(AnticipationBar, Testing)
     end
 
     if EnableTriggers then
-      BBar:SetTriggers(AnticipationTimeTrigger, 'anticipation charges', Charges)
+      BBar:SetTriggers(AnticipationTimeGroup, 'anticipation charges', Charges)
       BBar:DoTriggers()
     end
   else
@@ -188,14 +202,13 @@ function Main.UnitBarsF.AnticipationBar:Update(Event)
     end
     for AnticipationIndex = 1, MaxAnticipationCharges do
       BBar:SetHiddenTexture(AnticipationIndex, AnticipationSBar, AnticipationIndex > AnticipationCharges)
-
       if EnableTriggers then
-        BBar:SetTriggers(AnyAnticipationChargeTrigger, 'active', AnticipationIndex <= AnticipationCharges, nil, AnticipationIndex)
+        BBar:SetTriggers(AnticipationIndex, 'active', AnticipationIndex <= AnticipationCharges)
         BBar:SetTriggers(AnticipationIndex, 'anticipation charges', AnticipationCharges)
       end
     end
     if EnableTriggers then
-      BBar:SetTriggers(AnticipationTimeTrigger, 'anticipation charges', AnticipationCharges)
+      BBar:SetTriggers(AnticipationTimeGroup, 'anticipation charges', AnticipationCharges)
       BBar:DoTriggers()
     end
   end
@@ -242,60 +255,8 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(AnticipationTime) end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber = TG[TGBoxNumber]
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, AnticipationSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, AnticipationSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', 1)
-
-            -- Class Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-            -- Power Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-            -- Combat Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-            -- Tagged Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          end
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, AnticipationSBar, v) end)
@@ -367,9 +328,8 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
   if Display then
@@ -388,9 +348,7 @@ end
 function GUB.AnticipationBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxAnticipationCharges + 1)
 
-  local Names = {Trigger = {}, Color = {}}
-  local Trigger = Names.Trigger
-  local Color = Names.Color
+  local Names = {}
 
   BBar:CreateTextureFrame(0, BoxMode, 0)
     BBar:CreateTexture(0, BoxMode, 'statusbar', 1, AnticipationSBar)
@@ -403,15 +361,12 @@ function GUB.AnticipationBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Name = nil
 
   for AnticipationIndex = 1, MaxAnticipationCharges do
-    Name = TriggerGroups[AnticipationIndex][TGName]
-    Color[AnticipationIndex] = Name
-    Trigger[AnticipationIndex] = Name
+    Name = NamePrefix .. Groups[AnticipationIndex][2]
+    Names[AnticipationIndex] = Name
     BBar:SetTooltip(AnticipationIndex, nil, Name)
   end
-  Name = TriggerGroups[AnticipationTime][TGName]
-  Color[AnticipationTime] = Name
-  Trigger[AnticipationTimeTrigger] = Name
-  Trigger[AnyAnticipationChargeTrigger] = TriggerGroups[AnyAnticipationChargeTrigger][TGName]
+  Name = NamePrefix .. Groups[AnticipationTime][2]
+  Names[AnticipationTime] = Name
 
   BBar:SetTooltip(AnticipationTime, nil, Name)
 

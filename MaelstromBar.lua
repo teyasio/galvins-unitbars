@@ -44,7 +44,6 @@ local C_PetBattles, UIParent =
 --
 -- UnitBarF.BBar                  Contains the maelstrom bar displayed on screen.
 --
--- Display                        Flag used to determin if a Display() call is needed.
 -- BoxMode                        Textureframe number used for boxmode.
 -- MaelstromSBar                  Texture for maelstrom charges and time.
 -- Maelstrom                      Changebox number for all the maelstrom boxframes.
@@ -53,15 +52,10 @@ local C_PetBattles, UIParent =
 -- MaelstromAura                  Buff containing the maelstrom charges.
 -- MaelstromSpell                 Spell the player knows or doens't know to gain maelstrom.
 --
--- TriggerGroups                  Table to create each group for triggers.
--- AnyMaelstromTrigger            Trigger group for any active Maelstrom boxes lit.
--- MaelstromTimeTrigger           Trigger group to modify the Maelstrom time box.
--- DoTriggers                     True by passes visible and isactive flags. If not nil then calls
---                                self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local MaxMaelstromCharges = 5
 local Display = false
-local DoTriggers = false
+local NamePrefix = 'Maelstrom '
 
 local BoxMode = 1
 local MaelstromCharges = 2
@@ -71,20 +65,38 @@ local MaelstromSBar = 10
 local MaelstromAura = 53817
 local MaelstromSpell = 51530
 
-local MaelstromTimeTrigger = 6
-local AnyMaelstromChargeTrigger = 7
-local TGBoxNumber = 1
-local TGName = 2
-local TGValueTypes = 3
-local VTs = {'whole:Maelstrom Charges', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Maelstrom Charge 1',    VTs}, -- 1
-  {2, 'Maelstrom Charge 2',    VTs}, -- 2
-  {3, 'Maelstrom Charge 3',    VTs}, -- 3
-  {4, 'Maelstrom Charge 4',    VTs}, -- 4
-  {5, 'Maelstrom Charge 5',    VTs}, -- 5
-  {6, 'Maelstrom Time',        VTs}, -- 6
-  {0, 'Any Maelstrom Charge',  {'boolean: Active', 'auras:Auras'}},  -- 7
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local TD = { -- Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            MaelstromSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              MaelstromSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local MaelstromTimeGroup = 6
+
+local VTs = {'whole', 'Maelstrom Charges', 'auras', 'Auras'}
+
+local Groups = { -- BoxNumber, Name, ValueTypes,
+  {1,   'Charge 1',    VTs,    TD}, -- 1
+  {2,   'Charge 2',    VTs,    TD}, -- 2
+  {3,   'Charge 3',    VTs,    TD}, -- 3
+  {4,   'Charge 4',    VTs,    TD}, -- 4
+  {5,   'Charge 5',    VTs,    TD}, -- 5
+  {6,   'Time',        VTs,    TD}, -- 6
+  {'a', 'All Charges', {'whole', 'Maelstrom Charges', 'state', 'Active', 'auras', 'Auras'}, TD}, -- 7
 }
 
 -------------------------------------------------------------------------------
@@ -120,7 +132,7 @@ local function UpdateTestMode(MaelstromBar, Testing)
       BBar:SetHiddenTexture(MaelstromIndex, MaelstromSBar, MaelstromIndex > Charges)
 
       if EnableTriggers then
-        BBar:SetTriggers(AnyMaelstromChargeTrigger, 'active', MaelstromIndex <= Charges, nil, MaelstromIndex)
+        BBar:SetTriggers(MaelstromIndex, 'active', MaelstromIndex <= Charges)
         BBar:SetTriggers(MaelstromIndex, 'maelstrom charges', Charges)
       end
     end
@@ -130,9 +142,8 @@ local function UpdateTestMode(MaelstromBar, Testing)
     else
       BBar:SetValueRawFont(MaelstromTime, nil, '')
     end
-
     if EnableTriggers then
-      BBar:SetTriggers(MaelstromTimeTrigger, 'maelstrom charges', Charges)
+      BBar:SetTriggers(MaelstromTimeGroup, 'maelstrom charges', Charges)
       BBar:DoTriggers()
     end
   else
@@ -167,8 +178,8 @@ function Main.UnitBarsF.MaelstromBar:Update(Event)
   end
 
   local BBar = self.BBar
-  local Maelstrom = IsSpellKnown(MaelstromSpell)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+  local Maelstrom = IsSpellKnown(MaelstromSpell)
   local MaelstromCharges = 0
 
   -- Display maelstrom charges
@@ -190,18 +201,16 @@ function Main.UnitBarsF.MaelstromBar:Update(Event)
     end
     for MaelstromIndex = 1, MaxMaelstromCharges do
       BBar:SetHiddenTexture(MaelstromIndex, MaelstromSBar, MaelstromIndex > MaelstromCharges)
-
       if EnableTriggers then
-        BBar:SetTriggers(AnyMaelstromChargeTrigger, 'active', MaelstromIndex <= MaelstromCharges, nil, MaelstromIndex)
+        BBar:SetTriggers(MaelstromIndex, 'active', MaelstromIndex <= MaelstromCharges)
         BBar:SetTriggers(MaelstromIndex, 'maelstrom charges', MaelstromCharges)
       end
     end
     if EnableTriggers then
-      BBar:SetTriggers(MaelstromTimeTrigger, 'maelstrom charges', MaelstromCharges)
+      BBar:SetTriggers(MaelstromTimeGroup, 'maelstrom charges', MaelstromCharges)
       BBar:DoTriggers()
     end
   end
-
   -- Set the IsActive flag
   self.IsActive = MaelstromCharges > 0
 
@@ -245,60 +254,8 @@ function Main.UnitBarsF.MaelstromBar:SetAttr(TableName, KeyName)
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(MaelstromTime) end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber = TG[TGBoxNumber]
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      'SetBackdropBorder', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, 'SetBackdropBorderColor', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  'SetBackdrop', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       'SetBackdropColor', BoxNumber, BoxMode)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,            'SetTexture', BoxNumber, MaelstromSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,              'SetColorTexture', BoxNumber, MaelstromSBar)
-            BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                 'PlaySound', 1)
-
-            -- Class Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-            -- Power Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-            -- Combat Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-            -- Tagged Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor,              TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          end
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, MaelstromSBar, v) end)
@@ -369,9 +326,8 @@ function Main.UnitBarsF.MaelstromBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Main.UnitBars.Testing then
+    self:Update()
   end
 
   if Display then
@@ -390,9 +346,7 @@ end
 function GUB.MaelstromBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxMaelstromCharges + 1)
 
-  local Names = {Trigger = {}, Color = {}}
-  local Trigger = Names.Trigger
-  local Color = Names.Color
+  local Names = {}
 
   BBar:CreateTextureFrame(0, BoxMode, 0)
     BBar:CreateTexture(0, BoxMode, 'statusbar', 1, MaelstromSBar)
@@ -405,15 +359,12 @@ function GUB.MaelstromBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Name = nil
 
   for MaelstromIndex = 1, MaxMaelstromCharges do
-    Name = TriggerGroups[MaelstromIndex][TGName]
-    Color[MaelstromIndex] = Name
-    Trigger[MaelstromIndex] = Name
+    Name = NamePrefix .. Groups[MaelstromIndex][2]
+    Names[MaelstromIndex] = Name
     BBar:SetTooltip(MaelstromIndex, nil, Name)
   end
-  Name = TriggerGroups[MaelstromTimeTrigger][TGName]
-  Color[MaelstromTime] = Name
-  Trigger[MaelstromTimeTrigger] = Name
-  Trigger[AnyMaelstromChargeTrigger] = TriggerGroups[AnyMaelstromChargeTrigger][TGName]
+  Name = NamePrefix .. Groups[MaelstromTime][2]
+  Names[MaelstromTime] = Name
 
   BBar:SetTooltip(MaelstromTime, nil, Name)
 

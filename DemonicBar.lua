@@ -70,14 +70,6 @@ local C_PetBattles, UIParent =
 --
 -- MetaAura                          SpellID for the metamorphosis aura.
 --
--- BothValueTrigger                  Trigger works in metamorphosis or normal.
--- NormalValueTrigger                Trigger for fury when not in metamorphosis
--- MetaValueTrigger                  Trigger for fury when in metamorphosis
--- MetaTrigger                       Trigger for detecting metamorphosis
--- TriggerGroups                     Contains the condition type for each trigger.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
---
 -- DemonicData                       Table containing all the data to build the demonic fury bar.
 --   Texture                         Path to the texture file.
 --   BoxWidth, BoxHeight             Width and Height of the bars border for texture mode.
@@ -91,7 +83,7 @@ local C_PetBattles, UIParent =
 --      Left, Right, Top, Bottom     Texcoordinates of the texture.
 -------------------------------------------------------------------------------
 local Display = false
-local DoTriggers = false
+local Update = false
 
 -- Powertype constants
 local PowerDemonicFury = ConvertPowerType['DEMONIC_FURY']
@@ -116,6 +108,62 @@ local FuryMetaSBar = 21
 local MetaAura = 103958 -- Warlock metamorphosis spell ID aura.
 
 local ReverseFuryNotchOffset = 124.6  -- Used in texture mode in reverse fill.
+
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+}
+
+local NormalTD = { -- normal Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   FurySBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,                     FurySBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local MetaTD = { -- meta Trigger data
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   FuryMetaSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,                     FuryMetaSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local BothTD = { -- both Trigger data (since this is 'all'), the texture and texture frame numbers are not used.
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local NormalGroup = 1
+local MetaGroup = 2
+
+local VTs = {'whole', 'Fury', 'percent', 'Fury (percent)', 'auras', 'Auras'}
+local Groups = {
+  {1,   'Normal',        VTs, NormalTD},   -- 1
+  {'v', 'Metamorphosis', VTs, MetaTD, 1},  -- 2
+  {'a', 'Both',          VTs, BothTD},     -- 3
+}
 
 local BarOffsetX = 2
 local BarOffsetY = 0
@@ -242,6 +290,11 @@ function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
     BBar:ChangeTexture(FMeta, 'SetHiddenTexture', 1, not Meta)
   end
 
+  -- change meta or normal trigger group
+  if EnableTriggers then
+    BBar:HideVirtualGroupTriggers(MetaGroup, not Meta, 1)
+  end
+
   local Value = 0
 
   -- Check for devision by zero
@@ -255,22 +308,8 @@ function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(1, 'fury both', DemonicFury, MaxDemonicFury)
-    BBar:SetTriggers(1, 'fury both (percent)', DemonicFury, MaxDemonicFury)
-
-    if not Meta then
-      BBar:SetTriggers(1, 'off', 'fury meta')
-      BBar:SetTriggers(1, 'off', 'fury meta (percent)')
-      BBar:SetTriggers(1, 'fury normal', DemonicFury, MaxDemonicFury)
-      BBar:SetTriggers(1, 'fury normal (percent)', DemonicFury, MaxDemonicFury)
-    else
-      BBar:SetTriggers(1, 'off', 'fury normal')
-      BBar:SetTriggers(1, 'off', 'fury normal (percent)')
-      BBar:SetTriggers(1, 'fury meta', DemonicFury, MaxDemonicFury)
-      BBar:SetTriggers(1, 'fury meta (percent)', DemonicFury, MaxDemonicFury)
-    end
-    BBar:SetTriggers(1, 'metamorphosis', Meta)
-
+    BBar:SetTriggers(1, 'fury', DemonicFury)
+    BBar:SetTriggers(1, 'fury (percent)', DemonicFury, MaxDemonicFury)
     BBar:DoTriggers()
   end
 
@@ -305,74 +344,11 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
   local BBar = self.BBar
 
   if not BBar:OptionsSet() then
-    BBar:SO('Text', '_Font', function()  BBar:UpdateFont(1) self:Update() end)
+    BBar:SO('Text', '_Font', function()  BBar:UpdateFont(1) Update = true end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          BBar:CreateGroupTriggers(1, 'whole:Fury Both',   'percent:Fury Both (percent)',
-                                      'whole:Fury Normal', 'percent:Fury Normal (percent)',
-                                      'whole:Fury Meta',   'percent:Fury Meta (percent)',
-                                      'boolean: Metamorphosis', 'auras:Auras')
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,          'SetBackdropBorder', 1, BoxMode)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,     'SetBackdropBorderColor', 1, BoxMode)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,      'SetBackdrop', 1, BoxMode)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,           'SetBackdropColor', 1, BoxMode)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (both)',   'SetTexture', 1, FurySBar, FuryMetaSBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (both)',   'SetColorTexture', 1, FurySBar, FuryMetaSBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (normal)', 'SetTexture', 1, FurySBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (normal)', 'SetColorTexture', 1, FurySBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (meta)',   'SetTexture', 1, FuryMetaSBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (meta)',   'SetColorTexture', 1, FuryMetaSBar)
-          BBar:CreateTypeTriggers(1, TT.TypeID_Sound,                 TT.Type_Sound,                     'PlaySound', 1)
-
-          -- Class Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-          -- Power Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-          -- Combat Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-          -- Tagged Color
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundBorderColor,   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BackgroundColor,         TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (both)',   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (normal)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-          BBar:CreateGetFunctionTriggers(1, TT.Type_BarColor .. ' (meta)',   TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'BoxMode',        function(v)
       if v then
 
@@ -407,7 +383,7 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
       if v then
         BBar:SetValueRawFont(1, nil, '')
       else
-        self:Update()
+        Update = true
       end
     end)
     BBar:SO('Layout', 'SmoothFill',  function(v) BBar:ChangeTexture(FBar, 'SetFillSmoothTimeTexture', 1, v) end)
@@ -443,9 +419,9 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Update or Main.UnitBars.Testing then
+    self:Update()
+    Update = false
   end
 
   if Display then
@@ -463,9 +439,6 @@ end
 -------------------------------------------------------------------------------
 function GUB.DemonicBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
-
-  local Names = {Trigger = {}}
-  local Trigger = Names.Trigger
 
   -- Create box mode
   BBar:CreateTextureFrame(1, BoxMode, 0)
@@ -490,20 +463,16 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, ScaleFrame)
       BBar:SetHiddenTexture(1, TextureNumber, false)
     end
   end
-  local Name = UB.Name
-  Trigger[1] = Name
-
   -- Create font for displaying power.
   BBar:CreateFont(1, nil, PercentFn)
 
   -- Save the name for tooltips for normal mode.
-  BBar:SetTooltip(1, nil, Name)
+  BBar:SetTooltip(1, nil, UB.Name)
 
   -- Set up set change
   BBar:SetChangeTexture(FMeta, FuryMetaTexture, FuryBdMetaTexture, FuryNotchMetaTexture, FuryMetaSBar)
   BBar:SetChangeTexture(FNormal, FuryTexture, FuryBdTexture, FuryNotchTexture, FurySBar)
 
-  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 

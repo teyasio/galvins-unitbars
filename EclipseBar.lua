@@ -68,12 +68,9 @@ local C_PetBattles, UIParent =
 -- SolarPeakAura                     SpellID for the solar peak aura.
 -- LunarPeakAura                     SpellID for the lunar peak aura.
 --
--- TriggerGroups                     Table containing data needed to do DoTriggers() and create the trigger groups.
--- DoTriggers                        True by passes visible and isactive flags. If not nil then calls
---                                   self:Update(DoTriggers)
 -------------------------------------------------------------------------------
 local Display = false
-local DoTriggers = false
+local Update = false
 
 -- Powertype constants
 local PowerEclipse = ConvertPowerType['ECLIPSE']
@@ -91,17 +88,76 @@ local SliderSBar = 40
 local LunarPeakAura = 171743
 local SolarPeakAura = 171744
 
-local TGBoxNumber = 1
-local TGTpar = 2
-local TGName = 3
-local TGValueTypes = 4
-local VTs = {'whole:Lunar Energy', 'whole:Solar Energy', 'boolean:Lunar Peak', 'boolean:Solar Peak', 'auras:Auras'}
-local TriggerGroups = { -- BoxNumber, TPar, Name, ValueTypes,
-  {MoonBox,  MoonSBar,      'Moon',      VTs}, -- 1
-  {SunBox,   SunSBar,       'Sun',       VTs}, -- 2
-  {PowerBox, 0,             'Power',     VTs}, -- 3
-  {PowerBox, SliderSBar,    'Slider',    VTs}, -- 4
+local GF = { -- Get function data
+  TT.TypeID_ClassColor,  TT.Type_ClassColor,
+  TT.TypeID_PowerColor,  TT.Type_PowerColor,
+  TT.TypeID_CombatColor, TT.Type_CombatColor,
+  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
 }
+
+local SliderTD = {
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      FN = 'SetBackdropBorderTexture',      SliderSBar },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, FN = 'SetBackdropBorderColorTexture', SliderSBar,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  FN = 'SetBackdropTexture',            SliderSBar },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       FN = 'SetBackdropColorTexture',       SliderSBar,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            SliderSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              SliderSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local PowerTD = {
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,         BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,    BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,     BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,          BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (lunar)', LunarSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (lunar)', LunarSBar,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (solar)', SolarSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (solar)', SolarSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local MoonTD = {
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,       BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,  BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,   BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,        BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,             MoonSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,               MoonSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local SunTD = {
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,       BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,  BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,   BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,        BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,             SunSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,               SunSBar,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound },
+}
+
+local VTs = {'whole', 'Lunar Energy', 'whole', 'Solar Energy', 'state', 'Lunar Peak', 'state', 'Solar Peak', 'auras', 'Auras'}
+local Groups = { -- BoxNumber, TPar, Name, ValueTypes,
+  {MoonBox,  'Moon',   VTs, MoonTD},   -- 1
+  {SunBox,   'Sun',    VTs, SunTD},    -- 2
+  {PowerBox, 'Power',  VTs, PowerTD},  -- 3
+  {PowerBox, 'Slider', VTs, SliderTD}, -- 4
+}
+
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -320,7 +376,7 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType, ...)
 
   -- Triggers
   if UB.Layout.EnableTriggers then
-    for Index = 1, #TriggerGroups do
+    for Index = 1, #Groups do
       if EclipsePower <= 0 then
         BBar:SetTriggers(Index, 'off', 'solar energy')
         BBar:SetTriggers(Index, 'lunar energy', abs(EclipsePower))
@@ -375,111 +431,18 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     BBar:SetOptionData('BarPower', PowerBox)
     BBar:SetOptionData('BarSlider', PowerBox, SliderSBar)
 
-    BBar:SO('Text', '_Font', function() BBar:UpdateFont(PowerBox) self:Update() end)
+    BBar:SO('Text', '_Font', function() BBar:UpdateFont(PowerBox) Update = true end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', '_UpdateTriggers', function(v)
-      if v.EnableTriggers then
-        DoTriggers = true
-        Display = true
-      end
-    end)
-    BBar:SO('Layout', 'EnableTriggers', function(v)
-      if v then
-        if not BBar:GroupsCreatedTriggers() then
-          for GroupNumber = 1, #TriggerGroups do
-            local TG = TriggerGroups[GroupNumber]
-            local BoxNumber, Tpar, Name = TG[TGBoxNumber],  TG[TGTpar], TG[TGName]
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
 
-            BBar:CreateGroupTriggers(GroupNumber, unpack(TG[TGValueTypes]))
-            if Name == 'Moon' or Name == 'Sun' or Name == 'Power' then
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,         'SetBackdropBorder', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,    'SetBackdropBorderColor', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,     'SetBackdrop', BoxNumber, BoxMode)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,          'SetBackdropColor', BoxNumber, BoxMode)
-            else
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,         'SetBackdropBorderTexture', BoxNumber, Tpar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,    'SetBackdropBorderColorTexture', BoxNumber, Tpar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,     'SetBackdropTexture', BoxNumber, Tpar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,          'SetBackdropColorTexture', BoxNumber, Tpar)
-            end
-
-            -- Class Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-            -- Power Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-            -- Combat Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-            -- Tagged Color
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundBorderColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BackgroundColor,       TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-
-            if Name == 'Power' then
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (lunar)', 'SetTexture', BoxNumber, LunarSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (lunar)', 'SetColorTexture', BoxNumber, LunarSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (solar)', 'SetTexture', BoxNumber, SolarSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (solar)', 'SetColorTexture', BoxNumber, SolarSBar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                    'PlaySound', 1)
-
-              -- Class Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (lunar)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor, TT.Type_ClassColor, Main.GetClassColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (solar)', TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor, TT.Type_ClassColor, Main.GetClassColor)
-
-              -- Power Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (lunar)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor, TT.Type_PowerColor, Main.GetPowerColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (solar)', TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor, TT.Type_PowerColor, Main.GetPowerColor)
-
-              -- Combat Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (lunar)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (solar)', TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-              -- Tagged Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (lunar)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor .. ' (solar)', TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-
-            else
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarTexture,            TT.Type_BarTexture,               'SetTexture', BoxNumber, Tpar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_BarColor,              TT.Type_BarColor,                 'SetColorTexture', BoxNumber, Tpar)
-              BBar:CreateTypeTriggers(GroupNumber, TT.TypeID_Sound,                 TT.Type_Sound,                    'PlaySound', 1)
-
-              -- Class Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor, TT.TypeID_ClassColorMenu,  TT.TypeID_ClassColor,  TT.Type_ClassColor,  Main.GetClassColor)
-
-              -- Power Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor, TT.TypeID_PowerColorMenu,  TT.TypeID_PowerColor,  TT.Type_PowerColor,  Main.GetPowerColor)
-
-              -- Combat Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor, TT.TypeID_CombatColorMenu, TT.TypeID_CombatColor, TT.Type_CombatColor, Main.GetCombatColor)
-
-              -- Tagged Color
-              BBar:CreateGetFunctionTriggers(GroupNumber, TT.Type_BarColor, TT.TypeID_TaggedColorMenu, TT.TypeID_TaggedColor, TT.Type_TaggedColor, Main.GetTaggedColor)
-            end
-          end
-
-          -- Do this since all defaults need to be set first.
-          BBar:DoOption()
-        end
-        BBar:UpdateTriggers()
-
-        DoTriggers = true
-        Display = true
-      elseif BBar:ClearTriggers() then
-        Display = true
-      end
-    end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'HideText',      function(v)
       if v then
         BBar:SetValueRawFont(PowerBox, nil, '')
       else
-        self:Update()
+        Update = true
       end
     end)
     BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
@@ -547,13 +510,13 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     end)
     BBar:SO('Bar', 'ColorLunar',            function(v) BBar:SetColorTexture(PowerBox, LunarSBar, v.r, v.g, v.b, v.a) end)
     BBar:SO('Bar', 'ColorSolar',            function(v) BBar:SetColorTexture(PowerBox, SolarSBar, v.r, v.g, v.b, v.a) end)
-    BBar:SO('Bar', 'SunMoon',               function() self:Update() end)
+    BBar:SO('Bar', 'SunMoon',               function() Update = true end)
     BBar:SO('Bar', 'Color',                 function(v, UB, OD)
       local TableName = OD.TableName
 
       BBar:SetColorTexture(OD.p1, OD.p2, v.r, v.g, v.b, v.a)
       if TableName == 'BarMoon' or TableName == 'BarSun' then
-        self:Update()
+        Update = true
       end
     end)
     BBar:SO('Bar', '_Size',                 function(v, UB, OD)
@@ -567,7 +530,7 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
       else
         BBar:SetSizeTextureFrame(OD.p1, BoxMode, v.Width, v.Height)
       end
-      self:Update()
+      Update = true
       Display = true
     end)
     BBar:SO('Bar', 'Padding',               function(v, UB, OD)
@@ -596,16 +559,16 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     if KeyName == nil or KeyName == 'HideSlider' then
       BBar:SetHiddenTexture(PowerBox, SliderSBar, Gen.HideSlider)
     end
-    self:Update()
+    Update = true
     Display = true
   end
   if TableName == nil or TableName ~= 'General' then
     BBar:DoOption(TableName, KeyName)
   end
 
-  if DoTriggers or Main.UnitBars.Testing then
-    self:Update(DoTriggers)
-    DoTriggers = false
+  if Update or Main.UnitBars.Testing then
+    self:Update()
+    Update = false
   end
 
   if Display then
@@ -623,9 +586,6 @@ end
 -------------------------------------------------------------------------------
 function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 3)
-
-  local Names = {Trigger = {}}
-  local Trigger = Names.Trigger
 
   -- Create the sun, moon, and power.
   BBar:CreateTextureFrame(PowerBox, BoxMode, 0)
@@ -664,11 +624,6 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
   -- This will make all the bar objects be aligned by their sides.
   BBar:SetJustifyBar('SIDE')
 
-  for GroupNumber = 1, #TriggerGroups do
-    Trigger[GroupNumber] = TriggerGroups[GroupNumber][TGName]
-  end
-
-  UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end
 
