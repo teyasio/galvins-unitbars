@@ -100,7 +100,8 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            RuneSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
     GF = GF },
-  { TT.TypeID_TextureSize,           TT.Type_TextureSize,           RuneDarkTexture, RuneLightTexture },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneDarkTexture, RuneLightTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -328,6 +329,7 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -386,11 +388,15 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   -- Set the texture scale for Texture Size triggers.
   BBar:SetScaleTexture(0, RuneDarkTexture, 1)
   BBar:SetScaleTexture(0, RuneLightTexture, 1)
+  BBar:SetScaleTextureFrame(0, BoxMode, 1)
 
   BBar:SetChangeTexture(Runes, RuneLightTexture, RuneSBar)
   BBar:SetHiddenTexture(0, RuneDarkTexture, false)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
+
+  -- Set offset for trigger bar offset
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

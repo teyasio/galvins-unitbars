@@ -108,7 +108,8 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            RuneSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
     GF = GF },
-  { TT.TypeID_TextureSize,           TT.Type_TextureSize,           RuneTexture, RuneBorderTexture, RuneEnergizeTexture },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BarMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneTexture, RuneBorderTexture, RuneEnergizeTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -629,6 +630,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -705,6 +707,9 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(0, RuneBorderTexture, false)
 
   BBar:CreateFont(0)
+
+  -- set offset for trigger bar offset.
+  BBar:SetOffsetTextureFrame(0, BarMode, 0, 0, 0, 0)
 
   UnitBarF.EnergizeTimers = {}
   UnitBarF.Names = Names

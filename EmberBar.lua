@@ -120,7 +120,8 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (fiery embers)', EmberFierySBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (fiery embers)', EmberFierySBar,
     GF = GF },
-  { TT.TypeID_TextureSize,           TT.Type_TextureSize,                     EmberBgTexture, EmberTexture, EmberFieryTexture },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                       BoxMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                    EmberBgTexture, EmberTexture, EmberFieryTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -457,9 +458,10 @@ function Main.UnitBarsF.EmberBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
+  if Update or Main.UnitBars.Testing then
     self:Update()
     Update = false
+    Display = true
   end
 
   if Display then
@@ -522,10 +524,11 @@ function GUB.EmberBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
-  -- Set the texture scale for Texture Size triggers.
+  -- Set the texture scale for bar offset triggers.
   BBar:SetScaleTexture(0, EmberBgTexture, 1)
   BBar:SetScaleTexture(0, EmberTexture, 1)
   BBar:SetScaleTexture(0, EmberFieryTexture, 1)
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

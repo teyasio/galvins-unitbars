@@ -97,7 +97,8 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            OrbSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              OrbSBar,
     GF = GF },
-  { TT.TypeID_TextureSize,           TT.Type_TextureSize,           OrbDarkTexture, OrbGlowTexture },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          OrbDarkTexture, OrbGlowTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -327,6 +328,7 @@ function Main.UnitBarsF.ShadowBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -380,9 +382,10 @@ function GUB.ShadowBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
-  -- Set the texture scale for Texture Size triggers.
+  -- Set the texture scale for bar offset triggers.
   BBar:SetScaleTexture(0, OrbDarkTexture, 1)
   BBar:SetScaleTexture(0, OrbGlowTexture, 1)
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

@@ -1301,6 +1301,24 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
       -- Remove action.
       Triggers.Action = nil
     end
+  elseif Ver == 4 then
+    if SourceKey == 'Triggers' then -- triggers
+      local Triggers = SourceUB.Triggers
+
+      for Index, Trigger in ipairs(SourceUB.Triggers) do
+
+        -- Convert texture size to texture scale.
+        if Trigger.TypeID == 'texturesize' then
+          Trigger.TypeID = 'texturescale'
+        end
+        if Trigger.Type == 'texture size' then
+          Trigger.Type = 'texture scale'
+        end
+
+        -- add default for bar offsets
+        Trigger.OffsetAll = true
+      end
+    end
   end
 end
 
@@ -1376,6 +1394,10 @@ local function ConvertUnitBarData(Ver)
     {Action = 'custom',    Source = '', '=Triggers'},
   }
 
+  local ConvertUBData4 = {
+    {Action = 'custom',    Source = '', '=Triggers'},
+  }
+
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
 
@@ -1388,6 +1410,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData2
   elseif Ver == 3 then -- For version 350 or lower.
     ConvertUBData = ConvertUBData3
+  elseif Ver == 4 then -- For version 4.01 or lower.
+    ConvertUBData = ConvertUBData4
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -4345,6 +4369,10 @@ function GUB:ApplyProfile()
     -- Convert profile from a version before 3.50
     ConvertUnitBarData(3)
   end
+  if Ver == nil or Ver < 401 then
+    -- Convert profile from a version before 4.01
+    ConvertUnitBarData(4)
+  end
   if Ver ~= Version then
     CleanUnitBars()
     UnitBars.Version = Version
@@ -4421,8 +4449,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 3 then
-    GUBData.ShowMessage = 3
+  if GUBData.ShowMessage ~= 4 then
+    GUBData.ShowMessage = 4
     Main:MessageBox(DefaultUB.MessageText)
   end
 end

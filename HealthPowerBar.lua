@@ -105,6 +105,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted)', PredictedBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted)',   PredictedBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    1 },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -622,9 +623,10 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
   if Update or Main.UnitBars.Testing then
     self:Update()
     Update = false
+    Display = true
   end
 
-  if Display or Main.UnitBars.Testing then
+  if Display then
     BBar:Display()
     Display = false
   end
@@ -659,6 +661,9 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHidden(1, 1, false)
   BBar:ChangeTexture(StatusBars, 'SetHiddenTexture', 1, false)
   BBar:ChangeTexture(StatusBars, 'SetFillTexture', 1, 0)
+
+  -- Set this for trigger bar offsets
+  BBar:SetOffsetTextureFrame(1, 1, 0, 0, 0, 0)
 
   UnitBarF.BBar = BBar
 end

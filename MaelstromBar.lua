@@ -82,6 +82,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            MaelstromSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              MaelstromSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -328,6 +329,7 @@ function Main.UnitBarsF.MaelstromBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -372,6 +374,9 @@ function GUB.MaelstromBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHidden(MaelstromTime, BoxMode, false)
   BBar:SetHiddenTexture(MaelstromTime, MaelstromSBar, false)
   BBar:SetFillTexture(MaelstromTime, MaelstromSBar, 0)
+
+  -- set offset for trigger bar offset.
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

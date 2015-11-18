@@ -41,8 +41,8 @@ local tonumber, gsub, min, max, tremove, tinsert, wipe, strsub =
       tonumber, gsub, min, max, tremove, tinsert, wipe, strsub
 local ipairs, pairs, type, next, sort, select =
       ipairs, pairs, type, next, sort, select
-local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo =
-      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo
+local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown =
+      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown
 local UnitReaction =
       UnitReaction
 
@@ -141,8 +141,18 @@ local O = {
   FontFieldHeightMax = 200,
 
   -- Trigger settings
-  TriggerTextureSizeMin = 0.1,
-  TriggerTextureSizeMax = 5,
+  TriggerTextureScaleMin = 0.1,
+  TriggerTextureScaleMax = 5,
+  TriggerBarOffsetAllMin = -100,
+  TriggerBarOffsetAllMax = 100,
+  TriggerBarOffsetLeftMin = -100,
+  TriggerBarOffsetLeftMax = 100,
+  TriggerBarOffsetRightMin = -100,
+  TriggerBarOffsetRightMax = 100,
+  TriggerBarOffsetTopMin = -100,
+  TriggerBarOffsetTopMax = 100,
+  TriggerBarOffsetBottomMin = -100,
+  TriggerBarOffsetBottomMax = 100,
 
   -- Layout settings
   LayoutBorderPaddingMin = -25,
@@ -2647,6 +2657,146 @@ local function AddAuraOption(Order, UBF, BBar, TO, SpellID, Trigger)
 end
 
 -------------------------------------------------------------------------------
+-- CreateOffsetOption
+--
+-- Create options to offset the size of bar
+--
+-- Subfunction of AddTriggerOption()
+--
+-- Order    Position in the options.
+-- UBF      Unitbar frame to access the bar functions.
+-- BBar     Access to bar functions.
+-- Trigger  Trigger being modified.
+-------------------------------------------------------------------------------
+local function CreateOffsetOption(Order, UBF, BBar, Trigger)
+  local OffsetOption = {
+    type = 'group',
+    name = '',
+    order = Order,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local Pars = Trigger.Pars
+            local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
+
+            if KeyName == 'Left' or KeyName == 'All' then
+              return p1
+            elseif KeyName == 'Right' then
+              return p2
+            elseif KeyName == 'Top' then
+              return p3
+            elseif KeyName == 'Bottom' then
+              return p4
+            end
+
+            return p1, p2, p3, p4
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+            local Pars = Trigger.Pars
+            local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
+
+            if KeyName == 'All' then
+              p1 = Value
+              p2 = -Value
+              p3 = -Value
+              p4 = Value
+            elseif KeyName == 'Left' then
+              p1 = Value
+            elseif KeyName == 'Right' then
+              p2 = Value
+            elseif KeyName == 'Top' then
+              p3 = Value
+            elseif KeyName == 'Bottom' then
+              p4 = Value
+            end
+
+            Pars[1], Pars[2], Pars[3], Pars[4] = p1, p2, p3, p4
+
+            -- Update the triggers here for better performance
+            -- Dont need to do a checktriggers here.
+            UBF:Update()
+            BBar:Display()
+          end,
+    hidden = function()
+               return Trigger.TypeID ~= 'baroffset'
+             end,
+    args = {
+      OffsetAll = {
+        type = 'toggle',
+        name = 'All',
+        order = 1,
+        get = function()
+                return Trigger.OffsetAll
+              end,
+        set = function(Info, Value)
+                Trigger.OffsetAll = Value
+              end,
+        desc = 'Change offset with one value'
+      },
+      Spacer = CreateSpacer(2),
+      All = {
+        type = 'range',
+        name = 'Offset',
+        order = 3,
+        width = 'double',
+        hidden = function()
+                   return not Trigger.OffsetAll
+                 end,
+        min = O.TriggerBarOffsetAllMin,
+        max = O.TriggerBarOffsetAllMax,
+        step = 1,
+      },
+      Left = {
+        type = 'range',
+        name = 'Left',
+        order = 4,
+        hidden = function()
+                   return Trigger.OffsetAll
+                 end,
+        min = O.TriggerBarOffsetLeftMin,
+        max = O.TriggerBarOffsetLeftMax,
+        step = 1,
+      },
+      Right = {
+        type = 'range',
+        name = 'Right',
+        order = 5,
+        hidden = function()
+                   return Trigger.OffsetAll
+                 end,
+        min = O.TriggerBarOffsetRightMin,
+        max = O.TriggerBarOffsetRightMax,
+        step = 1,
+      },
+      Top = {
+        type = 'range',
+        name = 'Top',
+        order = 6,
+        hidden = function()
+                   return Trigger.OffsetAll
+                 end,
+        min = O.TriggerBarOffsetTopMin,
+        max = O.TriggerBarOffsetTopMax,
+        step = 1,
+      },
+      Bottom = {
+        type = 'range',
+        name = 'Bottom',
+        order = 7,
+        hidden = function()
+                   return Trigger.OffsetAll
+                 end,
+        min = O.TriggerBarOffsetBottomMin,
+        max = O.TriggerBarOffsetBottomMax,
+        step = 1,
+      },
+    },
+  }
+
+  return OffsetOption
+end
+
+-------------------------------------------------------------------------------
 -- AddTriggerOption
 --
 -- Adds an option window under a group to modify the trigger settings.
@@ -2750,9 +2900,12 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
         p1 = DefaultStatusBarTexture
       end
 
-    elseif TypeID == 'texturesize' then
+    elseif TypeID == 'texturescale' then
       p2, p3, p4 = nil, nil, nil
       p1 = tonumber(p1) or 1
+
+    elseif TypeID == 'baroffset' then
+      p1, p2, p3, p4 = tonumber(p1) or 0, tonumber(p2) or 0, tonumber(p3) or 0, tonumber(p4) or 0
 
     elseif strfind(TypeID, 'color') then
       p1, p2, p3, p4 = tonumber(p1) or 1, tonumber(p2) or 1, tonumber(p3) or 1, tonumber(p4) or 1
@@ -2945,12 +3098,12 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                Texture = TriggerColorIcon
              elseif strfind(TypeID, 'border') then
                Texture = TriggerBorderIcon
-             elseif strfind(TypeID, 'bar') then
-               Texture = TriggerBarIcon
              elseif TypeID == 'background' then
                Texture = TriggerBackgroundIcon
-             elseif TypeID == 'texturesize' then
+             elseif TypeID == 'texturescale' or TypeID == 'baroffset' then
                Texture = TriggerChangeSizeIcon
+             elseif strfind(TypeID, 'bar') then
+               Texture = TriggerBarIcon
              elseif TypeID == 'sound' then
                Texture = TriggerSoundIcon
              end
@@ -3285,6 +3438,11 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           desc = function()
                    return format('Delete trigger %s', Trigger.OrderNumber)
                  end,
+          confirm = function()
+                      if not IsModifierKeyDown() then
+                        return 'Are you sure you want to delete this trigger?\n Hold a modifier key down and click delete to bypass this warning'
+                      end
+                    end,
           func = function()
                    BBar:RemoveTriggers(Trigger.Index)
                    DeleteTriggerOption(TGA, Trigger)
@@ -3360,27 +3518,29 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                      return Trigger.TypeID ~= 'bartexture'
                    end,
         },
-        ParsTextureSize = {
+        ParsTextureScale = {
           type = 'range',
-          name = 'Texture Size',
+          name = 'Texture Scale',
           order = 13,
           desc = 'Change the texture size',
           step = .01,
           width = 'double',
           isPercent = true,
           hidden = function()
-                     return Trigger.TypeID ~= 'texturesize'
+                     return Trigger.TypeID ~= 'texturescale'
                    end,
-          min = O.TriggerTextureSizeMin,
-          max = O.TriggerTextureSizeMax,
+          min = O.TriggerTextureScaleMin,
+          max = O.TriggerTextureScaleMax,
         },
+
+        ParsBarOffsets = CreateOffsetOption(13.5, UBF, BBar, Trigger),
         ParsBorder = {
           type = 'select',
           name = 'Border',
           desc = function()
                    return Trigger.Pars[1] or ''
                  end,
-          order = 14,
+          order = 15,
           dialogControl = 'LSM30_Border',
           values = LSMBorderDropdown,
           hidden = function()
@@ -3394,7 +3554,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           desc = function()
                    return Trigger.Pars[1] or ''
                  end,
-          order = 15,
+          order = 16,
           dialogControl = 'LSM30_Background',
           values = LSMBackgroundDropdown,
           hidden = function()
@@ -3407,7 +3567,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           desc = function()
                    return Trigger.Pars[1] or ''
                  end,
-          order = 16,
+          order = 17,
           dialogControl = 'LSM30_Sound',
           values = LSMSoundDropdown,
           hidden = function()
@@ -3417,7 +3577,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
         ParsSoundChannel = {
           type = 'select',
           name = 'Sound Channel',
-          order = 17,
+          order = 18,
           style = 'dropdown',
           values = TriggerSoundChannelDropdown,
           hidden = function()
@@ -3428,7 +3588,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'select',
           name = 'Color Type',
           desc = 'This will override the current color, if there is a new one to replace it with',
-          order = 18,
+          order = 19,
           values = function()
                      return Group.Objects[Trigger.TypeIndex].GetFnTypes
                    end,
@@ -3441,7 +3601,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'input',
           name = 'Color Unit',
           desc = 'Enter the unit you want to get the color from',
-          order = 19,
+          order = 20,
           hidden = function()
                      local GetFnTypeID = Trigger.GetFnTypeID
 
@@ -3604,6 +3764,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
 
                  elseif KeyName == 'ParsSoundChannel' then
                    return p2
+
                  else
                    return p1
                  end
@@ -3645,7 +3806,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    BBar:Display()
                    return
 
-                 elseif KeyName == 'ParsTextureSize' then
+                 elseif KeyName == 'ParsTextureScale' then
                    Pars[1] = Value
 
                    -- Update the triggers here for better performance

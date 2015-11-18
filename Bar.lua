@@ -102,15 +102,14 @@ local C_PetBattles, UIParent =
 -- TextureFrame data structure
 --
 --   Hidden                          If true then the textureframe is hidden.
---   Bound                           If nil or true then textureframe is included in the bounding rect for the boxframe.
---                                   if not nil and false then its not included in the bounding rect.
 --   Textures[]                      Textures contained in TextureFrame.
 --   Colors                          Saved color used by SetColor() and GetColor()
 --   FontTime                        Used by FontSetValueTime()
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
---   Backdrop                        Table containing the backdrop.
+--   BorderFrame                     Contains the backdrop and allows the textureframe to be sized without effecting box size.
+--     Backdrop                      Table containing the backdrop.
 --
 -- Texture data structure            A texture is actually a frame.  I call it Texture so its not confused with
 --                                   TextureFrame.
@@ -177,10 +176,11 @@ local C_PetBattles, UIParent =
 --    ParentFrame
 --      Region                       Bar border
 --      BoxFrame                     border and BoxFrame
---        TextureFrame               Border and TextureFrame.
---          Texture (frame)          Container for SubFrame and SubTexture.
---            SubFrame               A frame that holds the texture.
---              SubTexture           Statusbar texture or texture.
+--        TextureFrame               TextureFrame.
+--          BorderFrame              Border and also allows the textureFrame to be larger without effecting Boxsize.
+--            Texture (frame)        Container for SubFrame and SubTexture.
+--              SubFrame             A frame that holds the texture.
+--                SubTexture         Statusbar texture or texture.
 --
 -- NOTES:   When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
 --          Will cause GetLeft() etc to return a bad value.  But if you pass the frame
@@ -495,7 +495,8 @@ local TypeIDfn = {
   [TT.TypeID_BackgroundColor]       = 'SetBackdropColor',
   [TT.TypeID_BarTexture]            = 'SetTexture',
   [TT.TypeID_BarColor]              = 'SetColorTexture',
-  [TT.TypeID_TextureSize]           = 'SetScaleTexture',
+  [TT.TypeID_TextureScale]          = 'SetScaleTexture',
+  [TT.TypeID_BarOffset]             = 'SetOffsetTextureFrame',
   [TT.TypeID_Sound]                 = 'PlaySound',
 }
 
@@ -662,7 +663,7 @@ end
 -------------------------------------------------------------------------------
 -- GetVirtualFrameLevel
 --
--- Gets a frame level from the an existing virtual frame level or a new frame level.
+-- Gets a frame level from an existing virtual frame level or a new frame level.
 --
 -- If the VirtualLevel doesn't exist then it will return a frame level higher
 -- than any frame level in the existing frame levels.  If the virtual frame does
@@ -971,7 +972,7 @@ local function GetBoundsRect(ParentFrame, Frames)
   for Index = 1, #Frames do
     local Frame = Frames[Index]
 
-    if not Frame.Hidden and (Frame.Bound == nil or Frame.Bound) then
+    if not Frame.Hidden then
       local Scale = Frame:GetScale()
 
       Left = Frame:GetLeft() * Scale
@@ -2026,7 +2027,7 @@ function BarDB:SetBackdrop(BoxNumber, TextureFrameNumber, TextureName, PathName)
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
 
@@ -2056,7 +2057,7 @@ function BarDB:SetBackdropBorder(BoxNumber, TextureFrameNumber, TextureName, Pat
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
 
@@ -2083,7 +2084,7 @@ function BarDB:SetBackdropTile(BoxNumber, TextureFrameNumber, Tile)
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
 
@@ -2110,7 +2111,7 @@ function BarDB:SetBackdropTileSize(BoxNumber, TextureFrameNumber, TileSize)
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
 
@@ -2137,7 +2138,7 @@ function BarDB:SetBackdropBorderSize(BoxNumber, TextureFrameNumber, BorderSize)
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
 
@@ -2164,7 +2165,7 @@ function BarDB:SetBackdropPadding(BoxNumber, TextureFrameNumber, Left, Right, To
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
     local Insets = Backdrop.insets
@@ -2198,7 +2199,7 @@ function BarDB:SetBackdropColor(BoxNumber, TextureFrameNumber, r, g, b, a)
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     Frame:SetBackdropColor(r, g, b, a)
     SetColor(Frame, 'backdrop', r, g, b, a)
@@ -2223,7 +2224,7 @@ function BarDB:SetBackdropBorderColor(BoxNumber, TextureFrameNumber, r, g, b, a)
     local Frame = NextBox(self, BoxNumber)
 
     if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
+      Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
 
     -- Clear if no color is specified.
@@ -2244,7 +2245,7 @@ end
 -------------------------------------------------------------------------------
 -- SetSizeTextureFrame
 --
--- Sets the size of a box frame or texture frame.
+-- Sets the size of a texture frame.
 --
 -- BoxNumber           Box containing textureframe.
 -- TextureFrameNumber  Texture frame to change size.
@@ -2253,23 +2254,64 @@ end
 -- NOTES:  The BoxFrame will be resized to fit the new size of the TextureFrame.
 -------------------------------------------------------------------------------
 function BarDB:SetSizeTextureFrame(BoxNumber, TextureFrameNumber, Width, Height)
+  SaveSettings(self, 'SetSizeTextureFrame', BoxNumber, TextureFrameNumber, Width, Height)
+
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
+    local Width = Width or TextureFrame:GetWidth()
+    local Height = Height or TextureFrame:GetHeight()
 
-    TextureFrame:SetSize(Width or TextureFrame:GetWidth(), Height or TextureFrame:GetHeight())
+    TextureFrame:SetSize(Width, Height)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetOffsetsTexureFrame
+--
+-- Offsets the textureframe from its original size.  This will not effect the box size.
+--
+-- BoxNumber                 Box containing textureframe.
+-- TextureFrameNumber        Texture frame to change size.
+-- Left, Right, Top, Bottom  Offsets
+-------------------------------------------------------------------------------
+function BarDB:SetOffsetTextureFrame(BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
+  SaveSettings(self, 'SetOffsetTextureFrame', BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
+
+  repeat
+    local BorderFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber].BorderFrame
+
+    BorderFrame:ClearAllPoints()
+
+    BorderFrame:SetPoint('LEFT', Left, 0)
+    BorderFrame:SetPoint('RIGHT', Right, 0)
+    BorderFrame:SetPoint('TOP', 0, Top)
+    BorderFrame:SetPoint('BOTTOM', 0, Bottom)
+
+    -- Check for invalid offset
+    local x, y = BorderFrame:GetSize()
+
+    if x < 10 or y < 10 then
+      BorderFrame:SetPoint('LEFT', 0, 0)
+      BorderFrame:SetPoint('RIGHT', 0, 0)
+      BorderFrame:SetPoint('TOP', 0, 0)
+      BorderFrame:SetPoint('BOTTOM', 0, 0)
+    end
+
   until LastBox
 end
 
 -------------------------------------------------------------------------------
 -- SetScaleTextureFrame
 --
--- Changes the scale of the box frame or texture frame making things larger or smaller.
+-- Changes the scale of a texture frame making things larger or smaller.
 --
 -- BoxNumber              Box containing the texture frame.
 -- TextureFrameNumber     Texture frame to set scale to.
 -- Scale                  New scale to set.
 -------------------------------------------------------------------------------
 function BarDB:SetScaleTextureFrame(BoxNumber, TextureFrameNumber, Scale)
+  SaveSettings(self, 'SetScaleTextureFrame', BoxNumber, TextureFrameNumber, Scale)
+
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
 
@@ -2314,25 +2356,6 @@ function BarDB:SetPointTextureFrame(BoxNumber, TextureFrameNumber, Point, Relati
       TextureFrame.OffsetY = OffsetY
       TextureFrame:SetPoint(Point, RelativeTextureFrame, RelativePoint, (OffsetX / Scale) or 0, (OffsetY / Scale) or 0)
     end
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- SetBoundTextureFrame
---
--- Makes a textureframe be excluded from the bounding rectangle of its parent
--- boxframe.
---
--- Enable               If false the boxframe will not include this texture
---                      frame in its border, otherwise it will.
--- BoxNumber            Box containing the texture frame.
--- TextureFrameNumber   TextureFrame to setpoint.
--------------------------------------------------------------------------------
-function BarDB:SetBoundTextureFrame(BoxNumber, TextureFrameNumber, Enable)
-  repeat
-    local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
-
-    TextureFrame.Bound = Enable
   until LastBox
 end
 
@@ -3236,11 +3259,25 @@ end
 -- NOTES: Works with textures only.
 -------------------------------------------------------------------------------
 function BarDB:SetSizeTexture(BoxNumber, TextureNumber, Width, Height)
+  SaveSettings(self, 'SetSizeTexture', BoxNumber, TextureNumber, Width, Height)
+
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     Texture:SetSize(Width or Texture:GetWidth(), Height or Texture:GetHeight())
   until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetOffsetTexture
+--
+-- Changes the size of a texture thru offsets.
+--
+-- BoxNumber                 Box containing texture.
+-- TextureNumber             Texture to modify.
+-- Left, Right, Top, Bottom  Offsets
+-------------------------------------------------------------------------------
+function BarDB:SetOffsetTexture(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
 end
 
 -------------------------------------------------------------------------------
@@ -3350,7 +3387,7 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
   Bar.Swap = false
   Bar.Float = false
   Bar.BorderPadding = 0
-  Bar.Justify = 'CORNER'
+  Bar.Justify = 'SIDE'
   Bar.Align = false
   Bar.AlignOffsetX = 0
   Bar.AlignOffsetY = 0
@@ -3418,13 +3455,22 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, Level)
     TF:SetPoint('TOPLEFT')
     TF:SetSize(1, 1)
 
+    -- Create texture frame border for border, but also allow the texture frame to change size
+    -- without effecting the box size.
+    local BorderFrame = CreateFrame('Frame', nil, TF)
+    BorderFrame:SetPoint('LEFT')
+    BorderFrame:SetPoint('RIGHT')
+    BorderFrame:SetPoint('TOP')
+    BorderFrame:SetPoint('BOTTOM')
+
     -- Add the framelevel passed to the current framelevel.
     local FrameLevel = GetVirtualFrameLevel(Level)
     SetVirtualFrameLevel(Level, FrameLevel)
 
-    TF:SetFrameLevel(FrameLevel)
+    BorderFrame:SetFrameLevel(FrameLevel)
     TF:Hide()
     TF.Hidden = true
+    TF.BorderFrame = BorderFrame
 
     TextureFrames[TextureFrameNumber] = TF
 
@@ -3450,6 +3496,7 @@ local function OnSizeChangedTexture(self, Width, Height)
 
   Texture.Width = Width
   Texture.Height = Height
+
   if Texture.SetFill then
     local Value = Texture.Value
 
@@ -3457,6 +3504,7 @@ local function OnSizeChangedTexture(self, Width, Height)
       Texture.SubFrame:SetValue(Value - 1)
     end
     SetFill(Texture, Value)
+    Texture:SetSize(Width, Height)
   elseif Texture.Type == 'texture' then
 
     -- Update the texture to be the same size as the SubFrame
@@ -3482,8 +3530,9 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrame = BoxFrame.TextureFrames[TextureFrameNumber]
+    local BorderFrame = TextureFrame.BorderFrame
     local SubFrame = nil
-    local Texture = CreateFrame('Frame', nil, TextureFrame)
+    local Texture = CreateFrame('Frame', nil, BorderFrame)
 
     -- Set base frame level.
     local FrameLevel = GetVirtualFrameLevel(Level)
@@ -3498,7 +3547,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
       SubFrame:SetOrientation('HORIZONTAL')
 
       -- Status bar is always the same size of the texture frame.
-      Texture:SetAllPoints(TextureFrame)
+      Texture:SetAllPoints(BorderFrame)
 
       -- Set defaults for statusbar.
       Texture.Type = 'statusbar'
@@ -5219,6 +5268,9 @@ function BarDB:SetAuraTriggers(TrackedAurasList)
   -- Only call do triggers if theres something to change.
   if Change then
     self:DoTriggers()
+
+    -- Since auras dont get called thru self:update().  A display call has to be done here.
+    self:Display()
   end
 end
 

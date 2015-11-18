@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 400
+GUB.DefaultUB.Version = 401
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -255,7 +255,8 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_BackgroundColor       = 'backgroundcolor', Type_BackgroundColor       = 'BG Background Color',
   TypeID_BarTexture            = 'bartexture',      Type_BarTexture            = 'Bar Texture',
   TypeID_BarColor              = 'bartexturecolor', Type_BarColor              = 'Bar Color',
-  TypeID_TextureSize           = 'texturesize',     Type_TextureSize           = 'Texture Size',
+  TypeID_TextureScale          = 'texturescale',    Type_TextureScale          = 'Texture Scale',
+  TypeID_BarOffset             = 'baroffset',       Type_BarOffset             = 'Bar Offset',
   TypeID_RegionBorder          = 'border',          Type_RegionBorder          = 'Region Border',
   TypeID_RegionBorderColor     = 'bordercolor',     Type_RegionBorderColor     = 'Region Border Color',
   TypeID_RegionBackground      = 'background',      Type_RegionBackground      = 'Region Background',
@@ -428,6 +429,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -543,6 +545,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -661,6 +664,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -772,6 +776,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -890,6 +895,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1001,6 +1007,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1118,6 +1125,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1232,6 +1240,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1346,6 +1355,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1536,6 +1546,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1651,6 +1662,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1823,6 +1835,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -1954,6 +1967,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -2083,6 +2097,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -2197,6 +2212,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -2376,6 +2392,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -2569,6 +2586,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -2701,6 +2719,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -2833,6 +2852,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -3005,6 +3025,7 @@ GUB.DefaultUB.Default = {
           Static = false,
           Minimize = false,
           HideAuras = false,
+          OffsetAll = true,
           Action = {Type = 1},
           Name = '',
           GroupNumber = 1,
@@ -3175,6 +3196,13 @@ GUB.DefaultUB.MessageText = [[
 |Cffffff00Galvin's UnitBars|r
 
 |cff00ff00New Changes|r
+
+4.01
+
+* Triggers texture size changed to texture scale.
+* Bar offset added to triggers. This changes the size of boxes based on an offset. Example make a holy power box larger of smaller without effecting the size of the bar.
+
+4.00
 
 * Message box that pops up when you first run the mod has mouse wheel scrolling.
 * When copy/append triggers from one bar to another.  The triggers may end up in a different spot than expected.  This is normal.
