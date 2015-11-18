@@ -75,6 +75,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ComboSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              ComboSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -214,6 +215,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -248,6 +250,9 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   end
 
   BBar:ChangeBox(Combo, 'SetHidden', BoxMode, false)
+
+  -- Set offsets for trigger bar offset.
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

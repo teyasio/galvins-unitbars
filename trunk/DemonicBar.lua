@@ -126,6 +126,7 @@ local NormalTD = { -- normal Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   FurySBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,                     FurySBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -139,6 +140,7 @@ local MetaTD = { -- meta Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   FuryMetaSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,                     FuryMetaSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -152,6 +154,7 @@ local BothTD = { -- both Trigger data (since this is 'all'), the texture and tex
   { TT.TypeID_BarTexture,            TT.Type_BarTexture },
   { TT.TypeID_BarColor,              TT.Type_BarColor,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -422,6 +425,7 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
   if Update or Main.UnitBars.Testing then
     self:Update()
     Update = false
+    Display = true
   end
 
   if Display then
@@ -472,6 +476,9 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, ScaleFrame)
   -- Set up set change
   BBar:SetChangeTexture(FMeta, FuryMetaTexture, FuryBdMetaTexture, FuryNotchMetaTexture, FuryMetaSBar)
   BBar:SetChangeTexture(FNormal, FuryTexture, FuryBdTexture, FuryNotchTexture, FurySBar)
+
+  -- set offset for trigger bar offset.
+  BBar:SetOffsetTextureFrame(1, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.BBar = BBar
 end

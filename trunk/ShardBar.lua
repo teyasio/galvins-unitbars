@@ -100,7 +100,8 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ShardSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              ShardSBar,
     GF = GF },
-  { TT.TypeID_TextureSize,           TT.Type_TextureSize,           ShardDarkTexture, ShardLightTexture },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          ShardDarkTexture, ShardLightTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -312,6 +313,7 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -370,9 +372,10 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetChangeTexture(Shards, ShardLightTexture, ShardSBar)
 
-  -- Set the texture scale for Texture Size triggers.
+  -- Set the texture scale for bar offset triggers.
   BBar:SetScaleTexture(0, ShardDarkTexture, 1)
   BBar:SetScaleTexture(0, ShardLightTexture, 1)
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

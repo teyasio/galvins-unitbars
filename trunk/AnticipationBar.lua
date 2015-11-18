@@ -83,6 +83,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,            AnticipationSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,              AnticipationSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -330,6 +331,7 @@ function Main.UnitBarsF.AnticipationBar:SetAttr(TableName, KeyName)
 
   if Main.UnitBars.Testing then
     self:Update()
+    Display = true
   end
 
   if Display then
@@ -374,6 +376,9 @@ function GUB.AnticipationBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHidden(AnticipationTime, BoxMode, false)
   BBar:SetHiddenTexture(AnticipationTime, AnticipationSBar, false)
   BBar:SetFillTexture(AnticipationTime, AnticipationSBar, 0)
+
+  -- Set offsets for trigger bar offset.
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar

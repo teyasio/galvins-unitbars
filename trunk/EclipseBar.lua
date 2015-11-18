@@ -121,6 +121,7 @@ local PowerTD = {
   { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (solar)', SolarSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (solar)', SolarSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -134,6 +135,7 @@ local MoonTD = {
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,             MoonSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,               MoonSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,              BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -147,6 +149,7 @@ local SunTD = {
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,             SunSBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,               SunSBar,
     GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,              BoxMode },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -569,6 +572,7 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
   if Update or Main.UnitBars.Testing then
     self:Update()
     Update = false
+    Display = true
   end
 
   if Display then
@@ -621,8 +625,8 @@ function GUB.EclipseBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltip(SunBox, nil, 'Eclipse - Sun')
   BBar:SetTooltip(PowerBox, nil, 'Eclipse - Power')
 
-  -- This will make all the bar objects be aligned by their sides.
-  BBar:SetJustifyBar('SIDE')
+  -- set offset for trigger bar offset.
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.BBar = BBar
 end
