@@ -3200,7 +3200,7 @@ GUB.DefaultUB.MessageText = [[
 4.01
 
 * Triggers texture size changed to texture scale.
-* Bar offset added to triggers. This changes the size of boxes based on an offset. Example make a holy power box larger of smaller without effecting the size of the bar.
+* Bar offset added to triggers. This changes the size of boxes based on an offset. Example make a holy power box larger or smaller without effecting the size of the bar.
 
 4.00
 
