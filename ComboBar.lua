@@ -279,6 +279,6 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.ComboBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, 'UNIT_COMBO_POINTS', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
 
