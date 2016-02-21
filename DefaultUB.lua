@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 401
+GUB.DefaultUB.Version = 402
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -1576,7 +1576,7 @@ GUB.DefaultUB.Default = {
         HideNotUsable   = true,
         ShowAlways      = false,
         HideWhenDead    = true,
-        HideNoTarget    = true,
+        HideNoTarget    = false,
         HideInVehicle   = true,
         HideInPetBattle = true,
         HideNotActive   = true,
@@ -3196,6 +3196,10 @@ GUB.DefaultUB.MessageText = [[
 |Cffffff00Galvin's UnitBars|r
 
 |cff00ff00New Changes|r
+
+4.02
+
+* Combo points no longer needs a target. Default "Hide no Target" changed from true to false.
 
 4.01
 

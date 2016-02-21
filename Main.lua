@@ -545,10 +545,10 @@ local DialogBorder = {
 }
 
 local ConvertPowerType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6,
+  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, COMBO_POINTS = 4, RUNIC_POWER = 6,
   SOUL_SHARDS = 7, ECLIPSE = 8, HOLY_POWER = 9, CHI = 12,
   SHADOW_ORBS = 13, BURNING_EMBERS = 14, DEMONIC_FURY = 15,
-  [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY', [6] = 'RUNIC_POWER',
+  [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY', [4] = 'COMBO_POINTS', [6] = 'RUNIC_POWER',
   [7] = 'SOUL_SHARDS', [8] = 'ECLIPSE', [9] = 'HOLY_POWER', [12] = 'CHI',
   [13] = 'SHADOW_ORBS', [14] = 'BURNING_EMBERS', [15] = 'DEMONIC_FURY',
 }
@@ -4449,8 +4449,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 4 then
-    GUBData.ShowMessage = 4
+  if GUBData.ShowMessage ~= 5 then
+    GUBData.ShowMessage = 5
     Main:MessageBox(DefaultUB.MessageText)
   end
 end

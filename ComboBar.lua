@@ -12,6 +12,8 @@ local Main = GUB.Main
 local Bar = GUB.Bar
 local TT = GUB.DefaultUB.TriggerTypes
 
+local ConvertPowerType = Main.ConvertPowerType
+
 -- localize some globals.
 local _
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
@@ -53,6 +55,10 @@ local C_PetBattles, UIParent =
 local MaxComboPoints = 5
 local Display = false
 local NamePrefix = 'Combo '
+
+-- Powertype constants
+local PowerPoints = ConvertPowerType['COMBO_POINTS']
+
 
 local BoxMode = 1
 local Combo = 3
@@ -106,15 +112,23 @@ Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 -- Event     Event that called this function.  If nil then it wasn't called by an event.
 --           True bypasses visible and isactive flags.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ComboBar:Update(Event)
+function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
   if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerPoints
+
+  -- Return if not the correct powertype.
+  if PowerType ~= PowerPoints then
+    return
+  end
+
+
   -- Get the combo points.
-  local ComboPoints = GetComboPoints('player', 'target')
+  local ComboPoints = UnitPower('player', PowerPoints)
   local BBar = self.BBar
 
   if Main.UnitBars.Testing then
