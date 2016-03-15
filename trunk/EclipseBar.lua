@@ -122,6 +122,12 @@ local PowerTD = {
   { TT.TypeID_BarColor,              TT.Type_BarColor   .. ' (solar)', SolarSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                BoxMode },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -366,9 +372,9 @@ function Main.UnitBarsF.EclipseBar:Update(Event, Unit, PowerType, ...)
 
   -- Display the eclipse power.
   if not UB.Layout.HideText then
-    BBar:SetValueFont(PowerBox, nil, 'number', abs(EclipsePower))
+    BBar:SetValueFont(PowerBox, 'number', abs(EclipsePower))
   else
-    BBar:SetValueRawFont(PowerBox, nil, '')
+    BBar:SetValueRawFont(PowerBox, '')
   end
 
   BBar:SetHiddenTexture(SunBox, SunSBar, HidePeak or not SolarPeak)
@@ -443,7 +449,7 @@ function Main.UnitBarsF.EclipseBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'HideText',      function(v)
       if v then
-        BBar:SetValueRawFont(PowerBox, nil, '')
+        BBar:SetValueRawFont(PowerBox, '')
       else
         Update = true
       end

@@ -370,7 +370,7 @@ local C_PetBattles, UIParent =
 --     GetFn[GetFnTypeID]          Returns the get function based on Get function type ID.
 --                                 NOTE: These 3 tables will not exist if there is no get function.
 --
---     ------------------------    Values below here are added after
+--     ------------------------    Values below here are added/modified after.
 --     Trigger                     = false no trigger using this object.  Otherwise contains a reference to the trigger.
 --     AuraTrigger                 = false no aura trigger using this object. Otherwise contains a reference to the aura trigger.
 --     StaticTrigger               Triger is static. Otherwise nil.  Reference to trigger using this as static.
@@ -378,7 +378,9 @@ local C_PetBattles, UIParent =
 --
 -- Trigger structure.
 --
--- Trigger.MinimizeAll             Minimizes all triggers in options only.
+--   HideTabs                      true or false.  Used by options to hide empty tabs.
+--   MenuSync                      true or false.  If true all triggers use ActionSync instead of Action
+--   ActionSync                    Same table as Action.  Except this is used when MenuSync is true
 --
 -- Triggers[]                      Non sequencial array containing the triggers.
 --   Enabled                       true or false.  If enabled then trigger works.
@@ -387,7 +389,6 @@ local C_PetBattles, UIParent =
 --
 --   HideAuras                     True or false.  if true auras are hidden in options.
 --   Name                          Name of the trigger in options.
---   Minimize                      Minimizes the trigger in options only.
 --
 --   ValueTypeID                   'state'     Trigger can support state
 --                                 'whole'     Trigger can support whole numbers (integers).
@@ -432,6 +433,10 @@ local C_PetBattles, UIParent =
 --   TypeIndex                     Based on TypeID and Type.
 --   GroupNumbers                  Array of group numbers that box number of zero would match. Otherwise nil
 --   Virtual                       true or false.  If true trigger belongs to a virtual group, otherwise normal.
+--   TextMultiLine                 true or false. If boolean then trigger has multi line or not.  If nil then the trigger is not using text.
+--   TextLine                      0 for all text lines or contains the current text line. If nil then the trigger is not using text.
+--   Select                        true or false. Only one trigger per group can be selected.
+--   OffsetAll                     true or false. Used for bar offset size.  By options.
 -------------------------------------------------------------------------------
 local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this object'
 
@@ -442,6 +447,7 @@ local FontStrings = {}
 local DoOptionData = {}
 local VirtualFrameLevels = nil
 local CalledByTrigger = false
+local MaxTextLines = 4
 
 local BoxFrames = nil
 local NextBoxFrame = 0
@@ -497,6 +503,11 @@ local TypeIDfn = {
   [TT.TypeID_BarColor]              = 'SetColorTexture',
   [TT.TypeID_TextureScale]          = 'SetScaleTexture',
   [TT.TypeID_BarOffset]             = 'SetOffsetTextureFrame',
+  [TT.TypeID_TextFontColor]         = 'SetColorFont',
+  [TT.TypeID_TextFontOffset]        = 'SetOffsetFont',
+  [TT.TypeID_TextFontSize]          = 'SetSizeFont',
+  [TT.TypeID_TextFontType]          = 'SetTypeFont',
+  [TT.TypeID_TextFontStyle]         = 'SetStyleFont',
   [TT.TypeID_Sound]                 = 'PlaySound',
 }
 
@@ -755,7 +766,7 @@ end
 -- BarDB            Contains the settings.
 -- FunctionName     Name of function.
 -- BoxNumber        If 0 then settings are saved under all boxes. Otherwise > 0.
--- TexN             Texture number of texture frame number.
+-- TexN             Texture number or texture frame number or text line.
 -- ...              Paramater data to save.
 --
 -- This only saves if the set function wasn't called by a trigger.
@@ -821,7 +832,7 @@ end
 -- BarDB          Contains the settings.
 -- FunctionName   Function to call. Must exist in settings.
 -- BoxNumber      Box to restore in the bar. If nil or can specify -1 for nil. Then TexN is ignored. Cant use 0.
--- TexN           Texture number or texture frame number. If nil then matches all textures
+-- TexN           Texture number or texture frame number or text line. If nil then matches all textures
 --                under BoxNumber.
 -------------------------------------------------------------------------------
 local function RestoreSettings(BarDB, FunctionName, BoxNumber, TexN)
@@ -3814,7 +3825,6 @@ local FontGetValue = {}
 -- SetValue (method for Font)
 --
 -- BoxNumber          Boxnumber that contains the font string.
--- TextureNumber      If not nil then this the fontstring is used for the TextureFrmae.
 -- ...                Type, Value pairs.  Example:
 --                      'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
 --
@@ -3846,11 +3856,8 @@ local function SetValue(FS, FontString, Layout, NumValues, ValueName, ValueType,
   end
 end
 
-function BarDB:SetValueFont(BoxNumber, TextureFrameNumber, ...)
+function BarDB:SetValueFont(BoxNumber, ...)
   local Frame = self.BoxFrames[BoxNumber]
-  if TextureFrameNumber then
-    Frame = Frame.TextureFrames[TextureFrameNumber]
-  end
 
   local FS = Frame.FS
   local TextFrame = FS.TextFrame
@@ -3896,15 +3903,12 @@ end
 -- Allows you to set text directly to all the text lines.
 --
 -- BoxNumber       Boxnumber that contains the font string.
--- TextureNumber   If not nil then this the fontstring is used for output.
 -- Text            Output to display to the text lines
 -------------------------------------------------------------------------------
-function BarDB:SetValueRawFont(BoxNumber, TextureFrameNumber, Text)
+function BarDB:SetValueRawFont(BoxNumber, Text)
   repeat
     local Frame = NextBox(self, BoxNumber)
-    if TextureFrameNumber then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
-    end
+
     local FS = Frame.FS
 
     for Index = 1, FS.NumStrings do
@@ -3972,7 +3976,6 @@ end
 -- Displays time in seconds over time.
 --
 -- BoxNumber            BoxNumber to display time on.
--- TextureFrameNumber   If specified then TextureFrame will be used instead.
 -- StartTime            Starting time if nil then the current time will be used.
 -- Duration             Duration in seconds.  Duration of 0 or less will stop the current timer.
 -- StartValue           Starting value in seconds.  This will start dipslaying seconds from this value.
@@ -3980,15 +3983,11 @@ end
 -- ...                  Additional Type, Value pairs. Optional.  Example:
 --                        'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
 -------------------------------------------------------------------------------
-function BarDB:SetValueTimeFont(BoxNumber, TextureFrameNumber, StartTime, Duration, StartValue, Direction, ...)
+function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Direction, ...)
   local Step = Direction == 1 and 0.1 or Direction == -1 and -0.1 or 0.1
 
   repeat
     local Frame = NextBox(self, BoxNumber)
-
-    if TextureFrameNumber ~= nil then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
-    end
 
     local FontTime = Frame.FontTime
     if FontTime == nil then
@@ -4100,15 +4099,180 @@ local function GetLayoutFont(ValueName, ValueType)
 end
 
 -------------------------------------------------------------------------------
+-- SetColorFont
+--
+-- Changes the font color
+--
+-- BoxNumber      Boxframe that contains the font.
+-- TextLine       Which line of text is being changed.
+-------------------------------------------------------------------------------
+function BarDB:SetColorFont(BoxNumber, TextLine, r, g, b, a)
+  SaveSettings(self, 'SetColorFont', BoxNumber, TextLine, r, g, b, a)
+
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+    local FS = Frame.FS
+
+    -- Check for fontstrings
+    if FS then
+      local FontString = FS[TextLine]
+
+      if FontString then
+        FontString:SetTextColor(r, g, b, a)
+      end
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetOffsetFont
+--
+-- Offsets the font without changing the location.
+--
+-- BoxNumber      Boxframe that contains the font.
+-- TextLine       Which line of text is being changed.
+-- OffsetX        Distance in pixels to offset horizontally
+-- OffsetY        Distance in pixels to offset vertically
+-------------------------------------------------------------------------------
+function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
+  SaveSettings(self, 'SetOffsetFont', BoxNumber, TextLine, OffsetX, OffsetY)
+
+  local Text = self.UnitBarF.UnitBar.Text
+
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+    local FS = Frame.FS
+
+    -- Check for fontstrings
+    if FS then
+      local TS = Text[TextLine]
+      local TF = FS.TextFrames[TextLine]
+
+      if TF and TS then
+        TF:ClearAllPoints()
+        TF:SetPoint(TS.FontPosition, Frame, TS.Position, TS.OffsetX + (OffsetX or 0), TS.OffsetY + (OffsetY or 0))
+      end
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetSizeFont
+--
+-- Changes the size of the font.
+--
+-- BoxNumber      Boxframe that contains the font.
+-- TextLine       Which line of text is being changed.
+-- Size           Size of the font
+-------------------------------------------------------------------------------
+function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
+  SaveSettings(self, 'SetSizeFont', BoxNumber, TextLine, Size)
+
+  local Text = self.UnitBarF.UnitBar.Text
+
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+    local FS = Frame.FS
+
+    -- Check for fontstrings
+    if FS then
+      local FontString = FS[TextLine]
+      local TS = Text[TextLine]
+
+      if FontString and TS then
+
+        -- Set font size
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', TS.FontType), Size, TS.FontStyle)
+
+        if not ReturnOK then
+          FontString:SetFont(LSM:Fetch('font', TS.FontType), Size, 'NONE')
+        end
+      end
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetTypeFont
+--
+-- Changes what type of font is used.
+--
+-- BoxNumber      Boxframe that contains the font.
+-- TextLine       Which line of text is being changed.
+-- Type           Type of font.
+-------------------------------------------------------------------------------
+function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
+  SaveSettings(self, 'SetTypeFont', BoxNumber, TextLine, Type)
+
+  local Text = self.UnitBarF.UnitBar.Text
+
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+    local FS = Frame.FS
+
+    -- Check for fontstrings
+    if FS then
+      local FontString = FS[TextLine]
+      local TS = Text[TextLine]
+
+      if FontString and TS then
+
+        -- Set font size
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), TS.FontSize, TS.FontStyle)
+
+        if not ReturnOK then
+          FontString:SetFont(LSM:Fetch('font', Type), TS.FontSize, 'NONE')
+        end
+      end
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetStyleFont
+--
+-- Changes the font style: Outline, thick, etc
+--
+-- BoxNumber      Boxframe that contains the font.
+-- TextLine       Which line of text is being changed.
+-- Style          Can be, NONE, OUTLINE, THICK. or a combination.
+-------------------------------------------------------------------------------
+function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
+  SaveSettings(self, 'SetStyleFont', BoxNumber, TextLine, Style)
+
+  local Text = self.UnitBarF.UnitBar.Text
+
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+    local FS = Frame.FS
+
+    -- Check for fontstrings
+    if FS then
+      local FontString = FS[TextLine]
+      local TS = Text[TextLine]
+
+      if FontString and TS then
+
+        -- Set font size
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', TS.FontType), TS.FontSize, Style)
+
+        if not ReturnOK then
+          FontString:SetFont(LSM:Fetch('font', TS.FontType), TS.FontSize, 'NONE')
+        end
+      end
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
 -- UpdateFont
 --
 -- Updates a font based on the text settings in UniBar.Text
 --
 -- BoxNumber            BoxFrame that contains the font.
--- TextureFrameNumber   If specified then the font in TextureFrame is used instead.
 -- ColorIndex           Sets color[ColorIndex] bypassing Color.All setting.
 -------------------------------------------------------------------------------
-function BarDB:UpdateFont(BoxNumber, TextureFrameNumber, ColorIndex)
+function BarDB:UpdateFont(BoxNumber, ColorIndex)
   local Text = self.UnitBarF.UnitBar.Text
   local TopFrame = self.TopFrame
   local UBD = DUB[self.BarType]
@@ -4118,9 +4282,6 @@ function BarDB:UpdateFont(BoxNumber, TextureFrameNumber, ColorIndex)
   repeat
     local Frame, BoxIndex = NextBox(self, BoxNumber)
 
-    if TextureFrameNumber ~= nil then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
-    end
     local FS = Frame.FS
     local TextFrames = FS.TextFrames
     local TF = nil
@@ -4163,19 +4324,18 @@ function BarDB:UpdateFont(BoxNumber, TextureFrameNumber, ColorIndex)
         FS[Index] = FontString
       end
 
-      -- Set font to current settings from text.
-      local ReturnOK, Msg = pcall(FontString.SetFont, FontString, LSM:Fetch('font', TS.FontType), TS.FontSize, TS.FontStyle)
+      -- Set font size, type, and style
+      self:SetTypeFont(BoxNumber, Index, TS.FontType)
+      self:SetSizeFont(BoxNumber, Index, TS.FontSize)
+      self:SetStyleFont(BoxNumber, Index, TS.FontStyle)
 
-      if not ReturnOK then
-        FontString:SetFont(LSM:Fetch('font', TS.FontType), TS.FontSize, 'NONE')
-      end
+      -- Set font location
       FontString:SetJustifyH(TS.FontHAlign)
       FontString:SetJustifyV(TS.FontVAlign)
       FontString:SetShadowOffset(TS.ShadowOffset, -TS.ShadowOffset)
 
       -- Position the font by moving textframe.
-      TF:ClearAllPoints()
-      TF:SetPoint(TS.FontPosition, Frame, TS.Position, TS.OffsetX, TS.OffsetY)
+      self:SetOffsetFont(BoxNumber, Index)
       TF:SetSize(TS.Width, TS.Height)
 
       -- Set the texture frame to be on top.
@@ -4192,7 +4352,7 @@ function BarDB:UpdateFont(BoxNumber, TextureFrameNumber, ColorIndex)
       else
         c = Color[BoxIndex]
       end
-      FontString:SetTextColor(c.r, c.g, c.b, c.a)
+      self:SetColorFont(BoxNumber, Index, c.r, c.g, c.b, c.a)
     end
 
     -- Erase font string data no longer used.
@@ -4211,20 +4371,16 @@ end
 -- Creates a font object to display text on the bar.
 --
 -- BoxNumber            Boxframe you want the font to be displayed on.
--- TextureFrameNumber   If specified then TextureFrame is used instead.
 -- PercentFn            Function to calculate percents in FontSetValue()
 --                      Not all percent calculations are the same. So this
 --                      adds that flexibility.
 -------------------------------------------------------------------------------
-function BarDB:CreateFont(BoxNumber, TextureFrameNumber, PercentFn)
+function BarDB:CreateFont(BoxNumber, PercentFn)
   local BarType = self.BarType
 
   repeat
     local Frame = NextBox(self, BoxNumber)
 
-    if TextureFrameNumber ~= nil then
-      Frame = Frame.TextureFrames[TextureFrameNumber]
-    end
     local FS = {}
 
     -- Add font strings to the fontstrings table.
@@ -4500,6 +4656,10 @@ function BarDB:CheckTriggers()
   local AllDeleted = true
   local TriggerIndex = 1
 
+  -- Check for text multiline.
+  local Text = DUB[self.BarType].Text
+  local TextMultiLine = Text and Text._Multi
+
   -- Undo triggers first
   UndoTriggers(self)
 
@@ -4584,6 +4744,21 @@ function BarDB:CheckTriggers()
 
         Trigger.OrderNumber = OrderNumber
         OrderNumbers[GroupNumber] = OrderNumber
+
+        -- Check for text
+        if strfind(TypeID, 'font') then
+          local TextLine = Trigger.TextLine or 1
+
+          if TextMultiLine == nil then
+            TextLine = 1
+          end
+
+          Trigger.TextLine = TextLine
+          Trigger.TextMultiLine = TextMultiLine
+        else
+          Trigger.TextLine = nil
+          Trigger.TextMultiLine = nil
+        end
 
         -- Filter triggers into static, sorted, and auras.
         Object.StaticTrigger = nil
@@ -4728,7 +4903,7 @@ end
 --     [2]                       Type
 --     [3 and up]                Contains texture numbers or texture frame numbers. Nil if not needed.
 --
---     GF                        Add get functions.  This will appear as sub menu under Type. This is when
+--     GF                        Add get functions.  This will appear as a sub menu under Type. This is when
 --                               You want a trigger to get a value from somewhere else and use it.
 --                               Each GetFn is paired up in 2s. So 1 to 2, 3 to 4, 5 to 6, and so on.
 --       GF[1]                   GetFnTypeID      Indentifier for the type of GetFunction (used for color)
@@ -5164,6 +5339,31 @@ function BarDB:AppendTriggers(SourceBarType)
 end
 
 -------------------------------------------------------------------------------
+-- SetSelectTrigger
+--
+-- Sets one trigger in a group to be selected. Used by options
+--
+-- GroupNumber   Group to select a trigger under.
+-- Index         Trigger to select.
+-------------------------------------------------------------------------------
+function BarDB:SetSelectTrigger(GroupNumber, Index)
+  local Triggers = self.Groups.Triggers
+
+  for TriggerIndex = 1, #Triggers do
+    local Trigger = Triggers[TriggerIndex]
+
+    if Trigger.GroupNumber == GroupNumber then
+      if Trigger.Index == Index then
+        Trigger.Select = not Trigger.Select
+      else
+        Trigger.Select = false
+      end
+    end
+  end
+end
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
 -- SetAuraTriggers
 --
 -- Called by AuraUpdate()
@@ -5512,12 +5712,28 @@ function BarDB:DoTriggers()
           local TexN = Object.TexN
 
           if TexN == nil then
-            Object.Function(self, p1, p2, p3, p4)
+            local TextLine = Trigger.TextLine
 
+            -- Check to see if its a text object
+            if TextLine then
+
+              -- Do all text lines
+              if TextLine == 0 then
+                local Fn = Object.Function
+
+                for TextLine = 1, MaxTextLines do
+                  Fn(self, BoxNumber, TextLine, p1, p2, p3, p4)
+                end
+              else
+                Object.Function(self, BoxNumber, TextLine, p1, p2, p3, p4)
+              end
+            else
+              Object.Function(self, p1, p2, p3, p4)
+            end
           else
-            -- Do textures.
             local Fn = Object.Function
 
+            -- Do textures.
             for Index = 1, #TexN do
               Fn(self, BoxNumber, TexN[Index], p1, p2, p3, p4)
             end

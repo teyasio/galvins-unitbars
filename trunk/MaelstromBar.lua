@@ -86,6 +86,26 @@ local TD = { -- Trigger data
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
+local TDText = { -- Trigger data with text
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            MaelstromSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              MaelstromSBar,
+    GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
 local MaelstromTimeGroup = 6
 
 local VTs = {'whole', 'Maelstrom Charges', 'auras', 'Auras'}
@@ -96,7 +116,7 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {3,   'Charge 3',    VTs,    TD}, -- 3
   {4,   'Charge 4',    VTs,    TD}, -- 4
   {5,   'Charge 5',    VTs,    TD}, -- 5
-  {6,   'Time',        VTs,    TD}, -- 6
+  {6,   'Time',        VTs,    TDText}, -- 6
   {'a', 'All Charges', {'whole', 'Maelstrom Charges', 'state', 'Active', 'auras', 'Auras'}, TD}, -- 7
 }
 
@@ -139,9 +159,9 @@ local function UpdateTestMode(MaelstromBar, Testing)
     end
     BBar:SetFillTexture(MaelstromTime, MaelstromSBar, Time, true)
     if not UB.Layout.HideText then
-      BBar:SetValueFont(MaelstromTime, nil, 'time', 10 * Time, 'charges', Charges)
+      BBar:SetValueFont(MaelstromTime, 'time', 10 * Time, 'charges', Charges)
     else
-      BBar:SetValueRawFont(MaelstromTime, nil, '')
+      BBar:SetValueRawFont(MaelstromTime, '')
     end
     if EnableTriggers then
       BBar:SetTriggers(MaelstromTimeGroup, 'maelstrom charges', Charges)
@@ -151,7 +171,7 @@ local function UpdateTestMode(MaelstromBar, Testing)
     BBar:SetHiddenTexture(0, MaelstromSBar, true)
     BBar:SetHiddenTexture(MaelstromTime, MaelstromSBar, false)
     BBar:SetFillTexture(MaelstromTime, MaelstromSBar, 0, true)
-    BBar:SetValueRawFont(MaelstromTime, nil, '')
+    BBar:SetValueRawFont(MaelstromTime, '')
   end
 end
 
@@ -196,7 +216,7 @@ function Main.UnitBarsF.MaelstromBar:Update(Event)
         BBar:SetFillTimeTexture(MaelstromTime, MaelstromSBar, nil, Duration, 1, 0)
       end
       if not self.UnitBar.Layout.HideText then
-        BBar:SetValueTimeFont(MaelstromTime, nil, nil, Duration or 0, Duration, -1, 'charges', MaelstromCharges)
+        BBar:SetValueTimeFont(MaelstromTime, nil, Duration or 0, Duration, -1, 'charges', MaelstromCharges)
       end
       self.NumCharges = MaelstromCharges
     end
@@ -262,7 +282,7 @@ function Main.UnitBarsF.MaelstromBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, MaelstromSBar, v) end)
     BBar:SO('Layout', 'HideText',      function(v)
       if v then
-        BBar:SetValueTimeFont(MaelstromTime, nil)
+        BBar:SetValueTimeFont(MaelstromTime)
       end
     end)
     BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)

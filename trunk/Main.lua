@@ -1319,6 +1319,16 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
         Trigger.OffsetAll = true
       end
     end
+  elseif Ver == 5 then
+    if SourceKey == 'Triggers' then -- triggers
+      local Triggers = SourceUB.Triggers
+
+      for Index, Trigger in ipairs(SourceUB.Triggers) do
+
+        -- Remove Mimimize key
+        Trigger.Minimize = nil
+      end
+    end
   end
 end
 
@@ -1390,11 +1400,7 @@ local function ConvertUnitBarData(Ver)
                                                                                                      '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
   }
 
-  local ConvertUBData3 = {
-    {Action = 'custom',    Source = '', '=Triggers'},
-  }
-
-  local ConvertUBData4 = {
+  local ConvertUBData345 = {
     {Action = 'custom',    Source = '', '=Triggers'},
   }
 
@@ -1408,10 +1414,8 @@ local function ConvertUnitBarData(Ver)
     end
   elseif Ver == 2 then -- For version 210 or lower.
     ConvertUBData = ConvertUBData2
-  elseif Ver == 3 then -- For version 350 or lower.
-    ConvertUBData = ConvertUBData3
-  elseif Ver == 4 then -- For version 4.01 or lower.
-    ConvertUBData = ConvertUBData4
+  elseif Ver == 3 or Ver == 4 or Ver == 5 then -- 3 = 350, 4 = 4.01, 4 = 4.10
+    ConvertUBData = ConvertUBData345
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -4373,6 +4377,10 @@ function GUB:ApplyProfile()
     -- Convert profile from a version before 4.01
     ConvertUnitBarData(4)
   end
+  if Ver == nil or Ver < 410 then
+    -- Convert profile from a version before 4.10
+    ConvertUnitBarData(5)
+  end
   if Ver ~= Version then
     CleanUnitBars()
     UnitBars.Version = Version
@@ -4449,8 +4457,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 5 then
-    GUBData.ShowMessage = 5
+  if GUBData.ShowMessage ~= 6 then
+    GUBData.ShowMessage = 6
     Main:MessageBox(DefaultUB.MessageText)
   end
 end
