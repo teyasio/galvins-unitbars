@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 402
+GUB.DefaultUB.Version = 410
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -150,7 +150,6 @@ GUB.DefaultUB.Version = 402
 --     Color              - Color of the text.  This also supports 'color all' for bars like runebar.
 --
 -- Triggers               - Contains all the raw data for triggers.
---   MinimizeAll          - If true all the triggers are minimized in the options panel.
 --   GroupNumber          - Current group number selected in the trigger options.
 --   Action               - Current action selected in the trigger options.
 --
@@ -247,6 +246,7 @@ GUB.DefaultUB.DefaultBorderTexture = DefaultBorderTexture
 GUB.DefaultUB.DefaultStatusBarTexture = DefaultStatusBarTexture
 GUB.DefaultUB.DefaultSound = DefaultSound
 GUB.DefaultUB.DefaultSoundChannel = DefaultSoundChannel
+GUB.DefaultUB.DefaultFontType = UBFontType
 
 GUB.DefaultUB.TriggerTypes = {
   TypeID_BackgroundBorder      = 'border',          Type_BackgroundBorder      = 'BG Border',
@@ -257,6 +257,11 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_BarColor              = 'bartexturecolor', Type_BarColor              = 'Bar Color',
   TypeID_TextureScale          = 'texturescale',    Type_TextureScale          = 'Texture Scale',
   TypeID_BarOffset             = 'baroffset',       Type_BarOffset             = 'Bar Offset',
+  TypeID_TextFontColor         = 'fontcolor',       Type_TextFontColor         = 'Text Font Color',
+  TypeID_TextFontOffset        = 'fontoffset',      Type_TextFontOffset        = 'Text Font Offset',
+  TypeID_TextFontSize          = 'fontsize',        Type_TextFontSize          = 'Text Font Size',
+  TypeID_TextFontType          = 'fonttype',        Type_TextFontType          = 'Text Font Type',
+  TypeID_TextFontStyle         = 'fontstyle',       Type_TextFontStyle         = 'Text Font Style',
   TypeID_RegionBorder          = 'border',          Type_RegionBorder          = 'Region Border',
   TypeID_RegionBorderColor     = 'bordercolor',     Type_RegionBorderColor     = 'Region Border Color',
   TypeID_RegionBackground      = 'background',      Type_RegionBackground      = 'Region Background',
@@ -328,7 +333,7 @@ GUB.DefaultUB.Default = {
       Bar = true,
       Text = false,
       Triggers = false,
-   },
+    },
 -- Player Health
     PlayerHealth = {
       Name = 'Player Health',
@@ -419,7 +424,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -427,7 +431,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -535,7 +538,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -543,7 +545,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -654,7 +655,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -662,7 +662,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -766,7 +765,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -774,7 +772,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -885,7 +882,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -893,7 +889,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -997,7 +992,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1005,7 +999,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1115,7 +1108,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1123,7 +1115,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1230,7 +1221,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1238,7 +1228,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1345,7 +1334,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1353,7 +1341,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1535,8 +1522,7 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        Notes = 'Empowered uses the Time settings from Empowerment in General settings\neven if turned off',
-        MinimizeAll = false,
+        Notes = 'Empowered uses the Time settings from Empowerment in General settings.\nEven if turned off',
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1544,7 +1530,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1652,7 +1637,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1660,7 +1644,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1825,7 +1808,7 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
+        Notes = 'Text settings found in the Time tab',
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1833,7 +1816,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -1957,7 +1939,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -1965,7 +1946,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -2087,7 +2067,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -2095,7 +2074,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -2202,7 +2180,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -2210,7 +2187,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -2382,7 +2358,6 @@ GUB.DefaultUB.Default = {
       Triggers = {
         _DC = 0,
         Notes = '"Full Burning Embers" go by the total number that are on fire \n "Burning Embers" are based on the amount of fill from 0 to 10 or percentage per ember',
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -2390,7 +2365,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -2576,7 +2550,7 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
+        Notes = 'Text settings found in the Power tab',
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -2584,7 +2558,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -2709,7 +2682,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -2717,7 +2689,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -2842,7 +2813,6 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -2850,7 +2820,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -3015,7 +2984,7 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        MinimizeAll = false,
+        Notes = 'Text settings found in the Time tab',
         MenuSync = false,
         HideTabs = false,
         ActionSync = {},
@@ -3023,7 +2992,6 @@ GUB.DefaultUB.Default = {
         Default = { -- Default trigger
           Enabled = true,
           Static = false,
-          Minimize = false,
           HideAuras = false,
           OffsetAll = true,
           Action = {Type = 1},
@@ -3196,6 +3164,12 @@ GUB.DefaultUB.MessageText = [[
 |Cffffff00Galvin's UnitBars|r
 
 |cff00ff00New Changes|r
+
+4.10
+
+* Triggers can change text on bars that have text.
+* There's a note in the trigger options at the top where text can be found. If there is no note then all tabs support text.
+* Triggers should be easier to navigate when working on a lot of them at the same time.
 
 4.02
 

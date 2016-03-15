@@ -106,6 +106,12 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted)',   PredictedBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    1 },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -319,7 +325,7 @@ local function UpdateHealthBar(self, Event, Unit)
   end
   BBar:SetFillTexture(1, StatusBar, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, nil, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedHealing, 'unit', Unit)
+    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedHealing, 'unit', Unit)
   end
 
   -- Check triggers
@@ -443,7 +449,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   end
   BBar:SetFillTexture(1, StatusBar, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, nil, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
+    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
   end
 
   -- Check triggers
@@ -537,7 +543,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
     BBar:SO('Layout', 'HideText',       function(v)
       if v then
-        BBar:SetValueRawFont(1, nil, '')
+        BBar:SetValueRawFont(1, '')
       else
         Update = true
       end
@@ -649,7 +655,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:CreateTexture(1, 1, 'statusbar', 2, StatusBar)
 
   -- Create font text for the box frame.
-  BBar:CreateFont(1, nil, PercentFn)
+  BBar:CreateFont(1, PercentFn)
 
   -- Enable tooltip
   BBar:SetTooltip(1, nil, UB.Name)

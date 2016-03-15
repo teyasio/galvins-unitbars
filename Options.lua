@@ -17,6 +17,7 @@ local DefaultBorderTexture    = GUB.DefaultUB.DefaultBorderTexture
 local DefaultStatusBarTexture = GUB.DefaultUB.DefaultStatusBarTexture
 local DefaultSound            = GUB.DefaultUB.DefaultSound
 local DefaultSoundChannel     = GUB.DefaultUB.DefaultSoundChannel
+local DefaultFontType         = GUB.DefaultUB.DefaultFontType
 
 local Main = GUB.Main
 local Bar = GUB.Bar
@@ -412,6 +413,14 @@ local ConvertValueType = {
   [32] = 'unitnamerealm',
 }
 
+local TextLineDropdown = {
+  [0] = 'All',
+  [1] = 'Line 1',
+  [2] = 'Line 2',
+  [3] = 'Line 3',
+  [4] = 'Line 4',
+}
+
 local DirectionDropdown = {
   HORIZONTAL = 'Horizontal',
   VERTICAL = 'Vertical'
@@ -497,12 +506,16 @@ local AuraStackOperatorDropdown = {
   '<>',            -- 6
 }
 
-local TriggerColorIcon      = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerColor.tga]]
-local TriggerBarIcon        = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBar.tga]]
-local TriggerBorderIcon     = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBorder.tga]]
-local TriggerChangeSizeIcon = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerChangeSize.tga]]
-local TriggerSoundIcon      = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerSound.tga]]
-local TriggerBackgroundIcon = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBackground.tga]]
+local TriggerColorIcon          = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerColor.tga]]
+local TriggerBarIcon            = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBar.tga]]
+local TriggerBorderIcon         = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBorder.tga]]
+local TriggerChangeSizeIcon     = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerChangeSize.tga]]
+local TriggerSoundIcon          = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerSound.tga]]
+local TriggerBackgroundIcon     = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBackground.tga]]
+local TriggerTextChangeSizeIcon = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextChangeSize.tga]]
+local TriggerTextColorIcon      = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextColor.tga]]
+local TriggerTextTypeIcon       = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextType.tga]]
+local TriggerTextOutlineIcon    = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextOutline.tga]]
 
 --*****************************************************************************
 --
@@ -2910,6 +2923,34 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
     elseif strfind(TypeID, 'color') then
       p1, p2, p3, p4 = tonumber(p1) or 1, tonumber(p2) or 1, tonumber(p3) or 1, tonumber(p4) or 1
 
+    elseif strfind(TypeID, 'fontoffset') then
+      p3, p4 = nil, nil
+      p1, p2 = tonumber(p1) or 0, tonumber(p2) or 0
+
+      -- check for out of bounds
+      if p1 < O.FontOffsetXMin or p1 > O.FontOffsetXMax then
+        p1 = 0
+      end
+      if p2 < O.FontOffsetYMin or p2 > O.FontOffsetYMax then
+        p2 = 0
+      end
+    elseif TypeID == 'fontsize' then
+      local Default = (O.FontSizeMin + O.FontSizeMax) / 2
+      p2, p3, p4 = nil, nil, nil
+
+      p1 = tonumber(p1) or Default
+
+      -- check for out of bounds
+      if p1 < O.FontSizeMin or p1 > O.FontSizeMax then
+        p1 = Default
+      end
+    elseif TypeID == 'fonttype' then
+      p2, p3, p4 = nil, nil, nil
+      p1 = LSMFontDropdown[p1] or DefaultFontType
+    elseif TypeID == 'fontstyle' then
+      p2, p3, p4 = nil, nil, nil
+      p1 = FontStyleDropdown[p1] or 'NONE'
+
     elseif TypeID == 'sound' then
       p3, p4 = nil, nil, nil
       if LSMSoundDropdown[p1] == nil then
@@ -3001,7 +3042,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       hidden = function()
                  if ButtonType == 'empty' then
                    return Group.TriggersInGroup > 0 or ClipBoard.Move == nil and ClipBoard.Copy == nil
-                 elseif TriggerAction('Util') == 0 or ClipBoard.Move == nil and ClipBoard.Copy == nil then
+                 elseif ClipBoard.Move == nil and ClipBoard.Copy == nil then
                    return true
                  else
                    return false
@@ -3023,6 +3064,10 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                  T = BBar:MoveTriggers(Source, GroupNumber, Index)
                else
                  T = BBar:CopyTriggers(Source, GroupNumber, Index)
+                 T.Name = '[Copy] ' .. T.Name
+
+                 -- Set select so there is not two selected triggers at the same time.
+                 T.Select = false
                end
 
                -- Paste trigger options
@@ -3048,6 +3093,112 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
     }
     return Paste
   end
+
+  --====================================
+  -- SUB FUNCTION CreateSwapButton
+  --====================================
+  local function CreateSwapButton(Order, ButtonType)
+    -- select   swap button for the selected trigger
+    -- other    for other triggers not selected.
+
+    local Swap = {
+      type = 'execute',
+      order = Order,
+      name = 'Swap',
+      width = 'half',
+      hidden = function()
+                 if ButtonType == 'select' and Trigger.Select then
+                   return ClipBoard.Move ~= nil or ClipBoard.Copy ~= nil
+                 elseif ButtonType == 'other' and not Trigger.Select then
+                   return ClipBoard.Swap == nil
+                 else
+                   return true
+                 end
+               end,
+      disabled = function()
+                   local Swap = ClipBoard.Swap
+
+                   HideTooltip(true)
+
+                   if #Triggers == 1 then
+                     return true
+                   elseif Swap then
+                     if Swap.Source == Trigger then
+                       return true
+                     else
+                       local Source = Swap.Source
+
+                       return not BBar:CompTriggers(Source, GroupNumber) or not BBar:CompTriggers(Trigger, Source.GroupNumber)
+                     end
+                   end
+                 end,
+      desc = 'Click "Swap" on the two triggers you want to swap.',
+      func = function()
+               local Swap = ClipBoard.Swap
+
+               if Swap == nil then
+                 Swap = {}
+                 Swap.Source = Trigger
+                 Swap.SourceTGA = TGA
+                 ClipBoard.Swap = Swap
+               else
+                 local Source = Swap.Source
+
+                 if BBar:SwapTriggers(Source, Trigger) then
+
+                   -- Swap the option tables
+                   AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Source)
+                   AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Trigger)
+
+                   -- Delete the old options.
+                   DeleteTriggerOption(TGA, Trigger)
+                   DeleteTriggerOption(Swap.SourceTGA, Source)
+                 end
+
+                 -- Clear the clipboard
+                 ClipBoard.Swap = nil
+
+                 -- update the bar
+                 UBF:Update()
+                 BBar:Display()
+
+                 HideTooltip(true)
+               end
+             end,
+    }
+    return Swap
+  end
+
+  --====================================
+  -- SUB FUNCTION CreateClearSwapButton
+  --====================================
+  local function CreateClearSwapButton(Order, ButtonType)
+    -- select   swap button for the selected trigger
+    -- other    for other triggers not selected.
+
+    local ClearSwap = {
+      type = 'execute',
+      order = Order,
+      name = 'Clear',
+      width = 'half',
+      desc = 'Clears the current swap',
+      hidden = function()
+                 if ButtonType == 'select' and Trigger.Select then
+                   return ClipBoard.Swap == nil
+                 elseif ButtonType == 'other' and not Trigger.Select then
+                   return ClipBoard.Swap == nil
+                 else
+                   return true
+                 end
+               end,
+      func = function()
+               HideTooltip(true)
+               ClipBoard.Swap = nil
+             end,
+    }
+    return ClearSwap
+  end
+
 
   -- Adding 'add' button and util buttons for empty groups
   if TriggerType == 'number' then
@@ -3087,33 +3238,10 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
   local TO = {
     type = 'group',
     dialogInline = true,
+    name = ' ',
     order = function()
               return Trigger.OrderNumber
             end,
-    name = function()
-             local TypeID = Trigger.TypeID
-             local Texture = nil
-
-             if strfind(TypeID, 'color') then
-               Texture = TriggerColorIcon
-             elseif strfind(TypeID, 'border') then
-               Texture = TriggerBorderIcon
-             elseif TypeID == 'background' then
-               Texture = TriggerBackgroundIcon
-             elseif TypeID == 'texturescale' or TypeID == 'baroffset' then
-               Texture = TriggerChangeSizeIcon
-             elseif strfind(TypeID, 'bar') then
-               Texture = TriggerBarIcon
-             elseif TypeID == 'sound' then
-               Texture = TriggerSoundIcon
-             end
-
-             if Texture then
-               return format('%s  |T%s:16|t  |cFFFFFF00%s|r', Trigger.OrderNumber, Texture, Trigger.Name)
-             else
-               return format('%s %s', Trigger.OrderNumber, Trigger.Name)
-             end
-           end,
   }
   CreateTriggerOption(TGA, 'Trigger', Trigger, TO)
 
@@ -3121,49 +3249,76 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
   TO.args = {
 
     --================================
-    -- Clear and Paste buttons
+    -- Clear, Paste, and move buttons
     --================================
     UtilClearTop = CreateClearButton(1, 'top'),
     UtilPasteTop = CreatePasteButton(2, 'top'),
+
+    ClearBottom = CreateClearButton(30, 'bottom'),
+    PasteBottom = CreatePasteButton(31, 'bottom'),
+
+    ClearSwapButton = CreateClearSwapButton(32, 'other'),
+    SwapButton = CreateSwapButton(33, 'other'),
+
     SepLineTop = {
       type = 'header',
       name = '',
       order = 3,
       hidden = function()
-                 return TriggerAction('Util') == 0 or ClipBoard.Move == nil and ClipBoard.Copy == nil
+                 return not Trigger.Select or ClipBoard.Move == nil and ClipBoard.Copy == nil
                end,
     },
 
     --================================
-    -- Action
+    -- Name button
     --================================
-    Minimize = {
+    Select = {
       type = 'input',
       order = 5,
       name = function()
-               if Trigger.Minimize then
-                 return '+'
+               local TypeID = Trigger.TypeID
+               local Texture = nil
+
+               if TypeID == 'fontcolor' then
+                 Texture = TriggerTextColorIcon
+               elseif strfind(TypeID, 'color') then
+                 Texture = TriggerColorIcon
+               elseif strfind(TypeID, 'border') then
+                 Texture = TriggerBorderIcon
+               elseif TypeID == 'background' then
+                 Texture = TriggerBackgroundIcon
+               elseif TypeID == 'texturescale' or TypeID == 'baroffset' then
+                 Texture = TriggerChangeSizeIcon
+               elseif strfind(TypeID, 'bar') then
+                 Texture = TriggerBarIcon
+               elseif TypeID == 'fontsize' or TypeID == 'fontoffset' then
+                 Texture = TriggerTextChangeSizeIcon
+               elseif TypeID == 'fonttype' then
+                 Texture = TriggerTextTypeIcon
+               elseif TypeID == 'fontstyle' then
+                 Texture = TriggerTextOutlineIcon
+               elseif TypeID == 'sound' then
+                 Texture = TriggerSoundIcon
+               end
+
+               if Texture then
+                 return format('%s  |T%s:16|t  |cFFFFFF00%s|r', Trigger.OrderNumber, Texture, Trigger.Name)
                else
-                 return '_'
+                 return format('%s %s', Trigger.OrderNumber, Trigger.Name)
                end
              end,
-      width = 'half',
-      dialogControl = 'GUB_Flex_Button',
-      desc = function()
-               if Trigger.Minimize then
-                 return 'Click to maximize'
-               else
-                 return 'Click to minimize'
-               end
-             end,
+      width = 'full',
+      dialogControl = 'GUB_Text_Button',
+      desc = 'click test',
       set = function()
-              Trigger.Minimize = not Trigger.Minimize
-              HideTooltip(true)
-             end,
-      get = function()
-              return 'L,40'
-            end,
+              BBar:SetSelectTrigger(Trigger.GroupNumber, Trigger.Index)
+            end
     },
+    Spacer55 = CreateSpacer(5.5),
+
+    --================================
+    -- Action
+    --================================
     Static = {
       type = 'toggle',
       order = 6,
@@ -3181,6 +3336,9 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
               UBF:Update()
               BBar:Display()
             end,
+      hidden = function()
+                 return not Trigger.Select
+               end,
       disabled = function()
                    return not Trigger.Enabled
                  end,
@@ -3202,8 +3360,11 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                UBF:Update()
                BBar:Display()
              end,
+      hidden = function()
+                 return not Trigger.Select
+               end,
     },
-    Spacer8 = CreateSpacer(8, 'full', function() return Trigger.Minimize end),
+    Spacer8 = CreateSpacer(8, 'full', function() return not Trigger.Select end),
     ActionType = {
       type = 'input',
       order = 9,
@@ -3219,7 +3380,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
             end,
       get = function() end,
       hidden = function()
-                 return Trigger.Minimize
+                 return not Trigger.Select
                end,
     },
     ActionValue = {
@@ -3237,7 +3398,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
             end,
       get = function() end,
       hidden = function()
-                 return Trigger.Minimize
+                 return not Trigger.Select
                end,
       disabled = function()
                    return Trigger.Static
@@ -3258,10 +3419,10 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
             end,
       get = function() end,
       hidden = function()
-                 return Trigger.Minimize
+                 return not Trigger.Select
                end,
     },
-    ActionSpacer12 = CreateSpacer(12, 'half', function() return Trigger.Minimize end),
+    ActionSpacer12 = CreateSpacer(12, 'half', function() return not Trigger.Select end),
     ActionUtil = {
       type = 'input',
       order = 13,
@@ -3276,11 +3437,14 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
               HideTooltip(true)
             end,
       get = function() end,
+      hidden = function()
+                 return not Trigger.Select
+               end,
     },
     Name = {
       type = 'input',
       name = 'Name',
-      order = 51,
+      order = 21,
       width = 'full',
       get = function()
               return Trigger.Name or ''
@@ -3289,7 +3453,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
               Trigger.Name = Value
             end,
       hidden = function()
-                 return Trigger.Minimize or TriggerAction('Name') == 0
+                 return not Trigger.Select or TriggerAction('Name') == 0
                end,
     },
     SepLineBottom = {
@@ -3297,177 +3461,19 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       name = '',
       order = 20,
       hidden = function()
-                 return Trigger.Minimize and TriggerAction('Util') == 0
+                 return not Trigger.Select
                end,
     },
 
-    --================================
-    -- Utility
-    --================================
-    Utility = {
-      type = 'group',
-      order = 21,
-      name = '',
-      hidden = function()
-                 return TriggerAction('Util') == 0
-               end,
-      args = {
-        ClearBottom = CreateClearButton(1, 'bottom'),
-        PasteBottom = CreatePasteButton(2, 'bottom'),
-        ClearSwap = {
-          type = 'execute',
-          order = 3,
-          name = 'Clear',
-          width = 'half',
-          desc = 'Clears the current swap',
-          hidden = function()
-                     return ClipBoard.Swap == nil
-                   end,
-          func = function()
-                   HideTooltip(true)
-                   ClipBoard.Swap = nil
-                 end,
-        },
-        Swap = {
-          type = 'execute',
-          order = 4,
-          name = 'Swap',
-          width = 'half',
-          hidden = function()
-                     return ClipBoard.Move ~= nil or ClipBoard.Copy ~= nil
-                   end,
-          disabled = function()
-                       local Swap = ClipBoard.Swap
-
-                       HideTooltip(true)
-
-                       if #Triggers == 1 then
-                         return true
-                       elseif Swap then
-                         if Swap.Source == Trigger then
-                           return true
-                         else
-                           local Source = Swap.Source
-
-                           return not BBar:CompTriggers(Source, GroupNumber) or not BBar:CompTriggers(Trigger, Source.GroupNumber)
-                         end
-                       end
-                     end,
-          desc = 'Click "Swap" on the two triggers you want to swap.',
-          func = function()
-                   local Swap = ClipBoard.Swap
-
-                   if Swap == nil then
-                     Swap = {}
-                     Swap.Source = Trigger
-                     Swap.SourceTGA = TGA
-                     ClipBoard.Swap = Swap
-                   else
-                     local Source = Swap.Source
-
-                     if BBar:SwapTriggers(Source, Trigger) then
-
-                       -- Swap the option tables
-                       AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Source)
-                       AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Trigger)
-
-                       -- Delete the old options.
-                       DeleteTriggerOption(TGA, Trigger)
-                       DeleteTriggerOption(Swap.SourceTGA, Source)
-                     end
-
-                     -- Clear the clipboard
-                     ClipBoard.Swap = nil
-
-                     -- update the bar
-                     UBF:Update()
-                     BBar:Display()
-
-                     HideTooltip(true)
-                   end
-                 end,
-        },
-        Move = {
-          type = 'execute',
-          order = 5,
-          name = 'Move',
-          width = 'half',
-          hidden = function()
-                     return next(ClipBoard) ~= nil
-                   end,
-          disabled = function()
-                       HideTooltip(true)
-                       return ClipBoard.Move ~= nil or #Triggers == 1
-                     end,
-          desc = 'Click "Move" on the trigger you want moved. Then click on "paste" for the destination.',
-          func = function()
-                   local Move = {}
-
-                   Move.Source = Trigger
-                   Move.SourceTGA = TGA
-                   ClipBoard.Move = Move
-
-                   HideTooltip(true)
-                 end,
-        },
-        Copy = {
-          type = 'execute',
-          order = 6,
-          name = 'Copy',
-          width = 'half',
-          hidden = function()
-                     return next(ClipBoard) ~= nil
-                   end,
-          desc = 'Click "Copy" on the trigger you want copied. Then click on "paste" for the destination.',
-          func = function()
-                   local Copy = {}
-
-                   Copy.Source = Trigger
-                   Copy.SourceTGA = TGA
-                   ClipBoard.Copy = Copy
-
-                   HideTooltip(true)
-                 end,
-        },
-        Spacer7 = CreateSpacer(7, 'half'),
-        Delete = {
-          type = 'execute',
-          order = 8,
-          name = 'Delete',
-          width = 'half',
-          desc = function()
-                   return format('Delete trigger %s', Trigger.OrderNumber)
-                 end,
-          confirm = function()
-                      if not IsModifierKeyDown() then
-                        return 'Are you sure you want to delete this trigger?\n Hold a modifier key down and click delete to bypass this warning'
-                      end
-                    end,
-          func = function()
-                   BBar:RemoveTriggers(Trigger.Index)
-                   DeleteTriggerOption(TGA, Trigger)
-
-                   -- update the bar
-                   UBF:Update()
-                   BBar:Display()
-
-                   HideTooltip(true)
-                 end,
-          hidden = function()
-                     return next(ClipBoard) ~= nil
-                   end,
-        },
-      },
-    },
     --=============================
     -- Type
     --=============================
     Type = {
       type = 'group',
-      order = 31,
+      order = 21,
       name = '',
       hidden = function()
-                 return TriggerAction('Type') == 0 or Trigger.Minimize
+                 return TriggerAction('Type') == 0 or not Trigger.Select
                end,
       disabled = function()
                    return not Trigger.Enabled
@@ -3495,6 +3501,25 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    end,
           style = 'dropdown',
         },
+        Spacer5 = CreateSpacer(5, nil, function()
+                                         local TypeID = Trigger.TypeID
+
+                                         return Trigger.TextMultiLine == nil or TypeID ~= 'fontcolor' and TypeID ~= 'fontoffset' and
+                                                TypeID ~= 'fontsize' and TypeID ~= 'fonttype'
+                                       end),
+        TextLine = {
+          type = 'select',
+          name = 'Text Line',
+          order = 6,
+          values = TextLineDropdown,
+          style = 'dropdown',
+          hidden = function()
+                     local TypeID = Trigger.TypeID
+
+                     return Trigger.TextMultiLine == nil or TypeID ~= 'fontcolor' and TypeID ~='fontoffset' and
+                            TypeID ~= 'fontsize' and TypeID ~= 'fonttype' and TypeID ~= 'fontstyle'
+                   end,
+        },
         Spacer10 = CreateSpacer(10),
         ParsColor = {
           type = 'color',
@@ -3505,7 +3530,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           hidden = function()
                      local TypeID = Trigger.TypeID
 
-                     return TypeID ~= 'bordercolor' and TypeID ~= 'backgroundcolor' and TypeID ~= 'bartexturecolor'
+                     return TypeID ~= 'bordercolor' and TypeID ~= 'backgroundcolor' and TypeID ~= 'bartexturecolor' and
+                            TypeID ~= 'fontcolor'
                    end,
         },
         ParsTexture = {
@@ -3574,10 +3600,63 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                      return Trigger.TypeID ~= 'sound'
                    end,
         },
+        ParsTextOffsetX = {
+          type = 'range',
+          name = 'Horizonal',
+          order = 18,
+          min = O.FontOffsetXMin,
+          max = O.FontOffsetXMax,
+          step = 1,
+          hidden = function()
+                     return Trigger.TypeID ~= 'fontoffset'
+                   end,
+        },
+        ParsTextOffsetY = {
+          type = 'range',
+          name = 'Vertical',
+          order = 19,
+          min = O.FontOffsetYMin,
+          max = O.FontOffsetYMax,
+          step = 1,
+          hidden = function()
+                     return Trigger.TypeID ~= 'fontoffset'
+                   end,
+        },
+        ParsTextSize = {
+          type = 'range',
+          name = 'Size',
+          order = 20,
+          min = O.FontSizeMin,
+          max = O.FontSizeMax,
+          step = 1,
+          hidden = function()
+                     return Trigger.TypeID ~= 'fontsize'
+                   end,
+        },
+        ParsTextType = {
+          type = 'select',
+          name = 'Type',
+          order = 21,
+          dialogControl = 'LSM30_Font',
+          values = LSMFontDropdown,
+          hidden = function()
+                     return Trigger.TypeID ~= 'fonttype'
+                   end,
+        },
+        ParsTextStyle = {
+          type = 'select',
+          name = 'Style',
+          order = 22,
+          style = 'dropdown',
+          values = FontStyleDropdown,
+          hidden = function()
+                     return Trigger.TypeID ~= 'fontstyle'
+                   end,
+        },
         ParsSoundChannel = {
           type = 'select',
           name = 'Sound Channel',
-          order = 18,
+          order = 23,
           style = 'dropdown',
           values = TriggerSoundChannelDropdown,
           hidden = function()
@@ -3588,7 +3667,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'select',
           name = 'Color Type',
           desc = 'This will override the current color, if there is a new one to replace it with',
-          order = 19,
+          order = 24,
           values = function()
                      return Group.Objects[Trigger.TypeIndex].GetFnTypes
                    end,
@@ -3601,7 +3680,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'input',
           name = 'Color Unit',
           desc = 'Enter the unit you want to get the color from',
-          order = 20,
+          order = 25,
           hidden = function()
                      local GetFnTypeID = Trigger.GetFnTypeID
 
@@ -3612,7 +3691,6 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
         },
       },
     },
-
     --=============================
     -- Value
     --=============================
@@ -3622,10 +3700,10 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
     --================================================
     Value = {
       type = 'group',
-      order = 40,
+      order = 21,
       name = '',
       hidden = function()
-                 return TriggerAction('Value') == 0 or Trigger.Minimize
+                 return TriggerAction('Value') == 0 or not Trigger.Select
                end,
       disabled = function()
                    return not Trigger.Enabled
@@ -3741,6 +3819,91 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
         --================================================
       },
     },
+    --================================
+    -- Utility
+    --================================
+    Utility = {
+      type = 'group',
+      order = 21,
+      name = '',
+      hidden = function()
+                 return TriggerAction('Util') == 0 or not Trigger.Select
+               end,
+      args = {
+        ClearSwap = CreateClearSwapButton(3, 'select'),
+        Swap = CreateSwapButton(4, 'select'),
+        Move = {
+          type = 'execute',
+          order = 5,
+          name = 'Move',
+          width = 'half',
+          hidden = function()
+                     return next(ClipBoard) ~= nil
+                   end,
+          disabled = function()
+                       HideTooltip(true)
+                       return ClipBoard.Move ~= nil or #Triggers == 1
+                     end,
+          desc = 'Click "Move" on the trigger you want moved. Then click on "paste" for the destination.',
+          func = function()
+                   local Move = {}
+
+                   Move.Source = Trigger
+                   Move.SourceTGA = TGA
+                   ClipBoard.Move = Move
+
+                   HideTooltip(true)
+                 end,
+        },
+        Copy = {
+          type = 'execute',
+          order = 6,
+          name = 'Copy',
+          width = 'half',
+          hidden = function()
+                     return next(ClipBoard) ~= nil
+                   end,
+          desc = 'Click "Copy" on the trigger you want copied. Then click on "paste" for the destination.',
+          func = function()
+                   local Copy = {}
+
+                   Copy.Source = Trigger
+                   Copy.SourceTGA = TGA
+                   ClipBoard.Copy = Copy
+
+                   HideTooltip(true)
+                 end,
+        },
+        Spacer7 = CreateSpacer(7, 'half'),
+        Delete = {
+          type = 'execute',
+          order = 8,
+          name = 'Delete',
+          width = 'half',
+          desc = function()
+                   return format('Delete trigger %s', Trigger.OrderNumber)
+                 end,
+          confirm = function()
+                      if not IsModifierKeyDown() then
+                        return 'Are you sure you want to delete this trigger?\n Hold a modifier key down and click delete to bypass this warning'
+                      end
+                    end,
+          func = function()
+                   BBar:RemoveTriggers(Trigger.Index)
+                   DeleteTriggerOption(TGA, Trigger)
+
+                   -- update the bar
+                   UBF:Update()
+                   BBar:Display()
+
+                   HideTooltip(true)
+                 end,
+          hidden = function()
+                     return next(ClipBoard) ~= nil
+                   end,
+        },
+      },
+    },
   }
   --============
   -- GET and SET
@@ -3761,6 +3924,17 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
 
                  if KeyName == 'ParsColor' then
                    return p1 or 0, p2 or 0, p3 or 0, p4 or 1
+
+                 elseif KeyName == 'ParsTextOffsetX' then
+                   return p1
+                 elseif KeyName == 'ParsTextOffsetY' then
+                   return p2
+                 elseif KeyName == 'ParsTextSize' then
+                   return p1
+                 elseif KeyName == 'ParsTextType' then
+                   return p1
+                 elseif KeyName == 'ParsTextStyle' then
+                   return p1
 
                  elseif KeyName == 'ParsSoundChannel' then
                    return p2
@@ -3809,6 +3983,19 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                  elseif KeyName == 'ParsTextureScale' then
                    Pars[1] = Value
 
+                   -- Update the triggers here for better performance
+                   -- Dont need to do a checktriggers here.
+                   UBF:Update()
+                   BBar:Display()
+                   return
+
+                 elseif strfind(KeyName, 'TextOffset') or KeyName == 'ParsTextSize' or
+                        KeyName == 'ParsTextType' or KeyName == 'ParsTextStyle' then
+                   if KeyName == 'ParsTextOffsetY' then
+                     Pars[2] = Value
+                   else
+                     Pars[1] = Value
+                   end
                    -- Update the triggers here for better performance
                    -- Dont need to do a checktriggers here.
                    UBF:Update()
@@ -3906,29 +4093,6 @@ local function CreateTriggerOptions(BarType, Order, Name)
         }
       end
 
-      TOA.MinimizeAll = {
-        type = 'execute',
-        order = 0.2,
-        name = function()
-                 if Triggers.MinimizeAll then
-                   return 'Maximize All'
-                 else
-                   return 'Minimize All'
-                 end
-               end,
-        func = function()
-                 local MinimizeAll = not Triggers.MinimizeAll
-
-                 for Index = 1, #Triggers do
-                   Triggers[Index].Minimize = MinimizeAll
-                   if MinimizeAll then
-                   --  Triggers[Index].Action = 'none'
-                   end
-                 end
-                 Triggers.MinimizeAll = MinimizeAll
-                 HideTooltip(true)
-               end,
-      }
       TOA.MenuSync = {
         type = 'toggle',
         order = 0.3,

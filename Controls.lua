@@ -54,12 +54,15 @@ local MenuArrowSize = 32 / 2.7
 local MenuBulletSize = 32 / 3.5
 local MenuButtonHeight = 24
 local FlexButtonHeight = 24
+local TextButtonHeight = 24
+
 local EditBoxWidgetVersion = 1
 local AuraEditBoxWidgetVersion = 1
 local MenuButtonWidgetVersion = 1
 local FlexButtonWidgetVersion = 1
 local EditBoxSelectedWidgetVersion = 1
 local SpellInfoWidgetVersion = 1
+local TextButtonWidgetVersion = 1
 
 local EditBoxWidgetType = 'GUB_Predictor_Base'
 local AuraEditBoxWidgetType = 'GUB_Aura_EditBox'
@@ -67,6 +70,7 @@ local MenuButtonWidgetType = 'GUB_Menu_Button'
 local FlexButtonWidgetType = 'GUB_Flex_Button'
 local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
+local TextButtonWidgetType = 'GUB_Text_Button'
 
 local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_MenuOpened.tga]]
 local MenuClosedIcon        = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_MenuClosed.tga]]
@@ -123,6 +127,20 @@ local MenuButtonHighlightBorder = {
   tile = false,
   tileSize = 16,
   edgeSize = 16,
+  insets = {
+    left = 4 ,
+    right = 4,
+    top = 4,
+    bottom = 4
+  }
+}
+
+local FrameBorder = {
+  bgFile   = '',
+  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+  tile = false,
+  tileSize = 16,
+  edgeSize = 12,
   insets = {
     left = 4 ,
     right = 4,
@@ -1309,6 +1327,147 @@ local function FlexButtonConstructor()
 end
 
 AceGUI:RegisterWidgetType(FlexButtonWidgetType, FlexButtonConstructor, FlexButtonWidgetVersion)
+
+--*****************************************************************************
+--
+-- Text_Button dialog control
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- TextButtonOnAcquire
+--
+-- Gets called when the text button is visible on screen.
+--
+-- self   Widget
+-------------------------------------------------------------------------------
+local function TextButtonOnAcquire(self)
+  self:SetHeight(TextButtonHeight)
+  self:SetDisabled(false)
+end
+
+-------------------------------------------------------------------------------
+-- TextButtonDisable
+--
+-- Gets called if the options disables/enables the text button.
+--
+-- self        Widget
+-- Disabled    If true then disabled, otherwise false
+-------------------------------------------------------------------------------
+local function TextButtonDisable(self, Disabled)
+  local ButtonFrame = self.ButtonFrame
+
+  if Disabled then
+    ButtonFrame:Disable()
+  else
+    ButtonFrame:Enable()
+  end
+end
+
+-------------------------------------------------------------------------------
+-- TextButtonOnEnterPressed
+--
+-- Gets called if the text button gets clicked
+-------------------------------------------------------------------------------
+local function TextButtonOnEnterPressed(self, ...)
+  AceGUI:ClearFocus()
+  PlaySound('igMainMenuOption')
+  self.Widget:Fire('OnEnterPressed', ...)
+end
+
+-------------------------------------------------------------------------------
+-- TextButtonSetLabel
+--
+-- Sets the text for the button
+--
+-- self   Widget
+-- Text   Text to display
+-------------------------------------------------------------------------------
+local function TextButtonSetLabel(self, Text)
+  self.ButtonFrame.Text:SetText(Text)
+end
+
+-------------------------------------------------------------------------------
+-- TextButtonOnEnter
+--
+-- Gets called when mousing over the text button
+-------------------------------------------------------------------------------
+local function TextButtonOnEnter(self)
+  local Widget = self.Widget
+
+  Widget.HighlightFrame:Show()
+ -- Widget:Fire('OnEnter')
+end
+
+-------------------------------------------------------------------------------
+-- TextButtonOnLeave
+--
+-- Gets called when the mouse leaves the flex button
+-------------------------------------------------------------------------------
+local function TextButtonOnLeave(self)
+  local Widget = self.Widget
+
+  Widget.HighlightFrame:Hide()
+ -- self.Widget:Fire('OnLeave')
+end
+
+-------------------------------------------------------------------------------
+-- TextButtonConstructor
+--
+-- Creates a button that shows only text, no borders, etc.
+--
+-- To use this in ace-config.  Use type = 'input', and then use name = 'text'
+-- to set the text of the button.
+-------------------------------------------------------------------------------
+local function TextButtonConstructor()
+  local Frame = CreateFrame('Frame', nil, UIParent)
+  local ButtonFrame = CreateFrame('Button', nil, Frame)
+  local Widget = {}
+
+  -- Need this so there is space between each control.
+  ButtonFrame:SetAllPoints(Frame)
+  ButtonFrame:EnableMouse(true)
+
+  ButtonFrame:SetScript('OnEnter', TextButtonOnEnter)
+  ButtonFrame:SetScript('OnLeave', TextButtonOnLeave)
+
+
+  local HighlightFrame = CreateFrame('Frame', nil, Frame)
+  HighlightFrame:SetPoint('TOPLEFT', -3, 2)
+  HighlightFrame:SetPoint('BOTTOMRIGHT', 2, -3)
+  HighlightFrame:SetBackdrop(FrameBorder)
+  HighlightFrame:SetBackdropBorderColor(0.50, 0.50, 0.50, 1)
+
+  HighlightFrame:Hide()
+
+  ButtonFrame.Widget = Widget
+
+  -- Create text
+  local Text = ButtonFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormal')
+  Text:SetJustifyH('LEFT')
+  Text:SetWordWrap(false)
+  Text:SetAllPoints(Frame)
+
+  ButtonFrame:SetScript('OnClick', TextButtonOnEnterPressed)
+
+  ButtonFrame.Text = Text
+
+  Widget.frame = Frame
+  Widget.type = TextButtonWidgetType
+  Widget.ButtonFrame = ButtonFrame
+  Widget.HighlightFrame = HighlightFrame
+
+  Widget.OnAcquire = TextButtonOnAcquire
+
+  -- Set functions for ace config dialog
+  Widget.SetDisabled = TextButtonDisable
+  Widget.SetLabel = TextButtonSetLabel
+  Widget.SetText = function() end
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(TextButtonWidgetType, TextButtonConstructor, TextButtonWidgetVersion)
 
 --*****************************************************************************
 --

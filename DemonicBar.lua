@@ -127,6 +127,12 @@ local NormalTD = { -- normal Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,                     FurySBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    BoxMode },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -141,6 +147,12 @@ local MetaTD = { -- meta Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,                     FuryMetaSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    BoxMode },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
   { TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
@@ -155,7 +167,13 @@ local BothTD = { -- both Trigger data (since this is 'all'), the texture and tex
   { TT.TypeID_BarColor,              TT.Type_BarColor,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    BoxMode },
-  { TT.TypeID_Sound,                 TT.Type_Sound },
+    { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
+{ TT.TypeID_Sound,                 TT.Type_Sound },
 }
 
 local NormalGroup = 1
@@ -307,7 +325,7 @@ function Main.UnitBarsF.DemonicBar:Update(Event, Unit, PowerType)
 
   BBar:ChangeTexture(FBar, 'SetFillTexture', 1, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, nil, 'current', DemonicFury, 'maximum', MaxDemonicFury, 'unit', 'player')
+    BBar:SetValueFont(1, 'current', DemonicFury, 'maximum', MaxDemonicFury, 'unit', 'player')
   end
 
   if EnableTriggers then
@@ -384,7 +402,7 @@ function Main.UnitBarsF.DemonicBar:SetAttr(TableName, KeyName)
     end)
     BBar:SO('Layout', 'HideText',    function(v)
       if v then
-        BBar:SetValueRawFont(1, nil, '')
+        BBar:SetValueRawFont(1, '')
       else
         Update = true
       end
@@ -468,7 +486,7 @@ function GUB.DemonicBar:CreateBar(UnitBarF, UB, ScaleFrame)
     end
   end
   -- Create font for displaying power.
-  BBar:CreateFont(1, nil, PercentFn)
+  BBar:CreateFont(1, PercentFn)
 
   -- Save the name for tooltips for normal mode.
   BBar:SetTooltip(1, nil, UB.Name)

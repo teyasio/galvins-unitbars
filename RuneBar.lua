@@ -110,6 +110,12 @@ local TD = { -- Trigger data
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BarMode },
   { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneTexture, RuneBorderTexture, RuneEnergizeTexture },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -244,7 +250,7 @@ local function ChangeRune(RuneBar, RuneID, TestModeRuneType)
     BBar:SetBackdropBorderColor(RuneID, BarMode, nil)
   end
 
-  BBar:UpdateFont(RuneID, nil, ColorIndex)
+  BBar:UpdateFont(RuneID, ColorIndex)
 
   c = ColorEnergize
   if not c.All then
@@ -361,9 +367,9 @@ local function UpdateTestMode(RuneBar, Testing)
       ChangeRune(RuneBar, RuneID, RuneType)
 
       if not HideText then
-        BBar:SetValueFont(RuneID, nil, 'time', 10 * Value)
+        BBar:SetValueFont(RuneID, 'time', 10 * Value)
       else
-        BBar:SetValueRawFont(RuneID, nil, '')
+        BBar:SetValueRawFont(RuneID, '')
       end
 
       BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, not ShowEnergize or strfind(EnergizeShow, 'bar') == nil)
@@ -388,7 +394,7 @@ local function UpdateTestMode(RuneBar, Testing)
       BBar:SetHiddenTexture(RuneID, RuneEnergizeSBar, true)
       BBar:SetHiddenTexture(RuneID, RuneEnergizeTexture, true)
     end
-    BBar:SetValueRawFont(0, nil, '')
+    BBar:SetValueRawFont(0, '')
   end
 end
 
@@ -426,7 +432,7 @@ local function StartRuneCooldown(RuneBar, RuneID, StartTime, Duration, RuneReady
         BBar:SetCooldownTexture(RuneID, RuneTexture, StartTime, Duration, Gen.CooldownLine, Gen.HideCooldownFlash)
       end
       if not Layout.HideText then
-        BBar:SetValueTimeFont(RuneID, nil, StartTime, Duration, Duration, -1)
+        BBar:SetValueTimeFont(RuneID, StartTime, Duration, Duration, -1)
       end
 
       OnCooldown[RuneID] = Duration
@@ -438,7 +444,7 @@ local function StartRuneCooldown(RuneBar, RuneID, StartTime, Duration, RuneReady
       BBar:SetFillTexture(RuneID, RuneSBar, 0)
     end
     if not Layout.HideText then
-      BBar:SetValueTimeFont(RuneID, nil)
+      BBar:SetValueTimeFont(RuneID)
     end
     if Energize then
       DoEnergize(RuneBar, RuneID)
@@ -583,7 +589,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) end)
     BBar:SO('Layout', 'HideText',      function(v)
       if v then
-        BBar:SetValueTimeFont(0, nil)
+        BBar:SetValueTimeFont(0)
       end
     end)
     BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
