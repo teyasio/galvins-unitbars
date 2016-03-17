@@ -3305,9 +3305,9 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                end
 
                if not Trigger.Enabled then
-                 rgb = '1, 0, 0'
+                 rgb = '0.75, 0, 0'
                elseif Trigger.Static then
-                 rgb = '0, 1, 0'
+                 rgb = '0, 0.75, 0'
                end
                if Texture then
                  return format('%s:%s  |T%s:16|t  |cFFFFFF00%s|r', rgb, Trigger.OrderNumber, Texture, Trigger.Name)
