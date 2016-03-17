@@ -55,6 +55,8 @@ local MenuBulletSize = 32 / 3.5
 local MenuButtonHeight = 24
 local FlexButtonHeight = 24
 local TextButtonHeight = 24
+local TextButtonHL = {r = 0.3, g = 0.3, b = 0.3}
+
 
 local EditBoxWidgetVersion = 1
 local AuraEditBoxWidgetVersion = 1
@@ -135,12 +137,12 @@ local MenuButtonHighlightBorder = {
   }
 }
 
-local FrameBorder = {
-  bgFile   = '',
-  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+local TextButtonBorder = {
+  bgFile   = LSM:Fetch('background', 'Blizzard Tooltip'),
+  edgeFile = LSM:Fetch('border', 'Blizzard Tooltip'),
   tile = false,
   tileSize = 16,
-  edgeSize = 12,
+  edgeSize = 16,
   insets = {
     left = 4 ,
     right = 4,
@@ -1384,7 +1386,13 @@ end
 -- Text   Text to display
 -------------------------------------------------------------------------------
 local function TextButtonSetLabel(self, Text)
+
+  -- get color
+  local rgb, Text = strsplit(':', Text, 2)
+  local r, g, b = strsplit(',', rgb, 3)
+
   self.ButtonFrame.Text:SetText(Text)
+  self.BorderFrame:SetBackdropBorderColor(r, g, b, 1)
 end
 
 -------------------------------------------------------------------------------
@@ -1395,7 +1403,7 @@ end
 local function TextButtonOnEnter(self)
   local Widget = self.Widget
 
-  Widget.HighlightFrame:Show()
+  Widget.BorderFrame:SetBackdropColor(TextButtonHL.r, TextButtonHL.g, TextButtonHL.b, 1)
  -- Widget:Fire('OnEnter')
 end
 
@@ -1407,7 +1415,7 @@ end
 local function TextButtonOnLeave(self)
   local Widget = self.Widget
 
-  Widget.HighlightFrame:Hide()
+  Widget.BorderFrame:SetBackdropColor(0, 0, 0, 1)
  -- self.Widget:Fire('OnLeave')
 end
 
@@ -1416,8 +1424,10 @@ end
 --
 -- Creates a button that shows only text, no borders, etc.
 --
--- To use this in ace-config.  Use type = 'input', and then use name = 'text'
+-- To use this in ace-config.  Use type = 'input', and then use name = 'r,g,b:text'
 -- to set the text of the button.
+--
+-- r,g,b is the color for red green and blue.
 -------------------------------------------------------------------------------
 local function TextButtonConstructor()
   local Frame = CreateFrame('Frame', nil, UIParent)
@@ -1432,13 +1442,14 @@ local function TextButtonConstructor()
   ButtonFrame:SetScript('OnLeave', TextButtonOnLeave)
 
 
-  local HighlightFrame = CreateFrame('Frame', nil, Frame)
-  HighlightFrame:SetPoint('TOPLEFT', -3, 2)
-  HighlightFrame:SetPoint('BOTTOMRIGHT', 2, -3)
-  HighlightFrame:SetBackdrop(FrameBorder)
-  HighlightFrame:SetBackdropBorderColor(0.50, 0.50, 0.50, 1)
+  local BorderFrame = CreateFrame('Frame', nil, Frame)
+  BorderFrame:SetPoint('TOPLEFT', 0, 3)
+  BorderFrame:SetPoint('BOTTOMRIGHT', 0, -3)
+  BorderFrame:SetBackdrop(TextButtonBorder)
+  BorderFrame:SetBackdropColor(0, 0, 0, 1)
+  BorderFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
 
-  HighlightFrame:Hide()
+  --BorderFrame:Hide()
 
   ButtonFrame.Widget = Widget
 
@@ -1446,7 +1457,8 @@ local function TextButtonConstructor()
   local Text = ButtonFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormal')
   Text:SetJustifyH('LEFT')
   Text:SetWordWrap(false)
-  Text:SetAllPoints(Frame)
+  Text:SetPoint('TOPLEFT', 6, 0)
+  Text:SetPoint('BOTTOMRIGHT', -6, 0)
 
   ButtonFrame:SetScript('OnClick', TextButtonOnEnterPressed)
 
@@ -1455,7 +1467,7 @@ local function TextButtonConstructor()
   Widget.frame = Frame
   Widget.type = TextButtonWidgetType
   Widget.ButtonFrame = ButtonFrame
-  Widget.HighlightFrame = HighlightFrame
+  Widget.BorderFrame = BorderFrame
 
   Widget.OnAcquire = TextButtonOnAcquire
 
