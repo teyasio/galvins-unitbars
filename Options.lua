@@ -3220,6 +3220,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                -- Update bar to reflect trigger changes
                UBF:Update()
                BBar:Display()
+
+               HideTooltip(true)
              end,
       hidden = function()
                  return Group.TriggersInGroup > 0 or ClipBoard.Move or ClipBoard.Copy
@@ -3237,7 +3239,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
   -- create trigger header
   local TO = {
     type = 'group',
-    dialogInline = true,
+    guiInline = true,
     name = ' ',
     order = function()
               return Trigger.OrderNumber
@@ -3278,6 +3280,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       name = function()
                local TypeID = Trigger.TypeID
                local Texture = nil
+               local rgb = '0.7, 0.7, 0.7'
 
                if TypeID == 'fontcolor' then
                  Texture = TriggerTextColorIcon
@@ -3301,10 +3304,15 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                  Texture = TriggerSoundIcon
                end
 
+               if not Trigger.Enabled then
+                 rgb = '1, 0, 0'
+               elseif Trigger.Static then
+                 rgb = '0, 1, 0'
+               end
                if Texture then
-                 return format('%s  |T%s:16|t  |cFFFFFF00%s|r', Trigger.OrderNumber, Texture, Trigger.Name)
+                 return format('%s:%s  |T%s:16|t  |cFFFFFF00%s|r', rgb, Trigger.OrderNumber, Texture, Trigger.Name)
                else
-                 return format('%s %s', Trigger.OrderNumber, Trigger.Name)
+                 return format('%s:%s %s', rgb, Trigger.OrderNumber, Trigger.Name)
                end
              end,
       width = 'full',

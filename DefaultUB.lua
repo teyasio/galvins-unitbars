@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 410
+GUB.DefaultUB.Version = 411
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3016,6 +3016,13 @@ GUB.DefaultUB.Default = {
 
 local HelpText = {}
 
+--=============================================================================
+--
+-- To label HTTP address.  So the name appears above the input box.
+-- You need to place the name on a line by its self.  Then the web address on
+-- the next line by its self.
+--=============================================================================
+
 GUB.DefaultUB.HelpText = HelpText
 HelpText[1] = [[
 
@@ -3062,7 +3069,7 @@ For more information you can check out the following links:
 For text:]]
 HelpText[#HelpText + 1] = [[https://www.youtube.com/watch?v=mQVCDJLrCNI]]
 HelpText[#HelpText + 1] = [[UI escape codes:]]
-HelpText[#HelpText + 1] = [[http://www.wowwiki.com/UI_escape_sequences]]
+HelpText[#HelpText + 1] = [[http://wow.gamepedia.com/UI_escape_sequences]]
 HelpText[#HelpText + 1] = [[
 
 |cff00ff00Copy and Paste|r
@@ -3164,6 +3171,11 @@ GUB.DefaultUB.MessageText = [[
 |Cffffff00Galvin's UnitBars|r
 
 |cff00ff00New Changes|r
+
+4.11
+
+* Trigger titles are now in a border.  This can be clicked on like in 4.10.
+* Green border means static, red border means disabled.
 
 4.10
 
