@@ -2830,10 +2830,8 @@ local function DeleteTriggerOption(TGA, Trigger)
   local ToHexSt = ToHex(Trigger)
 
   TGA['Trigger' .. ToHexSt] = nil
-end
-
-local function CreateTriggerOption(TGA, KeyName, Trigger, Option)
-  TGA[KeyName .. ToHex(Trigger)] = Option
+  TGA['Clear' .. ToHexSt] = nil
+  TGA['Paste' .. ToHexSt] = nil
 end
 
 local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Trigger)
@@ -2979,13 +2977,18 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
   -- SUB FUNCTION CreateClearPasteButton
   --====================================
   local function CreateClearButton(Order, ButtonType)
-    -- empty   creates buttons for an empty group
-    -- top     Previous trigger
+    -- top     Top of all triggers or empty group
     -- bottom  Next trigger
 
     local Clear = {
       type = 'execute',
-      order = Order,
+      order = function()
+                if ButtonType == 'top' then
+                  return Order
+                else
+                  return Trigger.OrderNumber + Order
+                end
+              end,
       name = 'Clear',
       width = 'half',
       desc = function()
@@ -3002,36 +3005,25 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                ClipBoard.Copy = nil
              end,
       hidden = function()
-                 if ButtonType == 'empty' then
-                   return Group.TriggersInGroup > 0 or ClipBoard.Move == nil and ClipBoard.Copy == nil
-                 elseif Trigger.Action.Util == 0 or next(ClipBoard) == nil or ClipBoard.Swap ~= nil then
-                   return true
-                 else
-                   return false
-                 end
+                 return ClipBoard.Move == nil and ClipBoard.Copy == nil
                end
     }
     return Clear
   end
+
   local function CreatePasteButton(Order, ButtonType)
     local Paste = {
       type = 'execute',
-      order = Order,
+      order = function()
+                if ButtonType == 'top' then
+                  return Order
+                else
+                  return Trigger.OrderNumber + Order
+                end
+              end,
       name = 'Paste',
       width = 'half',
-      desc = function()
-               local CB = ClipBoard.Move or ClipBoard.Copy
-
-               if CB then
-                 if ButtonType == 'empty' then
-                   return 'Click to paste trigger here'
-                 elseif ButtonType == 'top' then
-                   return 'Click to paste trigger above this one'
-                 else
-                   return 'Click to paste trigger below this one'
-                 end
-               end
-             end,
+      desc = 'Click to paste trigger here',
       disabled = function()
                    local CB = ClipBoard.Move or ClipBoard.Copy
 
@@ -3040,13 +3032,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    end
                  end,
       hidden = function()
-                 if ButtonType == 'empty' then
-                   return Group.TriggersInGroup > 0 or ClipBoard.Move == nil and ClipBoard.Copy == nil
-                 elseif ClipBoard.Move == nil and ClipBoard.Copy == nil then
-                   return true
-                 else
-                   return false
-                 end
+                 return ClipBoard.Move == nil and ClipBoard.Copy == nil
                end,
       func = function()
                local CB = ClipBoard.Move or ClipBoard.Copy
@@ -3056,7 +3042,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                local Index = nil
 
                if ButtonType == 'top' then
-                 Index = Trigger.Index
+                 Index = 1
                elseif ButtonType == 'bottom' then
                  Index = Trigger.Index + 1
                end
@@ -3199,8 +3185,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
     return ClearSwap
   end
 
-
   -- Adding 'add' button and util buttons for empty groups
+  -- Then return
   if TriggerType == 'number' then
     TGA.Add = {
       type = 'execute',
@@ -3227,10 +3213,15 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                  return Group.TriggersInGroup > 0 or ClipBoard.Move or ClipBoard.Copy
                end,
     }
-    TGA.ClearButton = CreateClearButton(0.2, 'empty')
-    TGA.PasteButton = CreatePasteButton(0.3, 'empty')
+    TGA.ClearButton = CreateClearButton(0.2, 'top')
+    TGA.PasteButton = CreatePasteButton(0.3, 'top')
     return
   end
+
+  -- Create 'clear' and 'paste' buttons at the bottom of the trigger.
+  local TriggerHex = ToHex(Trigger)
+  TGA['Clear' .. TriggerHex] = CreateClearButton(0.1, 'bottom')
+  TGA['Paste' .. TriggerHex] = CreatePasteButton(0.2, 'bottom')
 
   --===================================
   -- Main Trigger UI starts here
@@ -3245,31 +3236,16 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
               return Trigger.OrderNumber
             end,
   }
-  CreateTriggerOption(TGA, 'Trigger', Trigger, TO)
 
-  -- create trigger option
+  TGA['Trigger' .. ToHex(Trigger)] = TO
+
   TO.args = {
 
     --================================
     -- Clear, Paste, and move buttons
     --================================
-    UtilClearTop = CreateClearButton(1, 'top'),
-    UtilPasteTop = CreatePasteButton(2, 'top'),
-
-    ClearBottom = CreateClearButton(30, 'bottom'),
-    PasteBottom = CreatePasteButton(31, 'bottom'),
-
     ClearSwapButton = CreateClearSwapButton(32, 'other'),
     SwapButton = CreateSwapButton(33, 'other'),
-
-    SepLineTop = {
-      type = 'header',
-      name = '',
-      order = 3,
-      hidden = function()
-                 return not Trigger.Select or ClipBoard.Move == nil and ClipBoard.Copy == nil
-               end,
-    },
 
     --================================
     -- Name button
