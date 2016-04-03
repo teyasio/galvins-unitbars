@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 412
+GUB.DefaultUB.Version = 413
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3171,6 +3171,9 @@ GUB.DefaultUB.MessageText = [[
 |Cffffff00Galvin's UnitBars|r
 
 |cff00ff00New Changes|r
+
+4.13
+* Fewer clear and paste buttons in triggers.
 
 4.11
 
