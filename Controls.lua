@@ -74,9 +74,9 @@ local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
 local TextButtonWidgetType = 'GUB_Text_Button'
 
-local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_MenuOpened.tga]]
-local MenuClosedIcon        = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_MenuClosed.tga]]
-local MenuBulletIcon        = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_MenuBullet.tga]]
+local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuOpened.tga]]
+local MenuClosedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuClosed.tga]]
+local MenuBulletIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuBullet.tga]]
 
 local SpellsTimer = {}
 local SpellList = {}
@@ -125,7 +125,7 @@ local MenuButtonBorder = {
 
 local MenuButtonHighlightBorder = {
   bgFile   = LSM:Fetch('background', 'Blizzard Rock'),
-  edgeFile = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_MenuHighlightBorder]],
+  edgeFile = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuHighlightBorder]],
   tile = false,
   tileSize = 16,
   edgeSize = 16,

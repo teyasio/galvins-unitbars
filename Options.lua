@@ -506,16 +506,16 @@ local AuraStackOperatorDropdown = {
   '<>',            -- 6
 }
 
-local TriggerColorIcon          = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerColor.tga]]
-local TriggerBarIcon            = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBar.tga]]
-local TriggerBorderIcon         = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBorder.tga]]
-local TriggerChangeSizeIcon     = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerChangeSize.tga]]
-local TriggerSoundIcon          = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerSound.tga]]
-local TriggerBackgroundIcon     = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerBackground.tga]]
-local TriggerTextChangeSizeIcon = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextChangeSize.tga]]
-local TriggerTextColorIcon      = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextColor.tga]]
-local TriggerTextTypeIcon       = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextType.tga]]
-local TriggerTextOutlineIcon    = [[Interface\AddOns\GalvinUnitBarsTest\Textures\GUB_TriggerTextOutline.tga]]
+local TriggerColorIcon          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerColor.tga]]
+local TriggerBarIcon            = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBar.tga]]
+local TriggerBorderIcon         = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorder.tga]]
+local TriggerChangeSizeIcon     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerChangeSize.tga]]
+local TriggerSoundIcon          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerSound.tga]]
+local TriggerBackgroundIcon     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackground.tga]]
+local TriggerTextChangeSizeIcon = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeSize.tga]]
+local TriggerTextColorIcon      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextColor.tga]]
+local TriggerTextTypeIcon       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextType.tga]]
+local TriggerTextOutlineIcon    = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextOutline.tga]]
 
 --*****************************************************************************
 --
