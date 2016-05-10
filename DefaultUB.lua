@@ -1914,7 +1914,7 @@ GUB.DefaultUB.Default = {
       Name = 'Chi Bar',
       OptionOrder = 19,
       Enabled = true,
-      UsedByClass = {MONK = ''},
+      UsedByClass = {MONK = '3'},
       x = 0,
       y = 98,
       Status = {
@@ -2203,7 +2203,8 @@ GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 5.00
 
-ComboBar and ArcaneBar not available yet.
+ComboBar has not been updated for Legion yet.
+ArcaneBar not available yet.
 
 |cff00ff00Escape|r key can now close the pop up message box
 |cff00ff00New power bar types added|r Astral Power, Maelstrom, Insanity, Fury, and Pain
