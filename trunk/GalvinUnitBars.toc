@@ -30,7 +30,7 @@ Main.lua
 Bar.lua
 HealthPowerBar.lua
 RuneBar.lua
-#ComboBar.lua -- not working yet
+ComboBar.lua 
 HolyBar.lua
 ShardBar.lua
 ChiBar.lua
