@@ -15,7 +15,8 @@ local TT = GUB.DefaultUB.TriggerTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _
+local _, _G =
+      _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
@@ -24,20 +25,20 @@ local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wi
       pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
 local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
-local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
+      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
+local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter, UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -64,8 +65,9 @@ local C_PetBattles, UIParent =
 -- ShardLight                        Light sould shard used for lighting a dark soul shard.
 --
 -------------------------------------------------------------------------------
-local MaxSoulShards = 4
+local MaxSoulShards = 5
 local Display = false
+local Update = false
 local NamePrefix = 'Soul '
 
 -- Powertype constants
@@ -81,7 +83,7 @@ local ShardSBar = 10
 local ShardDarkTexture = 11
 local ShardLightTexture = 12
 
-local RegionGroup = 6
+local RegionGroup = 7
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -121,8 +123,9 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {2,   'Shard 2',    VTs, TD}, -- 2
   {3,   'Shard 3',    VTs, TD}, -- 3
   {4,   'Shard 4',    VTs, TD}, -- 4
-  {'a', 'All Shards', {'whole', 'Soul Shards', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 5
-  {'r', 'Region',     VTs, TDregion},  -- 6
+  {5,   'Shard 5',    VTs, TD}, -- 5
+  {'a', 'All Shards', {'whole', 'Soul Shards', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 6
+  {'r', 'Region',     VTs, TDregion},  -- 7
 }
 
 local ShardData = {
@@ -176,12 +179,7 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   NumShards = NumShards > 0 and NumShards or MaxSoulShards
 
   if Main.UnitBars.Testing then
-    SoulShards = floor(MaxSoulShards * self.UnitBar.TestMode.Value)
-
-  -- Reduce cpu usage by checking for soulshard change.
-  -- This is because unit_power_frequent is firing off more than it should.
-  elseif SoulShards == self.SoulShards then
-    return
+    SoulShards = self.UnitBar.TestMode.Shards
   end
 
   self.SoulShards = SoulShards
@@ -241,7 +239,7 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
 
     BBar:SO('Layout', 'BoxMode',       function(v)
       if v then
@@ -311,8 +309,9 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
+  if Update or Main.UnitBars.Testing then
     self:Update()
+    Update = false
     Display = true
   end
 
