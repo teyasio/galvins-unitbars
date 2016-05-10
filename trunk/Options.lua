@@ -26,11 +26,11 @@ local Options = GUB.Options
 local UnitBarsF = Main.UnitBarsF
 local PowerColorType = Main.PowerColorType
 local ConvertPowerType = Main.ConvertPowerType
-local ConvertReputation = Main.ConvertReputation
 local ConvertCombatColor = Main.ConvertCombatColor
 local LSM = Main.LSM
 
 local HelpText = GUB.DefaultUB.HelpText
+local ChangesText = GUB.DefaultUB.ChangesText
 
 -- localize some globals.
 local _
@@ -57,27 +57,12 @@ local UnitReaction =
 --                               options tree.
 -- SlashOptions                  Options only used by slash commands. This is accessed
 --                               by typing '/gub'.
--- GUB.Options.ATOFrame          Contains the alignment tool options window.
 --
 -- DoFunctions                   Table used to save and call functions thru DoFunction()
-
+--
 -- AlignSwapAnchor               Contains the current anchor of the Unitbar that was clicked on to open
 --                               the align and swap options window.
 --
--- LSMStatusBarDropdown
--- LSMBorderDropdown
--- LSMBackgroundDropdown
--- LSMFontDropdown               LSM:hashtable() drop down menus.
---
--- FontStyleDropdown             Table used for the dialog drop down for FontStyles.
--- PositionDropdown              Table used for the diaglog drop down for fonts and runes.
--- FontHAlignDropDown            Table used for the dialog drop down for font horizontal alignment.
--- ValueTypeDropdown             Table used for the dialog drop down for Health and power text type.
--- ValueNameDropdown             Table used for the dialog drop down for health and power text type.
--- DirectionDropdown             Table used to pick vertical or horizontal.
--- RuneModeDropdown              Table used to pick which mode runes are shown in.
--- RuneEnergizeDropdown          Table used for changing rune energize.
--- FrameStrataDropdown           Table used for changing the frame strats for any unitbar.
 -- MainOptionsHideFrame          Frame used for when the main options window is closed.
 -------------------------------------------------------------------------------
 local AceConfigRegistery = LibStub('AceConfigRegistry-3.0')
@@ -95,7 +80,6 @@ local AddonProfileName = MyAddon .. 'profile'
 local AddonSlashOptions = MyAddon
 
 local DoFunctions = {}
-local O = {}
 local MainOptionsHideFrame = CreateFrame('Frame')
 local SwapAlignOptionsHideFrame = CreateFrame('Frame')
 
@@ -111,13 +95,19 @@ local TableData = nil
 local SelectedMenuButtonName = 'Main'
 local MenuButtons = nil
 
-local O = {
+local o = {
 
   -- Test mode
   TestModeRechargeMin = 0,
-  TestModeRechargeMax = 6,
+  TestModeRechargeMax = 7,
   TestModeEnergizeMin = 0,
   TestModeEnergizeMax = 7,
+  TestModeShardMin = 0,
+  TestModeShardMax = 5,
+  TestModeHolyPowerMin = 0,
+  TestModeHolyPowerMax = 5,
+  TestModeChiMin = 0,
+  TestModeChiMax = 6,
 
   -- Fade for all unitbars.
   FadeOutTime = 1,
@@ -135,7 +125,7 @@ local O = {
   FontShadowOffsetMin = 0,
   FontShadowOffsetMax = 10,
   FontSizeMin = 6,
-  FontSizeMax = 64,
+  FontSizeMax = 185,
   FontFieldWidthMin = 20,
   FontFieldWidthMax = 400,
   FontFieldHeightMin = 10,
@@ -207,9 +197,11 @@ local O = {
 
   -- Other options
   UnitBarScaleMin = 0.10,
-
-  -- Barsize options.
   UnitBarScaleMax = 4,
+  UnitBarAlphaMin = 0.10,
+  UnitBarAlphaMax = 1,
+
+  -- Bar size options
   UnitBarSizeMin = 10,
   UnitBarSizeMax = 500,
   UnitBarSizeAdvancedMinMax = 25,
@@ -220,15 +212,6 @@ local O = {
   RuneOffsetYMax = 50,
   RuneEnergizeTimeMin = 0,
   RuneEnergizeTimeMax = 5,
-
-  EclipseBox3OffsetXMin = -125,
-  EclipseBox3OffsetXMax = 125,
-  EclipseBox3OffsetYMin = -125,
-  EclipseBox3OffsetYMax = 125,
-  EclipseBox2OffsetXMin = -125,
-  EclipseBox2OffsetXMax = 125,
-  EclipseBox2OffsetYMin = -125,
-  EclipseBox2OffsetYMax = 125,
 }
 
 local LSMStatusBarDropdown = LSM:HashTable('statusbar')
@@ -273,44 +256,58 @@ local PositionDropdown = {
 local ValueName_AllDropdown = {
          'Current Value',       -- 1
          'Maximum Value',       -- 2
-         'Predicted Value',     -- 3
-         'Name',                -- 4
-         'Time',                -- 5
+         'Predicted Health',    -- 3
+         'Predicted Power',     -- 4
+         'Predicted Cost',      -- 5
+         'Name',                -- 6
+         'Time',                -- 7
   [99] = 'None',                -- 99
 }
 
-local ValueName_HAPDropdown = {
-         'Current Value',       -- 1
-         'Maximum Value',       -- 2
-         'Predicted Value',     -- 3
-         'Name',                -- 4
-  [99] = 'None',                -- 99
+local ValueName_HapDropdown = {
+  [1]  = 'Current Value',
+  [2]  = 'Maximum Value',
+  [6]  = 'Name',
+  [99] = 'None',
 }
 
-local ValueName_TimeDropdown = {
-  [5]  = 'Time',          -- 5
-  [6]  = 'Charges',       -- 6
-  [99] = 'None',          -- 99
+local ValueName_HealthDropdown = {
+  [1]  = 'Current Value',
+  [2]  = 'Maximum Value',
+  [3]  = 'Predicted Health',
+  [6]  = 'Name',
+  [99] = 'None',
+}
+
+local ValueName_PowerDropdown = {
+  [1]  = 'Current Value',
+  [2]  = 'Maximum Value',
+  [4]  = 'Predicted Power',
+  [5]  = 'Predicted Cost',
+  [6]  = 'Name',
+  [99] = 'None',
+}
+
+local ValueName_ManaDropdown = {
+  [1]  = 'Current Value',
+  [2]  = 'Maximum Value',
+  [5]  = 'Predicted Cost',
+  [6]  = 'Name',
+  [99] = 'None',
 }
 
 local ValueName_RuneDropdown = {
-  [5]  = 'Time',          -- 5
-  [99] = 'None',          -- 99
-}
-
-local ValueName_EclipseDropdown = {
-  [7]  = 'Number',
+  [7]  = 'Time',
   [99] = 'None',
 }
 
 local ValueNameMenuDropdown = {
-  all          = ValueName_AllDropdown,
-  hap          = ValueName_HAPDropdown,
-  rune         = ValueName_RuneDropdown,
-  anticipation = ValueName_TimeDropdown,
-  demonic      = ValueName_HAPDropdown,
-  eclipse      = ValueName_EclipseDropdown,
-  maelstrom    = ValueName_TimeDropdown,
+  all    = ValueName_AllDropdown,
+  health = ValueName_HealthDropdown,
+  power  = ValueName_PowerDropdown,
+  mana   = ValueName_ManaDropdown,
+  hap    = ValueName_HapDropdown,
+  rune   = ValueName_RuneDropdown,
 }
 
 local ValueType_ValueDropdown = {
@@ -346,38 +343,38 @@ local ValueType_NoneDropdown = {
 }
 
 local ValueTypeMenuDropdown = {
-  current   = ValueType_ValueDropdown,
-  maximum   = ValueType_ValueDropdown,
-  predicted = ValueType_ValueDropdown,
-  time      = ValueType_TimeDropdown,
-  name      = ValueType_NameDropdown,
-  charges   = ValueType_WholeDropdown,
-  number    = ValueType_WholeDropdown,
-  none      = ValueType_NoneDropdown,
+  current         = ValueType_ValueDropdown,
+  maximum         = ValueType_ValueDropdown,
+  predictedhealth = ValueType_ValueDropdown,
+  predictedpower  = ValueType_ValueDropdown,
+  predictedcost   = ValueType_ValueDropdown,
+  time            = ValueType_TimeDropdown,
+  name            = ValueType_NameDropdown,
+  none            = ValueType_NoneDropdown,
 
   -- prevent error if these values are found.
-  unitname = ValueType_NoneDropdown,
-  realmname = ValueType_NoneDropdown,
+  unitname      = ValueType_NoneDropdown,
+  realmname     = ValueType_NoneDropdown,
   unitnamerealm = ValueType_NoneDropdown,
 }
 
 local ConvertValueName = {
-         current       = 1,
-         maximum       = 2,
-         predicted     = 3,
-         name          = 4,
-         time          = 5,
-         charges       = 6,
-         number        = 7,
-         none          = 99,
-         'current',    -- 1
-         'maximum',    -- 2
-         'predicted',  -- 3
-         'name',       -- 4
-         'time',       -- 5
-         'charges',    -- 6
-         'number',     -- 7
-  [99] = 'none',       -- 99
+         current           = 1,
+         maximum           = 2,
+         predictedhealth   = 3,
+         predictedpower    = 4,
+         predictedcost     = 5,
+         name              = 6,
+         time              = 7,
+         none              = 99,
+         'current',         -- 1
+         'maximum',         -- 2
+         'predictedhealth', -- 3
+         'predictedpower',  -- 4
+         'predictedcost',   -- 5
+         'name',            -- 6
+         'time',            -- 7
+  [99] = 'none',            -- 99
 }
 
 local ConvertValueType = {
@@ -745,7 +742,7 @@ local function CreateToGUBOptions(Order, Name, Desc)
                Options.MainOptionsOpen = true
 
                -- Open a movable options frame.
-               AceConfigDialog:SetDefaultSize(AddonMainOptions, O.MainOptionsWidth, O.MainOptionsHeight)
+               AceConfigDialog:SetDefaultSize(AddonMainOptions, o.MainOptionsWidth, o.MainOptionsHeight)
 
                AceConfigDialog:Open(AddonMainOptions)
 
@@ -805,40 +802,6 @@ local function CreateOptionsToGUB()
   }
   return OptionsToGUB
 end
-
--------------------------------------------------------------------------------
--- CreateAlphaOption
---
--- Creates an alpha option slider.
---
--- BarType       Type of options being created.
--- Order         Order number.
---
--- AlphaOption   Option table for changing the alpha of any bar.
--------------------------------------------------------------------------------
--- Commented out for now since there is a bug with animationgroups with the frame not being an alpha of 1.
-
---[[local function CreateAlphaOption(BarType, Order)
-  local c = 0
-
-  local AlphaOption = {
-    type = 'range',
-    name = 'Alpha',
-    order = 2,
-    desc = 'Changes the alpha of the bar',
-    min = 0,
-    max = 100,
-    step = 1,
-    get = function()
-            return UnitBars[BarType].General.Alpha * 100
-          end,
-    set = function(Info, Value)
-            UnitBars[BarType].General.Alpha = Value / 100
-            UnitBarsF[BarType]:SetAttr('frame', 'alpha')
-          end,
-  }
-  return AlphaOption
-end --]]
 
 -------------------------------------------------------------------------------
 -- CreateColorAllOptions
@@ -945,52 +908,6 @@ local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Ord
 end
 
 -------------------------------------------------------------------------------
--- CreatePredictedColorOptions
---
--- Creates color options for bars that uses predicted health
---
--- Subfunction of CreateBarOptions()
---
--- BarType   Type of options being created.
--- Order     Position in the options list.
--- Name      Name of the options.
---
--- PredictedColorOptions   Options table for setting options for predicted color
--------------------------------------------------------------------------------
-local function CreatePredictedColorOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-
-  local PredictedColorOptions = {
-    type = 'group',
-    name = Name,
-    order = Order,
-    dialogInline = true,
-    get = function(Info)
-            -- Info.arg[1] = color index.
-            local c = UBF.UnitBar.Bar.PredictedColor
-            return c.r, c.g, c.b, c.a
-          end,
-    set = function(Info, r, g, b, a)
-            local c = UBF.UnitBar.Bar.PredictedColor
-            c.r, c.g, c.b, c.a = r, g, b, a
-
-            -- Set the color to the bar
-            UBF:SetAttr('bar')
-          end,
-    args = {
-      PredictedColor = {
-        type = 'color',
-        name = 'Color',
-        hasAlpha = true,
-        order = 1,
-      },
-    },
-  }
-
-  return PredictedColorOptions
-end
-
--------------------------------------------------------------------------------
 -- CreateBackdropOptions
 --
 -- Subfunction of CreateUnitBarOptions()
@@ -1077,8 +994,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
             disabled = function()
                          return not UBF.UnitBar[TableName].BgTile
                        end,
-            min = O.UnitBarBgTileSizeMin,
-            max = O.UnitBarBgTileSizeMax,
+            min = o.UnitBarBgTileSizeMin,
+            max = o.UnitBarBgTileSizeMax,
             step = 1,
           },
           Spacer20 = CreateSpacer(20),
@@ -1086,8 +1003,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
             type = 'range',
             name = 'Border Thickness',
             order = 21,
-            min = O.UnitBarBorderSizeMin,
-            max = O.UnitBarBorderSizeMax,
+            min = o.UnitBarBorderSizeMin,
+            max = o.UnitBarBorderSizeMax,
             step = 2,
           },
         },
@@ -1099,68 +1016,40 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
   local GeneralArgs = BackdropOptions.args.General.args
 
   if Name ~= 'Region' then
-
-    -- Ember bar color options
-    if UBD[TableName].ColorGreen then
+    -- All other unitbar color options.
+    if UBD[TableName].Color.All == nil then
+      GeneralArgs.Color = {
+        type = 'color',
+        name = 'Background Color',
+        order = 22,
+        hasAlpha = true,
+      }
+    else
+      BackdropArgs.ColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.Color', 'Color', 2, 'Color')
+    end
+    if UBD[TableName].EnableBorderColor ~= nil then
       GeneralArgs.Spacer30 = CreateSpacer(30)
       GeneralArgs.EnableBorderColor = {
         type = 'toggle',
         name = 'Enable Border Color',
         order = 32,
       }
-      BackdropArgs.ColorAll = CreateColorAllOptions(BarType, TableName, 'Background.Color', 'Color', 2, 'Color')
-      BackdropArgs.ColorAll.hidden = function()
-                                       return UBF.GreenFire
-                                     end
-      BackdropArgs.ColorAllGreen = CreateColorAllOptions(BarType, TableName, 'Background.ColorGreen', 'ColorGreen', 2, 'Color [green fire]')
-      BackdropArgs.ColorAllGreen.hidden = function()
-                                            return not UBF.GreenFire
-                                          end
-
-      BackdropArgs.BorderColorAll = CreateColorAllOptions(BarType, TableName, 'Background.BorderColor', 'BorderColor', 3, 'Border Color')
-      BackdropArgs.BorderColorAll.hidden = function()
-                                             return UBF.GreenFire or not UBF.UnitBar[TableName].EnableBorderColor
-                                           end
-      BackdropArgs.BorderColorAllGreen = CreateColorAllOptions(BarType, TableName, 'Background.BorderColorGreen', 'BorderColorGreen', 3, 'Border Color [green fire]')
-      BackdropArgs.BorderColorAllGreen.hidden = function()
-                                                  return not UBF.GreenFire or not UBF.UnitBar[TableName].EnableBorderColor
-                                                end
+    end
+    if UBD[TableName].BorderColor.All == nil then
+      GeneralArgs.BorderColor = {
+        type = 'color',
+        name = 'Border Color',
+        order = 33,
+        hasAlpha = true,
+        disabled = function()
+                    return not UBF.UnitBar[TableName].EnableBorderColor
+                  end,
+      }
     else
-      -- All other unitbar color options.
-      if UBD[TableName].Color.All == nil then
-        GeneralArgs.Color = {
-          type = 'color',
-          name = 'Background Color',
-          order = 22,
-          hasAlpha = true,
-        }
-      else
-        BackdropArgs.ColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.Color', 'Color', 2, 'Color')
-      end
-      if UBD[TableName].EnableBorderColor ~= nil then
-        GeneralArgs.Spacer30 = CreateSpacer(30)
-        GeneralArgs.EnableBorderColor = {
-          type = 'toggle',
-          name = 'Enable Border Color',
-          order = 32,
-        }
-      end
-      if UBD[TableName].BorderColor.All == nil then
-        GeneralArgs.BorderColor = {
-          type = 'color',
-          name = 'Border Color',
-          order = 33,
-          hasAlpha = true,
-          disabled = function()
-                      return not UBF.UnitBar[TableName].EnableBorderColor
-                    end,
-        }
-      else
-        BackdropArgs.BorderColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.BorderColor', 'BorderColor', 3, 'Border Color')
-        BackdropArgs.BorderColorAll.hidden = function()
-                                               return not UBF.UnitBar[TableName].EnableBorderColor
-                                             end
-      end
+      BackdropArgs.BorderColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.BorderColor', 'BorderColor', 3, 'Border Color')
+      BackdropArgs.BorderColorAll.hidden = function()
+                                             return not UBF.UnitBar[TableName].EnableBorderColor
+                                           end
     end
   else
 
@@ -1238,8 +1127,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return not UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Left = {
@@ -1249,8 +1138,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Right = {
@@ -1260,8 +1149,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Top = {
@@ -1271,8 +1160,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Bottom = {
@@ -1282,8 +1171,8 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
     },
@@ -1311,14 +1200,14 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
   local function SetSize()
     local UB = UBF.UnitBar[TableName]
 
-    for KeyName, _ in pairs(BarSizeOptions.args) do
+    for KeyName in pairs(BarSizeOptions.args) do
       local SliderArgs = BarSizeOptions.args[KeyName]
       local Min = nil
       local Max = nil
 
       if KeyName == 'Width' or KeyName == 'Height' then
-        Min = O.UnitBarSizeMin
-        Max = O.UnitBarSizeMax
+        Min = o.UnitBarSizeMin
+        Max = o.UnitBarSizeMax
       end
       if Min and Max then
         local Value = UB[KeyName]
@@ -1326,8 +1215,8 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
         if UB.Advanced then
           Value = Value < Min and Min or Value > Max and Max or Value
           UB[KeyName] = Value
-          SliderArgs.min = Value - O.UnitBarSizeAdvancedMinMax
-          SliderArgs.max = Value + O.UnitBarSizeAdvancedMinMax
+          SliderArgs.min = Value - o.UnitBarSizeAdvancedMinMax
+          SliderArgs.max = Value + o.UnitBarSizeAdvancedMinMax
           SliderArgs.name = format('Advanced %s', KeyName)
         else
           SliderArgs.min = Min
@@ -1450,6 +1339,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   local BarArgs = BarOptions.args
   local GeneralArgs = BarOptions.args.General.args
 
+  -- Normal health and power bar.
   if UBD[TableName].StatusBarTexture ~= nil then
     GeneralArgs.StatusBarTexture = {
       type = 'select',
@@ -1458,60 +1348,80 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
     }
+
+    GeneralArgs.Spacer2Half = CreateSpacer(1.5, 'half')
+
+    -- Regular color
+    local Color = UBD[TableName].Color
+    if Color ~= nil and Color.All == nil then
+      GeneralArgs.Color = {
+        type = 'color',
+        name = 'Color',
+        hasAlpha = true,
+        order = 2,
+      }
+      local General = UBD.General
+
+      if General and General.UseBarColor ~= nil then
+        GeneralArgs.Color.disabled = function()
+                                       return not UBF.UnitBar.General.UseBarColor
+                                     end
+      end
+    end
   end
 
-  -- Health and Power bar
+  -- Predicted Health and Power bar.
   if UBD[TableName].PredictedBarTexture ~= nil then
+    GeneralArgs.Spacer3 = CreateSpacer(3)
+
     GeneralArgs.PredictedBarTexture = {
       type = 'select',
-      name = 'Bar Texture (predicted)',
-      order = 2,
+      name = strfind(BarType, 'Health') and 'Bar Texture (predicted health)' or
+                                            'Bar Texture (predicted power)' ,
+      order = 4,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
     }
+
+    GeneralArgs.Spacer4Half = CreateSpacer(4.5, 'half')
+
+    -- Predicted color
+    if UBD[TableName].PredictedColor ~= nil then
+      GeneralArgs.PredictedColor = {
+        type = 'color',
+        name = strfind(BarType, 'Health') and 'Color (predicted health)' or
+                                              'Color (predicted power)' ,
+        hasAlpha = true,
+        order = 5,
+      }
+    end
   end
 
-  -- Demonic bar
-  if UBD[TableName].MetaStatusBarTexture ~= nil then
-    GeneralArgs.MetaStatusBarTexture = {
+  -- Predicted cost bar
+  if UBD[TableName].PredictedCostBarTexture ~= nil then
+    GeneralArgs.Spacer6 = CreateSpacer(6)
+
+    GeneralArgs.PredictedCostBarTexture = {
       type = 'select',
-      name = 'Bar Texture (metamorphosis)',
-      order = 2,
+      name = 'Bar Texture (predicted cost)',
+      order = 7,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
     }
+
+    GeneralArgs.Spacer7Half = CreateSpacer(7.5, 'half')
+
+    -- Predicted cost color
+    if UBD[TableName].PredictedCostColor ~= nil then
+      GeneralArgs.PredictedCostColor = {
+        type = 'color',
+        name = 'Color (predicted cost)',
+        hasAlpha = true,
+        order = 8,
+      }
+    end
   end
 
-  -- Ember bar
-  if UBD[TableName].FieryStatusBarTexture ~= nil then
-    GeneralArgs.FieryStatusBarTexture = {
-      type = 'select',
-      name = 'Bar Texture (fiery embers)',
-      order = 2,
-      dialogControl = 'LSM30_Statusbar',
-      values = LSMStatusBarDropdown,
-    }
-  end
-
-  -- Eclipse bar
-  if UBD[TableName].StatusBarTextureLunar ~= nil then
-    GeneralArgs.StatusBarTextureLunar = {
-      type = 'select',
-      name = 'Bar Texture (lunar)',
-      order = 1,
-      dialogControl = 'LSM30_Statusbar',
-      values = LSMStatusBarDropdown,
-    }
-  end
-  if UBD[TableName].StatusBarTextureSolar ~= nil then
-    GeneralArgs.StatusBarTextureSolar = {
-      type = 'select',
-      name = 'Bar Texture (solar)',
-      order = 2,
-      dialogControl = 'LSM30_Statusbar',
-      values = LSMStatusBarDropdown,
-    }
-  end
   GeneralArgs.Spacer10 = CreateSpacer(10)
 
   if UBD[TableName].FillDirection ~= nil then
@@ -1522,138 +1432,24 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       values = DirectionDropdown,
       style = 'dropdown',
     }
+
+    GeneralArgs.Spacer11Half = CreateSpacer(11.5, 'half')
   end
+
   if UBD[TableName].RotateTexture ~= nil then
     GeneralArgs.RotateTexture = {
       type = 'toggle',
       name = 'Rotate Texture',
-      order = 16,
-    }
-  end
-  GeneralArgs.Spacer20 = CreateSpacer(20)
-
-  -- Regular color for pet health or anticipation bar or eclipse bar
-  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or
-     BarType == 'PetHealth' or BarType == 'AnticipationBar' and TableName == 'BarTime' or
-     BarType == 'EclipseBar' and  (TableName == 'BarMoon' or TableName == 'BarSun') or
-     strfind(BarType, 'Power') then
-    GeneralArgs.Color = {
-      type = 'color',
-      name = 'Color',
-      hasAlpha = true,
-      order = 21,
-    }
-    if UBD.General.UseBarColor ~= nil then
-      GeneralArgs.Color.disabled = function()
-
-                                     return not UBF.UnitBar.General.UseBarColor
-                                   end
-    end
-  end
-
-  -- Lunar and solar color for power.
-  if TableName == 'BarPower' then
-    GeneralArgs.ColorLunar = {
-      type = 'color',
-      name = 'Color (lunar)',
-      hasAlpha = true,
-      order = 21,
-    }
-    GeneralArgs.ColorSolar = {
-      type = 'color',
-      name = 'Color (solar)',
-      hasAlpha = true,
-      order = 22,
+      order = 12,
     }
   end
 
-  -- Predicted color or tagged color
-  if BarType == 'PlayerHealth' or BarType == 'TargetHealth' or BarType == 'FocusHealth' or BarType == 'PetHealth' or
-     BarType == 'PlayerPower' then
-    GeneralArgs.PredictedColor = {
-      type = 'color',
-      name = 'Color (predicted)',
-      hasAlpha = true,
-      order = 22,
-    }
-  end
   GeneralArgs.Spacer30 = CreateSpacer(30)
 
-  -- Demonic bar
-  if UBD[TableName].MetaColor ~= nil then
-    GeneralArgs.DemonicColor = {
-      type = 'group',
-      name = 'Color',
-      order = 31,
-      dialogInline = true,
-      args = {
-        Color = {
-          type = 'color',
-          name = 'Normal',
-          order = 1,
-          hasAlpha = true,
-        },
-        MetaColor = {
-          type = 'color',
-          name = 'Metamorphosis',
-          order = 2,
-          hasAlpha = true,
-        },
-      },
-    }
-  end
-
-  -- Eclipsebar sun and moon
-  if UBD[TableName].SunMoon ~= nil then
-    GeneralArgs.SunMoon = {
-      type = 'group',
-      name = 'Color',
-      order = 31,
-      dialogInline = true,
-      args = {
-        SunMoon = {
-          type = 'toggle',
-          name = 'Sun and Moon',
-          order = 1,
-          desc = 'The sun and moon color will be used',
-        },
-        Color = {
-          type = 'color',
-          name = 'Color',
-          hasAlpha = true,
-          order = 2,
-          hidden = function()
-                     return UBF.UnitBar[TableName].SunMoon
-                   end,
-        },
-      },
-    }
-  end
-
-  -- Demonic bar.
-  if UBD[TableName].ColorGreen ~= nil then
-    GeneralArgs.ColorAll = CreateColorAllOptions(BarType,  TableName, 'Bar.Color', 'Color', 31, 'Color')
-    GeneralArgs.ColorAllFiery = CreateColorAllOptions(BarType, TableName, 'Bar.ColorFiery', 'ColorFiery', 31, 'Color (fiery embers)')
-    GeneralArgs.ColorAllGreen = CreateColorAllOptions(BarType, TableName, 'Bar.ColorGreen', 'ColorGreen', 31, 'Color [green fire]')
-    GeneralArgs.ColorAllFieryGreen = CreateColorAllOptions(BarType, TableName, 'Bar.ColorFieryGreen', 'ColorFieryGreen', 32, 'Color (fiery embers) [green fire]')
-    GeneralArgs.ColorAll.hidden = function()
-                                    return UBF.GreenFire
-                                  end
-    GeneralArgs.ColorAllFiery.hidden = function()
-                                         return UBF.GreenFire
-                                       end
-    GeneralArgs.ColorAllGreen.hidden = function()
-                                         return not UBF.GreenFire
-                                       end
-    GeneralArgs.ColorAllFieryGreen.hidden = function()
-                                              return not UBF.GreenFire
-                                            end
-  else
-    -- Standard color all
-    local Color = UBD[TableName].Color
-    if Color and Color.All ~= nil then
-      GeneralArgs.ColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.Color', 'Color', 31, 'Color')
-    end
+  -- Standard color all
+  local Color = UBD[TableName].Color
+  if Color and Color.All ~= nil then
+    GeneralArgs.ColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.Color', 'Color', 31, 'Color')
   end
 
   GeneralArgs.BoxSize = CreateBarSizeOptions(BarType, TableName, 41, 'Bar Size')
@@ -1708,8 +1504,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return not UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Left = {
@@ -1719,8 +1515,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Right = {
@@ -1730,8 +1526,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Top = {
@@ -1741,8 +1537,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
       Bottom = {
@@ -1752,8 +1548,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         hidden = function()
                    return UBF.UnitBar[TableName].PaddingAll
                  end,
-        min = O.UnitBarPaddingMin,
-        max = O.UnitBarPaddingMax,
+        min = o.UnitBarPaddingMin,
+        max = o.UnitBarPaddingMax,
         step = 1,
       },
     },
@@ -1815,16 +1611,16 @@ local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
         type = 'range',
         name = 'Field Width',
         order = 11,
-        min = O.FontFieldWidthMin,
-        max = O.FontFieldWidthMax,
+        min = o.FontFieldWidthMin,
+        max = o.FontFieldWidthMax,
         step = 1,
       },
       Height = {
         type = 'range',
         name = 'Field Height',
         order = 12,
-        min = O.FontFieldHeightMin,
-        max = O.FontFieldHeightMax,
+        min = o.FontFieldHeightMin,
+        max = o.FontFieldHeightMax,
         step = 1,
       },
       Spacer20 = CreateSpacer(20),
@@ -1832,8 +1628,8 @@ local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
         type = 'range',
         name = 'Size',
         order = 21,
-        min = O.FontSizeMin,
-        max = O.FontSizeMax,
+        min = o.FontSizeMin,
+        max = o.FontSizeMax,
         step = 1,
       },
       Spacer30 = CreateSpacer(30),
@@ -1919,24 +1715,24 @@ local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
         type = 'range',
         name = 'Horizonal',
         order = 2,
-        min = O.FontOffsetXMin,
-        max = O.FontOffsetXMax,
+        min = o.FontOffsetXMin,
+        max = o.FontOffsetXMax,
         step = 1,
       },
       OffsetY = {
         type = 'range',
         name = 'Vertical',
         order = 3,
-        min = O.FontOffsetYMin,
-        max = O.FontOffsetYMax,
+        min = o.FontOffsetYMin,
+        max = o.FontOffsetYMax,
         step = 1,
       },
       ShadowOffset = {
         type = 'range',
         name = 'Shadow',
         order = 4,
-        min = O.FontShadowOffsetMin,
-        max = O.FontShadowOffsetMax,
+        min = o.FontShadowOffsetMin,
+        max = o.FontShadowOffsetMax,
         step = 1,
       },
     },
@@ -2009,7 +1805,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
   local ValueName = TS.ValueName
   local ValueType = TS.ValueType
   local NumValues = 0
-  local MaxValueNames = O.MaxValueNames
+  local MaxValueNames = o.MaxValueNames
   local VOA = nil
 
   TL.args.Value = {
@@ -2044,7 +1840,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
 
               if Dropdown[Value] == nil then
                 Value = 100
-                for Index, _ in pairs(Dropdown) do
+                for Index in pairs(Dropdown) do
                   if Value > Index then
                     Value = Index
                   end
@@ -2155,7 +1951,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
   VOA = TL.args.Value.args
 
   -- Add additional value options if needed
-  for Index, _ in ipairs(ValueName) do
+  for Index in ipairs(ValueName) do
     ModifyTextValueOptions(BarType, VOA, 'add', ValueName, Index)
     NumValues = Index
   end
@@ -2181,7 +1977,7 @@ local function CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
   local TL = nil
   local TextLine = 0
   local TextLineKey = ''
-  local MaxTextLines = O.MaxTextLines
+  local MaxTextLines = o.MaxTextLines
   local NumValues = 0
   local Line = 'Line%s'
   local LineName = 'Line %s'
@@ -2581,6 +2377,12 @@ local function AddAuraOption(Order, UBF, BBar, TO, SpellID, Trigger)
   local AuraGroup = 'Aura' .. SpellID
   local Name, _, Icon = GetSpellInfo(SpellID)
 
+  -- Check if the spell was removed from the game.
+  if Name == nil then
+    Name = format('%s removed from the game', SpellID)
+    Icon = [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]]
+  end
+
   TO.args[AuraGroup] = {
     type = 'group',
     name = format('|T%s:20:20:0:5|t |cFFFFFFFF%s|r (%s)', Icon, Name, SpellID),
@@ -2755,8 +2557,8 @@ local function CreateOffsetOption(Order, UBF, BBar, Trigger)
         hidden = function()
                    return not Trigger.OffsetAll
                  end,
-        min = O.TriggerBarOffsetAllMin,
-        max = O.TriggerBarOffsetAllMax,
+        min = o.TriggerBarOffsetAllMin,
+        max = o.TriggerBarOffsetAllMax,
         step = 1,
       },
       Left = {
@@ -2766,8 +2568,8 @@ local function CreateOffsetOption(Order, UBF, BBar, Trigger)
         hidden = function()
                    return Trigger.OffsetAll
                  end,
-        min = O.TriggerBarOffsetLeftMin,
-        max = O.TriggerBarOffsetLeftMax,
+        min = o.TriggerBarOffsetLeftMin,
+        max = o.TriggerBarOffsetLeftMax,
         step = 1,
       },
       Right = {
@@ -2777,8 +2579,8 @@ local function CreateOffsetOption(Order, UBF, BBar, Trigger)
         hidden = function()
                    return Trigger.OffsetAll
                  end,
-        min = O.TriggerBarOffsetRightMin,
-        max = O.TriggerBarOffsetRightMax,
+        min = o.TriggerBarOffsetRightMin,
+        max = o.TriggerBarOffsetRightMax,
         step = 1,
       },
       Top = {
@@ -2788,8 +2590,8 @@ local function CreateOffsetOption(Order, UBF, BBar, Trigger)
         hidden = function()
                    return Trigger.OffsetAll
                  end,
-        min = O.TriggerBarOffsetTopMin,
-        max = O.TriggerBarOffsetTopMax,
+        min = o.TriggerBarOffsetTopMin,
+        max = o.TriggerBarOffsetTopMax,
         step = 1,
       },
       Bottom = {
@@ -2799,8 +2601,8 @@ local function CreateOffsetOption(Order, UBF, BBar, Trigger)
         hidden = function()
                    return Trigger.OffsetAll
                  end,
-        min = O.TriggerBarOffsetBottomMin,
-        max = O.TriggerBarOffsetBottomMax,
+        min = o.TriggerBarOffsetBottomMin,
+        max = o.TriggerBarOffsetBottomMax,
         step = 1,
       },
     },
@@ -2926,20 +2728,20 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       p1, p2 = tonumber(p1) or 0, tonumber(p2) or 0
 
       -- check for out of bounds
-      if p1 < O.FontOffsetXMin or p1 > O.FontOffsetXMax then
+      if p1 < o.FontOffsetXMin or p1 > o.FontOffsetXMax then
         p1 = 0
       end
-      if p2 < O.FontOffsetYMin or p2 > O.FontOffsetYMax then
+      if p2 < o.FontOffsetYMin or p2 > o.FontOffsetYMax then
         p2 = 0
       end
     elseif TypeID == 'fontsize' then
-      local Default = (O.FontSizeMin + O.FontSizeMax) / 2
+      local Default = (o.FontSizeMin + o.FontSizeMax) / 2
       p2, p3, p4 = nil, nil, nil
 
       p1 = tonumber(p1) or Default
 
       -- check for out of bounds
-      if p1 < O.FontSizeMin or p1 > O.FontSizeMax then
+      if p1 < o.FontSizeMin or p1 > o.FontSizeMax then
         p1 = Default
       end
     elseif TypeID == 'fonttype' then
@@ -3539,8 +3341,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           hidden = function()
                      return Trigger.TypeID ~= 'texturescale'
                    end,
-          min = O.TriggerTextureScaleMin,
-          max = O.TriggerTextureScaleMax,
+          min = o.TriggerTextureScaleMin,
+          max = o.TriggerTextureScaleMax,
         },
 
         ParsBarOffsets = CreateOffsetOption(13.5, UBF, BBar, Trigger),
@@ -3588,8 +3390,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'range',
           name = 'Horizonal',
           order = 18,
-          min = O.FontOffsetXMin,
-          max = O.FontOffsetXMax,
+          min = o.FontOffsetXMin,
+          max = o.FontOffsetXMax,
           step = 1,
           hidden = function()
                      return Trigger.TypeID ~= 'fontoffset'
@@ -3599,8 +3401,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'range',
           name = 'Vertical',
           order = 19,
-          min = O.FontOffsetYMin,
-          max = O.FontOffsetYMax,
+          min = o.FontOffsetYMin,
+          max = o.FontOffsetYMax,
           step = 1,
           hidden = function()
                      return Trigger.TypeID ~= 'fontoffset'
@@ -3610,8 +3412,8 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'range',
           name = 'Size',
           order = 20,
-          min = O.FontSizeMin,
-          max = O.FontSizeMax,
+          min = o.FontSizeMin,
+          max = o.FontSizeMax,
           step = 1,
           hidden = function()
                      return Trigger.TypeID ~= 'fontsize'
@@ -3787,7 +3589,6 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                      return 'Hide'
                    end
                  end,
-          desc = 'Hide auras',
           width = 'half',
           order = 5,
           func = function()
@@ -3826,7 +3627,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    end,
           disabled = function()
                        HideTooltip(true)
-                       return ClipBoard.Move ~= nil or #Triggers == 1
+                       return ClipBoard.Move ~= nil
                      end,
           desc = 'Click "Move" on the trigger you want moved. Then click on "paste" for the destination.',
           func = function()
@@ -4283,45 +4084,6 @@ local function CreateTestModeOptions(BarType, Order, Name)
   }
   local TestModeArgs = TestModeOptions.args
 
-  if UBD.TestMode.ShowEmpoweredChi ~= nil then
-    TestModeArgs.ShowEmpoweredChi = {
-      type = 'toggle',
-      name = 'Show Empowered Chi',
-      order = 1,
-    }
-  end
-  if UBD.TestMode.ShowDeathRunes ~= nil then
-    TestModeArgs.ShowDeathRunes = {
-      type = 'toggle',
-      name = 'Show Death Runes',
-      desc = 'Shows death runes',
-      order = 2,
-    }
-  end
-  if UBD.TestMode.ShowMeta ~= nil then
-    TestModeArgs.ShowMeta = {
-      type = 'toggle',
-      name = 'Show Metamorphosis',
-      desc = 'Show metamorphosis',
-      order = 3,
-    }
-  end
-  if UBD.TestMode.ShowFiery ~= nil then
-    TestModeArgs.ShowFiery = {
-      type = 'toggle',
-      name = 'Show Fiery Embers',
-      desc = 'Show fiery embers',
-      order = 4,
-    }
-  end
-  if UBD.TestMode.ShowEnhancedShadowOrbs then
-    TestModeArgs.ShowEnhancedShadowOrbs = {
-      type = 'toggle',
-      name = 'Show Enhanced Shadow Orbs',
-      order = 5,
-      width = 'double',
-    }
-  end
   if UBD.TestMode.Value ~= nil then
     TestModeArgs.Value = {
       type = 'range',
@@ -4335,12 +4097,11 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = 1,
     }
   end
-  if UBD.TestMode.PredictedValue ~= nil then
-    TestModeArgs.PredictedValue = {
+  if UBD.TestMode.PredictedHealth ~= nil then
+    TestModeArgs.PredictedHealth = {
       type = 'range',
-      name = 'Predicted Value',
+      name = 'Predicted Health',
       order = 101,
-      desc = 'Change the precicted value',
       step = .01,
       width = 'double',
       isPercent = true,
@@ -4348,12 +4109,36 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = 1,
     }
   end
-  if UBD.TestMode.Time ~= nil then
-    TestModeArgs.Time = {
+  if UBD.TestMode.PredictedPower ~= nil then
+    TestModeArgs.PredictedPower = {
+      type = 'range',
+      name = 'Predicted Power',
+      order = 102,
+      step = .01,
+      width = 'double',
+      isPercent = true,
+      min = 0,
+      max = 1,
+    }
+  end
+  if UBD.TestMode.PredictedCost ~= nil then
+    TestModeArgs.PredictedCost = {
+      type = 'range',
+      name = 'Predicted Cost',
+      order = 103,
+      step = .01,
+      width = 'double',
+      isPercent = true,
+      min = 0,
+      max = 1,
+    }
+  end
+  if UBD.TestMode.RuneTime ~= nil then
+    TestModeArgs.RuneTime = {
       type = 'range',
       name = 'Time',
-      order = 102,
-      desc = 'Change the amount of time',
+      order = 104,
+      desc = '',
       step = .01,
       width = 'double',
       isPercent = true,
@@ -4361,28 +4146,71 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = 1,
     }
   end
-  if UBD.TestMode.Recharge ~= nil then
-    TestModeArgs.Recharge = {
+  if UBD.TestMode.RuneRecharge ~= nil then
+    TestModeArgs.RuneRecharge = {
       type = 'range',
       name = 'Recharge',
-      order = 103,
-      desc = 'Change the number of runes recharging',
+      order = 105,
+      desc = 'Change a rune to recharging, Max for all recharging',
       width = 'double',
       step = 1,
-      min = O.TestModeRechargeMin,
-      max = O.TestModeRechargeMax,
+      min = o.TestModeRechargeMin,
+      max = o.TestModeRechargeMax,
     }
   end
-  if UBD.TestMode.Energize ~= nil then
-    TestModeArgs.Energize = {
+  if UBD.TestMode.RuneEnergize ~= nil then
+    TestModeArgs.RuneEnergize = {
       type = 'range',
       name = 'Empowerment',
-      order = 104,
-      desc = 'Change a rune to empowered. Max turns them all to empowered',
+      order = 106,
+      desc = 'Change a rune to empowered. Max for all empowered',
       width = 'double',
       step = 1,
-      min = O.TestModeEnergizeMin,
-      max = O.TestModeEnergizeMax,
+      min = o.TestModeEnergizeMin,
+      max = o.TestModeEnergizeMax,
+    }
+  end
+  if UBD.TestMode.Shards ~= nil then
+    TestModeArgs.Shards = {
+      type = 'range',
+      name = 'Shards',
+      order = 107,
+      desc = 'Change how many shards are lit',
+      width = 'double',
+      step = 1,
+      min = o.TestModeShardMin,
+      max = o.TestModeShardMax,
+    }
+  end
+  if UBD.TestMode.HolyPower ~= nil then
+    TestModeArgs.HolyPower = {
+      type = 'range',
+      name = 'Holy Power',
+      order = 107,
+      desc = 'Change how many holy runes are lit',
+      width = 'double',
+      step = 1,
+      min = o.TestModeHolyPowerMin,
+      max = o.TestModeHolyPowerMax,
+    }
+  end
+  if UBD.TestMode.Ascension ~= nil then
+    TestModeArgs.Ascension = {
+      type = 'toggle',
+      name = 'Ascension',
+      order = 1,
+    }
+  end
+  if UBD.TestMode.Chi ~= nil then
+    TestModeArgs.Chi = {
+      type = 'range',
+      name = 'Chi',
+      order = 107,
+      desc = 'Change how many chi orbs are lit',
+      width = 'double',
+      step = 1,
+      min = o.TestModeChiMin,
+      max = o.TestModeChiMax,
     }
   end
 
@@ -4535,8 +4363,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
       disabled = function()
                    return UBF.UnitBar.Layout.HideRegion
                  end,
-      min = O.LayoutBorderPaddingMin,
-      max = O.LayoutBorderPaddingMax,
+      min = o.LayoutBorderPaddingMin,
+      max = o.LayoutBorderPaddingMax,
     }
   end
   if UBD.Layout.Rotation ~= nil then
@@ -4550,8 +4378,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
       disabled = function()
                    return Flag(false, UBF.UnitBar.Layout.Float)
                  end,
-      min = O.LayoutRotationMin,
-      max = O.LayoutRotationMax,
+      min = o.LayoutRotationMin,
+      max = o.LayoutRotationMax,
     }
   end
   if Spacer then
@@ -4570,8 +4398,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
       disabled = function()
                    return Flag(false, UBF.UnitBar.Layout.Float) or UBF.UnitBar.Layout.Rotation % 90 ~= 0
                  end,
-      min = O.LayoutSlopeMin,
-      max = O.LayoutSlopeMax,
+      min = o.LayoutSlopeMin,
+      max = o.LayoutSlopeMax,
     }
   end
   if UBD.Layout.Padding ~= nil then
@@ -4585,8 +4413,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
       disabled = function()
                    return Flag(false, UBF.UnitBar.Layout.Float)
                  end,
-      min = O.LayoutPaddingMin,
-      max = O.LayoutPaddingMax,
+      min = o.LayoutPaddingMin,
+      max = o.LayoutPaddingMax,
     }
   end
   if Spacer then
@@ -4602,8 +4430,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
       order = 61,
       desc = 'The amount of time in seconds to do a smooth fill update',
       step = 0.01,
-      min = O.LayoutSmoothFillMin,
-      max = O.LayoutSmoothFillMax,
+      min = o.LayoutSmoothFillMin,
+      max = o.LayoutSmoothFillMax,
     }
   end
   if UBD.Layout.TextureScale ~= nil then
@@ -4619,8 +4447,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
                    return BarType ~= 'RuneBar' and Flag(true, UBF.UnitBar.Layout.BoxMode) or
                           BarType == 'RuneBar' and strsub(UBF.UnitBar.General.RuneMode, 1, 4) ~= 'rune'
                  end,
-      min = O.LayoutTextureScaleMin,
-      max = O.LayoutTextureScaleMax,
+      min = o.LayoutTextureScaleMin,
+      max = o.LayoutTextureScaleMax,
     }
   end
   if Spacer then
@@ -4632,28 +4460,24 @@ local function CreateLayoutOptions(BarType, Order, Name)
     Spacer = true
     LayoutArgs.FadeInTime = {
       type = 'range',
-      name = BarType == 'EmberBar' and 'Fiery Ember Fade-in' or
-             BarType == 'EclipseBar' and 'Eclipse Fade-in' or
-             'Fade-in',
+      name = 'Fade-in',
       order = 71,
       desc = 'Amount of time in seconds to fade in a bar object',
       step = 0.1,
-      min = O.LayoutFadeInTimeMin,
-      max = O.LayoutFadeInTimeMax,
+      min = o.LayoutFadeInTimeMin,
+      max = o.LayoutFadeInTimeMax,
     }
   end
   if UBD.Layout.FadeOutTime ~= nil then
     Spacer = true
     LayoutArgs.FadeOutTime = {
       type = 'range',
-      name = BarType == 'EmberBar' and 'Fiery Ember Fade-out' or
-             BarType == 'EclipseBar' and 'Eclipse Fade-out' or
-             'Fade-out',
+      name = 'Fade-out',
       order = 72,
       desc = 'Amount of time in seconds to fade out a bar object',
       step = 0.1,
-      min = O.LayoutFadeOutTimeMin,
-      max = O.LayoutFadeOutTimeMax,
+      min = o.LayoutFadeOutTimeMin,
+      max = o.LayoutFadeOutTimeMax,
     }
   end
   if Spacer then
@@ -4694,8 +4518,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
               order = 11,
               desc = 'Sets the distance between two or more bar objects that are aligned horizontally',
               step = 1,
-              min = O.LayoutAlignPaddingXMin,
-              max = O.LayoutAlignPaddingXMax,
+              min = o.LayoutAlignPaddingXMin,
+              max = o.LayoutAlignPaddingXMax,
             },
             AlignPaddingY = {
               type = 'range',
@@ -4703,8 +4527,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
               order = 12,
               desc = 'Sets the distance between two or more bar objects that are aligned vertically',
               step = 1,
-              min = O.LayoutAlignPaddingXMin,
-              max = O.LayoutAlignPaddingXMax,
+              min = o.LayoutAlignPaddingXMin,
+              max = o.LayoutAlignPaddingXMax,
             },
             Spacer20 = CreateSpacer(20),
             AlignOffsetX = {
@@ -4713,8 +4537,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
               order = 21,
               desc = 'Offsets the padding group',
               step = 1,
-              min = O.LayoutAlignOffsetXMin,
-              max = O.LayoutAlignOffsetXMax,
+              min = o.LayoutAlignOffsetXMin,
+              max = o.LayoutAlignOffsetXMax,
             },
             AlignOffsetY = {
               type = 'range',
@@ -4722,8 +4546,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
               order = 22,
               desc = 'Offsets the padding group',
               step = 1,
-              min = O.LayoutAlignOffsetYMin,
-              max = O.LayoutAlignOffsetYMax,
+              min = o.LayoutAlignOffsetYMin,
+              max = o.LayoutAlignOffsetYMax,
             },
           },
         },
@@ -4817,14 +4641,22 @@ local function CreateGeneralOptions(BarType, Order, Name)
       type = 'toggle',
       name = 'Predicted Power',
       order = 3,
-      desc = 'Predicted power will be shown (Hunters Only)',
+      desc = 'Show predicted power of spells that return power with a cast time',
+    }
+  end
+  if UBD.General.PredictedCost ~= nil then
+    GeneralArgs.PredictedCost = {
+      type = 'toggle',
+      name = 'Predicted Cost',
+      order = 4,
+      desc = 'Show predicted cost of spells that cost power with a cast time',
     }
   end
   if UBD.General.ClassColor ~= nil then
     GeneralArgs.ClassColor = {
       type = 'toggle',
       name = 'Class Color',
-      order = 4,
+      order = 5,
       desc = 'Show class color',
     }
   end
@@ -4832,7 +4664,7 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.CombatColor = {
       type = 'toggle',
       name = 'Combat Color',
-      order = 5,
+      order = 6,
       desc = 'Show combat color',
     }
   end
@@ -4840,69 +4672,8 @@ local function CreateGeneralOptions(BarType, Order, Name)
     GeneralArgs.TaggedColor = {
       type = 'toggle',
       name = 'Tagged Color',
-      order = 6,
+      order = 7,
       desc = 'Shows if the target is tagged by another player',
-    }
-  end
-
-  if BarType == 'AnticipationBar' or BarType == 'MaelstromBar' then
-    local BarName = BarType == 'AnticipationBar' and 'anticipation' or 'maelstrom'
-
-    if UBD.General.HideCharges ~= nil then
-      GeneralArgs.HideCharges = {
-        type = 'toggle',
-        name = 'Hide Charges',
-        order = 1,
-        desc = format('Hides the %s charges', BarName),
-        disabled = function()
-                     return UBF.UnitBar.General.HideTime
-                   end,
-      }
-    end
-
-    if UBD.General.HideTime ~= nil then
-      GeneralArgs.HideTime = {
-        type = 'toggle',
-        name = 'Hide Time',
-        order = 1,
-        desc = format('Hides the %s timer', BarName),
-        disabled = function()
-                     return UBF.UnitBar.General.HideCharges
-                   end,
-      }
-    end
-
-    if UBD.General.ShowSpark ~= nil then
-      GeneralArgs.ShowSpark = {
-        type = 'toggle',
-        name = 'Show Spark',
-        order = 2,
-        desc = format('Shows a spark on the %s timer', BarName),
-      }
-    end
-  end
-
-  -- Ember bar options.
-  if UBD.General.GreenFire ~= nil then
-    GeneralArgs.GreenFire = {
-      type = 'toggle',
-      name = 'Green Fire',
-      order = 1,
-      desc = 'Use green fire',
-      disabled = function()
-                   return UBF.UnitBar.General.GreenFireAuto
-                 end,
-    }
-  end
-  if UBD.General.GreenFireAuto ~= nil then
-    GeneralArgs.GreenFireAuto = {
-      type = 'toggle',
-      name = 'Green Fire Auto',
-      order = 4,
-      desc = 'Use green fire if available',
-      disabled = function()
-                   return UBF.UnitBar.General.GreenFire
-                 end,
     }
   end
 
@@ -5019,16 +4790,16 @@ local function CreateGeneralRuneBarOptions(BarType, Order, Name)
             type = 'range',
             name = 'Horizontal Offset',
             order = 1,
-            min = O.RuneOffsetXMin,
-            max = O.RuneOffsetYMax,
+            min = o.RuneOffsetXMin,
+            max = o.RuneOffsetYMax,
             step = 1,
           },
           RuneOffsetY = {
             type = 'range',
             name = 'Vertical Offset',
             order = 2,
-            min = O.RuneOffsetYMin,
-            max = O.RuneOffsetYMax,
+            min = o.RuneOffsetYMin,
+            max = o.RuneOffsetYMax,
             step = 1,
           },
           RunePosition = {
@@ -5055,8 +4826,8 @@ local function CreateGeneralRuneBarOptions(BarType, Order, Name)
             name = 'Time',
             order = 1,
             desc = 'Amount of time to wait before removing empowerment overlay',
-            min = O.RuneEnergizeTimeMin,
-            max = O.RuneEnergizeTimeMax,
+            min = o.RuneEnergizeTimeMin,
+            max = o.RuneEnergizeTimeMax,
             step = 1,
           },
           Color = CreateColorAllOptions(BarType, 'General', 'General.ColorEnergize', 'ColorEnergize', 2, 'Color'),
@@ -5065,82 +4836,6 @@ local function CreateGeneralRuneBarOptions(BarType, Order, Name)
     },
   }
   return GeneralRuneBarOptions
-end
-
--------------------------------------------------------------------------------
--- CreateGeneralEclipseBarOptions
---
--- Creates options for a eclipse bar.
---
--- Subfunction of CreateUnitBarOptions()
---
--- BarType   Type of options being created.
--- Order     Position in the options list.
--- Name      Name of the options.
--------------------------------------------------------------------------------
-local function CreateGeneralEclipseBarOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-
-  local GeneralEclipseBarOptions = {
-    type = 'group',
-    name = Name,
-    dialogInline = true,
-    order = Order,
-    get = function(Info)
-            return UBF.UnitBar.General[Info[#Info]]
-          end,
-    set = function(Info, Value)
-            local KeyName = Info[#Info]
-            UBF.UnitBar.General[KeyName] = Value
-
-            UBF:SetAttr('General', KeyName)
-          end,
-    args = {
-      SliderInside = {
-        type = 'toggle',
-        name = 'Slider Inside',
-        order = 1,
-        desc = 'The slider will stay inside the bar',
-      },
-      HideSlider = {
-        type = 'toggle',
-        name = 'Hide Slider',
-        order = 2,
-        desc = 'The slider will be hidden',
-      },
-      PowerHalfLit = {
-        type = 'toggle',
-        name = 'Power Half Lit',
-        order = 3,
-        desc = 'The lunar or solar part will light to show slider direction',
-      },
-      PowerText = {
-        type = 'toggle',
-        name = 'Power Text',
-        order = 4,
-        desc = 'Eclipse power text will be shown',
-        disabled = function()
-                     return UBF.UnitBar.Layout.HideText
-                   end,
-      },
-      HidePeak = {
-        type = 'toggle',
-        name = 'Hide Peak',
-        order = 5,
-        desc = 'The sun and moon will not light up during a solar or lunar peak',
-      },
-      Spacer10 = CreateSpacer(10),
-      SliderDirection = {
-        type = 'select',
-        name = 'Slider Direction',
-        order = 11,
-        values = DirectionDropdown,
-        style = 'dropdown',
-        desc = 'Specifies the direction the slider will move in'
-      },
-    },
-  }
-  return GeneralEclipseBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -5168,6 +4863,7 @@ local function CreateResetOptions(BarType, Order, Name)
     {Name = 'Layout',   KeyName = {'Layout', 'BoxLocations', 'BoxOrder'}, Exact = true},
     {Name = 'General',  KeyName = 'General',                              Exact = true},
     {Name = 'Other',    KeyName = 'Other',                                Exact = true},
+    {Name = 'Region',   KeyName = 'Region',                               Exact = true},
     {Name = 'BG',       KeyName = 'Background',                           Exact = false, Desc = 'Background'},
     {Name = 'Bar',      KeyName = 'Bar',                                  Exact = false},
     {Name = 'Text',     KeyName = 'Text',                                 Exact = true},
@@ -5424,16 +5120,25 @@ local function CreateOtherOptions(BarType, Order, Name)
         name = 'Scale',
         order = 1,
         desc = 'Changes the scale of the bar',
-        min = O.UnitBarScaleMin,
-        max = O.UnitBarScaleMax,
-        step = 1,
+        min = o.UnitBarScaleMin,
+        max = o.UnitBarScaleMax,
         step = 0.01,
         isPercent  = true,
+      },
+      Alpha = {
+        type = 'range',
+        name = 'Alpha',
+        order = 2,
+        desc = 'Changes the transparency of the bar',
+        min = o.UnitBarAlphaMin,
+        max = o.UnitBarAlphaMax,
+        step = 0.01,
+        isPercent = true,
       },
       FrameStrata = {
         type = 'select',
         name = 'Frame Strata',
-        order = 2,
+        order = 3,
         desc = 'Sets the frame strata making the bar appear below or above other frames',
         values = FrameStrataDropdown,
         style = 'dropdown',
@@ -5448,7 +5153,7 @@ end
 -------------------------------------------------------------------------------
 -- CreateCopyPasteOptions
 --
--- Creates options for to copy and paste bars.
+-- Creates options for copy and paste bars.
 --
 -- Subfunction of CreateUnitBarOptions()
 --
@@ -5468,22 +5173,10 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
       { Name = 'Other'     , All = true,  TablePath = 'Other'             }},
 
     Background = { Order = 2, Width = 'normal',
-      { Name = 'Background', All = true,  TablePath = 'Background'        },
-      { Name = 'Moon'      , All = true,  TablePath = 'BackgroundMoon'    },
-      { Name = 'Power'     , All = true,  TablePath = 'BackgroundPower'   },
-      { Name = 'Sun'       , All = true,  TablePath = 'BackgroundSun'     },
-      { Name = 'Slider'    , All = true,  TablePath = 'BackgroundSlider'  },
-      { Name = 'Charges'   , All = true,  TablePath = 'BackgroundCharges' },
-      { Name = 'Time'      , All = true,  TablePath = 'BackgroundTime'    }},
+      { Name = 'Background', All = true,  TablePath = 'Background'        }},
 
     Bar = { Order = 3, Width = 'half',
-      { Name = 'Bar'       , All = true,  TablePath = 'Bar'               },
-      { Name = 'Moon'      , All = true,  TablePath = 'BarMoon'           },
-      { Name = 'Power'     , All = true,  TablePath = 'BarPower'          },
-      { Name = 'Sun'       , All = true,  TablePath = 'BarSun'            },
-      { Name = 'Slider'    , All = true,  TablePath = 'BarSlider'         },
-      { Name = 'Charges'   , All = true,  TablePath = 'BarCharges'        },
-      { Name = 'Time'      , All = true,  TablePath = 'BarTime'           }},
+      { Name = 'Bar'       , All = true,  TablePath = 'Bar'               }},
 
     Text = { Order = 4, Width = 'half',
       { Name = 'All Text'  , All = false, TablePath = 'Text'              },
@@ -5815,8 +5508,6 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   if UBD.General then
     if BarType == 'RuneBar' then
       OptionArgs.General = CreateGeneralRuneBarOptions(BarType, 4, 'General')
-    elseif BarType == 'EclipseBar' then
-      OptionArgs.General = CreateGeneralEclipseBarOptions(BarType, 4, 'General')
     else
       OptionArgs.General = CreateGeneralOptions(BarType, 4, 'General')
     end
@@ -5833,7 +5524,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   OptionArgs.CopyPaste = CreateCopyPasteOptions(BarType, 6,'Copy and Paste')
 
-  -- Add border options if they exists.
+  -- Add region options if they exists.
   if UBD.Region then
     OptionArgs.Border = CreateBackdropOptions(BarType, 'Region', 1000, 'Region')
     OptionArgs.Border.hidden = function()
@@ -5841,71 +5532,29 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                                end
   end
 
-  -- Add background/bar options for anticipation bar or eclipse bar
-  if BarType == 'AnticipationBar' or BarType == 'MaelstromBar' or BarType == 'EclipseBar' then
-    OptionArgs.Background = {
-      type = 'group',
-      name = 'Background',
-      order = 1001,
-      childGroups = 'tab',
-    }
-    if BarType == 'AnticipationBar' or BarType == 'MaelstromBar' then
-      OptionArgs.Background.args = {
-        Points = CreateBackdropOptions(BarType, 'BackgroundCharges', 1, 'Charges'),
-        Time = CreateBackdropOptions(BarType, 'BackgroundTime', 2, 'Time'),
-      }
-    else
-      OptionArgs.Background.args = {
-        Moon = CreateBackdropOptions(BarType, 'BackgroundMoon', 1, 'Moon'),
-        Sun = CreateBackdropOptions(BarType, 'BackgroundSun', 2, 'Sun'),
-        Power = CreateBackdropOptions(BarType, 'BackgroundPower', 3, 'Power'),
-        Slider = CreateBackdropOptions(BarType, 'BackgroundSlider', 4, 'Slider'),
-      }
-    end
-    OptionArgs.Bar = {
-      type = 'group',
-      name = 'Bar',
-      order = 1002,
-      childGroups = 'tab',
-    }
-    if BarType == 'AnticipationBar' or BarType == 'MaelstromBar' then
-      OptionArgs.Bar.args = {
-        Points = CreateBarOptions(BarType, 'BarCharges', 1, 'Charges'),
-        Time = CreateBarOptions(BarType, 'BarTime', 2, 'Time'),
-      }
-    else
-      OptionArgs.Bar.args = {
-        Moon = CreateBarOptions(BarType, 'BarMoon', 1, 'Moon'),
-        Sun = CreateBarOptions(BarType, 'BarSun', 2, 'Sun'),
-        Power = CreateBarOptions(BarType, 'BarPower', 3, 'Power'),
-        Slider = CreateBarOptions(BarType, 'BarSlider', 4, 'Slider'),
-      }
-    end
+
+  -- Add background options
+  OptionArgs.Background = CreateBackdropOptions(BarType, 'Background', 1001, 'Background')
+  if BarType == 'RuneBar' then
+    OptionArgs.Background.hidden = function()
+                                     return UBF.UnitBar.General.RuneMode == 'rune'
+                                   end
   else
+    OptionArgs.Background.hidden = function()
+                                     return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                                   end
+  end
 
-    -- Add background options
-    OptionArgs.Background = CreateBackdropOptions(BarType, 'Background', 1001, 'Background')
-    if BarType == 'RuneBar' then
-      OptionArgs.Background.hidden = function()
-                                       return UBF.UnitBar.General.RuneMode == 'rune'
-                                     end
-    else
-      OptionArgs.Background.hidden = function()
-                                       return not Flag(true, UBF.UnitBar.Layout.BoxMode)
-                                     end
-    end
-
-    -- add bar options for this bar.
-    OptionArgs.Bar = CreateBarOptions(BarType, 'Bar', 1002, 'Bar')
-    if BarType == 'RuneBar' then
-      OptionArgs.Bar.hidden = function()
-                                return UBF.UnitBar.General.RuneMode == 'rune'
-                              end
-    else
-      OptionArgs.Bar.hidden = function()
-                                return not Flag(true, UBF.UnitBar.Layout.BoxMode)
-                              end
-    end
+  -- add bar options for this bar.
+  OptionArgs.Bar = CreateBarOptions(BarType, 'Bar', 1002, 'Bar')
+  if BarType == 'RuneBar' then
+    OptionArgs.Bar.hidden = function()
+                              return UBF.UnitBar.General.RuneMode == 'rune'
+                            end
+  else
+    OptionArgs.Bar.hidden = function()
+                              return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                            end
   end
 
   -- Add text options
@@ -6086,7 +5735,7 @@ local function RefreshAuraList(AG, Unit, TrackedAurasList)
 end
 
 local function DeleteAuraTabs(ALA)
-  for Key, _ in pairs(ALA) do
+  for Key in pairs(ALA) do
     if strfind(Key, 'AuraGroup') then
       ALA[Key] = nil
     end
@@ -6098,7 +5747,7 @@ local function UpdateAuraTabs(ALA, Order)
   local OrderNumber = Order
 
   if TrackedAurasList then
-    for Unit, _ in pairs(TrackedAurasList) do
+    for Unit in pairs(TrackedAurasList) do
       local Key = 'AuraGroup_' .. Unit
 
       if ALA[Key] == nil then
@@ -6119,7 +5768,7 @@ local function UpdateAuraTabs(ALA, Order)
     end
 
     -- Remove units no longer in use.
-    for Key, _ in pairs(ALA) do
+    for Key in pairs(ALA) do
       local _, Unit = strsplit('_', Key)
 
       if Unit then
@@ -6249,7 +5898,7 @@ local function CreatePowerColorOptions(Order, Name)
             end
           end,
     args = {
-      Spacer10 = CreateSpacer(10),
+    --  Spacer10 = CreateSpacer(10),
       Spacer50 = CreateSpacer(50),
       Spacer100 = CreateSpacer(100),
       Reset = {
@@ -6271,40 +5920,64 @@ local function CreatePowerColorOptions(Order, Name)
     },
   }
 
-  -- Power types for the player power bar. '= 0' has no meaning.
+  -- Power types for the player power bar.
   -- These cover classes with more than one power type.
   local PlayerPower = {
-    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0},
+    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0, LUNAR_POWER = 8},
     MONK  = {MANA = 0, ENERGY = 0},
+    SHAMAN = {MANA = 0, MAELSTROM = 11},
+    PRIEST = {MANA = 0, INSANITY = 12},
+    DEMONHUNTER = {FURY = 17, PAIN = 18},
   }
+  local PowerWidth = {
+    RUNIC_POWER = 'normal',
+    LUNAR_POWER = 'normal',
+    MAELSTROM = 'normal',
+  }
+  local PowerName = {
+    RUNIC_POWER = 'Runic Power',
+    LUNAR_POWER = 'Astral Power',
+    MAELSTROM = 'Maelstrom',
+  }
+
+  -- Set up a power order.  half goes first, then normal
+  local PowerOrder = {}
+  local Index = 1
+
+  for PowerType in pairs(PowerColorType) do
+    if PowerWidth[PowerType] == nil then
+      PowerOrder[Index] = PowerType
+      Index = Index + 1
+    end
+  end
+
+  for PowerType in pairs(PowerColorType) do
+    if PowerWidth[PowerType] then
+      PowerOrder[Index] = PowerType
+      Index = Index + 1
+    end
+  end
 
   local PCOA = PowerColorOptions.args
   local ClassPowerType = PlayerPower[Main.PlayerClass]
-  local Index = 0
+  local PlayerPowerType = ConvertPowerType[Main.PlayerPowerType]
+  Index = 0
 
-  for PowerType, _ in pairs(Main.UnitBars.PowerColor) do
-    local PowerTypeName = ConvertPowerType[PowerType]
+  for _, PowerType in pairs(PowerOrder) do
+    local n = gsub(strlower(PowerType), '%a', strupper, 1)
     Index = Index + 1
-    local Order = Index + 50
-    local n = gsub(strlower(PowerTypeName), '%a', strupper, 1)
 
-    if ClassPowerType and ClassPowerType[PowerTypeName] then
+    if ClassPowerType and ClassPowerType[PowerType] or PowerType == PlayerPowerType then
       Order = Index
-    elseif PowerType == Main.PlayerPowerType then
-      Order = 1
+    else
+      Order = Index + 50
     end
 
-    local Width = 'half'
-    if PowerTypeName == 'RUNIC_POWER' then
-      n = 'Runic Power'
-      Width = 'normal'
-    end
-
-    PCOA[PowerTypeName] = {
+    PCOA[PowerType] = {
       type = 'color',
-      name = n,
+      name = PowerName[PowerType] or n,
       order = Order,
-      width = Width,
+      width = PowerWidth[PowerType] or 'half',
       hasAlpha = true,
     }
   end
@@ -6324,8 +5997,8 @@ end
 -------------------------------------------------------------------------------
 local function CreateClassColorOptions(Order, Name)
   local ClassColorMenu = {
-    'DEATHKNIGHT', 'DRUID',  'HUNTER', 'MAGE',  'MONK',
-    'PALADIN',     'PRIEST', 'PRIEST', 'ROGUE', 'SHAMAN',
+    'DEATHKNIGHT', 'DEMONHUNTER', 'DRUID',  'HUNTER', 'MAGE',  'MONK',
+    'PALADIN',     'PRIEST',      'PRIEST', 'ROGUE', 'SHAMAN',
     'WARLOCK',     'WARRIOR'
   }
 
@@ -6400,6 +6073,9 @@ local function CreateClassColorOptions(Order, Name)
     local Width = 'half'
     if Index == 1 then
       n = 'Death Knight'
+      Width = 'normal'
+    elseif Index == 2 then
+      n = 'Demon Hunter'
       Width = 'normal'
     end
 
@@ -6656,40 +6332,31 @@ end
 --
 -- Order     Position in the options list.
 -- Name      Name of the options.
+-- Text      Array containing the text to display.
 -------------------------------------------------------------------------------
-local function CreateHelpOptions(Order, Name)
+local function CreateHelpOptions(Order, Name, Text)
   local HelpOptions = {
     type = 'group',
     name = Name,
     order = Order,
-    childGroups = 'tab',
-    args = {
-      HelpText = {
-        type = 'group',
-        name = function()
-                 return format('|cffffd200%s   version %.2f|r', AddonName, Version / 100)
-               end,
-        order = 10,
-        args = {},
-      },
-    },
+    args = {},
   }
 
-  local HTA = HelpOptions.args.HelpText.args
+  local HOA = HelpOptions.args
 
-  for HelpIndex = 1, #HelpText do
-    local Text = HelpText[HelpIndex]
-    local HelpKey = 'HelpText' .. HelpIndex
+  for TextIndex = 1, #Text do
+    local Text = Text[TextIndex]
+    local TextKey = 'Text' .. TextIndex
     local Pos = strfind(Text, 'http')
 
     if Pos then
       local Name = strsub(Text, 1, Pos - 1)
       local Link = strsub(Text, Pos)
 
-      HTA[HelpKey] = {
+      HOA[TextKey] = {
         type = 'input',
         name = Name or '',
-        order = HelpIndex,
+        order = TextIndex,
         width = 'double',
         dialogControl = 'GUB_EditBox_Selected',
         get = function()
@@ -6698,15 +6365,38 @@ local function CreateHelpOptions(Order, Name)
         set = function() end,
       }
     else
-      HTA[HelpKey] = {
-        type = 'description',
-        name = Text,
-        fontSize = 'medium',
-        order = HelpIndex,
-        width = 'full',
-      }
+      Pos = strfind(Text, '[]', 1, true)
+
+      if Pos then
+        local Name = strsub(Text, 1, Pos - 1)
+        local SubText = strsub(Text, Pos + 3) -- +1 to skip newline \n
+
+        HOA[TextKey] = {
+          type = 'group',
+          name = Name,
+          order = TextIndex,
+          dialogInline = true,
+          args = {
+            SubText = {
+              type = 'description',
+              name = SubText,
+              fontSize = 'medium',
+              order = 1,
+              width = 'full',
+            }
+          }
+        }
+      else
+        HOA[TextKey] = {
+          type = 'description',
+          name = Text,
+          fontSize = 'medium',
+          order = TextIndex,
+          width = 'full',
+        }
+      end
     end
-    HTA['Spacer' .. HelpIndex] = CreateSpacer(HelpIndex + 0.5)
+    HOA['Spacer' .. TextIndex] = CreateSpacer(TextIndex + 0.5)
   end
 
   return HelpOptions
@@ -6849,7 +6539,7 @@ local function CreateMainOptions()
                     order = 8,
                     desc = 'The amount of time in seconds to fade in a bar',
                     min = 0,
-                    max = O.FadeInTime,
+                    max = o.FadeInTime,
                     step = 0.1,
                     get = function()
                             return Main.UnitBars.FadeInTime
@@ -6865,7 +6555,7 @@ local function CreateMainOptions()
                     order = 9,
                     desc = 'The amount of time in seconds to fade out a bar',
                     min = 0,
-                    max = O.FadeOutTime,
+                    max = o.FadeOutTime,
                     step = 0.1,
                     get = function()
                             return Main.UnitBars.FadeOutTime
@@ -6940,7 +6630,16 @@ local function CreateMainOptions()
 --    HELP group.
 -------------------------------------------------------------------------------
 --=============================================================================
-  MainOptionsArgs.Help = CreateHelpOptions(101, 'Help')
+  MainOptionsArgs.Help = {
+    type = 'group',
+    name = 'Help',
+    order = 101,
+    childGroups = 'tab',
+    args = {
+      HelpText = CreateHelpOptions(1, format('|cffffd200%s   version %.2f|r', AddonName, Version / 100), HelpText),
+      Changes = CreateHelpOptions(2, 'Changes', ChangesText),
+    },
+  }
 
   return MainOptions
 end
@@ -6991,17 +6690,17 @@ local function CreateAlignSwapOptions()
   local AlignSwapOptions = nil
 
   local function SetSize()
-    for KeyName, _ in pairs(AlignSwapOptions.args) do
+    for KeyName in pairs(AlignSwapOptions.args) do
       local SliderArgs = AlignSwapOptions.args[KeyName]
       local Min = nil
       local Max = nil
 
       if strfind(KeyName, 'Padding') then
-        Min = O.AlignSwapPaddingMin
-        Max = O.AlignSwapPaddingMax
+        Min = o.AlignSwapPaddingMin
+        Max = o.AlignSwapPaddingMax
       elseif strfind(KeyName, 'Offset') then
-        Min = O.AlignSwapOffsetMin
-        Max = O.AlignSwapOffsetMax
+        Min = o.AlignSwapOffsetMin
+        Max = o.AlignSwapOffsetMax
       end
       if Min and Max then
         local Value = Main.UnitBars[KeyName]
@@ -7009,8 +6708,8 @@ local function CreateAlignSwapOptions()
         if Main.UnitBars.AlignSwapAdvanced then
           Value = Value < Min and Min or Value > Max and Max or Value
           Main.UnitBars[KeyName] = Value
-          SliderArgs.min = Value - O.AlignSwapAdvancedMinMax
-          SliderArgs.max = Value + O.AlignSwapAdvancedMinMax
+          SliderArgs.min = Value - o.AlignSwapAdvancedMinMax
+          SliderArgs.max = Value + o.AlignSwapAdvancedMinMax
         else
           SliderArgs.min = Min
           SliderArgs.max = Max
@@ -7177,7 +6876,7 @@ function GUB.Options:OpenAlignSwapOptions(Anchor)
   if not Main.InCombat then
     AlignSwapAnchor = Anchor
 
-    AceConfigDialog:SetDefaultSize(AddonAlignSwapOptions, O.AlignSwapWidth, O.AlignSwapHeight)
+    AceConfigDialog:SetDefaultSize(AddonAlignSwapOptions, o.AlignSwapWidth, o.AlignSwapHeight)
     AceConfigDialog:Open(AddonAlignSwapOptions)
 
     local OptionFrame = AceConfigDialog.OpenFrames[AddonAlignSwapOptions].frame

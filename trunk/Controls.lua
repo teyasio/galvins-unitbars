@@ -25,6 +25,8 @@ local table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCur
       table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont
 local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
       ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
+local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime  =
+      C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -41,7 +43,7 @@ local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, Gam
 -- Predictors        Table that keeps track of predictor frames.
 --                   The keyname is the Frame and the value is true or nil
 -------------------------------------------------------------------------------
-local SpellsTPS = 0.10 -- 10 times per second.
+local SpellsTPS = 0.10 -- 5 times per second.
 local SpellsPerRun = 1000
 local SpellsLoaded = false
 local Tooltip = nil
@@ -185,29 +187,7 @@ local function LoadSpells()
     local TotalInvalid = 0
     local CurrentIndex = 0
     local NumSpells = 0
-
-    local Exclude = {
-      ['interface\\icons\\trade_alchemy'] = true,
-      ['interface\\icons\\trade_blacksmithing'] = true,
-      ['interface\\icons\\trade_brewpoison'] = true,
-      ['interface\\icons\\trade_engineering'] = true,
-      ['interface\\icons\\trade_engraving'] = true,
-      ['interface\\icons\\trade_fishing'] = true,
-      ['interface\\icons\\trade_herbalism'] = true,
-      ['interface\\icons\\trade_leatherworking'] = true,
-      ['interface\\icons\\trade_mining'] = true,
-      ['interface\\icons\\trade_tailoring'] = true,
-      ['interface\\icons\\temp'] = true,
-    }
-
-    local ScanTooltip = CreateFrame('GameTooltip')
-
-    ScanTooltip:SetOwner(UIParent, 'ANCHOR_NONE')
-    for i = 1, 6 do
-      ScanTooltip['TextLeft' .. i] = ScanTooltip:CreateFontString()
-      ScanTooltip['TextRight' .. i] = ScanTooltip:CreateFontString()
-      ScanTooltip:AddFontStrings(ScanTooltip['TextLeft' .. i], ScanTooltip['TextRight' .. i])
-    end
+    local LastTime = GetTime()
 
     local function LoadSpells(self)
 
@@ -220,44 +200,10 @@ local function LoadSpells()
       -- Load as many spells in
       for SpellID = CurrentIndex + 1, CurrentIndex + SpellsPerRun do
         local Name, SubName, Icon = GetSpellInfo(SpellID)
-        local IsAura = false
 
-        -- Pretty much every profession spell uses Trade_* and 99% of the random spells use the Trade_Engineering icon
-        -- we can safely exclude any of these spells as they are not needed. Can get away with this because things like
-        -- Alchemy use two icons, the Trade_* for the actual crafted spell and a different icon for the actual buff
-        -- Passive spells have no use as well, since they are well passive and can't actually be used
-        if Name and Name ~= '' and Exclude[strlower(Icon)] == nil and SubName ~= SPELL_PASSIVE then
-
-          -- Scan tooltip for debuff/buff
-          ScanTooltip:SetHyperlink(format(HyperLinkSt, SpellID))
-
-          IsAura = true
-          for i = 1, ScanTooltip:NumLines() do
-            local Text = ScanTooltip['TextLeft' .. i]
-
-            if Text and false then
-              local r, g, b = Text:GetTextColor()
-
-              r = floor(r + 0.10)
-              g = floor(g + 0.10)
-              b = floor(b + 0.10)
-
-              -- Gold first text, it's a profession link
-              -- If first line is not white then reject it.
-              if i == 1 and (r ~= 1 or g ~= 1 or b ~= 1) then
-                break
-
-              -- Gold for anything else and it should be a valid aura
-              -- line 2 or after is not white except it.
-              elseif r ~= 1 or g ~= 1 or b ~= 1 then
-                IsAura = true
-                break
-              end
-            end
-          end
-        end
-
-        if IsAura then
+        -- Filter out all trade skill spells.
+        -- Passive can't really be used, so filter out those too.
+        if Name and Name ~= '' and SubName ~= SPELL_PASSIVE and C_TradeSkillUIGetTradeSkillLineForRecipe(SpellID) == nil then
           NumSpells = NumSpells + 1
           SpellList[SpellID] = strlower(Name)
 
@@ -267,8 +213,10 @@ local function LoadSpells()
         end
       end
 
-      -- Every ~1 second it will update any visible predictors to make up for the fact that the data is delay loaded
-      if CurrentIndex % 5000 == 0 then
+      -- Every 1 second it will update any visible predictors to make up for the fact that the data is delay loaded
+      local Time = GetTime()
+      if Time - LastTime >= 1 then
+        LastTime = Time
         for Frame in pairs(Predictors) do
           if Frame:IsVisible() then
             Frame:PopulatePredictor()

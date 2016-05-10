@@ -11,14 +11,15 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 local Bar = GUB.Bar
 local TT = GUB.DefaultUB.TriggerTypes
+local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
 local ConvertPowerType = Main.ConvertPowerType
-local ConvertFaction = Main.ConvertFaction
 
 -- localize some globals.
-local _
+local _, _G =
+      _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
@@ -27,20 +28,20 @@ local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wi
       pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
 local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
-local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
+      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
+local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter, UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -49,41 +50,28 @@ local C_PetBattles, UIParent =
 --
 -- UnitBarF.BBar         Contains the Health and power bar displayed on screen.
 -- StatusBar             TextureNumber for Status Bar
+-- StatusCostBar         TextureNumber for status cost bar.
 -- PredictedBar          TextureNumber for Predicted Bar
--- StatusBars            Change Texture for Status Bar and Predicted Bar.
--- SpellSteadyShot
--- SpellCobraShot        Hunter Spells to track for predicted power.
--- PredictedSpellValue   Predicted focus value based on the two above spells.
--- SteadyFocusAura       Buff hunters get that adds bonus focus.
+-- PredictedCostBar      TextureNumber for Predicted Cost Bar
+-- StatusBars            Change Texture for Status Bar and Predicted and Cost Bars.
+--
+-- UnitBarF.PredictedSpellID   The current spell whos predicted power is being shown.
+-- UnitBarF.PredictedPower     Current predicted power in progress
 -------------------------------------------------------------------------------
 local Display = false
 local Update = false
+local ScanTooltip = nil
+local MaxSpells = 1024
 
 local StatusBar = 1
 local PredictedBar = 2
+local PredictedCostBar = 3
 local StatusBars = 1
 
 -- Powertype constants
 local PowerMana = ConvertPowerType['MANA']
 local PowerEnergy = ConvertPowerType['ENERGY']
 local PowerFocus = ConvertPowerType['FOCUS']
-
--- Predicted spell ID constants.
-local SpellSteadyShot = 56641
-local SpellCobraShot  = 77767
-local FocusingShot    = 163485
-
-local PredictedSpellValue = {
-  [0]               = 0,
-  [SpellSteadyShot] = 14,
-  [SpellCobraShot]  = 14,
-  [FocusingShot]    = 50,
-}
-
---local SteadyFocusAura = 53220
-
--- Amount of focus that gets added on to SteadyShot.
-local SteadyFocusBonus = 3
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -102,8 +90,11 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
     GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted)', PredictedBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted)',   PredictedBar,
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted...)', PredictedBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted...)',   PredictedBar,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (cost)', PredictedCostBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (cost)',   PredictedCostBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    1 },
   { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
@@ -116,7 +107,7 @@ local TD = { -- Trigger data
 }
 
 local HealthVTs = {'whole', 'Health', 'percent', 'Health (percent)', 'whole', 'Predicted Health', 'auras', 'Auras'}
-local PowerVTs = {'whole', 'Power', 'percent', 'Power (percent)', 'whole', 'Predicted Power', 'auras', 'Auras'}
+local PowerVTs = {'whole', 'Power', 'percent', 'Power (percent)', 'whole', 'Predicted Power', 'whole', 'Predicted Cost', 'auras', 'Auras'}
 
 local HealthGroups = { -- BoxNumber, Name, ValueTypes,
   {1, '', HealthVTs, TD}, -- 1
@@ -151,62 +142,118 @@ HapFunction('StatusCheck', Main.StatusCheck)
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- CheckSpell
+-- Casting
 --
--- Calls update on cast end
+-- Gets called when a spell is being cast.
+--
+-- UnitBarF     Bar thats tracking casts
+-- SpellID      Spell that is being cast
+-- Message      See Main.lua for list of messages
 -------------------------------------------------------------------------------
-local function CheckSpell(UnitBarF, SpellID, CastTime, Message)
-  SpellID = abs(SpellID)
+local function Casting(UnitBarF, SpellID, Message)
+  UnitBarF.PredictedSpellID = 0
+  UnitBarF.PredictedPower = 0
+  UnitBarF.PredictedCost = 0
 
   if Message == 'start' then
-    local PredictedPower = PredictedSpellValue[SpellID]
+    local BarPowerType = nil
 
-    -- Check for steady focus.  Will the aura drop off before steadyshot is finished casting.
-    --if SpellID == SpellSteadyShot then
-    --  local Spell, TimeLeft = Main:CheckAura('o', SteadyFocusAura)
-    --  if Spell then
-
-        -- Add bonus focus if buff will be up by the time the cast is finished.
-    --    if CastTime < TimeLeft then
-    --      PredictedPower = PredictedPower + SteadyFocusBonus
-    --    end
-    --  end
-    --end
-
-    -- Check for two piece bonus tier 13. hunters only.
-    if Main:GetSetBonus(13) >= 2 then
-      PredictedPower = PredictedPower * 2
+    if UnitBarF.BarType == 'ManaPower' then
+      BarPowerType = PowerMana
+    else
+      BarPowerType = Main.PlayerPowerType
     end
 
-    -- Save predicted focus.
-    UnitBarF.PredictedPower = PredictedPower
-  else
+    -- get predicted power
+    local PredictedPower, PowerType = Main:GetPredictedSpell(UnitBarF, SpellID)
 
-    -- Set predictedfocus to zero.
-    UnitBarF.PredictedPower = 0
+    if PredictedPower > 0 and PowerType == BarPowerType then
+      UnitBarF.PredictedSpellID = SpellID
+      UnitBarF.PredictedPower = PredictedPower
+
+    -- Get predicted cost
+    elseif UnitBarF.UnitBar.General.PredictedCost then
+      local CostTable = GetSpellPowerCost(SpellID)
+
+      for _, CostInfo in pairs(CostTable) do
+        if CostInfo.type == BarPowerType then
+          UnitBarF.PredictedCost = CostInfo.cost
+          break
+        end
+      end
+    end
   end
 
-  -- Spell is done casting.  Update the power.
   UnitBarF:Update()
 end
 
 -------------------------------------------------------------------------------
--- Set Steady shot and cobra shot for predicted power.
--- Set a callback that will update the power bar when ever either of these spells are casting.
+-- PredictedSpells
+--
+-- Gets called when a spell in the spellbook has a power value change
+--
+-- UnitBarF      Bar thats using predicted spells.
+-- SpellID       Spell whos amount of power changed.
+-- Amount        New amount.
 -------------------------------------------------------------------------------
-Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellSteadyShot, 'casting', CheckSpell)
-Main:SetSpellTracker(UnitBarsF.PlayerPower, SpellCobraShot,  'casting', CheckSpell)
-Main:SetSpellTracker(UnitBarsF.PlayerPower, FocusingShot,    'casting', CheckSpell)
+local function PredictedSpells(UnitBarF, SpellID, Amount)
 
---*****************************************************************************
---
--- Health and Power bar utility
---
---*****************************************************************************
+  -- Only change the one thats currently casting.
+  if UnitBarF.PredictedSpellID == SpellID then
+    UnitBarF.PredictedPower = Amount
+    UnitBarF:Update()
+  end
+end
 
--- Used by SetValueFont to calculate percentage.
-local function PercentFn(Value, MaxValue)
-  return ceil(Value / MaxValue * 100)
+-------------------------------------------------------------------------------
+-- SetPredictedCost
+--
+-- Turns on predicted cost.  This will show how much resource a spell will cost
+-- that has a cast time.
+--
+-- Usage: SetPredictedCost(UnitBarF, true or false)
+--
+-- UnitBarF   Tracks cost just for this bar.
+-- true       Turn on predicted cost otherwise turn it off.
+-------------------------------------------------------------------------------
+local function SetPredictedCost(UnitBarF, Action)
+  if Action then
+    Main:SetCastTracker(UnitBarF, 'fn', Casting)
+
+  else
+    local PredictedPower = UnitBarF.UnitBar.General.PredictedPower or false
+
+    if not PredictedPower then
+      Main:SetCastTracker(UnitBarF, 'off')
+      UnitBarF.PredictedCost = 0
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetPredictedPower
+--
+-- Finds spells in the player spellbook with cast times that return power.
+--
+-- Usage: SetPredictedPower(UnitBarF, true or false)
+--
+-- UnitBarF   Tracks spells just for this bar.
+-- true       Turn on predicted power otherwise turn it off.
+-------------------------------------------------------------------------------
+local function SetPredictedPower(UnitBarF, Action)
+  if Action then
+    Main:SetPredictedSpells(UnitBarF, 'on', PredictedSpells)
+    Main:SetCastTracker(UnitBarF, 'fn', Casting)
+  else
+    Main:SetPredictedSpells(UnitBarF, 'off')
+    local PredictedCost = UnitBarF.UnitBar.General.PredictedCost or false
+
+    if not PredictedCost then
+      Main:SetCastTracker(UnitBarF, 'off')
+    end
+
+    UnitBarF.PredictedPower = 0
+  end
 end
 
 --*****************************************************************************
@@ -277,11 +324,24 @@ local function UpdateHealthBar(self, Event, Unit)
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
-    local PredictedValue = TestMode.PredictedValue
+    local PredictedHealth = TestMode.PredictedHealth or 0
 
-    MaxValue = MaxValue == 0 and 10000 or MaxValue
+    self.Testing = true
+
+    MaxValue = MaxValue > 10000 and MaxValue or 10000
     CurrValue = floor(MaxValue * TestMode.Value)
-    PredictedHealing = PredictedValue and floor(MaxValue * PredictedValue) or 0
+    PredictedHealing = floor(MaxValue * PredictedHealth)
+
+  -- Just switched out of test mode do a clean up.
+  elseif self.Testing then
+    self.Testing = false
+
+    PredictedHealing = 0
+
+    if MaxValue == 0 then
+      BBar:SetSliderTexture(1, PredictedBar, 0)
+      BBar:SetFillTexture(1, PredictedBar, 0)
+    end
   end
 
   local ClassColor = Gen.ClassColor or false
@@ -304,28 +364,47 @@ local function UpdateHealthBar(self, Event, Unit)
     r, g, b, a = Main:GetTaggedColor(Unit, nil, nil, nil, r, g, b, a)
   end
 
-  -- Set the color and display the predicted health.
-  local PredictedColor = Bar.PredictedColor
-  if PredictedColor then
-    if PredictedHealing > 0 and CurrValue < MaxValue then
-      BBar:SetColorTexture(1, PredictedBar, PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
-      BBar:SetFillTexture(1, PredictedBar, (CurrValue + PredictedHealing) / MaxValue)
-    else
-      PredictedHealing = 0
-      BBar:SetFillTexture(1, PredictedBar, 0)
-    end
-  end
-
-  -- Set the color and display the value.
-  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
   local Value = 0
 
   if MaxValue > 0 then
     Value = CurrValue / MaxValue
   end
+
+  if MaxValue > 0 then
+
+    -- Do predicted healing
+    local Change = self.LastPredictedHealing ~= PredictedHealing
+
+    if Change or PredictedHealing > 0 then
+      local Color = Bar.PredictedColor
+
+      if PredictedHealing > 0 then
+        BBar:SetSliderTexture(1, PredictedBar, PredictedHealing / MaxValue)
+      else
+        BBar:SetSliderTexture(1, PredictedBar, 0)
+      end
+
+      -- Stop smooth animation, so slider can be positioned instantly.
+      -- Only during change.  Want slider to smooth slide when cost doesn't change.
+      if Change then
+        BBar:SetFillSmoothTimeTexture(1, PredictedBar, 0)
+      end
+
+      BBar:SetFillTexture(1, PredictedBar, Value)
+
+      if Change then
+        BBar:SetFillSmoothTimeTexture(1, PredictedBar, UB.Layout.SmoothFill)
+      end
+      self.LastPredictedHealing = PredictedHealing
+    end
+  end
+
+  -- Set the color and display the value.
+  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
+
   BBar:SetFillTexture(1, StatusBar, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedHealing, 'unit', Unit)
+    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'unit', Unit)
   end
 
   -- Check triggers
@@ -381,9 +460,10 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   -- Convert string powertype into number.
   PowerType2 = ConvertPowerType[PowerType2]
 
+  local BarType = self.BarType
   local PowerType = nil
 
-  if self.BarType ~= 'ManaPower' then
+  if BarType ~= 'ManaPower' then
     PowerType = UnitPowerType(Unit)
     if PowerType2 ~= nil and PowerType ~= PowerType2 then
 
@@ -404,10 +484,14 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local UB = self.UnitBar
   local Bar = UB.Bar
   local Gen = UB.General
+  local DGen = DUB[BarType].General
 
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
-  local PredictedPower = Gen and Gen.PredictedPower and (self.PredictedPower or 0) or 0
+
+  local PredictedPower = self.PredictedPower or 0
+  local PredictedCost = self.PredictedCost or 0
+
   local UseBarColor = Gen.UseBarColor or false
   local r, g, b, a = 1, 1, 1, 1
 
@@ -415,41 +499,102 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     local Color = Bar.Color
     r, g, b, a = Color.r, Color.g, Color.b, Color.a
   else
-    r, g, b, a = Main:GetPowerColor(Unit, PowerType)
+    r, g, b, a = Main:GetPowerColor(Unit, PowerType, nil, nil, r, g, b, a)
   end
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
-    local PredictedValue = TestMode.PredictedValue
+    local TestPredictedPower = TestMode.PredictedPower or 0
+    local TestPredictedCost = TestMode.PredictedCost or 0
 
-    MaxValue = MaxValue == 0 and 10000 or MaxValue
+    self.Testing = true
+
+    MaxValue = MaxValue > 10000 and MaxValue or 10000
     CurrValue = floor(MaxValue * TestMode.Value)
-    PredictedPower = PredictedValue and floor(MaxValue * PredictedValue) or 0
-  end
+    PredictedPower = floor(MaxValue * TestPredictedPower)
+    PredictedCost = floor(MaxValue * TestPredictedCost)
 
-  -- Set the color and display the predicted health.
-  local PredictedColor = Bar.PredictedColor
+  -- Just switched out of test mode do a clean up.
+  elseif self.Testing then
+    self.Testing = false
 
-  if PredictedColor then
-    if PredictedPower > 0 and CurrValue < MaxValue then
-      BBar:SetColorTexture(1, PredictedBar, PredictedColor.r, PredictedColor.g, PredictedColor.b, PredictedColor.a)
-      BBar:SetFillTexture(1, PredictedBar, (CurrValue + PredictedPower) / MaxValue)
-    else
-      PredictedPower = 0
+    self.PredictedPower = 0
+    self.PredictedCost = 0
+    PredictedPower = 0
+    PredictedCost = 0
+
+    if MaxValue == 0 then
+      BBar:SetSliderTexture(1, PredictedBar, 0)
+      BBar:SetSliderTexture(1, PredictedCostBar, 0)
       BBar:SetFillTexture(1, PredictedBar, 0)
+      BBar:SetFillTexture(1, PredictedCostBar, 0)
     end
   end
 
-  -- Set the color and display the value.
-  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
   local Value = 0
 
   if MaxValue > 0 then
     Value = CurrValue / MaxValue
   end
+
+  if MaxValue > 0 then
+
+    -- Do predicted power
+    local Change = self.LastPredictedPower ~= PredictedPower
+
+    if Change or PredictedPower > 0 then
+      local Color = Bar.PredictedColor
+
+      if PredictedPower > 0 then
+        BBar:SetSliderTexture(1, PredictedBar, PredictedPower / MaxValue)
+      else
+        BBar:SetSliderTexture(1, PredictedBar, 0)
+      end
+
+      -- Stop smooth animation, so slider can be positioned instantly.
+      -- Only during change.  Want slider to smooth slide when cost doesn't change.
+      if Change then
+        BBar:SetFillSmoothTimeTexture(1, PredictedBar, 0)
+      end
+
+      BBar:SetFillTexture(1, PredictedBar, Value)
+
+      if Change then
+        BBar:SetFillSmoothTimeTexture(1, PredictedBar, UB.Layout.SmoothFill)
+      end
+      self.LastPredictedPower = PredictedPower
+    end
+
+    -- Do predicted cost
+    Change = self.LastPredictedCost ~= PredictedCost
+
+    if Change or PredictedCost > 0 then
+      local Cost = PredictedCost / MaxValue
+
+      if PredictedCost > 0 then
+        BBar:SetSliderTexture(1, PredictedCostBar, Cost)
+      else
+        BBar:SetSliderTexture(1, PredictedCostBar, 0)
+      end
+
+      if Change then
+        BBar:SetFillSmoothTimeTexture(1, PredictedCostBar, 0)
+      end
+
+      BBar:SetFillTexture(1, PredictedCostBar, Value - Cost)
+
+      if Change then
+        BBar:SetFillSmoothTimeTexture(1, PredictedCostBar, UB.Layout.SmoothFill)
+      end
+      self.LastPredictedCost = PredictedCost
+    end
+  end
+
+  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
   BBar:SetFillTexture(1, StatusBar, Value)
+
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
+    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'unit', Unit)
   end
 
   -- Check triggers
@@ -457,6 +602,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     BBar:SetTriggers(1, 'power', CurrValue)
     BBar:SetTriggers(1, 'power (percent)', CurrValue, MaxValue)
     BBar:SetTriggers(1, 'predicted power', PredictedPower)
+    BBar:SetTriggers(1, 'predicted cost', PredictedCost)
     BBar:DoTriggers()
   end
 
@@ -523,10 +669,14 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
   local BBar = self.BBar
   local BarType = self.BarType
   local UB = self.UnitBar
+  local UBD = DUB[BarType]
   local Gen = UB.General
+  local DGen = UBD.General
+  local DBar = UBD.Bar
 
   if not BBar:OptionsSet() then
     BBar:SetTexture(1, PredictedBar, 'GUB EMPTY')
+    BBar:SetTexture(1, PredictedCostBar, 'GUB EMPTY')
 
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) Update = true end)
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
@@ -537,7 +687,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       else
         BBar:EnableTriggers(v, HealthGroups)
       end
-      Display = true
+      Update = true
     end)
 
     BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
@@ -548,40 +698,39 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFill',  function(v) BBar:SetFillSmoothTimeTexture(1, StatusBar, v) end)
-
-    if Gen then
-      if Gen.UseBarColor ~= nil then
+    BBar:SO('Layout', 'SmoothFill',     function(v) BBar:ChangeTexture(StatusBar, 'SetFillSmoothTimeTexture', 1, v) end)
+    if DGen then
+      if DGen.UseBarColor ~= nil then
         BBar:SO('General', 'UseBarColor', function(v) Update = true end)
       end
 
-      if Gen.PredictedHealth ~= nil then
+      if DGen.PredictedHealth ~= nil then
         BBar:SO('General', 'PredictedHealth', function(v) Update = true end)
       end
 
-      if Gen.ClassColor ~= nil then
+      if DGen.ClassColor ~= nil then
         BBar:SO('General', 'ClassColor', function(v) Update = true end)
       end
 
-      if Gen.CombatColor ~= nil then
+      if DGen.CombatColor ~= nil then
         BBar:SO('General', 'CombatColor', function(v) Update = true end)
       end
 
-      if Gen.TaggedColor ~= nil then
+      if DGen.TaggedColor ~= nil then
         BBar:SO('General', 'TaggedColor', function(v) Update = true end)
       end
     end
 
-    if BarType == 'PlayerPower' and Main.PlayerClass == 'HUNTER' then
+    if DGen.PredictedPower ~= nil then
       BBar:SO('General', 'PredictedPower', function(v)
-        if v then
-          Main:SetSpellTracker(self, 'fn', SpellSteadyShot, 'casting', CheckSpell)
-          Main:SetSpellTracker(self, 'fn', SpellCobraShot,  'casting', CheckSpell)
-          Main:SetSpellTracker(self, 'fn', FocusingShot,    'casting', CheckSpell)
-        else
-          Main:SetSpellTracker(self, 'off')
-        end
-        self.PredictedPower = 0
+        SetPredictedPower(self, v)
+        Update = true
+      end)
+    end
+
+    if DGen.PredictedCost ~= nil then
+      BBar:SO('General', 'PredictedCost', function(v)
+        SetPredictedCost(self, v)
         Update = true
       end)
     end
@@ -605,16 +754,21 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(StatusBars, 'SetFillDirectionTexture', 1, v) end)
     BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(StatusBars, 'SetRotateTexture', 1, v) end)
 
-    if UB.Bar.PredictedColor ~= nil then
+    if DBar.PredictedColor ~= nil then
       BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(1, PredictedBar, v) end)
       BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(1, PredictedBar, v.r, v.g, v.b, v.a) end)
     end
 
-    if Gen and Gen.FactionColor ~= nil then
+    if DBar.PredictedCostColor ~= nil then
+      BBar:SO('Bar', 'PredictedCostBarTexture', function(v) BBar:SetTexture(1, PredictedCostBar, v) end)
+      BBar:SO('Bar', 'PredictedCostColor',      function(v) BBar:SetColorTexture(1, PredictedCostBar, v.r, v.g, v.b, v.a) end)
+    end
+
+    if DGen and DGen.FactionColor ~= nil then
       BBar:SO('Bar', 'FactionColor',        function(v, UB) Update = true end)
     end
 
-    if UB.Bar.Color ~= nil then
+    if DBar.Color ~= nil then
       BBar:SO('Bar', 'Color',               function(v) Update = true end)
     end
     BBar:SO('Bar', 'TaggedColor',           function(v, UB) Update = true end)
@@ -651,17 +805,18 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   -- Create the health and predicted bar
   BBar:CreateTextureFrame(1, 1, 0)
-    BBar:CreateTexture(1, 1, 'statusbar', 1, PredictedBar)
-    BBar:CreateTexture(1, 1, 'statusbar', 2, StatusBar)
+    BBar:CreateTexture(1, 1, 'statusbar', 1, StatusBar)
+    BBar:CreateTexture(1, 1, 'statusbar', 2, PredictedBar)
+    BBar:CreateTexture(1, 1, 'statusbar', 3, PredictedCostBar)
 
   -- Create font text for the box frame.
-  BBar:CreateFont(1, PercentFn)
+  BBar:CreateFont(1)
 
   -- Enable tooltip
   BBar:SetTooltip(1, nil, UB.Name)
 
-  -- Use setchange for both statusbars.
-  BBar:SetChangeTexture(StatusBars, PredictedBar, StatusBar)
+  -- Use setchange for all statusbars.
+  BBar:SetChangeTexture(StatusBars, StatusBar, PredictedBar, PredictedCostBar)
 
   -- Show the bars.
   BBar:SetHidden(1, 1, false)

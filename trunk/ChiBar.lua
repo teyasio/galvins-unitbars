@@ -15,7 +15,8 @@ local TT = GUB.DefaultUB.TriggerTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _
+local _, _G =
+      _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
@@ -24,20 +25,20 @@ local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wi
       pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
 local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
-local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
+      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
+local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter, UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -126,17 +127,16 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
 }
 
 local ChiData = {
-  Texture = [[Interface\PlayerFrame\MonkUI]],
   TextureWidth = 21 + 8, TextureHeight = 21 + 8,
   [OrbDarkTexture] = {
     Level = 1,
     Width = 21, Height = 21,
-    Left = 0.09375000, Right = 0.17578125, Top = 0.71093750, Bottom = 0.87500000
+    AtlasName = 'MonkUI-OrbOff',
   },
   [OrbLightTexture] = {
     Level = 2,
     Width = 21, Height = 21,
-    Left = 0.00390625, Right = 0.08593750, Top = 0.71093750, Bottom = 0.87500000
+    AtlasName = 'MonkUI-LightOrb',
   },
 }
 
@@ -186,12 +186,12 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
 
-    if TestMode.ShowEmpoweredChi then
+    if TestMode.Ascension then
       NumOrbs = MaxChiOrbs
     else
       NumOrbs = MaxChiOrbs - 1
     end
-    ChiOrbs = floor(NumOrbs * TestMode.Value)
+    ChiOrbs = TestMode.Chi
   end
 
   -- Check for max chi change
@@ -355,13 +355,11 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   for OrbIndex = 1, MaxChiOrbs do
     BBar:CreateTextureFrame(OrbIndex, TextureMode, 0)
 
-    for TextureNumber, SD in pairs(ChiData) do
+    for TextureNumber, CD in pairs(ChiData) do
       if type(TextureNumber) == 'number' then
-        BBar:CreateTexture(OrbIndex, TextureMode, 'texture', SD.Level, TextureNumber)
-
-        BBar:SetTexture(OrbIndex, TextureNumber, ChiData.Texture)
-        BBar:SetCoordTexture(OrbIndex, TextureNumber, SD.Left, SD.Right, SD.Top, SD.Bottom)
-        BBar:SetSizeTexture(OrbIndex, TextureNumber, SD.Width, SD.Height)
+        BBar:CreateTexture(OrbIndex, TextureMode, 'texture', CD.Level, TextureNumber)
+        BBar:SetAtlasTexture(OrbIndex, TextureNumber, CD.AtlasName)
+        BBar:SetSizeTexture(OrbIndex, TextureNumber, CD.Width, CD.Height)
       end
     end
     local Name = NamePrefix .. Groups[OrbIndex][2]

@@ -12,33 +12,35 @@ local MyAddon, GUB = ...
 local DUB = GUB.DefaultUB.Default.profile
 local Main = GUB.Main
 local TT = GUB.DefaultUB.TriggerTypes
+local TexturePath = GUB.DefaultUB.TexturePath
 
 local LSM = Main.LSM
 
 -- localize some globals.
-local _
+local _, _G =
+      _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert, assert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert, assert
+local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapped, UnitIsTappedByPlayer, UnitIsTappedByAllThreatList
+local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
+      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
 local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message =
-      GetRuneCooldown, GetRuneType, GetSpellInfo, PlaySound, message
-local GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetComboPoints, GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
+      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
+local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
+      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, UIParent =
-      C_PetBattles, UIParent
+local C_PetBattles, C_TimerAfter, UIParent =
+      C_PetBattles, C_Timer.After, UIParent
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -125,6 +127,7 @@ local C_PetBattles, UIParent =
 --   FillDirection                   Can be 'HORIZONTAL' or 'VERTICAL'.
 --   Value                           Current value, work around for padding function dealing with statusbars.
 --                                   Also used by SetFill functions.
+--   SliderSize                      If not nill then the texture is being used as a slider.
 --   SmoothTime                      Amount of time it takes to fill a texture from current value to new value.
 --                                   Used by SetFillSmoothTimeTexture() and SetFillTexture()
 --   SetFill                         Flag used by OnSizeChangedTexture().  When a texture changes size SetFill()
@@ -179,8 +182,9 @@ local C_PetBattles, UIParent =
 --        TextureFrame               TextureFrame.
 --          BorderFrame              Border and also allows the textureFrame to be larger without effecting Boxsize.
 --            Texture (frame)        Container for SubFrame and SubTexture.
---              SubFrame             A frame that holds the texture.
---                SubTexture         Statusbar texture or texture.
+--              PaddingFrame         Used by SetPaddingTexture()
+--                SubFrame           A frame that holds the texture or statusbar
+--                  SubTexture       Statusbar texture or texture.
 --
 -- NOTES:   When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
 --          Will cause GetLeft() etc to return a bad value.  But if you pass the frame
@@ -1357,6 +1361,7 @@ local function OnUpdate_Display(self)
   self.OldFloat = Float
 
   -- Draw the box frames.
+
   for Index = 1, NumBoxes do
     local BoxIndex = BoxOrder and BoxOrder[Index] or Index
     local BF = BoxFrames[BoxIndex]
@@ -2115,7 +2120,7 @@ end
 --
 -- BoxNumber             Box you want to set the modify the backdrop for.
 -- TextureFrameNumber    If not nil then the backdrop will be set to the textureframe instead
--- TileSize            Set the size of each tile for the backdrop texture.
+-- TileSize              Set the size of each tile for the backdrop texture.
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropTileSize(BoxNumber, TextureFrameNumber, TileSize)
   repeat
@@ -2645,16 +2650,17 @@ end
 function BarDB:SetPaddingTexture(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local SubFrame = Texture.SubFrame
+    local PaddingFrame = Texture.PaddingFrame
 
-    SubFrame:ClearAllPoints()
-    SubFrame:SetPoint('TOPLEFT', Left, Top)
-    SubFrame:SetPoint('BOTTOMRIGHT', Right, Bottom)
+    PaddingFrame:ClearAllPoints()
+    PaddingFrame:SetPoint('TOPLEFT', Left, Top)
+    PaddingFrame:SetPoint('BOTTOMRIGHT', Right, Bottom)
 
     local Value = Texture.Value
 
     -- Force the statusbar to reflect the changes.
     if Texture.Type == 'statusbar' then
+      local SubFrame = Texture.SubFrame
       SubFrame:SetValue(Value - 1)
       SubFrame:SetValue(Value)
     end
@@ -2684,6 +2690,7 @@ function BarDB:SetRotateTexture(BoxNumber, TextureNumber, Action)
       if Texture.SubTexture then
         Texture.SubFrame:SetRotatesTexture(Action)
       end
+
       Texture.RotateTexture = Action
     end
     RotateSpark(Texture)
@@ -2736,83 +2743,137 @@ local function SetFill(Texture, Value, Spark)
   local ReverseFill = Texture.ReverseFill
   local FillDirection = Texture.FillDirection
   local Width, Height = Texture.Width, Texture.Height
+  local SliderSize = Texture.SliderSize
 
   -- Flag setfill for onsizechanged.
   Texture.SetFill = 1
 
-  if Texture.Type == 'texture' then
-    local SubTexture = Texture.SubTexture
-    local TexLeft, TexRight, TexTop, TexBottom = Texture.TexLeft, Texture.TexRight, Texture.TexTop, Texture.TexBottom
-    local TextureWidth = Width
-    local TextureHeight = Height
+  -- if this is a slider bypass filling
+  if SliderSize == nil then
+    if Texture.Type == 'texture' then
+      local SubTexture = Texture.SubTexture
+      local TexLeft, TexRight, TexTop, TexBottom = Texture.TexLeft, Texture.TexRight, Texture.TexTop, Texture.TexBottom
+      local TextureWidth = Width
+      local TextureHeight = Height
 
-    -- Clip the amount if out of range.
-    Value = Value > 1 and 1 or Value < 0 and 0 or Value
+      -- Clip the amount if out of range.
+      Value = Value > 1 and 1 or Value < 0 and 0 or Value
 
-    -- Calculate the texture width
-    if FillDirection == 'HORIZONTAL' then
-      TextureWidth = Width * Value
+      -- Calculate the texture width
+      if FillDirection == 'HORIZONTAL' then
+        TextureWidth = Width * Value
 
-      -- Check for reverse fill.
-      if ReverseFill then
-        TexLeft = TexRight - (TexRight - TexLeft) * Value
-        SubTexture:SetPoint('TOPLEFT', Width - TextureWidth, 0)
+        -- Check for reverse fill.
+        if ReverseFill then
+          TexLeft = TexRight - (TexRight - TexLeft) * Value
+          SubTexture:SetPoint('TOPLEFT', Width - TextureWidth, 0)
+        else
+          TexRight = TexLeft + (TexRight - TexLeft) * Value
+          SubTexture:SetPoint('TOPLEFT')
+        end
       else
-        TexRight = TexLeft + (TexRight - TexLeft) * Value
-        SubTexture:SetPoint('TOPLEFT')
+
+        -- Calculate the texture height.
+        TextureHeight = Height * Value
+
+        -- Check for reverse fill
+        if ReverseFill then
+          TexBottom = TexTop + (TexBottom - TexTop) * Value
+          SubTexture:SetPoint('TOPLEFT')
+        else
+          TexTop = TexBottom - (TexBottom - TexTop) * Value
+          SubTexture:SetPoint('TOPLEFT', 0, (Height - TextureHeight) * -1)
+        end
       end
+      SubTexture:SetSize(TextureWidth > 0 and TextureWidth or 0.001, TextureHeight > 0 and TextureHeight or 0.001)
+      SubTexture:SetTexCoord(TexLeft, TexRight, TexTop, TexBottom)
     else
 
-      -- Calculate the texture height.
-      TextureHeight = Height * Value
-
-      -- Check for reverse fill
-      if ReverseFill then
-        TexBottom = TexTop + (TexBottom - TexTop) * Value
-        SubTexture:SetPoint('TOPLEFT')
-      else
-        TexTop = TexBottom - (TexBottom - TexTop) * Value
-        SubTexture:SetPoint('TOPLEFT', 0, (Height - TextureHeight) * -1)
-      end
+      -- Set statusbar value.
+      Texture.SubFrame:SetValue(Value)
     end
-    SubTexture:SetSize(TextureWidth > 0 and TextureWidth or 0.001, TextureHeight > 0 and TextureHeight or 0.001)
-    SubTexture:SetTexCoord(TexLeft, TexRight, TexTop, TexBottom)
+    -- Display spark if not nil
+    if Spark then
+      local x = nil
+      local y = nil
+
+      if FillDirection == 'HORIZONTAL' then
+        y = Height * 0.5 * -1
+        if ReverseFill then
+          x = Width - Width * Value + 1 -- Offset spark by 1
+        else
+          x = Width * Value
+        end
+
+        -- Set spark size.
+        Spark:SetSize(TextureSparkSize, Height * 2.3)
+      else
+        x = Width * 0.5
+        if ReverseFill then
+          y = Height * Value * -1 + 1 -- Offset spark by 1
+        else
+          y = (Height - Height * Value) * -1
+        end
+
+        -- Set spark size.
+        Spark:SetSize(Width * 2.3, TextureSparkSize)
+      end
+      Spark:Show()
+      Spark:SetPoint('CENTER', Spark.ParentFrame, 'TOPLEFT', x, y)
+    end
   else
+    -- This is a slider
+    local SubFrame = Texture.SubFrame
+    local SliderValue = Value
 
-    -- Set statusbar value.
-    Texture.SubFrame:SetValue(Value)
-  end
-  Texture.Value = Value
+    -- Clip slider if outside.
+    if Value + SliderSize > 1 then
+      SliderSize = 1 - Value
 
-  -- Display spark if not nil
-  if Spark then
-    local x = nil
-    local y = nil
+    elseif SliderValue < 0 then
+      SliderSize = SliderSize + SliderValue
+      SliderValue = 0
+    end
+
+    if SliderSize > 0 then
+      SubFrame:Show()
+    else
+      SubFrame:Hide()
+    end
 
     if FillDirection == 'HORIZONTAL' then
-      y = Height * 0.5 * -1
+      local x = nil
+
+      -- Turn slidersize into pixels
+      SliderSize = Width * SliderSize
+
       if ReverseFill then
-        x = Width - Width * Value + 1 -- Offset spark by 1
+        x = Width - Width * SliderValue - SliderSize
       else
-        x = Width * Value
+        x = Width * SliderValue
       end
 
-      -- Set spark size.
-      Spark:SetSize(TextureSparkSize, Height * 2.3)
+      SubFrame:SetWidth(SliderSize)
+      SubFrame:SetPoint('LEFT', x, 0)
     else
-      x = Width * 0.5
+      local y = nil
+
+      -- Turn slidersize into pixels
+      SliderSize = Height * SliderSize
+
       if ReverseFill then
-        y = Height * Value * -1 + 1 -- Offset spark by 1
+        y = Height - Height * Value - SliderSize
       else
-        y = (Height - Height * Value) * -1
+        y = Height * Value
       end
 
-      -- Set spark size.
-      Spark:SetSize(Width * 2.3, TextureSparkSize)
+      SubFrame:SetHeight(SliderSize)
+      SubFrame:SetPoint('BOTTOM', 0, y)
     end
-    Spark:Show()
-    Spark:SetPoint('CENTER', Spark.ParentFrame, 'TOPLEFT', x, y)
+    SubFrame:SetValue(1)
   end
+
+  Texture.Value = Value
 end
 
 -------------------------------------------------------------------------------
@@ -2889,6 +2950,34 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
     SetFill(Texture, EndValue)
     if Spark then
       Spark:Hide()
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetFillTimeDurationTexture
+--
+-- Changes the duration of a fill timer already in progress.  This will cause
+-- the bar to speed up or slow down without stutter.
+--
+-- BoxNumber         Box containing the texture being changed
+-- TextureNumber     Texture being used in fill.
+-- NewDuration       The bar will fill over time using this duration from where it left off.
+-------------------------------------------------------------------------------
+function BarDB:SetFillTimeDurationTexture(BoxNumber, TextureNumber, NewDuration)
+  local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
+
+  -- Make sure a timer has already been intialized.
+  if Texture.Duration ~= nil then
+    local Time = GetTime()
+    local TimeElapsed = Time - Texture.StartTime
+    local Duration = Texture.Duration
+
+    -- Make sure bar is currently filling.
+    if TimeElapsed <= Duration then
+      Texture.StartTime = Time
+      Texture.StartValue = Texture.StartValue + Texture.Range * (TimeElapsed / Duration)
+      Texture.Duration = NewDuration
     end
   end
 end
@@ -2978,7 +3067,66 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetFillSmoothTimeTexture(BoxNumber, TextureNumber, Time)
   repeat
-    NextBox(self, BoxNumber).TFTextures[TextureNumber].SmoothTime = Time
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    -- Stop any fill timers currently running, to avoid bugs.
+    local Duration = Texture.Duration
+    if Duration and Duration > 0 then
+
+      Main:SetTimer(Texture, nil)
+
+      -- set the end value.
+      SetFill(Texture, Texture.EndValue)
+
+      -- Hide spark
+      local Spark = Texture.Spark
+      if Spark then
+        Spark:Hide()
+      end
+
+      Texture.Duration = 0
+    end
+
+    Texture.SmoothTime = Time
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetSliderTexture
+--
+-- Makes a status bar or texture act as a slider.
+--
+-- Usage:  SetSliderTexture(Texture)  <-- local function call
+--         SetSliderTexture(Texture, SliderSizer)
+--
+-- BoxNumber       Box containing the texture or statusbar
+-- TextureNumber   The number refering to the texture or statusbar
+-- SliderSize      Size between 0 to 1.
+--
+-- NOTES: The slider gets drawn from the value specified in SetFill calls.
+-------------------------------------------------------------------------------
+local function SetSliderTexture(Texture)
+  local FillDirection = Texture.FillDirection
+  local SubFrame = Texture.SubFrame
+
+  SubFrame:ClearAllPoints()
+  if FillDirection == 'HORIZONTAL' then
+    SubFrame:SetPoint('TOP')
+    SubFrame:SetPoint('BOTTOM')
+  else
+    SubFrame:SetPoint('LEFT')
+    SubFrame:SetPoint('RIGHT')
+  end
+end
+
+function BarDB:SetSliderTexture(BoxNumber, TextureNumber, SliderSize)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    if Texture.SliderSize == nil then
+      SetSliderTexture(Texture)
+    end
+    Texture.SliderSize = SliderSize
   until LastBox
 end
 
@@ -3002,6 +3150,8 @@ function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration,
 
   CooldownFrame:SetDrawEdge(Line or false)
   CooldownFrame:SetDrawBling(not HideFlash)
+
+  CooldownFrame.AG:Play()
 
   CooldownFrame:SetCooldown(StartTime or 0, Duration or 0)
 end
@@ -3085,10 +3235,17 @@ function BarDB:SetFillDirectionTexture(BoxNumber, TextureNumber, Direction)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
+    Texture.FillDirection = Direction
+
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetOrientation(Direction)
     end
-    Texture.FillDirection = Direction
+
+    -- need to set filldirection on sliders
+    if Texture.SliderSize then
+      SetSliderTexture(Texture)
+    end
+
     RotateSpark(Texture)
   until LastBox
 end
@@ -3107,10 +3264,6 @@ function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
     local Fade = Texture.Fade
 
-    if Fade then
-      Fade:SetAnimation('pause')
-    end
-
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetStatusBarColor(r, g, b, a)
       SetColor(Texture, 'statusbar', r, g, b, a)
@@ -3118,9 +3271,6 @@ function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
       Texture.SubTexture:SetVertexColor(r, g, b, a)
     end
 
-    if Fade then
-      Fade:SetAnimation('resume')
-    end
   until LastBox
 end
 
@@ -3154,11 +3304,6 @@ function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Fade = Texture.Fade
-
-    if Fade then
-      Fade:SetAnimation('pause')
-    end
 
     if Texture.Type == 'statusbar' then
       if Texture.CurrentTexture ~= TextureName then
@@ -3188,8 +3333,29 @@ function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
       Texture.SubTexture:SetTexture(TextureName)
     end
 
-    if Fade then
-      Fade:SetAnimation('resume')
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetAtlasTexture
+--
+-- Sets a texture via atlas.  Only blizzard atlas can be used.
+--
+-- BoxNumber      BoxNumber to change the texture in.
+-- TextureNumber  Texture to change.
+-- AtlasName      Name of the atlas you want to set.  Must be a string.
+-- UseSize        Assuming if false then it uses the whole atlas. If nil defaults to true.
+--
+-- NOTES: Only works on textures.
+-------------------------------------------------------------------------------
+function BarDB:SetAtlasTexture(BoxNumber, TextureNumber, AtlasName, UseSize)
+  SaveSettings(self, 'SetAtlasTexture', BoxNumber, TextureNumber, AtlasName, UseSize)
+
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    if Texture.Type ~= 'statusbar' then
+      Texture.SubTexture:SetAtlas(AtlasName, UseSize or true)
     end
 
   until LastBox
@@ -3277,18 +3443,6 @@ function BarDB:SetSizeTexture(BoxNumber, TextureNumber, Width, Height)
 
     Texture:SetSize(Width or Texture:GetWidth(), Height or Texture:GetHeight())
   until LastBox
-end
-
--------------------------------------------------------------------------------
--- SetOffsetTexture
---
--- Changes the size of a texture thru offsets.
---
--- BoxNumber                 Box containing texture.
--- TextureNumber             Texture to modify.
--- Left, Right, Top, Bottom  Offsets
--------------------------------------------------------------------------------
-function BarDB:SetOffsetTexture(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
 end
 
 -------------------------------------------------------------------------------
@@ -3544,6 +3698,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     local BorderFrame = TextureFrame.BorderFrame
     local SubFrame = nil
     local Texture = CreateFrame('Frame', nil, BorderFrame)
+    local PaddingFrame = CreateFrame('Frame', nil,  Texture)
 
     -- Set base frame level.
     local FrameLevel = GetVirtualFrameLevel(Level)
@@ -3552,7 +3707,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
 
     -- Create a statusbar or texture.
     if TextureType == 'statusbar' then
-      SubFrame = CreateFrame('StatusBar', nil, Texture)
+      SubFrame = CreateFrame('StatusBar', nil, PaddingFrame)
       SubFrame:SetMinMaxValues(0, 1)
       SubFrame:SetValue(1)
       SubFrame:SetOrientation('HORIZONTAL')
@@ -3565,7 +3720,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
 
       FrameLevel = FrameLevel + 1
     else
-      SubFrame = CreateFrame('Frame', nil, Texture)
+      SubFrame = CreateFrame('Frame', nil, PaddingFrame)
       local SubTexture = SubFrame:CreateTexture()
 
       Texture.SubTexture = SubTexture
@@ -3592,13 +3747,29 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
         local CooldownFrame = CreateFrame('Cooldown', nil, SubFrame, 'CooldownFrameTemplate')
         CooldownFrame:ClearAllPoints()  -- Undoing template SetAllPoints
         CooldownFrame:SetPoint('CENTER', SubTexture, 'CENTER', 0, 0)
+        CooldownFrame:SetHideCountdownNumbers(true)
+
+        -- This animation group is a workaround so that the cooldown animation doesn't
+        -- break when the texture scale gets changed.
+        local AG = CooldownFrame:CreateAnimationGroup()
+        local A = AG:CreateAnimation('Alpha')
+
+        AG:SetLooping('NONE')
+        A:SetOrder(1)
+        A:SetDuration(0)
+        A:SetFromAlpha(1)
+        A:SetToAlpha(1)
+        CooldownFrame.AG = AG
+        CooldownFrame.A = A
+
         Texture.CooldownFrame = CooldownFrame
         FrameLevel = FrameLevel + 1
       end
     end
 
     -- Make sure subframe is always the same size as texture.
-    SubFrame:SetAllPoints(Texture)
+    PaddingFrame:SetAllPoints(Texture)
+    SubFrame:SetAllPoints(PaddingFrame)
 
     -- Set highest frame level.
     SetVirtualFrameLevel(Level, FrameLevel)
@@ -3607,10 +3778,11 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     SetTopFrame(self, SubFrame)
 
     -- Set onsize changed to update texture size.
-    SubFrame:SetScript('OnSizeChanged', OnSizeChangedTexture)
+    PaddingFrame:SetScript('OnSizeChanged', OnSizeChangedTexture)
 
     -- Set defaults.
     Texture.SubFrame = SubFrame
+    Texture.PaddingFrame = PaddingFrame
     Texture.Width = 1
     Texture.Height = 1
     Texture.Value = 1
@@ -3797,7 +3969,13 @@ local FontGetValue = {}
     if MaxValue == 0 then
       return 0
     else
-      return FS.PercentFn(Value, MaxValue)
+      local PercentFn = FS.PercentFn
+
+      if PercentFn then
+        return PercentFn(Value, MaxValue)
+      else
+        return ceil(Value / MaxValue * 100)
+      end
     end
   end
 
@@ -4218,7 +4396,7 @@ function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
       if FontString and TS then
 
         -- Set font size
-        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), TS.FontSize, TS.FontStyle)
+        local ReturnOK, Message = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), TS.FontSize, TS.FontStyle)
 
         if not ReturnOK then
           FontString:SetFont(LSM:Fetch('font', Type), TS.FontSize, 'NONE')
@@ -4373,7 +4551,7 @@ end
 -- BoxNumber            Boxframe you want the font to be displayed on.
 -- PercentFn            Function to calculate percents in FontSetValue()
 --                      Not all percent calculations are the same. So this
---                      adds that flexibility.
+--                      adds that flexibility. If nil uses its own math.
 -------------------------------------------------------------------------------
 function BarDB:CreateFont(BoxNumber, PercentFn)
   local BarType = self.BarType
@@ -4595,7 +4773,7 @@ local function UndoTriggers(BarDB)
   if Groups then
     local LastValues = Groups.LastValues
 
-    for Object, _ in pairs(LastValues) do
+    for Object in pairs(LastValues) do
       local Group = Object.Group
 
       RestoreSettings(BarDB, Object.FunctionName, Group.BoxNumber)
@@ -4671,6 +4849,8 @@ function BarDB:CheckTriggers()
 
     -- Group not found, so put it in group 1.
     if Group == nil then
+      Trigger.Name = format('[From %s] %s', GroupNumber, Trigger.Name)
+
       GroupNumber = 1
       Trigger.GroupNumber = GroupNumber
       Group = Groups[GroupNumber]
@@ -4789,7 +4969,7 @@ function BarDB:CheckTriggers()
             if GroupNumbers then
 
               -- apply to all groups
-              for GN, _ in pairs(GroupNumbers) do
+              for GN in pairs(GroupNumbers) do
                 local Obj = Groups[GN].Objects[TypeIndex]
 
                 LastValues[Obj] = 1
@@ -4865,7 +5045,7 @@ function BarDB:CheckTriggers()
   -- units exist so turn on the aura tracker.
   if next(Units) then
     local St = ''
-    for Unit, _ in pairs(Units) do
+    for Unit in pairs(Units) do
       St = St .. Unit .. ' '
     end
     Main:SetAuraTracker(self.UnitBarF, 'fn', function(TrackedAurasList)
@@ -5438,7 +5618,7 @@ function BarDB:SetAuraTriggers(TrackedAurasList)
 
     if GroupNumbers then
 
-      for GN, _ in pairs(GroupNumbers) do
+      for GN in pairs(GroupNumbers) do
         local Group = Groups[GN]
         local VirtualGroupNumber = Group.VirtualGroupNumber
 
@@ -5526,7 +5706,11 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
 
       -- Check for Current value and max value
       elseif p4 then
-        CompValue = ceil(p3 / p4 * 100)
+        if p4 == 0 then
+          CompValue = 0
+        else
+          CompValue = ceil(p3 / p4 * 100)
+        end
       else
         -- Whole number.
         CompValue = p3
@@ -5668,7 +5852,7 @@ function BarDB:DoTriggers()
   local Groups = self.Groups
   local LastValues = Groups.LastValues
 
-  for Object, _ in pairs(LastValues) do
+  for Object in pairs(LastValues) do
     local Group = Object.Group
     local BoxNumber = Group.BoxNumber
     local Hidden = Group.Hidden

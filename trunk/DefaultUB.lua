@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 414
+GUB.DefaultUB.Version = 500
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -112,6 +112,7 @@ GUB.DefaultUB.Version = 414
 --
 -- Other                  - For anything not related mostly this will be for scale and maybe alpha
 --   Scale                - Sets the scale of the unitbar frame.
+--   Alpha                - Sets the transparency of the unitbar frame.
 --   FrameStrata          - Sets the strata for the frame to appear on.
 --
 -- Region, Background*    - Not every bar has this.
@@ -180,7 +181,7 @@ GUB.DefaultUB.Version = 414
 --   TaggedColor          - Boolean.  Used by health bars only.
 --                                    If true then a tagged color will be shown if unit is tagged.
 --
---   PredictedPower       - Boolean.  Used by Player Power for hunters only.
+--   PredictedPower       - Boolean.  Used by Player Power
 --                                    If true predicted power will be shown.
 -- General (Rune Bar)
 --
@@ -202,32 +203,6 @@ GUB.DefaultUB.Version = 414
 --   RuneOffsetX          - Horizontal offset from RunePosition.
 --   RuneOffsetY          - Vertical offset from RunePosition.
 --   Energize             - Color all table for the energized borders.
---
--- General (Anticipation Bar and Maelstrom Bar)
---
---   HideCharges          - Hide the boxes that show how many charges there are.
---   HideTime             - Hide the timer box that shows how much time is left and how many charges there are.
---   ShowSpark            - If true then a spark will be shown on the timer animation.
---
--- General (Ember Bar)
---   GreenFire            - If true then green fire is manual set.
---   GreenFireAuto        - If true then green fire is activated if the warlock knows green fire.
---
--- General (Eclipse Bar)
---
---   SliderInside         - If true then the slider doesn't clip out side the power bar.
---   HideSlider           - If true then the slider is hidden.
---   PowerHalfLit         - If true then the half of the power bars background is visible.
---   PowerText            - Power text is not shown on the power bar.
---   SliderDirection      - HORIZONTAL or VERTICAL.  Changes the orientation of the slider movement.
---   PrecictedPower       - If true then predicted power will be active.
---   IndicatorHideShow    - 'showalways' the indicator will never auto hide.
---                          'hidealways' the indicator will never be shown.
---                          'auto' Show when there is predicted power to be shown, otherwise hide.
---   PredictedEclipse     - If true then show an eclipse proc based on predicted power.
---   PredictedPowerHalfLit - Same as PowerHalfLit except it is based on predicted power.
---                             PowerHalfLit has to be true for this to be enabled.
---   PredictedPowerText   - If true then predicted power is shown instead.
 -------------------------------------------------------------------------------
 local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBorderTexture = 'Blizzard Tooltip'
@@ -329,6 +304,7 @@ GUB.DefaultUB.Default = {
       Layout = true,
       General = true,
       Other = true,
+      Region = true,
       BG = true,
       Bar = true,
       Text = false,
@@ -353,7 +329,7 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
-        PredictedValue = 0.25,
+        PredictedHealth = 0.25,
       },
       Layout = {
         EnableTriggers = false,
@@ -369,6 +345,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -398,7 +375,7 @@ GUB.DefaultUB.Default = {
       },
       Text = {
         _DC = 0,
-        _ValueNameMenu = 'hap',
+        _ValueNameMenu = 'health',
         _Multi = 1,
 
         { -- 1
@@ -426,7 +403,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -468,8 +444,9 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        Value = 0.50,
-        PredictedValue = 0.25,
+        Value = 0.25,
+        PredictedPower = 0.25,
+        PredictedCost = 0.25,
       },
       Layout = {
         EnableTriggers = false,
@@ -479,10 +456,12 @@ GUB.DefaultUB.Default = {
       },
       General = {
         PredictedPower = true,
+        PredictedCost = true,
         UseBarColor = false,
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -507,12 +486,14 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
         PredictedBarTexture = DefaultStatusBarTexture,
+        PredictedCostBarTexture = DefaultStatusBarTexture,
         Color = {r = 0, g = 1, b = 0, a = 1},
         PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+        PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
       },
       Text = {
         _DC = 0,
-        _ValueNameMenu = 'hap',
+        _ValueNameMenu = 'power',
         _Multi = 1,
 
         { -- 1
@@ -540,7 +521,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -583,7 +563,7 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
-        PredictedValue = 0.25,
+        PredictedHealth = 0.25,
       },
       Layout = {
         EnableTriggers = false,
@@ -599,6 +579,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -629,7 +610,7 @@ GUB.DefaultUB.Default = {
       },
       Text = {
         _DC = 0,
-        _ValueNameMenu = 'hap',
+        _ValueNameMenu = 'health',
         _Multi = 1,
 
         { -- 1
@@ -657,7 +638,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -712,6 +692,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -767,7 +748,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -810,7 +790,7 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
-        PredictedValue = 0.25,
+        PredictedHealth = 0.25,
       },
       Layout = {
         EnableTriggers = false,
@@ -826,6 +806,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -856,7 +837,7 @@ GUB.DefaultUB.Default = {
       },
       Text = {
         _DC = 0,
-        _ValueNameMenu = 'hap',
+        _ValueNameMenu = 'health',
         _Multi = 1,
 
         { -- 1
@@ -884,7 +865,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -939,6 +919,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -994,7 +975,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1025,7 +1005,7 @@ GUB.DefaultUB.Default = {
       OptionText = 'Classes with pets only',
       UnitType = 'pet',
       Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
+      UsedByClass = {ROGUE = '2', DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
       x = -200,
       y = 50,
       Status = {
@@ -1040,7 +1020,7 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
-        PredictedValue = 0.25,
+        PredictedHealth = 0.25,
       },
       Layout = {
         EnableTriggers = false,
@@ -1053,6 +1033,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1082,7 +1063,7 @@ GUB.DefaultUB.Default = {
       },
       Text = {
         _DC = 0,
-        _ValueNameMenu = 'hap',
+        _ValueNameMenu = 'health',
         _Multi = 1,
 
         { -- 1
@@ -1110,7 +1091,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1141,7 +1121,7 @@ GUB.DefaultUB.Default = {
       OptionText = 'Classes with pets only',
       UnitType = 'pet',
       Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
+      UsedByClass = {ROGUE = '2', DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
       x = -200,
       y = 20,
       Status = {
@@ -1168,6 +1148,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1223,7 +1204,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1251,10 +1231,10 @@ GUB.DefaultUB.Default = {
     ManaPower = {
       Name = 'Mana Power',
       OptionOrder = 9,
-      OptionText = 'Druid or Monks only: Shown when normal mana bar is not available',
+      OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
       UnitType = 'player',
       Enabled = true,
-      UsedByClass = {DRUID = '', MONK = '2'},
+      UsedByClass = {DRUID = '', MONK = '', PRIEST = '', SHAMAN = ''},
       x = -200,
       y = -10,
       Status = {
@@ -1269,6 +1249,7 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
+        PredictedCost = 0.25,
       },
       Layout = {
         EnableTriggers = false,
@@ -1277,10 +1258,12 @@ GUB.DefaultUB.Default = {
         SmoothFill = 0,
       },
       General = {
+        PredictedCost = true,
         UseBarColor = false,
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1304,11 +1287,13 @@ GUB.DefaultUB.Default = {
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = DefaultStatusBarTexture,
+        PredictedCostBarTexture = DefaultStatusBarTexture,
         Color = {r = 0, g = 1, b = 0, a = 1},
+        PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
       },
       Text = {
         _DC = 0,
-        _ValueNameMenu = 'hap',
+        _ValueNameMenu = 'mana',
         _Multi = 1,
 
         { -- 1
@@ -1336,7 +1321,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1368,7 +1352,6 @@ GUB.DefaultUB.Default = {
       UsedByClass = {DEATHKNIGHT = ''},
       x = 0,
       y = 229,
-      BoxOrder = {1, 2, 5, 6, 3, 4},
       Status = {
         HideNotUsable   = true,
         ShowAlways      = false,
@@ -1380,15 +1363,16 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        ShowDeathRunes = false,
-        Energize = 0,
-        Value = 0.50,
-        Recharge = 1,
+        RuneTime = 0,
+        RuneRecharge = 1,
+        RuneEnergize = 0,
       },
       Layout = {
         EnableTriggers = false,
+        HideRegion = false,
         Swap = false,
         Float = false,
+        BorderPadding = 6,
         ReverseFill = false,
         HideText = false,
         Rotation = 90,
@@ -1414,20 +1398,31 @@ GUB.DefaultUB.Default = {
         RuneOffsetY = 0,
         ColorEnergize = {
           All = false,
-          r = 1, g = 0, b = 0, a = 1,         -- All runes
-          {r = 1, g = 0, b = 0, a = 1},       -- 1 Blood
-          {r = 1, g = 0, b = 0, a = 1},       -- 2 Blood
-          {r = 0, g = 1, b = 0, a = 1},       -- 3 Unholy
-          {r = 0, g = 1, b = 0, a = 1},       -- 4 Unholy
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 5 Frost
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 6 Frost
-          {r = 1, g = 0, b = 1, a = 1},       -- 7 Death
-          {r = 1, g = 0, b = 1, a = 1},       -- 8 Death
+          r = 1, g = 0, b = 0, a = 1,     -- All runes
+          {r = 1, g = 0, b = 0, a = 1},   -- 1
+          {r = 1, g = 0, b = 0, a = 1},   -- 2
+          {r = 1, g = 0, b = 0, a = 1},   -- 3
+          {r = 1, g = 0, b = 0, a = 1},   -- 4
+          {r = 1, g = 0, b = 0, a = 1},   -- 5
+          {r = 1, g = 0, b = 0, a = 1},   -- 6
         },
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
+      },
+      Region = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.2, g = 0.2, b = 0.2, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
         PaddingAll = true,
@@ -1439,28 +1434,24 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {
           All = false,
-          r = 0, g = 0, b = 0, a = 1,                               -- All runes
-          {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- 1 Blood
-          {r = 1 * 0.5, g = 0,           b = 0,       a = 1},       -- 2 Blood
-          {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- 3 Unholy
-          {r = 0,       g = 1   * 0.5,   b = 0,       a = 1},       -- 4 Unholy
-          {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 5 Frost
-          {r = 0,       g = 0.7 * 0.5,   b = 1 * 0.5, a = 1},       -- 6 Frost
-          {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 7 Death
-          {r = 1 * 0.5, g = 0,           b = 1 * 0.5, a = 1},       -- 8 Death
+          r = 0, g = 0, b = 0, a = 1,        -- All runes
+          {r = 0, g = 0, b = 0, a = 1,},     -- 1
+          {r = 0, g = 0, b = 0, a = 1,},     -- 2
+          {r = 0, g = 0, b = 0, a = 1,},     -- 3
+          {r = 0, g = 0, b = 0, a = 1,},     -- 4
+          {r = 0, g = 0, b = 0, a = 1,},     -- 5
+          {r = 0, g = 0, b = 0, a = 1,},     -- 6
         },
         EnableBorderColor = false,
         BorderColor = {
           All = false,
-          r = 1, g = 1, b = 1, a = 1,          -- All runes
-          {r = 1, g = 1, b = 1, a = 1,},       -- 1 Blood
-          {r = 1, g = 1, b = 1, a = 1,},       -- 2 Blood
-          {r = 1, g = 1, b = 1, a = 1,},       -- 3 Unholy
-          {r = 1, g = 1, b = 1, a = 1,},       -- 4 Unholy
-          {r = 1, g = 1, b = 1, a = 1,},       -- 5 Frost
-          {r = 1, g = 1, b = 1, a = 1,},       -- 6 Frost
-          {r = 1, g = 1, b = 1, a = 1,},       -- 7 Death
-          {r = 1, g = 1, b = 1, a = 1,},       -- 8 Death
+          r = 1, g = 1, b = 1, a = 1,        -- All runes
+          {r = 1, g = 1, b = 1, a = 1,},     -- 1
+          {r = 1, g = 1, b = 1, a = 1,},     -- 2
+          {r = 1, g = 1, b = 1, a = 1,},     -- 3
+          {r = 1, g = 1, b = 1, a = 1,},     -- 4
+          {r = 1, g = 1, b = 1, a = 1,},     -- 5
+          {r = 1, g = 1, b = 1, a = 1,},     -- 6
         },
       },
       Bar = {
@@ -1474,15 +1465,13 @@ GUB.DefaultUB.Default = {
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
           All = false,
-          r = 1, g = 0, b = 0, a = 1,         -- All runes
-          {r = 1, g = 0, b = 0, a = 1},       -- 1 Blood
-          {r = 1, g = 0, b = 0, a = 1},       -- 2 Blood
-          {r = 0, g = 1, b = 0, a = 1},       -- 3 Unholy
-          {r = 0, g = 1, b = 0, a = 1},       -- 4 Unholy
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 5 Frost
-          {r = 0, g = 0.7, b = 1, a = 1},     -- 6 Frost
-          {r = 1, g = 0, b = 1, a = 1},       -- 7 Death
-          {r = 1, g = 0, b = 1, a = 1},       -- 8 Death
+          r = 0.470, g = 0.596, b = 0.847, a = 1,       -- All runes
+          {r = 0.470, g = 0.596, b = 0.847, a = 1},     -- 1
+          {r = 0.470, g = 0.596, b = 0.847, a = 1},     -- 2
+          {r = 0.470, g = 0.596, b = 0.847, a = 1},     -- 3
+          {r = 0.470, g = 0.596, b = 0.847, a = 1},     -- 4
+          {r = 0.470, g = 0.596, b = 0.847, a = 1},     -- 5
+          {r = 0.470, g = 0.596, b = 0.847, a = 1},     -- 6
         },
       },
       Text = {
@@ -1508,15 +1497,13 @@ GUB.DefaultUB.Default = {
           ShadowOffset = 0,
           Color = {
             All = false,
-            r = 1, g = 1, b = 1, a = 1,         -- All runes
-            {r = 1, g = 1, b = 1, a = 1},       -- 1 Blood
-            {r = 1, g = 1, b = 1, a = 1},       -- 2 Blood
-            {r = 1, g = 1, b = 1, a = 1},       -- 3 Unholy
-            {r = 1, g = 1, b = 1, a = 1},       -- 4 Unholy
-            {r = 1, g = 1, b = 1, a = 1},       -- 5 Frost
-            {r = 1, g = 1, b = 1, a = 1},       -- 6 Frost
-            {r = 1, g = 1, b = 1, a = 1},       -- 7 Death
-            {r = 1, g = 1, b = 1, a = 1},       -- 8 Death
+            r = 1, g = 1, b = 1, a = 1,      -- All runes
+            {r = 1, g = 1, b = 1, a = 1},    -- 1
+            {r = 1, g = 1, b = 1, a = 1},    -- 2
+            {r = 1, g = 1, b = 1, a = 1},    -- 3
+            {r = 1, g = 1, b = 1, a = 1},    -- 4
+            {r = 1, g = 1, b = 1, a = 1},    -- 5
+            {r = 1, g = 1, b = 1, a = 1},    -- 6
           },
         },
       },
@@ -1525,7 +1512,6 @@ GUB.DefaultUB.Default = {
         Notes = 'Empowered uses the Time settings from Empowerment in General settings.\nEven if turned off',
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1587,6 +1573,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1639,179 +1626,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
-    },
--- AnticipationBar
-    AnticipationBar = {
-      Name = 'Anticipation Bar',
-      OptionOrder = 12,
-      Enabled = true,
-      UsedByClass = {ROGUE = ''},
-      x = 220,
-      y = 201,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = true,
-        HideNoCombat    = false,
-      },
-      TestMode = {
-        Value = 0.50,
-        Time = 0.50,
-      },
-      Layout = {
-        EnableTriggers = false,
-        Swap = false,
-        Float = false,
-        ReverseFill = false,
-        HideText = false,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      General = {
-        HideCharges = false,
-        HideTime = false,
-        ShowSpark = false,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      BackgroundCharges = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1},  -- 1
-          {r = 0, g = 0, b = 0, a = 1},  -- 2
-          {r = 0, g = 0, b = 0, a = 1},  -- 3
-          {r = 0, g = 0, b = 0, a = 1},  -- 4
-          {r = 0, g = 0, b = 0, a = 1},  -- 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-      },
-      BackgroundTime = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BarCharges = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 1, b = 0, a = 1,
-          {r = 1, g = 1, b = 0, a = 1}, -- 1
-          {r = 1, g = 1, b = 0, a = 1}, -- 2
-          {r = 1, g = 1, b = 0, a = 1}, -- 3
-          {r = 1, g = 1, b = 0, a = 1}, -- 4
-          {r = 1, g = 1, b = 0, a = 1}, -- 5
-        },
-      },
-      BarTime = {
-        Advanced = false,
-        Width = 100,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 1, g = 0, b = 0, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'anticipation',
-        _Multi = 1,
-
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueName = {'time'},
-          ValueType = {'timeSS'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 50,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        }
-      },
-      Triggers = {
-        _DC = 0,
-        Notes = 'Text settings found in the Time tab',
-        MenuSync = false,
-        HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1840,7 +1654,7 @@ GUB.DefaultUB.Default = {
       Name = 'Holy Bar',
       OptionOrder = 13,
       Enabled = true,
-      UsedByClass = {PALADIN = ''},
+      UsedByClass = {PALADIN = '3'},
       x = 0,
       y = 171,
       Status = {
@@ -1854,7 +1668,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        Value = 0.50,
+        HolyPower = 0,
       },
       Layout = {
         BoxMode = false,
@@ -1862,7 +1676,7 @@ GUB.DefaultUB.Default = {
         HideRegion = false,
         Swap = false,
         Float = false,
-        BorderPadding = 0,
+        BorderPadding = 6,
         Rotation = 90,
         Slope = 0,
         Padding = 0,
@@ -1877,6 +1691,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -1941,7 +1756,6 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1969,9 +1783,8 @@ GUB.DefaultUB.Default = {
     ShardBar = {
       Name = 'Shard Bar',
       OptionOrder = 14,
-      OptionText = 'Affliction Warlocks only',
       Enabled = true,
-      UsedByClass = {WARLOCK = '1'},
+      UsedByClass = {WARLOCK = ''},
       x = 0,
       y = 134,
       Status = {
@@ -1985,7 +1798,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        Value = 0.50,
+        Shards = 0,
       },
       Layout = {
         BoxMode = false,
@@ -1993,7 +1806,7 @@ GUB.DefaultUB.Default = {
         HideRegion = false,
         Swap = false,
         Float = false,
-        BorderPadding = 0,
+        BorderPadding = 6,
         Rotation = 90,
         Slope = 0,
         Padding = 0,
@@ -2008,6 +1821,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -2020,618 +1834,6 @@ GUB.DefaultUB.Default = {
         Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
         Color = {r = 0.266, g = 0.290, b = 0.274, a = 1},
         EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0.329, g = 0.172, b = 0.337, a = 1,
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.980, g = 0.517, b = 1, a = 1,
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
-    },
--- DemonicBar
-    DemonicBar = {
-      Name = 'Demonic Bar',
-      OptionOrder = 15,
-      OptionText = 'Demonology Warlocks only',
-      Enabled = true,
-      UsedByClass = {WARLOCK = '2'},
-      x = 0,
-      y = 98,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        ShowMeta = false,
-        Value = 0.50,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFill = 0,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.082, g = 0.219, b = 0.019, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 150,
-        Height = 24,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        MetaStatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0.627, g = 0.298, b = 1, a = 1},
-        MetaColor = {r = 0.922, g = 0.549, b = 0.972, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'demonic',
-        _Multi = 1,
-
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color (both)',
-          ValueTypeID = '',
-          ValueType = '',
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
-    },
--- EmberBar
-    EmberBar = {
-      Name = 'Ember Bar',
-      OptionOrder = 16,
-      OptionText = 'Destruction Warlocks only',
-      Enabled = true,
-      UsedByClass = {WARLOCK = '3'},
-      x = 0,
-      y = 60,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        ShowFiery = false,
-        Value = 0.50,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        ReverseFill = false,
-        SmoothFill = 0.15,
-        BorderPadding = 0,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      General = {
-        GreenFire = false,
-        GreenFireAuto = true,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0.611, g = 0.137, b = 0.058, a = 1,
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 1
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 2
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 3
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 4
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.223, g = 0.411, b = 0.039, a = 1,
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 1
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 2
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 3
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 4
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-        },
-        BorderColorGreen = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 25,
-        Height = 34,
-        FillDirection = 'VERTICAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        FieryStatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 0.325, b = 0 , a = 1,
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 1
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 2
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 3
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 4
-        },
-        ColorFiery = {
-          All = false,
-          r = 0.941, g = 0.690, b = 0.094, a = 1,
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 1
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 2
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 3
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 4
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.203, g = 0.662, b = 0, a = 1,
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
-        },
-        ColorFieryGreen = {
-          All = false,
-          r = 0, g = 1, b = 0.078, a = 1,
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 1
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 2
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 3
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 4
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        Notes = '"Full Burning Embers" go by the total number that are on fire \n "Burning Embers" are based on the amount of fill from 0 to 10 or percentage per ember',
-        MenuSync = false,
-        HideTabs = false,
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
-    },
--- EclipseBar
-    EclipseBar = {
-      Name = 'Eclipse Bar',
-      OptionOrder = 17,
-      OptionText = 'Balance Druids only: Shown when in moonkin or normal form',
-      Enabled = true,
-      UsedByClass = {DRUID = '1'},
-      x = 0,
-      y = 11,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-      },
-      Layout = {
-        EnableTriggers = false,
-        Swap = false,
-        Float = false,
-        HideText = false,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      General = {
-        SliderInside = true,
-        HideSlider = false,
-        PowerHalfLit = false,
-        PowerText = true,
-        HidePeak = false,
-        SliderDirection = 'HORIZONTAL',
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      BackgroundMoon = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundSun = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-      },
-      BackgroundPower = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundSlider = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BarMoon = {
-        Advanced = false,
-        Width = 25,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0.847, g = 0.988, b = 0.972, a = 1},
-      },
-      BarSun = {
-        Advanced = false,
-        Width = 25,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0.96, g = 0.925, b = 0.113, a = 1},
-      },
-      BarPower = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTextureLunar = GUBStatusBarTexture,
-        StatusBarTextureSolar = GUBStatusBarTexture,
-        ColorLunar = {r = 0.364, g = 0.470, b = 0.627, a = 1}, -- moon
-        ColorSolar = {r = 0.631, g = 0.466, b = 0.184, a = 1}, -- sun
-      },
-      BarSlider = {
-        Advanced = false,
-        SunMoon = true,
-        Width = 16,
-        Height = 20,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      Text = {
-        _ValueNameMenu = 'eclipse',
-
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueName = {'number'},
-          ValueType = {'whole'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'OUTLINE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 50,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        Notes = 'Text settings found in the Power tab',
-        MenuSync = false,
-        HideTabs = false,
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
-    },
--- ShadowBar
-    ShadowBar = {
-      Name = 'Shadow Bar',
-      OptionOrder = 18,
-      Enabled = true,
-      UsedByClass = {PRIEST = '3'},
-      x = 161,
-      y = 60,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        ShowEnhancedShadowOrbs = true,
-        Value = 0.50,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 0,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.156, g = 0.156, b = 0.156, a = 1},
-        EnabelBorderColor = false,
         BorderColor = {r = 1, g = 1, b = 1, a = 1},
       },
       Background = {
@@ -2664,27 +1866,26 @@ GUB.DefaultUB.Default = {
       },
       Bar = {
         Advanced = false,
-        Width = 38,
-        Height = 37,
+        Width = 40,
+        Height = 25,
         RotateTexture = false,
         PaddingAll = true,
         Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
           All = false,
-          r = 0.729, g = 0.466, b = 1, a = 1,
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 1
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 2
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 3
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 4
-          {r = 0.729, g = 0.466, b = 1, a = 1}, -- 5
+          r = 0.980, g = 0.517, b = 1, a = 1,
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
+          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 5
         },
       },
       Triggers = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -2714,7 +1915,7 @@ GUB.DefaultUB.Default = {
       OptionOrder = 19,
       Enabled = true,
       UsedByClass = {MONK = ''},
-      x = 161,
+      x = 0,
       y = 98,
       Status = {
         HideNotUsable   = true,
@@ -2727,8 +1928,8 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        ShowEmpoweredChi = true,
-        Value = 0.50,
+        Ascension = true,
+        Chi = 0,
       },
       Layout = {
         BoxMode = false,
@@ -2736,7 +1937,7 @@ GUB.DefaultUB.Default = {
         HideRegion = false,
         Swap = false,
         Float = false,
-        BorderPadding = 0,
+        BorderPadding = 6,
         Rotation = 90,
         Slope = 0,
         Padding = 0,
@@ -2751,6 +1952,7 @@ GUB.DefaultUB.Default = {
       },
       Other = {
         Scale = 1,
+        Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -2781,6 +1983,7 @@ GUB.DefaultUB.Default = {
           {r = 0, g = 0, b = 0, a = 1}, -- 3
           {r = 0, g = 0, b = 0, a = 1}, -- 4
           {r = 0, g = 0, b = 0, a = 1}, -- 5
+          {r = 0, g = 0, b = 0, a = 1}, -- 6
         },
         EnableBorderColor = false,
         BorderColor = {
@@ -2791,6 +1994,7 @@ GUB.DefaultUB.Default = {
           {r = 1, g = 1, b = 1, a = 1},  -- 3
           {r = 1, g = 1, b = 1, a = 1},  -- 4
           {r = 1, g = 1, b = 1, a = 1},  -- 5
+          {r = 1, g = 1, b = 1, a = 1},  -- 6
         },
       },
       Bar = {
@@ -2809,185 +2013,13 @@ GUB.DefaultUB.Default = {
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 3
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 4
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
+          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 6
         },
       },
       Triggers = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
-    },
--- MaelstromBar
-    MaelstromBar = {
-      Name = 'Maelstrom Bar',
-      OptionOrder = 20,
-      Enabled = true,
-      UsedByClass = {SHAMAN = '2'},
-      x = 220,
-      y = 231,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = true,
-        HideNoCombat    = false,
-      },
-      TestMode = {
-        Value = 0.50,
-        Time = 0.50,
-      },
-      Layout = {
-        EnableTriggers = false,
-        Swap = false,
-        Float = false,
-        ReverseFill = false,
-        HideText = false,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      General = {
-        HideCharges = false,
-        HideTime = false,
-        ShowSpark = false,
-      },
-      Other = {
-        Scale = 1,
-        FrameStrata = 'MEDIUM',
-      },
-      BackgroundCharges = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1},  -- 1
-          {r = 0, g = 0, b = 0, a = 1},  -- 2
-          {r = 0, g = 0, b = 0, a = 1},  -- 3
-          {r = 0, g = 0, b = 0, a = 1},  -- 4
-          {r = 0, g = 0, b = 0, a = 1},  -- 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-      },
-      BackgroundTime = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BarCharges = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.780, g = 0.905, b = 1, a = 1,
-          {r = 0.780, g = 0.905, b = 1, a = 1}, -- 1
-          {r = 0.780, g = 0.905, b = 1, a = 1}, -- 2
-          {r = 0.780, g = 0.905, b = 1, a = 1}, -- 3
-          {r = 0.780, g = 0.905, b = 1, a = 1}, -- 4
-          {r = 0.780, g = 0.905, b = 1, a = 1}, -- 5
-        },
-      },
-      BarTime = {
-        Advanced = false,
-        Width = 100,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0.254, g = 0.443, b = 0.929, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'maelstrom',
-        _Multi = 1,
-
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueName = {'time'},
-          ValueType = {'timeSS'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 50,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        }
-      },
-      Triggers = {
-        _DC = 0,
-        Notes = 'Text settings found in the Time tab',
-        MenuSync = false,
-        HideTabs = false,
-        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -3021,12 +2053,18 @@ local HelpText = {}
 -- To label HTTP address.  So the name appears above the input box.
 -- You need to place the name on a line by its self.  Then the web address on
 -- the next line by its self.
+--
+-- For inline text.  Format [[Title[]
+--                             text inside here]]
+--
+-- Inline text must have the title followed by [], then the body starts on the
+-- next line.
 --=============================================================================
 
 GUB.DefaultUB.HelpText = HelpText
 HelpText[1] = [[
 
-After making a lot of changes if you wish to start over you can restore default settings.  Just go to the bar in the bars menu.  Click the bar you want to restore.  Then click the restore button you may have to scroll down to see it.
+After making a lot of changes if you wish to start over you can reset default settings.  Just go to the bar in the bars menu.  Click the bar you want to reset.  Then click the reset button you may have to scroll down to see it.
 
 You can get to the options in two ways.
 First is going to interface options -> addons -> Galvin's UnitBars.  Then click on "GUB Options".
@@ -3040,13 +2078,13 @@ To drag any bar around the screen use the left mouse button while pressing any m
 |cff00ff00Status|r
 All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flags it can't override is never show and hide not usable.
 
-   Hide not Usable      Disable and hides the bar if it's not usable by the class or spec.
-   Show Always          Always show the bar.  This doesn't override Hide not usable.
-   Hide when Dead       Hide the bar when the player is dead.
-   Hide in Vehicle      Hide the bar if a vehicle.
-   Hide in Pet Battle   Hide the bar if in a pet battle.
-   Hide not Active      Hide the bar when it's not active and out of combat.
-   Hide no Combat       Hide the bar when not in combat.
+   |cff00ffffHide not Usable|r Disable and hides the bar if it's not usable by the class or spec.
+   |cff00ffffShow Always|r Always show the bar.  This doesn't override Hide not usable.
+   |cff00ffffHide when Dead|r Hide the bar when the player is dead.
+   |cff00ffffHide in Vehicle|r Hide the bar if a vehicle.
+   |cff00ffffHide in Pet Battle|r Hide the bar if in a pet battle.
+   |cff00ffffHide not Active|r Hide the bar when it's not active and out of combat.
+   |cff00ffffHide no Combat|r Hide the bar when not in combat.
 
 
 |cff00ff00Text|r
@@ -3077,9 +2115,6 @@ Go to the copy and paste options.  Click on a button from the button menu on the
 
 
 |cff00ff00Align and Swap|r
-Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar in the options and click the same button to do the paste.  For text lines you can copy and paste within the same bar or to another bar.
-
-* Align and Swap
 Right click on any bar to open this tool up.  Then click on align or swap. Align will allow you to line up a bar with another bar.  Just drag the bar near another till you see a green rectangle.  The bar will then jump next to the other bar based on where you place it.  You can keep doing this with more bars.  The tool remembers all the bars you aligned as long as you don't close the tool or uncheck align or switch to swap.
 
 You can use vertical or horizontal padding to space apart the aligned bars.  The vertical only works for bars that were aligned vertically and the same for horizontal.  Once you have 2 or more aligned bars they become an aligned group.  Then you can use offsets to move the group.
@@ -3095,7 +2130,7 @@ HelpText[#HelpText + 1] = [[http://www.youtube.com/watch?v=STYa5d6riuk]]
 HelpText[#HelpText + 1] = [[
 
 |cff00ff00Test Mode|r
-When in test mode the bars will behave as if they were unlocked.  But you can't click on them.  Test mode allows you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
+When in test mode the bars will behave as if they were unlocked.  Test mode allows you to make changes to the bar without having to go into combat to make certain parts of the bar become active.
 
 Additional options will be found at the option panel for the bar when test mode is active
 ]]
@@ -3106,49 +2141,44 @@ Triggers let you create an option that will only become active when a condition 
 Triggers activate in the following order. Static first, Conditional second, and Auras last.
 
 Triggers are sorted by tabs.  Each tab is part of the bar.  If the tab is empty you'll see an 'add' button. Clicking this will add a new trigger options panel. There is no limit to how many triggers you can create, create too many and you may experience lag in the options panel.
-Minimizing can help with this.
 
 Each trigger has 4 menu buttons.  These can be minimized or maximized by clicking them more than once.
 
-|cff00ffffTYPE|r: Creates the type of trigger, border, color, sound, etc.
-  * Value Type: Lets you pick what type of value you want to trigger off of.  Each bar has its own set of value types.
-  * Type: Lets you pick different parts of the bar.  Border, color, background, etc.
-  * Auras: Use a buff or debuff to execute a trigger.
+|cff00ffffTYPE|r Creates the type of trigger, border, color, sound, etc.
+    |cffff00ffValue Type|r Lets you pick what type of value you want to trigger off of.  Each bar has its own set of value types.
+    |cffff00ffType|r Lets you pick different parts of the bar.  Border, color, background, etc.
+    |cffff00ffAuras|r Use a buff or debuff to execute a trigger.
 
-|cff00ffffVALUE|r: Number to execute the trigger at, or can be inverse.  Depends on the Type.
-  * Inverse: For triggers that use 'active' then you can inverse this. Make it do the opposite.
+|cff00ffffVALUE|r Number to execute the trigger at, or can be inverse.  Depends on the Type.
+    |cffff00ffInverse|r For triggers that use 'active' then you can inverse this. Make it do the opposite.
+    |cffff00ffOperator|r If the trigger is a conditional trigger.
+        <       Less than
+        >       Greater than
+        <=     Less than or equal
+        >=     Greater than or equal
+        =       Equal
+        <>      Not equal
+        and   All auras (auras only)
+        or      At least one aura (auras only)
+    |cffff00ffValue|r The trigger will execute at this value.  If this is a percentage then it must be between 0 and 100. You can also "add" another condition.  The 'all' option if checked will make it so that all conditions have to be met for the trigger to execute.
+    |cffff00ffAdd|r Add another condition, this is the same as the current line, operator, value, etc.
+    |cffff00ffAll|r If this is checked then all conditions must be true. Otherwise just one needs to be true.
 
-  If the trigger is a conditional trigger.  Then you'll have Operator, Value, Add, and All
-  * Operator:
-    <   Less than
-    >   Greater than
-    <=  Less than or equal
-    >=  Greater than or equal
-    =   Equal
-    <>  Not equal
-  * Value: The trigger will execute at this value.  If this is a percentage then it must be between 0 and 100. You can also "add" another condition.  The 'all' option if checked will make it so that all conditions have to be met for the trigger to execute.
+    |cffff00ffAura name or SpellID|r  If auras was selected under type. Under the spell ID enter the exact spell or start typing part of the spell name.  As you do this, a dropdown box will appear.  If the mod already saw the spell then it will show it in white.  This works best if aura list is always on.  After the aura is added you change the following:
 
-  If auras was selected under type.  Then you'll see Operator and "Aura name or SpellID"
-  * Operator
-    'or' Only one aura needs to be found on the unit.
-    'and' All auras needs to be found on the unit.
-  Under the spell ID.  Enter the exact spell or start type part of the spell name.  As you do this a dropdown box will appear.  If the mod already saw the spell then it will show it in white.  This works best if aura list is always on.
+        |cffff00ffOwn|r If checked the aura has to be cast from you.
+        |cffff00ffUnit|r Name of the unit that will contain the aura.
+        |cffff00ffCondition|r Can set what type of condition you want to compare stacks to.
+        |cffff00ffStacks|r Number of stacks to compare.
 
-  After the aura is added you change the following:
-  * Cast by Player: If checked then the aura has to have come from you.
-  * Unit: Name of the unit that will contain the aura.
-  * Condition: Can set what type of condition you want to compare stacks to.
-  * Stacks: 0 means no stacks so match any aura.
-  * Own: If checked the aura has to be cast from you.
+|cff00ffffNAME|r By default a trigger doesn't have a name.  Enter anything you want here.
 
-|cff00ffffNAME|r: By default a trigger doesn't have a name.  Enter anything you want here.
+|cff00ffffUTIL|r Allows you to Swap, Move, Copy, and Delete
 
-|cff00ffffUTIL|r: Allows you to Swap, Move, Copy, and Delete
-
-  * Swap:  Swap a places with another trigger.  This option may not be available if the two triggers are not compatible.
-  * Move:  Move a trigger to a different tab.  This option is not available with one tab.
-  * Copy:  Copy a trigger to a different tab.  This option is not available if the trigger is not compatible with the destination tab.
-  * Delete:  Removes the trigger.  This can not be undone.
+    |cffff00ffSwap|r Swap a places with another trigger.  This option may not be available if the two triggers are not compatible.
+    |cffff00ffMove|r Move a trigger to a different tab.  This option is not available with one tab.
+    |cffff00ffCopy|r Copy a trigger to a different tab.  This option is not available if the trigger is not compatible with the destination tab.
+    |cffff00ffDelete|r Removes the trigger.  This can not be undone.
 
 Above the 4 menu buttons is Static and Disable.
 Static makes the trigger more like an option. It's always on.
@@ -3167,77 +2197,28 @@ Its recommended that once you have your perfect configuration made you make a ba
 ]]
 
 -- Message Text
-GUB.DefaultUB.MessageText = [[
-|Cffffff00Galvin's UnitBars|r
+local ChangesText = {}
 
-|cff00ff00New Changes|r
+GUB.DefaultUB.ChangesText = ChangesText
+ChangesText[1] = [[
+5.00
 
-4.13
-* Fewer clear and paste buttons in triggers.
+ComboBar and ArcaneBar not available yet.
 
-4.11
+|cff00ff00Escape|r key can now close the pop up message box
+|cff00ff00New power bar types added|r Astral Power, Maelstrom, Insanity, Fury, and Pain
+|cff00ff00Bars removed|r Shadow, Maelstrom, Ember, Demonic, Anticipation
+|cff00ff00Arcane bar|r for arcane mages added
+|cff00ff00Predicted power|r (Player Power only) Any spell with a cast time that returns power will be shown as predicted power
+|cff00ff00All bars have an alpha setting|r Found under Other options for each bar. This changes transparency
+|cff00ff00Font size can be much larger|r Found under text settings then font
+|cff00ff00Rune bars animation|r should be stutter free
+|cff00ff00Menu Sync|r setting should save after reloading ui
+|cff00ff00Region|r added to the rune bar. This is on by default
+|cff00ff00Region|r also added to reset options for each bar
+|cff00ff00Predicted Value|r renamed to Predicted Health for health bars and Predicted Power for power bars.  Trigger options type "(predicted...)" is for Predicted Health or Power and "cost" is for Predicted Cost
 
-* Trigger titles are now in a border.  This can be clicked on like in 4.10.
-* Green border means static, red border means disabled.
-
-4.10
-
-* Triggers can change text on bars that have text.
-* There's a note in the trigger options at the top where text can be found. If there is no note then all tabs support text.
-* Triggers should be easier to navigate when working on a lot of them at the same time.
-
-4.02
-
-* Combo points no longer needs a target. Default "Hide no Target" changed from true to false.
-
-4.01
-
-* Triggers texture size changed to texture scale.
-* Bar offset added to triggers. This changes the size of boxes based on an offset. Example make a holy power box larger or smaller without effecting the size of the bar.
-
-4.00
-
-* Message box that pops up when you first run the mod has mouse wheel scrolling.
-* When copy/append triggers from one bar to another.  The triggers may end up in a different spot than expected.  This is normal.
-* Demonic bar triggers may need to be checked if not working properly.  There was no way to convert them 100% to the new format.
-* Due to complexity each aura in a trigger can only have one unit.
-* You'll need to check each trigger that has more than one unit, and change it to one.
-
-* CastByPlayer fixed.
-* Only helpful auras were being tracked. Now harmful are tracked too.
-* Triggers have a draw priority now.  Static, then Conditional, and Auras
-* Auras do not get deleted if auras are not picked and you reload the ui.
-* Bar objects moved into tabs instead of using a pull down menu.
-* Fixed bugs with power color when used in a trigger.
-* "Any" under triggers been changed to 'all' and supports all the same conditions as normal triggers.
-* Condition renamed to Operator and StackCondition renamed to StackOperator
-* The spell searcher for auras in triggers has been imrpoved. Now has a scroller.
-* Trigger UI overhauled.
-* Copy and Paste UI overhauled.
-* Aura list UI overhauled.
-* Aura list now shows tooltip when mousing over the icon.
-
-
-|cff00ff00Old Changes|r
-
-* GUB Square Border added for border texture. This can be used thru shared media.
-* Border color can be changed.  Found under Region and Background options.
-* In testmode you can change the resource value up or down.  You can use this to test triggers without being in combat.
-* Triggers - Can change color, textures, or play a sound, etc.  When a condition is met based on the resource value, time, etc.
-* Align and Swap has bar location setting.  Align has to be turned off first.  The bar that was right clicked on is the
-one that you can set the location to.
-* Reset Defauls has been recoded as reset.  You can choose what parts of the bar to reset.
-* Options can not be opened during combat.  Having options opened during combat could cause a lua error.  With the test mode
-recode theres no need to have this.
-* Combo bar is now only visible as a rogue or as a druid when in catform or no form.
-* Show Always flag added to Status.
-* Tagged Color added to target health and focus health.  Shows if the target is tagged by another player.
-* Added Hide no Target flag
-* Anchors now have a name that appears when using /framestack
-* Hide not Usable fixed to show the bar if not checked if not the class for that bar.
-
-For a full list of changes go to http://www.curse.com/addons/wow/galvins-unitbars
+|cffffff00This list can be viewed under Help -> Changes
 ]]
-
 
 

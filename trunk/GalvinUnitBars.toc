@@ -1,8 +1,8 @@
-## Interface: 60200
+## Interface: 70300
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
-## Version: 4.14                                        
+## Version: 5.00                                      
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB, GalvinUnitBarsData
 #@no-lib-strip@
@@ -30,15 +30,9 @@ Main.lua
 Bar.lua
 HealthPowerBar.lua
 RuneBar.lua
-ComboBar.lua
-AnticipationBar.lua
+#ComboBar.lua -- not working yet
 HolyBar.lua
 ShardBar.lua
-DemonicBar.lua
-EmberBar.lua
-EclipseBar.lua
-ShadowBar.lua
 ChiBar.lua
-MaelstromBar.lua
 Options.lua
 Controls.lua
