@@ -1,7 +1,7 @@
 --
 -- ComboBar.lua
 --
--- Displays 5 rectangles for combo points.
+-- Displays the rogue or cat druid combo point bar.
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -45,25 +45,50 @@ local C_PetBattles, C_TimerAfter, UIParent =
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.BBar                     Contains the combo bar displayed on screen.
+-- UnitBarF.BBar                     Contains an instance of bar functions for combo bar.
 --
--- Display                           Flag used to determin if a Display() call is needed.
+-- UnitBarF.ComboBar                 Contains the combo bar displayed on screen.
 --
--- BoxMode                           Boxframe number for boxmode.
--- Combo                             Changebox number for all the combo points.
--- ComboSBar                         Texture for combo point.
+-- ComboData                         Contains all the data for the combo points texture.
+--   Texture                         Path name to the texture file.
+--   Width                           Width of the texture and box size in texture mode.
+--   Height                          Height of the texture and box size in texture mode.
+--   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
+--
+-- Points                            ChangeTexture number for PointSBar and PointLightTexture
+-- PointSBar                         Contains the lit combo point texture for box mode.
+-- PointDarkTexture                  Contains the empty combo point for texture mode.
+-- PointLightTexture                 Contains the lit combo point for texture mode.
+--
+-- NOTES:  For anticipation alpha to work correctly.  SetAttr() gets called after
+--         The whole bar is faded in.  Then I use SetShowHideFnTexture() during creation.
+--         So when a anticipation point fades out.  The anticipation alpha gets set to that
+--         box after.  Then the Update() code sets the alpha back to 1 for lit anticipation
+--         points.  This creates an fade animation that looks good.
 -------------------------------------------------------------------------------
-local MaxComboPoints = 5
+local MaxComboPoints = 9
+local ExtraComboPointStart = 6
 local Display = false
+local Update = false
 local NamePrefix = 'Combo '
+local NamePrefix2 = 'Point '
 
 -- Powertype constants
-local PowerPoints = ConvertPowerType['COMBO_POINTS']
-
+local PowerPoint = ConvertPowerType['COMBO_POINTS']
 
 local BoxMode = 1
-local Combo = 3
-local ComboSBar = 10
+local TextureMode = 2
+
+local Points = 3
+local ComboPoints = 4
+local AnticipationPoints = 5
+
+
+local PointSBar = 10
+local PointDarkTexture = 11
+local PointLightTexture = 12
+
+local RegionGroup = 11
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -79,21 +104,58 @@ local TD = { -- Trigger data
   { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
   { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
     GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ComboSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,              ComboSBar,
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            PointSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              PointSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          PointDarkTexture, PointLightTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
-local VTs = {'whole', 'Combo Points', 'auras', 'Auras'}
+local TDregion = { -- Trigger data for region
+  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
+  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
+    GF = GF },
+  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
+  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
+    GF = GF },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
+local VTs = {'whole', 'Combo Points', 'whole', 'Anticipation Points', 'auras', 'Auras'}
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Point 1',    VTs, TD}, -- 1
   {2,   'Point 2',    VTs, TD}, -- 2
   {3,   'Point 3',    VTs, TD}, -- 3
   {4,   'Point 4',    VTs, TD}, -- 4
   {5,   'Point 5',    VTs, TD}, -- 5
-  {'a', 'All Points', {'whole', 'Combo Points', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 6
+  {6,   'Point 6',    VTs, TD}, -- 6
+  {7,   'Anticipation 1',     VTs, TD}, -- 7
+  {8,   'Anticipation 2',     VTs, TD}, -- 8
+  {9,   'Anticipation 3',     VTs, TD}, -- 9
+  {'a', 'All', {'whole', 'Combo Points', 'whole', 'Anticipation Points', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 10
+  {'r', 'Region',     VTs, TDregion},  -- 11
+}
+
+-- Combo layouts
+local ComboLayout = {
+  [5] = {[6] = true,  [7] = true,  [8] = true,  [9] = true},
+  [6] = {[6] = false, [7] = true,  [8] = true,  [9] = true},
+  [8] = {[6] = true,  [7] = false, [8] = false, [9] = false },
+}
+
+local PointData = {
+  TextureWidth = 21 + 8, TextureHeight = 21 + 8,
+  [PointDarkTexture] = {
+    Level = 1,
+    Width = 21, Height = 21,
+    AtlasName = 'ComboPoints-PointBg',
+  },
+  [PointLightTexture] = {
+    Level = 2,
+    Width = 21, Height = 21,
+    AtlasName = 'ComboPoints-ComboPoint',
+  },
 }
 
 -------------------------------------------------------------------------------
@@ -107,11 +169,33 @@ Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 --
 --*****************************************************************************
 
+
+-------------------------------------------------------------------------------
+-- SetAnticipationAlpha
+--
+-- Called when one of the anticipation textures get hidden or shown.
+-- Then this will appy the alpha setting.
+--
+-- BBar           Current bar being used.
+-- BoxNumber      Box that contains the texture
+-- TextureNumber  Texture that got hidden or shown
+-- Action         'hide' or 'show'
+-------------------------------------------------------------------------------
+local function SetAnticipationAlpha(BBar, BoxNumber, TextureNumber, Action)
+  if Action == 'hide' then
+    BBar:SetAlpha(BoxNumber, nil, BBar.UnitBarF.UnitBar.General.InactiveAnticipationAlpha)
+  end
+end
+
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
--- Event     Event that called this function.  If nil then it wasn't called by an event.
---           True bypasses visible and isactive flags.
+-- Update the number of combo points of the player
+--
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+--              True bypasses visible and isactive flags.
+-- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
 
@@ -120,38 +204,94 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     return
   end
 
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerPoints
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerPoint
 
   -- Return if not the correct powertype.
-  if PowerType ~= PowerPoints then
+  if PowerType ~= PowerPoint then
     return
   end
 
-
-  -- Get the combo points.
-  local ComboPoints = UnitPower('player', PowerPoints)
+  local ComboPoints = UnitPower('player', PowerPoint)
+  local NumPoints = UnitPowerMax('player', PowerPoint)
+  local UB = self.UnitBar
+  local InactiveAnticipationAlpha = UB.General.InactiveAnticipationAlpha
+  local EnableTriggers = UB.Layout.EnableTriggers
+  local Offset = 0
   local BBar = self.BBar
+  local NumPointsChanged = false
+  local OldComboPoints = ComboPoints
 
   if Main.UnitBars.Testing then
-    ComboPoints = floor(MaxComboPoints * self.UnitBar.TestMode.Value)
+    local TestMode = self.UnitBar.TestMode
+
+    if TestMode.Anticipation then
+      NumPoints = MaxComboPoints - 1
+    elseif TestMode.DeeperStratagem then
+      NumPoints = ExtraComboPointStart
+    else
+      NumPoints = ExtraComboPointStart - 1
+    end
+    ComboPoints = TestMode.Points
+
+    -- Clip combo points
+    if ComboPoints > NumPoints then
+      ComboPoints = NumPoints
+    end
   end
 
-  -- Display the combo points
-  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+  -- Convert combo points
+  if NumPoints == MaxComboPoints - 1 and ComboPoints > ExtraComboPointStart - 1 then
+    ComboPoints = ComboPoints + 1
+  end
 
-  for ComboIndex = 1, MaxComboPoints do
-    BBar:SetHiddenTexture(ComboIndex, ComboSBar, ComboIndex > ComboPoints)
+  -- Check for combo point change
+  if NumPoints ~= self.NumPoints then
+    NumPointsChanged = true
+    self.NumPoints = NumPoints
+
+    -- Change the number of boxes in the bar.
+    for Index, Hidden in pairs(ComboLayout[NumPoints] or ComboLayout[5]) do
+      BBar:SetHidden(Index, nil, Hidden)
+    end
+    BBar:Display()
+  end
+
+  local CPoints = 0
+  local APoints = 0
+
+  for PointIndex = 1, MaxComboPoints do
+    BBar:ChangeTexture(Points, 'SetHiddenTexture', PointIndex, PointIndex > ComboPoints)
+
+    if PointIndex > ExtraComboPointStart then
+      if PointIndex <= ComboPoints then
+        BBar:SetAlpha(PointIndex, nil, 1)
+
+      -- if size of bar changed then reset anticipation alpha
+      elseif NumPointsChanged then
+        BBar:SetAlpha(PointIndex, nil, InactiveAnticipationAlpha)
+      end
+    end
+
     if EnableTriggers then
-      BBar:SetTriggers(ComboIndex, 'active', ComboIndex <= ComboPoints)
-      BBar:SetTriggers(ComboIndex, 'combo points', ComboPoints)
+      if ComboPoints > ExtraComboPointStart then
+        APoints = ComboPoints - ExtraComboPointStart
+        CPoints = ExtraComboPointStart - 1
+      else
+        CPoints = ComboPoints
+      end
+      BBar:SetTriggers(PointIndex, 'combo points', CPoints)
+      BBar:SetTriggers(PointIndex, 'active', PointIndex <= ComboPoints)
+      BBar:SetTriggers(PointIndex, 'anticipation points', APoints)
     end
   end
 
   if EnableTriggers then
+    BBar:SetTriggers(RegionGroup, 'combo points', ComboPoints)
+    BBar:SetTriggers(RegionGroup, 'anticipation points', APoints)
     BBar:DoTriggers()
   end
 
-  -- Set the IsActive flag
+  -- Set the IsActive flag.
   self.IsActive = ComboPoints > 0
 
   -- Do a status check.
@@ -167,10 +307,13 @@ end
 -------------------------------------------------------------------------------
 -- EnableMouseClicks    UnitBarsF function
 --
--- This will enable or disable mouse clicks for the combo bar.
+-- This will enable or disbable mouse clicks for the combo bar.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:EnableMouseClicks(Enable)
   local BBar = self.BBar
+
+  -- Enable/disable for border.
+  BBar:EnableMouseClicksRegion(Enable)
 
   -- ENable/disable for box mode
   BBar:EnableMouseClicks(0, nil, Enable)
@@ -179,57 +322,95 @@ end
 -------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
--- Sets different parts of the combobar.
+-- Sets different parts of the combo bar.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
   local BBar = self.BBar
 
   if not BBar:OptionsSet() then
+    BBar:SetOptionData('BackgroundCombo', ComboPoints)
+    BBar:SetOptionData('BackgroundAnticipation', AnticipationPoints)
+    BBar:SetOptionData('BarCombo', ComboPoints)
+    BBar:SetOptionData('BarAnticipation', AnticipationPoints)
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
 
+    BBar:SO('Layout', 'BoxMode',       function(v)
+      if v then
+        -- Box mode
+        BBar:ShowRowTextureFrame(BoxMode)
+      else
+        -- texture mode
+        BBar:ShowRowTextureFrame(TextureMode)
+      end
+      Display = true
+    end)
+    BBar:SO('Layout', 'HideRegion',    function(v) BBar:SetHiddenRegion(v) Display = true end)
     BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
+    BBar:SO('Layout', 'BorderPadding', function(v) BBar:SetPaddingBorder(v) Display = true end)
     BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
     BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
     BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
-    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, ComboSBar, 'in', v) end)
-    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, ComboSBar, 'out', v) end)
+    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, PointSBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(0, PointLightTexture, 'in', v) end)
+    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, PointSBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(0, PointLightTexture, 'out', v) end)
     BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
     BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
     BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
-    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(0, BoxMode, v) end)
-    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(0, BoxMode, v) end)
-    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(0, BoxMode, v) end)
-    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(0, BoxMode, v) end)
-    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(0, BoxMode, v) end)
-    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Region', 'BgTexture',     function(v) BBar:SetBackdropRegion(v) end)
+    BBar:SO('Region', 'BorderTexture', function(v) BBar:SetBackdropBorderRegion(v) end)
+    BBar:SO('Region', 'BgTile',        function(v) BBar:SetBackdropTileRegion(v) end)
+    BBar:SO('Region', 'BgTileSize',    function(v) BBar:SetBackdropTileSizeRegion(v) end)
+    BBar:SO('Region', 'BorderSize',    function(v) BBar:SetBackdropBorderSizeRegion(v) end)
+    BBar:SO('Region', 'Padding',       function(v) BBar:SetBackdropPaddingRegion(v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Region', 'Color',         function(v) BBar:SetBackdropColorRegion(v.r, v.g, v.b, v.a) end)
+    BBar:SO('Region', 'BorderColor',   function(v, UB)
+      if UB.Region.EnableBorderColor then
+        BBar:SetBackdropBorderColorRegion(v.r, v.g, v.b, v.a)
+      else
+        BBar:SetBackdropBorderColorRegion(nil)
+      end
+    end)
+
+    BBar:SO('General', 'TextureScaleCombo',         function(v) BBar:ChangeBox(ComboPoints, 'SetScaleTextureFrame', TextureMode, v) Display = true end)
+    BBar:SO('General', 'TextureScaleAnticipation',  function(v) BBar:ChangeBox(AnticipationPoints, 'SetScaleTextureFrame', TextureMode, v) Display = true end)
+    BBar:SO('General', 'InactiveAnticipationAlpha', function(v) BBar:ChangeBox(AnticipationPoints, 'SetAlpha', nil, v) Display = true end)
+
+    BBar:SO('Background', 'BgTexture',     function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdrop', BoxMode, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropBorder', BoxMode, v) end)
+    BBar:SO('Background', 'BgTile',        function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropTile', BoxMode, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropTileSize', BoxMode, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropBorderSize', BoxMode, v) end)
+    BBar:SO('Background', 'Padding',       function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetBackdropPadding', BoxMode, v.Left, v.Right, v.Top, v.Bottom) end)
     BBar:SO('Background', 'Color',         function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
-      if UB.Background.EnableBorderColor then
+      if UB[OD.TableName].EnableBorderColor then
         BBar:SetBackdropBorderColor(OD.Index, BoxMode, OD.r, OD.g, OD.b, OD.a)
       else
         BBar:SetBackdropBorderColor(OD.Index, BoxMode, nil)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture',         function(v) BBar:ChangeBox(Combo, 'SetTexture', ComboSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',            function(v) BBar:ChangeBox(Combo, 'SetRotateTexture', ComboSBar, v) end)
-    BBar:SO('Bar', 'Color',                    function(v, UB, OD) BBar:SetColorTexture(OD.Index, ComboSBar, OD.r, OD.g, OD.b, OD.a) end)
-    BBar:SO('Bar', '_Size',                    function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',                  function(v) BBar:SetPaddingTexture(0, ComboSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'StatusBarTexture', function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetTexture', PointSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetRotateTexture', PointSBar, v) end)
+    BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, PointSBar, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Bar', '_Size',            function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetSizeTextureFrame', BoxMode, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetPaddingTexture', PointSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
+  if Update or Main.UnitBars.Testing then
     self:Update()
+    Update = false
     Display = true
   end
 
@@ -238,7 +419,6 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
     Display = false
   end
 end
-
 
 -------------------------------------------------------------------------------
 -- CreateBar
@@ -251,22 +431,58 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxComboPoints)
 
   local Names = {}
+  local Name = nil
 
+  -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ComboSBar)
+    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, PointSBar)
 
-  BBar:SetChangeBox(Combo, 1, 2, 3, 4, 5)
+  -- Create texture mode.
+  for PointIndex = 1, MaxComboPoints do
+    BBar:CreateTextureFrame(PointIndex, TextureMode, 0)
 
-  for ComboIndex = 1, MaxComboPoints do
-    local Name = NamePrefix .. Groups[ComboIndex][2]
+    for TextureNumber, PD in pairs(PointData) do
+      if type(TextureNumber) == 'number' then
+        BBar:CreateTexture(PointIndex, TextureMode, 'texture', PD.Level, TextureNumber)
+        BBar:SetAtlasTexture(PointIndex, TextureNumber, PD.AtlasName)
+        BBar:SetSizeTexture(PointIndex, TextureNumber, PD.Width, PD.Height)
+      end
+    end
+    if PointIndex < ExtraComboPointStart + 1 then
+      Name = NamePrefix .. Groups[PointIndex][2]
+    else
+      local Left, Right = strsplit(' ', Groups[PointIndex][2], 2)
+      Name = Left .. ' ' .. NamePrefix2 .. Right
+    end
 
-    Names[ComboIndex] = Name
-    BBar:SetTooltip(ComboIndex, nil, Name)
+    -- Set call backs for anticpation point hiding/showing
+    if PointIndex > ExtraComboPointStart then
+      BBar:SetShowHideFnTexture(PointIndex, PointSBar, SetAnticipationAlpha)
+      BBar:SetShowHideFnTexture(PointIndex, PointLightTexture, SetAnticipationAlpha)
+    end
+
+    BBar:SetTooltip(PointIndex, nil, Name)
+    Names[PointIndex] = Name
   end
 
-  BBar:ChangeBox(Combo, 'SetHidden', BoxMode, false)
+  BBar:SetHiddenTexture(0, PointSBar, true)
+  BBar:SetHiddenTexture(0, PointDarkTexture, false)
 
-  -- Set offsets for trigger bar offset.
+  BBar:SetChangeBox(ComboPoints, 1, 2, 3, 4, 5, 6)
+  BBar:SetChangeBox(AnticipationPoints, 7, 8, 9)
+
+  BBar:ChangeBox(ComboPoints, 'SetSizeTextureFrame', BoxMode, UB.BarCombo.Width, UB.BarCombo.Height)
+  BBar:ChangeBox(AnticipationPoints, 'SetSizeTextureFrame', BoxMode, UB.BarAnticipation.Width, UB.BarAnticipation.Height)
+
+  BBar:SetSizeTextureFrame(0, TextureMode, PointData.TextureWidth, PointData.TextureHeight)
+
+  BBar:SetChangeTexture(Points, PointLightTexture, PointSBar)
+
+  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+
+  -- Set the texture scale for bar offset triggers.
+  BBar:SetScaleTexture(0, PointDarkTexture, 1)
+  BBar:SetScaleTexture(0, PointLightTexture, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
@@ -282,4 +498,3 @@ end
 function Main.UnitBarsF.ComboBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
-

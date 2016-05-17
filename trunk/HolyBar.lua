@@ -123,7 +123,7 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {3,   'Rune 3',    VTs, TD}, -- 3
   {4,   'Rune 4',    VTs, TD}, -- 4
   {5,   'Rune 5',    VTs, TD}, -- 5
-  {'a', 'All Runes', {'whole', 'Holy Power', 'state', 'Active', 'auras', 'Auras'}, TD},  -- 6
+  {'a', 'All', {'whole', 'Holy Power', 'state', 'Active', 'auras', 'Auras'}, TD},  -- 6
   {'r', 'Region',         VTs, TDregion},                                                     -- 7
 }
 

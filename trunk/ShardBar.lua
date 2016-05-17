@@ -45,7 +45,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.BBar                     Contains the ember bar displayed on screen.
+-- UnitBarF.BBar                     Contains an instance of bar functions for shard bar.
 --
 -- UnitBarF.ShardBar                 Contains the shard bar displayed on screen.
 --
@@ -60,10 +60,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- ShardSBar                         Contains the lit shard texture for box mode.
 -- ShardDarkTexture                  Contains the dark shard texture for texture mode.
 -- ShardLightTexture                 Contains the lit shard textuire for texture mode.
--- ShardBox                          Soul shard in box mode.  Statusbar
--- ShardDark                         Dark soul shard when not lit.
--- ShardLight                        Light sould shard used for lighting a dark soul shard.
---
 -------------------------------------------------------------------------------
 local MaxSoulShards = 5
 local Display = false
@@ -124,7 +120,7 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {3,   'Shard 3',    VTs, TD}, -- 3
   {4,   'Shard 4',    VTs, TD}, -- 4
   {5,   'Shard 5',    VTs, TD}, -- 5
-  {'a', 'All Shards', {'whole', 'Soul Shards', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 6
+  {'a', 'All', {'whole', 'Soul Shards', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 6
   {'r', 'Region',     VTs, TDregion},  -- 7
 }
 
@@ -175,9 +171,6 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   local NumShards = UnitPowerMax('player', PowerShard)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
-  -- Set default value if NumShards returns zero.
-  NumShards = NumShards > 0 and NumShards or MaxSoulShards
-
   if Main.UnitBars.Testing then
     SoulShards = self.UnitBar.TestMode.Shards
   end
@@ -200,7 +193,7 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   end
 
   -- Set the IsActive flag.
-  self.IsActive = SoulShards < NumShards
+  self.IsActive = SoulShards > 0
 
   -- Do a status check.
   self:StatusCheck()

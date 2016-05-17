@@ -403,6 +403,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -521,6 +523,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -638,6 +642,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -748,6 +754,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -865,6 +873,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -975,6 +985,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1091,6 +1103,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1204,6 +1218,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1321,6 +1337,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1512,6 +1530,8 @@ GUB.DefaultUB.Default = {
         Notes = 'Empowered uses the Time settings from Empowerment in General settings.\nEven if turned off',
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1550,16 +1570,21 @@ GUB.DefaultUB.Default = {
         HideNoTarget    = false,
         HideInVehicle   = true,
         HideInPetBattle = true,
-        HideNotActive   = true,
-        HideNoCombat    = false,
+        HideNotActive   = false,
+        HideNoCombat    = false
       },
       TestMode = {
-        Value = 0.50,
+        Points = 0,
+        DeeperStratagem = false,
+        Anticipation = false,
       },
       Layout = {
+        BoxMode = false,
         EnableTriggers = false,
+        HideRegion = false,
         Swap = false,
         Float = false,
+        BorderPadding = 6,
         Rotation = 90,
         Slope = 0,
         Padding = 0,
@@ -1571,12 +1596,29 @@ GUB.DefaultUB.Default = {
         AlignOffsetX = 0,
         AlignOffsetY = 0,
       },
+      General = {
+        TextureScaleCombo = 1,
+        TextureScaleAnticipation = 1,
+        InactiveAnticipationAlpha = 1,
+      },
       Other = {
         Scale = 1,
         Alpha = 1,
         FrameStrata = 'MEDIUM',
       },
-      Background = {
+      Region = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.176, g = 0.160, b = 0.094, a = 1},
+        EnabelBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
+      },
+      BackgroundCombo = {
         PaddingAll = true,
         BgTexture = DefaultBgTexture,
         BorderTexture = DefaultBorderTexture,
@@ -1587,24 +1629,52 @@ GUB.DefaultUB.Default = {
         Color = {
           All = false,
           r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1},  -- 1
-          {r = 0, g = 0, b = 0, a = 1},  -- 2
-          {r = 0, g = 0, b = 0, a = 1},  -- 3
-          {r = 0, g = 0, b = 0, a = 1},  -- 4
-          {r = 0, g = 0, b = 0, a = 1},  -- 5
+          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 1
+          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 2
+          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 3
+          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 4
+          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 5
+          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 6
         },
         EnableBorderColor = false,
         BorderColor = {
           All = false,
           r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
+          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 1
+          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 2
+          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 3
+          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 4
+          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 5
+          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 6
         },
       },
-      Bar = {
+      BackgroundAnticipation = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {
+          _Offset = 6,
+          All = false,
+          r = 0, g = 0, b = 0, a = 1,
+          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 1
+          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 2
+          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 3
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          _Offset = 6,
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 1
+          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 2
+          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 3
+        },
+      },
+      BarCombo = {
         Advanced = false,
         Width = 40,
         Height = 25,
@@ -1614,18 +1684,38 @@ GUB.DefaultUB.Default = {
         StatusBarTexture = GUBStatusBarTexture,
         Color = {
           All = false,
-          r = 1, g = 0, b = 0, a = 1,
-          {r = 1, g = 0, b = 0, a = 1}, -- 1
-          {r = 1, g = 0, b = 0, a = 1}, -- 2
-          {r = 1, g = 0, b = 0, a = 1}, -- 3
-          {r = 1, g = 0, b = 0, a = 1}, -- 4
-          {r = 1, g = 0, b = 0, a = 1}, -- 5
+          r = 0.784, g = 0.031, b = 0.031, a = 1,
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 1
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 2
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 3
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 4
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 5
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 6
+        },
+      },
+      BarAnticipation = {
+        Advanced = false,
+        Width = 40,
+        Height = 25,
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {
+          _Offset = 6,
+          All = false,
+          r = 0.784, g = 0.031, b = 0.031, a = 1,
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 1
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 2
+          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 3
         },
       },
       Triggers = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1652,7 +1742,7 @@ GUB.DefaultUB.Default = {
 -- HolyBar
     HolyBar = {
       Name = 'Holy Bar',
-      OptionOrder = 13,
+      OptionOrder = 12,
       Enabled = true,
       UsedByClass = {PALADIN = '3'},
       x = 0,
@@ -1756,6 +1846,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1782,7 +1874,7 @@ GUB.DefaultUB.Default = {
 -- ShardBar
     ShardBar = {
       Name = 'Shard Bar',
-      OptionOrder = 14,
+      OptionOrder = 13,
       Enabled = true,
       UsedByClass = {WARLOCK = ''},
       x = 0,
@@ -1886,6 +1978,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -1912,7 +2006,7 @@ GUB.DefaultUB.Default = {
 -- ChiBar
     ChiBar = {
       Name = 'Chi Bar',
-      OptionOrder = 19,
+      OptionOrder = 14,
       Enabled = true,
       UsedByClass = {MONK = '3'},
       x = 0,
@@ -2020,6 +2114,8 @@ GUB.DefaultUB.Default = {
         _DC = 0,
         MenuSync = false,
         HideTabs = false,
+        Action = {},
+        ActionSync = {},
 
         Default = { -- Default trigger
           Enabled = true,
@@ -2067,7 +2163,7 @@ HelpText[1] = [[
 After making a lot of changes if you wish to start over you can reset default settings.  Just go to the bar in the bars menu.  Click the bar you want to reset.  Then click the reset button you may have to scroll down to see it.
 
 You can get to the options in two ways.
-First is going to interface options -> addons -> Galvin's UnitBars.  Then click on "GUB Options".
+First is going to interface -> addons -> Galvin's UnitBars.  Then click on "GUB Options".
 The other way is to type "/gub config" or "/gub c".
 
 
@@ -2203,8 +2299,7 @@ GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 5.00
 
-ComboBar has not been updated for Legion yet.
-ArcaneBar not available yet.
+|cff00ff00ComboBar|r has been recoded.  Bar and Background settings will have to be redone
 
 |cff00ff00Escape|r key can now close the pop up message box
 |cff00ff00New power bar types added|r Astral Power, Maelstrom, Insanity, Fury, and Pain
@@ -2218,8 +2313,7 @@ ArcaneBar not available yet.
 |cff00ff00Region|r added to the rune bar. This is on by default
 |cff00ff00Region|r also added to reset options for each bar
 |cff00ff00Predicted Value|r renamed to Predicted Health for health bars and Predicted Power for power bars.  Trigger options type "(predicted...)" is for Predicted Health or Power and "cost" is for Predicted Cost
-
-|cffffff00This list can be viewed under Help -> Changes
+|cff00ff00Copy and Paste|r had some improvements
 ]]
 
 

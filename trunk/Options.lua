@@ -108,6 +108,8 @@ local o = {
   TestModeHolyPowerMax = 5,
   TestModeChiMin = 0,
   TestModeChiMax = 6,
+  TestModePointsMin = 0,
+  TestModePointsMax = 8,
 
   -- Fade for all unitbars.
   FadeOutTime = 1,
@@ -132,7 +134,7 @@ local o = {
   FontFieldHeightMax = 200,
 
   -- Trigger settings
-  TriggerTextureScaleMin = 0.1,
+  TriggerTextureScaleMin = 0.55,
   TriggerTextureScaleMax = 5,
   TriggerBarOffsetAllMin = -100,
   TriggerBarOffsetAllMax = 100,
@@ -156,7 +158,7 @@ local o = {
   LayoutPaddingMax = 50,
   LayoutSmoothFillMin = 0,
   LayoutSmoothFillMax = 1,
-  LayoutTextureScaleMin = 0.1,
+  LayoutTextureScaleMin = 0.55,
   LayoutTextureScaleMax = 4.6,
   LayoutFadeInTimeMin = 0,
   LayoutFadeInTimeMax = 1,
@@ -202,7 +204,7 @@ local o = {
   UnitBarAlphaMax = 1,
 
   -- Bar size options
-  UnitBarSizeMin = 10,
+  UnitBarSizeMin = 15,
   UnitBarSizeMax = 500,
   UnitBarSizeAdvancedMinMax = 25,
 
@@ -259,7 +261,7 @@ local ValueName_AllDropdown = {
          'Predicted Health',    -- 3
          'Predicted Power',     -- 4
          'Predicted Cost',      -- 5
-         'Name',                -- 6
+         'Unit',                -- 6
          'Time',                -- 7
   [99] = 'None',                -- 99
 }
@@ -267,7 +269,7 @@ local ValueName_AllDropdown = {
 local ValueName_HapDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
-  [6]  = 'Name',
+  [6]  = 'Unit',
   [99] = 'None',
 }
 
@@ -275,7 +277,7 @@ local ValueName_HealthDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
   [3]  = 'Predicted Health',
-  [6]  = 'Name',
+  [6]  = 'Unit',
   [99] = 'None',
 }
 
@@ -284,7 +286,7 @@ local ValueName_PowerDropdown = {
   [2]  = 'Maximum Value',
   [4]  = 'Predicted Power',
   [5]  = 'Predicted Cost',
-  [6]  = 'Name',
+  [6]  = 'Unit',
   [99] = 'None',
 }
 
@@ -292,7 +294,7 @@ local ValueName_ManaDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
   [5]  = 'Predicted Cost',
-  [6]  = 'Name',
+  [6]  = 'Unit',
   [99] = 'None',
 }
 
@@ -328,10 +330,11 @@ local ValueType_TimeDropdown = {
   [22] = 'Seconds.00',
 }
 
-local ValueType_NameDropdown = {
+local ValueType_UnitDropdown = {
   [30] = 'Unit Name',
   [31] = 'Realm Name',
   [32] = 'Unit Name and Realm',
+  [33] = 'Unit Level',
 }
 
 local ValueType_WholeDropdown = {
@@ -349,7 +352,7 @@ local ValueTypeMenuDropdown = {
   predictedpower  = ValueType_ValueDropdown,
   predictedcost   = ValueType_ValueDropdown,
   time            = ValueType_TimeDropdown,
-  name            = ValueType_NameDropdown,
+  unit            = ValueType_UnitDropdown,
   none            = ValueType_NoneDropdown,
 
   -- prevent error if these values are found.
@@ -364,7 +367,7 @@ local ConvertValueName = {
          predictedhealth   = 3,
          predictedpower    = 4,
          predictedcost     = 5,
-         name              = 6,
+         unit              = 6,
          time              = 7,
          none              = 99,
          'current',         -- 1
@@ -372,7 +375,7 @@ local ConvertValueName = {
          'predictedhealth', -- 3
          'predictedpower',  -- 4
          'predictedcost',   -- 5
-         'name',            -- 6
+         'unit',            -- 6
          'time',            -- 7
   [99] = 'none',            -- 99
 }
@@ -393,6 +396,7 @@ local ConvertValueType = {
   unitname                 = 30,
   realmname                = 31,
   unitnamerealm            = 32,
+  unitlevel                = 33,
   [1]  = 'whole',
   [2]  = 'short',
   [3]  = 'thousands',
@@ -408,6 +412,7 @@ local ConvertValueType = {
   [30] = 'unitname',
   [31] = 'realmname',
   [32] = 'unitnamerealm',
+  [33] = 'unitlevel',
 }
 
 local TextLineDropdown = {
@@ -503,16 +508,22 @@ local AuraStackOperatorDropdown = {
   '<>',            -- 6
 }
 
-local TriggerColorIcon          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerColor.tga]]
-local TriggerBarIcon            = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBar.tga]]
-local TriggerBorderIcon         = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorder.tga]]
-local TriggerChangeSizeIcon     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerChangeSize.tga]]
-local TriggerSoundIcon          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerSound.tga]]
-local TriggerBackgroundIcon     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackground.tga]]
-local TriggerTextChangeSizeIcon = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeSize.tga]]
-local TriggerTextColorIcon      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextColor.tga]]
-local TriggerTextTypeIcon       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextType.tga]]
-local TriggerTextOutlineIcon    = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextOutline.tga]]
+local ConvertTypeIDColorIcon = {
+  bartexturecolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBarColor.tga]],
+  bartexture      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBar.tga]],
+  border          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorder.tga]],
+  bordercolor     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorderColor.tga]],
+  texturescale    = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextureScale.tga]],
+  baroffset       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerChangeOffset.tga]],
+  sound           = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerSound.tga]],
+  background      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackground.tga]],
+  backgroundcolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackgroundColor.tga]],
+  fontsize        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeSize.tga]],
+  fontoffset      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeOffset.tga]],
+  fontcolor       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextColor.tga]],
+  fonttype        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextType.tga]],
+  fontstyle       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextOutline.tga]],
+}
 
 --*****************************************************************************
 --
@@ -816,19 +827,19 @@ end
 --
 -- BarType            Type of options being created.
 -- TableName          Where the color is stored.
--- TablePath          Path to where the color data is stored.
+-- ColorPath          Table path to where the color data is stored.
 -- KeyName            Name of the color table.
 -- Order              Position in the options list.
 -- Name               Name of the options.
 --
 -- ColorAllOptions  Options table for the bartype.
 -------------------------------------------------------------------------------
-local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Order, Name)
+local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Order, Name)
   local UBF = UnitBarsF[BarType]
   local Names = UBF.Names
 
   -- Get max colors
-  local MaxColors = #Main:GetUB(BarType, TablePath)
+  local MaxColors = #Main:GetUB(BarType, ColorPath)
 
   local ColorAllOptions = {
     type = 'group',
@@ -837,7 +848,7 @@ local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Ord
     dialogInline = true,
     get = function(Info)
             local ColorIndex = tonumber(Info[#Info])
-            local c = Main:GetUB(BarType, TablePath)
+            local c = Main:GetUB(BarType, ColorPath)
 
             if ColorIndex > 0 then
               c = c[ColorIndex]
@@ -846,7 +857,7 @@ local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Ord
           end,
     set = function(Info, r, g, b, a)
             local ColorIndex = tonumber(Info[#Info])
-            local c = Main:GetUB(BarType, TablePath)
+            local c = Main:GetUB(BarType, ColorPath)
 
             if ColorIndex > 0 then
               c = c[ColorIndex]
@@ -863,10 +874,10 @@ local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Ord
         order = 1,
         desc = 'Everything can be set to one color',
         get = function()
-                return Main:GetUB(BarType, TablePath).All
+                return Main:GetUB(BarType, ColorPath).All
               end,
         set = function(Info, Value)
-                Main:GetUB(BarType, TablePath).All = Value
+                Main:GetUB(BarType, ColorPath).All = Value
 
                 -- Refresh colors when changing between all and normal.
                 UBF:SetAttr(TableName, KeyName)
@@ -879,29 +890,30 @@ local function CreateColorAllOptions(BarType, TableName, TablePath, KeyName, Ord
         hasAlpha = true,
         desc = 'Set everything to one color',
         hidden = function()
-                   return not Main:GetUB(BarType, TablePath).All
+                   return not Main:GetUB(BarType, ColorPath).All
                  end,
       },
       Spacer = CreateSpacer(3),
     },
   }
-  local t = ColorAllOptions.args
+  local CAOA = ColorAllOptions.args
+  local Offset = Main:GetUB(BarType, ColorPath .. '._Offset', DUB) or 0
 
-  for c = 1, #Main:GetUB(BarType, TablePath) do
-    local Name = Names[c]
+  for ColorIndex = 1, #Main:GetUB(BarType, ColorPath) do
+    local Name = Names[ColorIndex + Offset]
     local ColorOption = {}
 
     --- Create the color table
     ColorOption.type = 'color'
     ColorOption.name = Name
-    ColorOption.order = c + 3
+    ColorOption.order = ColorIndex + 3
     ColorOption.hasAlpha = true
     ColorOption.hidden = function()
-                           return Main:GetUB(BarType, TablePath).All
+                           return Main:GetUB(BarType, ColorPath).All
                          end
 
     -- Add it to the options table
-    t[format('%s', c)] = ColorOption
+    CAOA[format('%s', ColorIndex)] = ColorOption
   end
 
   return ColorAllOptions
@@ -2717,6 +2729,13 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       p2, p3, p4 = nil, nil, nil
       p1 = tonumber(p1) or 1
 
+      -- check for out of bounds
+      if p1 < o.TriggerTextureScaleMin then
+        p1 = o.TriggerTextureScaleMin
+      elseif p1 > o.TriggerTextureScaleMax then
+        p1 = o.TriggerTextureScaleMax
+      end
+
     elseif TypeID == 'baroffset' then
       p1, p2, p3, p4 = tonumber(p1) or 0, tonumber(p2) or 0, tonumber(p3) or 0, tonumber(p4) or 0
 
@@ -3056,37 +3075,15 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       type = 'input',
       order = 5,
       name = function()
-               local TypeID = Trigger.TypeID
-               local Texture = nil
+               local Texture = ConvertTypeIDColorIcon[Trigger.TypeID]
                local rgb = '0.7, 0.7, 0.7'
-
-               if TypeID == 'fontcolor' then
-                 Texture = TriggerTextColorIcon
-               elseif strfind(TypeID, 'color') then
-                 Texture = TriggerColorIcon
-               elseif strfind(TypeID, 'border') then
-                 Texture = TriggerBorderIcon
-               elseif TypeID == 'background' then
-                 Texture = TriggerBackgroundIcon
-               elseif TypeID == 'texturescale' or TypeID == 'baroffset' then
-                 Texture = TriggerChangeSizeIcon
-               elseif strfind(TypeID, 'bar') then
-                 Texture = TriggerBarIcon
-               elseif TypeID == 'fontsize' or TypeID == 'fontoffset' then
-                 Texture = TriggerTextChangeSizeIcon
-               elseif TypeID == 'fonttype' then
-                 Texture = TriggerTextTypeIcon
-               elseif TypeID == 'fontstyle' then
-                 Texture = TriggerTextOutlineIcon
-               elseif TypeID == 'sound' then
-                 Texture = TriggerSoundIcon
-               end
 
                if not Trigger.Enabled then
                  rgb = '0.75, 0, 0'
                elseif Trigger.Static then
                  rgb = '0, 0.75, 0'
                end
+
                if Texture then
                  return format('%s:%s  |T%s:16|t  |cFFFFFF00%s|r', rgb, Trigger.OrderNumber, Texture, Trigger.Name)
                else
@@ -4072,7 +4069,16 @@ local function CreateTestModeOptions(BarType, Order, Name)
           end,
     set = function(Info, Value)
             local KeyName = Info[#Info]
-            UBF.UnitBar.TestMode[KeyName] = Value
+            local TestMode = UBF.UnitBar.TestMode
+            TestMode[KeyName] = Value
+
+            if Value then
+              if KeyName == 'DeeperStratagem' then
+                TestMode.Anticipation = false
+              elseif KeyName == 'Anticipation' then
+                TestMode.DeeperStratagem = false
+              end
+            end
 
             -- Update the bar to show test mode changes.
             UBF:SetAttr('TestMode', KeyName)
@@ -4186,7 +4192,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.HolyPower = {
       type = 'range',
       name = 'Holy Power',
-      order = 107,
+      order = 108,
       desc = 'Change how many holy runes are lit',
       width = 'double',
       step = 1,
@@ -4198,19 +4204,45 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.Ascension = {
       type = 'toggle',
       name = 'Ascension',
-      order = 1,
+      order = 109,
     }
   end
   if UBD.TestMode.Chi ~= nil then
     TestModeArgs.Chi = {
       type = 'range',
       name = 'Chi',
-      order = 107,
+      order = 110,
       desc = 'Change how many chi orbs are lit',
       width = 'double',
       step = 1,
       min = o.TestModeChiMin,
       max = o.TestModeChiMax,
+    }
+  end
+  if UBD.TestMode.DeeperStratagem ~= nil then
+    TestModeArgs.DeeperStratagem = {
+      type = 'toggle',
+      name = 'Deeper Stratagem',
+      order = 111,
+    }
+  end
+  if UBD.TestMode.Anticipation ~= nil then
+    TestModeArgs.Anticipation = {
+      type = 'toggle',
+      name = 'Anticipation',
+      order = 112,
+    }
+  end
+  if UBD.TestMode.Points ~= nil then
+    TestModeArgs.Points = {
+      type = 'range',
+      name = 'Combo Points',
+      order = 113,
+      desc = 'Change how many combo points are lit',
+      width = 'double',
+      step = 1,
+      min = o.TestModePointsMin,
+      max = o.TestModePointsMax,
     }
   end
 
@@ -4559,15 +4591,15 @@ local function CreateLayoutOptions(BarType, Order, Name)
       FloatArgs.Spacer30 = CreateSpacer(30)
       FloatArgs.ResetFloat = {
         type = 'execute',
-        name = 'Reset Float',
+        name = 'Copy Layout',
         order = 3,
-        desc = 'Resets the floating layout by copying the normal mode layout to float',
+        desc = 'Copy the normal mode layout to float',
         confirm = true,
         disabled = function()
                      return not UBF.UnitBar.Layout.Float
                    end,
         func = function()
-                 UBF.BBar:ResetFloatBar()
+                 UBF.BBar:CopyLayoutFloatBar()
                  UBF.BBar:Display()
                end
       }
@@ -4674,6 +4706,48 @@ local function CreateGeneralOptions(BarType, Order, Name)
       name = 'Tagged Color',
       order = 7,
       desc = 'Shows if the target is tagged by another player',
+    }
+  end
+  if UBD.General.TextureScaleCombo ~= nil then
+    GeneralArgs.TextureScaleCombo = {
+      type = 'range',
+      name = 'Texture Scale (Combo)',
+      order = 8,
+      desc = 'Changes the texture size of the combo point objects',
+      step = 0.01,
+      isPercent = true,
+      disabled = function()
+                   return Flag(true, UBF.UnitBar.Layout.BoxMode)
+                 end,
+      min = o.LayoutTextureScaleMin,
+      max = o.LayoutTextureScaleMax,
+    }
+  end
+  if UBD.General.TextureScaleAnticipation ~= nil then
+    GeneralArgs.TextureScaleAnticipation = {
+      type = 'range',
+      name = 'Texture Scale (Anticipation)',
+      order = 9,
+      desc = 'Changes the texture size of the anticipation point objects',
+      step = 0.01,
+      isPercent = true,
+      disabled = function()
+                   return Flag(true, UBF.UnitBar.Layout.BoxMode)
+                 end,
+      min = o.LayoutTextureScaleMin,
+      max = o.LayoutTextureScaleMax,
+    }
+  end
+  if UBD.General.InactiveAnticipationAlpha ~= nil then
+    GeneralArgs.InactiveAnticipationAlpha = {
+      type = 'range',
+      name = 'Inactive Anticipation Alpha',
+      order = 10,
+      desc = 'Changes the transparency of inactive anticipation points',
+      min = 0,
+      max = 1,
+      step = 0.01,
+      isPercent = true,
     }
   end
 
@@ -5157,7 +5231,7 @@ end
 --
 -- Subfunction of CreateUnitBarOptions()
 --
--- BarType   Type of options being created.
+-- BarType   Bar thats using copy and paste.
 -- Order     Position in the options list.
 -- Name      Name of the options.
 -------------------------------------------------------------------------------
@@ -5165,28 +5239,55 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
   local UBF = UnitBarsF[BarType]
   local BBar = UBF.BBar
 
+  local TP = {
+    Status         = 'Status',
+    Layout         = 'Layout',
+    Other          = 'Other',
+    Background     = 'Background',
+    BgCombo        = 'BackgroundCombo',
+    BgAntic        = 'BackgroundAnticipation',
+    Bar            = 'Bar',
+    BarCombo       = 'BarCombo',
+    BarAntic       = 'BarAnticipation',
+    Text           = 'Text',
+    Text1          = 'Text.1',
+    Text2          = 'Text.2',
+    Text3          = 'Text.3',
+    Text4          = 'Text.4',
+    Triggers       = 'Triggers',
+  }
+
+  local IsText = { [TP.Text] = 1, [TP.Text1] = 1, [TP.Text2] = 1, [TP.Text3] = 1, [TP.Text4] = 1 }
+
   MenuButtons = MenuButtons or {
     Main = { Order = 1, Width = 'half',
-      { Name = 'All'       , All = false, TablePath = ''                  },
-      { Name = 'Status'    , All = true,  TablePath = 'Status'            },
-      { Name = 'Layout'    , All = true,  TablePath = 'Layout'            },
-      { Name = 'Other'     , All = true,  TablePath = 'Other'             }},
+      { Name = 'All',        Width = 'half',   All = false, TablePath = '',            Hide = {} },
+      { Name = 'Status',     Width = 'half',   All = true,  TablePath = TP.Status,     Hide = { [TP.Layout] = 1, [TP.Other]  = 1 } },
+      { Name = 'Layout',     Width = 'half',   All = true,  TablePath = TP.Layout,     Hide = { [TP.Status] = 1, [TP.Other]  = 1 } },
+      { Name = 'Other',      Width = 'half',   All = true,  TablePath = TP.Other,      Hide = { [TP.Status] = 1, [TP.Layout] = 1 } }},
 
-    Background = { Order = 2, Width = 'normal',
-      { Name = 'Background', All = true,  TablePath = 'Background'        }},
+    Background = {Order = 2, Width = 'normal',
+      { Name = 'Background', Width = 'normal', All = true,  TablePath = TP.Background, Hide = {} },
+      { Name = 'Combo',      Width = 'half',   All = true,  TablePath = TP.BgCombo,    Hide = {} },
+      { Name = 'Antic',      Width = 'half',   All = true,  TablePath = TP.BgAntic,    Hide = {},
+        FullName = 'Anticipation'                                                                }},
 
     Bar = { Order = 3, Width = 'half',
-      { Name = 'Bar'       , All = true,  TablePath = 'Bar'               }},
+      { Name = 'Bar',        Width = 'half',   All = true,  TablePath = TP.Bar,        Hide = {} },
+      { Name = 'Combo',      Width = 'half',   All = true,  TablePath = TP.BarCombo,   Hide = {} },
+      { Name = 'Antic',      Width = 'half',   All = true,  TablePath = TP.BarAntic,   Hide = {},
+        FullName = 'Anticipation'                                                                }},
 
     Text = { Order = 4, Width = 'half',
-      { Name = 'All Text'  , All = false, TablePath = 'Text'              },
-      { Name = 'Text 1'    , All = true,  TablePath = 'Text.1'            },
-      { Name = 'Text 2'    , All = true,  TablePath = 'Text.2'            },
-      { Name = 'Text 3'    , All = true,  TablePath = 'Text.3'            },
-      { Name = 'Text 4'    , All = true,  TablePath = 'Text.4'            }},
+      { Name  = 'All Text',  Width = 'half',   All = true,  TablePath = TP.Text,       Hide = { [TP.Text1] = 1, [TP.Text2] = 1,
+                                                                                                [TP.Text3] = 1, [TP.Text4] = 1 } },
+      { Name  = 'Text 1',    Width = 'half',   All = false, TablePath = TP.Text1,      Hide = { [TP.Text] = 1 } },
+      { Name  = 'Text 2',    Width = 'half',   All = false, TablePath = TP.Text2,      Hide = { [TP.Text] = 1 } },
+      { Name  = 'Text 3',    Width = 'half',   All = false, TablePath = TP.Text3,      Hide = { [TP.Text] = 1 } },
+      { Name  = 'Text 4',    Width = 'half',   All = false, TablePath = TP.Text4,      Hide = { [TP.Text] = 1 } }},
 
     Triggers = { Order = 5, Width = 'half',
-      { Name = 'Triggers'  , All = true,  TablePath = 'Triggers'          }}
+      { Name = 'Triggers',   Width = 'half',   All = true,  TablePath = TP.Triggers,  Hide = {} }},
   }
 
   local CopyPasteOptions = {
@@ -5206,19 +5307,10 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                 if ClipBoard then
                   if Name == 'AppendTriggers' then
                     return format('Append Triggers from %s to\n%s', DUB[BarType].Name, DUB[ClipBoard.BarType].Name)
-
-                  else
-                    -- Paste
+                  elseif Name ~= 'Clear' then
                     local Arg = Info.arg
-                    local PasteName = Arg and Arg.PasteName
 
-                    if Name ~= 'Clear' then
-                      if PasteName then
-                        return format('Copy %s [ %s ] to \n%s [ %s ]', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name, PasteName)
-                      else
-                        return format('Copy %s [ %s ] to %s', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name)
-                      end
-                    end
+                    return format('Copy %s [ %s ] to \n%s [ %s ]', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name, Arg.PasteName)
                   end
                 end
               end,
@@ -5230,11 +5322,11 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
              if ClipBoard == nil then
                ClipBoard = {}
                ClipBoard.BarType = BarType
-               ClipBoard.TablePath = Arg.TablePath
                ClipBoard.BarName = UBF.UnitBar.Name
+               ClipBoard.Hide = Arg.Hide
+               ClipBoard.TablePath = Arg.TablePath
                ClipBoard.MenuButtonName = Arg.MenuButtonName
                ClipBoard.SelectButtonName = Arg.SelectButtonName
-               ClipBoard.TextNumber = Arg.TextNumber
                ClipBoard.AllButton = Arg.AllButton
              else
                -- Save name and locaton.
@@ -5250,7 +5342,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                  local SourceTablePath = ClipBoard.TablePath
                  local SourceTable = Main:GetUB(BarType, SourceTablePath)
 
-                 if ClipBoard.SelectButtonName == 'All' then
+                 if ClipBoard.AllButton then
                    for SelectIndex, SelectButton in pairs(MenuButtons) do
                      for _, SB in ipairs(SelectButton) do
                        if SB.All then
@@ -5261,9 +5353,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                      end
                    end
                  else
-                   local TablePath = Arg and Arg.TablePath or ClipBoard.TablePath
-
-                   Main:CopyUnitBar(ClipBoard.BarType, BarType, ClipBoard.TablePath, TablePath)
+                   Main:CopyUnitBar(ClipBoard.BarType, BarType, ClipBoard.TablePath, Arg.TablePath)
                  end
                end
 
@@ -5279,7 +5369,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                UBF:Update()
 
                Main.CopyPasted = false
-               -- Update any text highlights.  We use 'on' since its always on when options are opened.
+               -- Update any text highlights.  Use 'on' since its always on when options are opened.
                Bar:SetHighlightFont('on', Main.UnitBars.HideTextHighlight)
 
                -- Update any dynamic options.
@@ -5299,164 +5389,146 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
     width = 'full',
   }
 
+  -- Create clear button
+  Args.Clear = {
+    type = 'execute',
+    name = 'Clear',
+    order = 9,
+    width = 'half',
+    func = function()
+             ClipBoard = nil
+
+             HideTooltip(true)
+           end,
+    hidden = function()
+               return ClipBoard == nil
+             end,
+    disabled = function()
+                 HideTooltip(true)
+
+                 return ClipBoard == nil
+               end,
+  }
+
   -- Create menu buttons
   for MenuButtonName, MenuButton in pairs(MenuButtons) do
     local Found = false
 
-    -- Check for to see if any tables exist.
+    -- Check to see if any tables exist.
     for _, SelectButton in ipairs(MenuButton) do
-      if Main:GetUB(BarType, SelectButton.TablePath) ~= nil then
+      if SelectButton.Name == 'All' or Main:GetUB(BarType, SelectButton.TablePath) ~= nil then
         Found = true
         break
       end
     end
 
     if Found then
-      if Main:GetUB(BarType, MenuButton.TablePath) ~= nil then
-        Args[MenuButtonName] = {
-          type = 'input',
-          order = MenuButton.Order,
-          name = function()
-                   if SelectedMenuButtonName == MenuButtonName then
-                     return format('%s:2', MenuButtonName)
-                   else
-                     return format('%s', MenuButtonName)
-                   end
-                 end,
-          width = MenuButton.Width,
-          dialogControl = 'GUB_Menu_Button',
-          disabled = function()
-                       return ClipBoard ~= nil and ClipBoard.MenuButtonName ~= MenuButtonName
-                     end,
-          set = function()
-                  SelectedMenuButtonName = MenuButtonName
-                end,
-          get = function() end,
-        }
-        local GA = {}
-
-        Args[MenuButtonName .. '_Group'] = {
-          type = 'group',
-          name = '',
-          order = 11,
-          hidden = function()
-                     return SelectedMenuButtonName ~= MenuButtonName
+      -- Create the menu button
+      Args[MenuButtonName] = {
+        type = 'input',
+        order = MenuButton.Order,
+        name = function()
+                 if SelectedMenuButtonName == MenuButtonName then
+                   return format('%s:2', MenuButtonName)
+                 else
+                   return format('%s', MenuButtonName)
+                 end
+               end,
+        width = MenuButton.Width,
+        dialogControl = 'GUB_Menu_Button',
+        disabled = function()
+                     return ClipBoard ~= nil and ClipBoard.MenuButtonName ~= MenuButtonName
                    end,
-          args = GA,
-        }
+        set = function()
+                SelectedMenuButtonName = MenuButtonName
+              end,
+        get = function() end,
+      }
 
-        -- Create clear and paste buttons
-        GA.Clear = {
-          type = 'execute',
-          name = 'Clear',
-          order = 11,
-          width = 'half',
-          func = function()
-                   ClipBoard = nil
+      -- Create the group
+      local GA = {}
 
-                   HideTooltip(true)
+      Args[MenuButtonName .. '_Group'] = {
+        type = 'group',
+        name = '',
+        order = 11,
+        hidden = function()
+                   return SelectedMenuButtonName ~= MenuButtonName
                  end,
-          hidden = function()
-                     return ClipBoard == nil
-                   end,
-          disabled = function()
-                       HideTooltip(true)
+        args = GA,
+      }
 
-                       return ClipBoard == nil
+      -- Create the select buttons
+      for SelectIndex, SelectButton in ipairs(MenuButton) do
+        local TablePath = SelectButton.TablePath
+        local SelectButtonName = SelectButton.Name
+        local SelectButtonFullName = SelectButton.FullName
+        local AllButton = SelectButtonName == 'All'
+        local Text = IsText[TablePath] ~= nil
+
+        if AllButton or Text or Main:GetUB(BarType, TablePath) ~= nil then
+          GA[SelectButtonName] = {
+            type = 'execute',
+            name =  SelectButtonName,
+            width = SelectButton.Width,
+            order = SelectIndex + 20,
+            desc = SelectButtonFullName,
+            hidden = function()
+                       return Text and Main:GetUB(BarType, TablePath) == nil or ClipBoard ~= nil
                      end,
-        }
+            arg = {Hide                 = SelectButton.Hide,
+                   TablePath            = TablePath,
+                   MenuButtonName       = MenuButtonName,
+                   SelectButtonName     = SelectButtonFullName or SelectButtonName,
+                   AllButton            = AllButton                                }
+          }
 
-        -- Create select buttons
-        for SelectIndex, SelectButton in ipairs(MenuButton) do
-          local AllButton = not SelectButton.All
-          local SelectButtonName = SelectButton.Name
-          local TablePath = SelectButton.TablePath
-          local Text = strfind(TablePath, 'Text') ~= nil
-          local TextNumber = nil
-
-          if Text and TablePath ~= 'Text' then
-            TextNumber = SelectIndex - 1
-          end
-
-          -- Create paste buttons for text.
-          if Text then
-            GA['PasteText' .. SelectIndex] = {
-              type = 'execute',
-              name = format('Paste (%s)', SelectButtonName),
-              order = SelectIndex + 12,
-              width = 'normal',
-              hidden = function()
-                         if ClipBoard then
-                           -- Only allow past over existing text lines
-                           if not AllButton and TextNumber > #UBF.UnitBar.Text then
-                             return true
-                           elseif ClipBoard.BarType == BarType then
-                             return AllButton or ClipBoard.AllButton or ClipBoard.SelectButtonName == SelectButtonName
-                           else
-                             return ClipBoard.AllButton ~= AllButton
-                           end
-                         else
+          -- Create paste button
+          GA['Paste' .. SelectButtonName] = {
+            type = 'execute',
+            name = format('Paste (%s)', SelectButtonName),
+            width = 'normal',
+            order = SelectIndex + 20,
+            desc = SelectButtonFullName,
+            hidden = function()
+                       if ClipBoard then
+                         -- Check to see if text actually exists
+                         if Text and Main:GetUB(BarType, TablePath) == nil then
                            return true
+
+                         -- Hide any button if all button was clicked
+                         elseif ClipBoard.AllButton then
+                           return ClipBoard.BarType == BarType or not AllButton
+
+                         -- Hide the all button if any button was clicked
+                         elseif AllButton then
+                           return true
+
+                         -- Hide buttons based on the hide table
+                         elseif ClipBoard.SelectButtonName ~= SelectButtonName then
+                           return ClipBoard.Hide[TablePath] ~= nil
+
+                         else
+                           -- Hide the button that was clicked
+                           return ClipBoard.BarType == BarType
                          end
-                       end,
-              arg = {TablePath = TablePath, PasteName = SelectButtonName},
-            }
-          else
-            if SelectIndex == 1 then
+                       else
+                         return true
+                       end
+                     end,
+            arg = {TablePath = TablePath, PasteName = SelectButtonFullName or SelectButtonName},
+          }
 
-              -- Create standard paste button
-              GA.Paste = {
-                type = 'execute',
-                name = 'Paste',
-                desc = function()
-                         return 'Click to paste ' .. ClipBoard.SelectButtonName
-                       end,
-                order = 12,
-                width = 'half',
-                hidden = function()
-                           return ClipBoard == nil or ClipBoard.MenuButtonName == 'Text'
-                         end,
-                disabled = function()
-                             return ClipBoard.BarType == BarType
-                           end,
-              }
-              -- Create append triggers.
-              if MenuButtonName == 'Triggers' then
-                GA.AppendTriggers = {
-                  type = 'execute',
-                  name = 'Append',
-                  desc = 'Click to add triggers to your existing triggers',
-                  order = 13,
-                  width = 'half',
-                  hidden = function()
-                             return ClipBoard == nil
-                           end,
-                  disabled = function()
-                               return ClipBoard.BarType == BarType
-                             end,
-                }
-              end
-            end
-          end
-
-          if Main:GetUB(BarType, TablePath) ~= nil or ( Text and not AllButton ) or MenuButtonName == 'Triggers' then
-            GA[SelectButtonName] = {
+          if SelectButtonName == 'Triggers' then
+            GA.AppendTriggers = {
               type = 'execute',
-              order = SelectIndex,
-              name = SelectButtonName,
-              width = SelectButtonName == 'Background' and 'normal' or 'half',
+              name = 'Append (Triggers)',
+              width = 'normal',
+              order = 30,
               hidden = function()
-                         return ClipBoard ~= nil
+                         return ClipBoard == nil or ClipBoard.BarType == BarType
                        end,
-              disabled = function()
-                           -- Disable if the text# doesn't exist.
-                           return Text and Main:GetUB(BarType, TablePath) == nil
-                         end,
-              arg = {TablePath = TablePath,
-                     MenuButtonName = MenuButtonName,
-                     SelectButtonName = SelectButtonName,
-                     TextNumber = TextNumber,
-                     AllButton = AllButton},
+              arg = {TablePath = TablePath, PasteName = SelectButtonFullName or SelectButtonName},
             }
           end
         end
@@ -5532,29 +5604,62 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
                                end
   end
 
-
-  -- Add background options
-  OptionArgs.Background = CreateBackdropOptions(BarType, 'Background', 1001, 'Background')
-  if BarType == 'RuneBar' then
-    OptionArgs.Background.hidden = function()
-                                     return UBF.UnitBar.General.RuneMode == 'rune'
-                                   end
-  else
+  -- Add tab background options
+  if BarType == 'ComboBar' then
+    OptionArgs.Background = {
+      type = 'group',
+      name = 'Background',
+      order = 1001,
+      childGroups = 'tab',
+    }
+    OptionArgs.Background.args = {
+      Combo = CreateBackdropOptions(BarType, 'BackgroundCombo', 1, 'Combo'),
+      Anticipation = CreateBackdropOptions(BarType, 'BackgroundAnticipation', 2, 'Anticipation'),
+    }
     OptionArgs.Background.hidden = function()
                                      return not Flag(true, UBF.UnitBar.Layout.BoxMode)
                                    end
+  else
+    -- Add background options
+    OptionArgs.Background = CreateBackdropOptions(BarType, 'Background', 1001, 'Background')
+    if BarType == 'RuneBar' then
+      OptionArgs.Background.hidden = function()
+                                       return UBF.UnitBar.General.RuneMode == 'rune'
+                                     end
+    else
+      OptionArgs.Background.hidden = function()
+                                       return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                                     end
+    end
   end
 
-  -- add bar options for this bar.
-  OptionArgs.Bar = CreateBarOptions(BarType, 'Bar', 1002, 'Bar')
-  if BarType == 'RuneBar' then
-    OptionArgs.Bar.hidden = function()
-                              return UBF.UnitBar.General.RuneMode == 'rune'
-                            end
-  else
+  -- add tab bar options
+  if BarType == 'ComboBar' then
+    OptionArgs.Bar = {
+      type = 'group',
+      name = 'Bar',
+      order = 1002,
+      childGroups = 'tab',
+    }
+    OptionArgs.Bar.args = {
+      Combo = CreateBarOptions(BarType, 'BarCombo', 1, 'Combo'),
+      Anticipation = CreateBarOptions(BarType, 'BarAnticipation', 2, 'Anticipation'),
+    }
     OptionArgs.Bar.hidden = function()
                               return not Flag(true, UBF.UnitBar.Layout.BoxMode)
                             end
+  else
+    -- add bar options
+    OptionArgs.Bar = CreateBarOptions(BarType, 'Bar', 1002, 'Bar')
+    if BarType == 'RuneBar' then
+      OptionArgs.Bar.hidden = function()
+                                return UBF.UnitBar.General.RuneMode == 'rune'
+                              end
+    else
+      OptionArgs.Bar.hidden = function()
+                                return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                              end
+    end
   end
 
   -- Add text options
@@ -5711,7 +5816,6 @@ local function RefreshAuraList(AG, Unit, TrackedAurasList)
       local AuraKey = format('Auras%s', SpellID)
 
       if AGA[AuraKey] == nil then
-        local Name, _, Icon = GetSpellInfo(SpellID)
         Order = Order + 1
 
         local AuraInfo = {
@@ -5723,7 +5827,7 @@ local function RefreshAuraList(AG, Unit, TrackedAurasList)
           set = function() end,
         }
 
-        SortList[Order] = {Name = Name, AuraInfo = AuraInfo}
+        SortList[Order] = {Name = GetSpellInfo(SpellID), AuraInfo = AuraInfo}
         AGA[AuraKey] = AuraInfo
       end
     end

@@ -764,10 +764,6 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       BBar:SO('Bar', 'PredictedCostColor',      function(v) BBar:SetColorTexture(1, PredictedCostBar, v.r, v.g, v.b, v.a) end)
     end
 
-    if DGen and DGen.FactionColor ~= nil then
-      BBar:SO('Bar', 'FactionColor',        function(v, UB) Update = true end)
-    end
-
     if DBar.Color ~= nil then
       BBar:SO('Bar', 'Color',               function(v) Update = true end)
     end

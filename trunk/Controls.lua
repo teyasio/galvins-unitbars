@@ -912,7 +912,7 @@ AceGUI:RegisterWidgetType(AuraEditBoxWidgetType, AuraEditBoxConstructor, AuraEdi
 -- Sets the menu arrow to opened, closed or none.  Disabled or enabled.
 --
 -- ButtonFrame    Frame to position arrow on.
--- State          '0', '1'
+-- State          '0', '1', '2'
 -------------------------------------------------------------------------------
 local function SetMenuIcon(ButtonFrame, State)
   local MenuIcon = nil
@@ -1039,7 +1039,7 @@ end
 -- To use this in ace-config.  Use type = 'input', and then use set to respond
 -- To mouse clicks on the button.
 --
--- To set the state use: 'Menu:#' # = 0 closed, # = 1 opened
+-- To set the state use: 'Menu:#' # = 0 closed, # = 1 opened, # = 2 bullet
 -------------------------------------------------------------------------------
 local function MenuButtonConstructor()
   local Frame = CreateFrame('Frame', nil, UIParent)
