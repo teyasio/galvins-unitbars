@@ -122,6 +122,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   CurrentTexture                  Contains the current texture name.  This is to prevent the texture from getting
 --                                   set to the same texture.  Which would cause a graphical glitch.  Used by SetTexture()
 --   Hidden                          If true then the statusbar/texture is hidden.
+--   ShowHideFn                      This function will get called after calling SetHiddenTexture().  If fade is set then
+--                                   the function will get called after the fade has ended.  Otherwise it happens instantly.
 --   RotateTexture                   If true then the texture is rotated 90 degrees.
 --   ReverseFill                     If true then the texture will fill in the opposite direction.
 --   FillDirection                   Can be 'HORIZONTAL' or 'VERTICAL'.
@@ -535,6 +537,7 @@ local ValueLayout = {
   unitname = '%s',
   realmname = '%s',
   unitnamerealm = '%s',
+  unitlevel = '%s',
   timeSS = '%d',
   timeSS_H = '%.1f',
   timeSS_HH = '%.2f',
@@ -889,28 +892,6 @@ local function CreateBackdrop(Object)
   Object.Backdrop = NewBackdrop
 
   return NewBackdrop
-
---[[  if Bd.BgTexture == nil then
-
-    -- return table since its not a backdrop settings table.
-    return Bd
-  else
-    Backdrop.bgFile   = LSM:Fetch('background', Bd.BgTexture)
-    Backdrop.edgeFile = LSM:Fetch('border', Bd.BdTexture)
-    Backdrop.tile = Bd.BgTile
-    Backdrop.tileSize = Bd.BgTileSize
-    Backdrop.edgeSize = Bd.BdSize
-
-    local Insets = Backdrop.insets
-    local Padding = Bd.Padding
-
-    Insets.left = Padding.Left
-    Insets.right = Padding.Right
-    Insets.top = Padding.Top
-    Insets.bottom = Padding.Bottom
-
-    return Backdrop
-  end --]]
 end
 
 -------------------------------------------------------------------------------
@@ -1361,7 +1342,6 @@ local function OnUpdate_Display(self)
   self.OldFloat = Float
 
   -- Draw the box frames.
-
   for Index = 1, NumBoxes do
     local BoxIndex = BoxOrder and BoxOrder[Index] or Index
     local BF = BoxFrames[BoxIndex]
@@ -1553,6 +1533,27 @@ function BarDB:EnableRegion(Enabled)
 end
 
 -------------------------------------------------------------------------------
+-- SetAlpha
+--
+-- Sets the transparency for a boxframe or texture frame.
+--
+-- BoxNumber        Box to set alpha on or in.
+-- TextureNumber    if not nil then the texture frame gets alpha
+-- Alpha            Between 0 and 1
+-------------------------------------------------------------------------------
+function BarDB:SetAlpha(BoxNumber, TextureFrameNumber, Alpha)
+  repeat
+    local Frame = NextBox(self, BoxNumber)
+
+    if TextureFrameNumber then
+      Frame = Frame.TextureFrames[TextureFrameNumber]
+    end
+
+    Frame:SetAlpha(Alpha)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
 -- SetHidden
 --
 -- Hide or show a boxframe or a texture frame.
@@ -1613,6 +1614,7 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
     local Hidden = Texture.Hidden
+    local ShowHideFn = Texture.ShowHideFn
 
     if Hide ~= Hidden then
       local Fade = Texture.Fade
@@ -1624,6 +1626,10 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
           Fade:SetAnimation('out')
         else
           Texture:Hide()
+
+          if ShowHideFn then
+            ShowHideFn('out')
+          end
         end
         Texture.Hidden = true
       else
@@ -1633,6 +1639,10 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
           Fade:SetAnimation('in')
         else
           Texture:Show()
+
+          if ShowHideFn then
+            ShowHideFn('in')
+          end
         end
         Texture.Hidden = false
       end
@@ -1641,20 +1651,27 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
 end
 
 -------------------------------------------------------------------------------
--- StopFadeTexture
+-- SetShowHideFnTexture
 --
--- Stops fade in or fade out animation playing in the texture.
+-- Sets a function to be called after a Texture has been hidden or shown.
 --
--- BoxNumber       Box containing the texture.
--- TextureNumber   Texture containing the fade.
+-- BoxNumber        BoxNumber containing the texture.
+-- TextureNumber    Texture that will call Fn
+-- Fn               function to call.
+--
+-- Parms passed to Fn
+--   self           BarDB
+--   BN             BoxNumber
+--   TextureNumber
+--   Action         'hide' or 'show'
 -------------------------------------------------------------------------------
-function BarDB:StopFadeTexture(BoxNumber, TextureNumber)
+function BarDB:SetShowHideFnTexture(BoxNumber, TextureNumber, Fn)
   repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Fade = Texture.Fade
+    local BoxFrame, BN = NextBox(self, BoxNumber)
+    local Texture = BoxFrame.TFTextures[TextureNumber]
 
-    if Fade then
-      Fade:SetAnimation('stop')
+    Texture.ShowHideFn = function(Action)
+      Fn(self, BN, TextureNumber, Action == 'in' and 'show' or 'hide')
     end
   until LastBox
 end
@@ -1937,12 +1954,13 @@ function BarDB:SetFloatBar(Float)
 end
 
 -------------------------------------------------------------------------------
--- ResetFloatBar()
+-- CopyLayoutFloatBar()
 --
--- Resets the floating layout by copying the none floating layout to float.
--- Same as going to float for the first time.
+-- Copies the the none floating mode layout to float.
+--
+-- Notes: Display() does the copy.
 -------------------------------------------------------------------------------
-function BarDB:ResetFloatBar()
+function BarDB:CopyLayoutFloatBar()
   self.UnitBarF.UnitBar.BoxLocations = nil
 end
 
@@ -1998,7 +2016,7 @@ end
 -------------------------------------------------------------------------------
 -- ChangeBox
 --
--- Changes a texture based on boxnumber.  SetChange must be called prior.
+-- Changes a texture based on boxnumber.  SetChangeBox must be called prior.
 --
 -- ChangeNumber         Number you assigned the box numbers to.
 -- BarFn                Bar function that can be called by BarDB:Function
@@ -2716,6 +2734,7 @@ function BarDB:SetFadeTimeTexture(BoxNumber, TextureNumber, Action, Seconds)
       -- Create fade if one doesn't exist.
       if Fade == nil then
         Fade = Main:CreateFade(self.UnitBarF, Texture)
+        Fade:SetFn(Texture.ShowHideFn)
         Texture.Fade = Fade
       end
 
@@ -3262,7 +3281,6 @@ function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Fade = Texture.Fade
 
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetStatusBarColor(r, g, b, a)
@@ -3995,7 +4013,7 @@ local FontGetValue = {}
     return NumberToDigitGroups(Round(Value / 1000000, 1))
   end
 
-  -- unitname, realmname, unitnamerealm  (no function needed)
+  -- unitname, realmname, unitnamerealm, unitlevel  (no function needed)
 
   -- timeSS, timeSS_H, timeSS_HH (no function needed)
 
@@ -4055,6 +4073,7 @@ function BarDB:SetValueFont(BoxNumber, ...)
         Realm = '-' .. Realm
       end
       FS.unitnamerealm = Name .. Realm
+      FS.unitlevel = UnitLevel(ParValue)
     else
       FS[ParType] = ParValue
     end
@@ -4640,7 +4659,7 @@ end
 -- Assigns user data to a TableName.  When a table name is found in the unitbar
 -- data.  Additional information set in this function will get passed back.
 --
--- TableName      Once the TableName is SO() is found in the default unitbar data, then unitbar data.
+-- TableName      Once the TableName in SO() is found in the default unitbar data, then unitbar data.
 --                Then if this table matches that. The data is passed back.
 -- ...            Data to pass back thru DoFunction()
 -------------------------------------------------------------------------------
@@ -4716,7 +4735,7 @@ function BarDB:DoOption(OTableName, OKeyName)
                   -- Call Fn if keyname is virtual or keyname was found in unitbar data.
                   if Value ~= nil or KName == '_' or strfind(KName, '_') then
                     OptionData.TableName = DUBTableName
-                    OptionData.KeyName = KName ~= '' and KName or OKeyName
+                    OptionData.KeyName = KName
                     if Value == nil then
                       Value = UBData
                     end
@@ -4727,14 +4746,15 @@ function BarDB:DoOption(OTableName, OKeyName)
                     if type(Value) ~= 'table' or Value.All == nil then
                       Fn(Value, UB, OptionData)
                     else
+                      local Offset = UBD[DUBTableName][KName]._Offset or 0
                       local ColorAll = Value.All
                       local c = Value
 
-                      for Index = 1, #Value do
+                      for ColorIndex = 1, #Value do
                         if not ColorAll then
-                          c = Value[Index]
+                          c = Value[ColorIndex]
                         end
-                        OptionData.Index = Index
+                        OptionData.Index = ColorIndex + Offset
                         OptionData.r = c.r
                         OptionData.g = c.g
                         OptionData.b = c.b

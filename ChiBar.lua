@@ -64,6 +64,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 6
+local ExtraChiOrbStart = 5
 local Display = false
 local NamePrefix = 'Chi '
 
@@ -122,7 +123,7 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {4,   'Orb 4',    VTs, TD}, -- 4
   {5,   'Orb 5',    VTs, TD}, -- 5
   {6,   'Orb 6',    VTs, TD}, -- 6
-  {'a', 'All Orbs', {'whole', 'Chi', 'state', 'Active', 'auras', 'Auras'}, TD}, -- 7
+  {'a', 'All', {'whole', 'Chi', 'state', 'Active', 'auras', 'Auras'}, TD}, -- 7
   {'r', 'Region',   VTs, TDregion}, -- 8
 }
 
@@ -179,8 +180,6 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
   local NumOrbs = UnitPowerMax('player', PowerChi)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
-  -- Set default value if ChiOrbs returns zero.
-  NumOrbs = NumOrbs > 0 and NumOrbs or MaxChiOrbs - 1
   local BBar = self.BBar
 
   if Main.UnitBars.Testing then
@@ -196,14 +195,14 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
 
   -- Check for max chi change
   if NumOrbs ~= self.NumOrbs then
+    self.NumOrbs = NumOrbs
 
     -- Change the number of boxes in the bar.
-    for OrbIndex = 5, MaxChiOrbs do
+    for OrbIndex = ExtraChiOrbStart, MaxChiOrbs do
       BBar:SetHidden(OrbIndex, nil, OrbIndex > NumOrbs)
     end
 
     BBar:Display()
-    self.NumOrbs = NumOrbs
   end
 
   for OrbIndex = 1, MaxChiOrbs do
@@ -368,7 +367,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
     Names[OrbIndex] = Name
   end
 
-  BBar:SetHiddenTexture(0, OrbSBar, false)
+  BBar:SetHiddenTexture(0, OrbSBar, true)
   BBar:SetHiddenTexture(0, OrbDarkTexture, false)
 
   BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)

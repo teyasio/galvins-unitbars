@@ -288,8 +288,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- to fade while the bar is fading, then the combo point will not fade.
 --
 -- These rules prevent the parent and children from fading at the same time.
--- If this were to happen then the alpha state of a texture/frame can get
--- stuck and reloading UI is the only way to fix it.
+-- This gives a better cosmetic look.
 --
 -- If a frame or texture is currently fading, its fading can be reversed
 -- without having to stop the fade, just SetAnimation() to change it and
@@ -315,6 +314,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --   Parent                   - If true then its a parent fade.
 --   DurationIn               - Time in seconds for fade in.
 --   DurationOut              - Time in seconds for fade out.
+--   Fn                       - Calls Fn() after fade in or out has completed.
 
 --
 -- Read the notes on CreateFade() on what methods to use in Fade.
@@ -322,6 +322,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Fade methods
 --   SetDuration()
 --   SetAnimation()
+--   SetFn()
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -400,7 +401,7 @@ local CatForm = CAT_FORM
 local BearForm = BEAR_FORM
 local MonkBrewmasterSpec = SPEC_MONK_BREWMASTER
 
-local MoveAlignDistance = 20
+local MoveAlignDistance = 8
 local MoveSelectFrame = nil
 local MoveLastSelectFrame = nil
 local MovePoint = nil
@@ -586,9 +587,9 @@ local function RegisterEvents(Action, EventType)
     local Flag = Action == 'register'
 
     -- register events for predicted spell tracking.
-    Main:RegEvent(Flag, 'SPELLS_CHANGED',           GUB.CheckPredictedSpells, 'player')
     Main:RegEvent(Flag, 'UNIT_AURA',                GUB.CheckPredictedSpells, 'player')
-    Main:RegEvent(Flag, 'PLAYER_EQUIPMENT_CHANGED', GUB.CheckPredictedSpells, 'player')
+    Main:RegEvent(Flag, 'SPELLS_CHANGED',           GUB.CheckPredictedSpells)
+    Main:RegEvent(Flag, 'PLAYER_EQUIPMENT_CHANGED', GUB.CheckPredictedSpells)
   end
 end
 
@@ -983,7 +984,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
   local ContentFrame = MessageBox.ContentFrame
   ContentFrame:SetSize(Width - 45, 1000)
 
-  FontString:SetText("Galvin's Unit Bars\n\n" .. Message)
+  FontString:SetText("Galvin's Unit Bars\n\n" .. Message .. '\n' .. '|cffffff00This list can be viewed under Help -> Changes')
 
   local Height = FontString:GetStringHeight()
   local Scroller = MessageBox.Scroller
@@ -1298,8 +1299,10 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
     end
 
     -- Convert value name Predicted to PredictedHealth or PredictedPower
-    if SourceKey == 'Text' and ( strfind(BarType, 'Health') or strfind(BarType, 'Power') ) then
+    -- Convert value name Name to Unit.
+    if SourceKey == 'Text' then
       local Text = SourceUB.Text
+      local Hap = strfind(BarType, 'Health') ~= nil or strfind(BarType, 'Power') ~= nil
       local Health = strfind(BarType, 'Health') ~= nil
 
       for Index = 1, #Text do
@@ -1310,13 +1313,18 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
         for ValueIndex = 1, #ValueName do
           local VName = ValueName[ValueIndex]
 
-          if VName == 'predicted' then
-            if Health then
-              VName = 'predictedhealth'
-            else
-              VName = 'predictedpower'
+          if Hap then
+            if VName == 'predicted' then
+              if Health then
+                VName = 'predictedhealth'
+              else
+                VName = 'predictedpower'
+              end
             end
             ValueName[ValueIndex] = VName
+          end
+          if VName == 'name' then
+            ValueName[ValueIndex] = 'unit'
           end
         end
       end
@@ -2397,6 +2405,13 @@ local function FinishAnimation(self, NewAction)
   self:SetScript('OnFinished', nil)
   self:Stop()
 
+  -- Call Fn only if frame is visible
+  local Fn = self.Fn
+
+  if Fn and Object:IsVisible() then
+    Fn(self.Action)
+  end
+
   -- Hide or show the object based on action.
   if Action == 'in' then
     Object:Show()
@@ -2404,6 +2419,7 @@ local function FinishAnimation(self, NewAction)
     Object:Hide()
   end
   Object:SetAlpha(1)
+
   self.Action = false
 end
 
@@ -2604,6 +2620,7 @@ end
 -- Object     Must be a frame or texture.
 -- Parent     If true then the fading animation is considered to belong to
 --            the parent frame. Otherwise leave this nil.
+-- Fn         If specified calls Fn(Action)
 --
 -- Fade       Animation containing all the info needed to fade in or out.
 --            See notes at top of the file for breakdown of this table.
@@ -2612,6 +2629,7 @@ end
 --
 -- Fade:SetDuration('in' or 'out', Seconds)
 -- Fade:SetAnimation('in' or 'out' or 'stop' or 'stopall')
+-- Fade:SetFn(Fn)  Calls Fn after a fade out or fade in has completed.
 --
 -- See notes above on how each one is used.
 -------------------------------------------------------------------------------
@@ -2649,6 +2667,7 @@ function GUB.Main:CreateFade(UnitBarF, Object, Parent)
   -- Set methods.
   Fade.SetAnimation = SetAnimation
   Fade.SetDuration = SetDuration
+  Fade.SetFn = function(self, Fn) self.Fn = Fn end
 
   return Fade
 end
@@ -3594,10 +3613,11 @@ function GUB:CheckPredictedSpells(Event)
 
   if PredictedSpells.SpellBook == nil then
     PredictedSpells.SpellBook = 1
+    Event = SpellBookChanged
   end
 
   -- Clear spells if the spellbook changes or event is nil.
-  if Event == SpellBookChanged or Event == nil then
+  if Event == SpellBookChanged then
     for Index in pairs(PredictedSpells) do
       if type(Index) == 'number' then
         PredictedSpells[Index] = nil
@@ -3605,7 +3625,7 @@ function GUB:CheckPredictedSpells(Event)
     end
   -- Scan spellbook if cache is empty.
   elseif PredictedSpells[-1] == nil then
-    Event = nil
+    Event = SpellBookChanged
   end
 
 
@@ -3617,6 +3637,9 @@ function GUB:CheckPredictedSpells(Event)
   for Index = 1, 1024 do
     if Event == SpellBookChanged or Event == nil then
       SkillType, SpellID = GetSpellBookItemInfo(Index, 'spell')
+      if SpellID == nil then
+        break
+      end
     else
       SkillType = 'SPELL'
       SpellID = PredictedSpells[-Index]
@@ -4279,8 +4302,7 @@ function GUB:ApplyProfile()
 
   Main:UnitBarsSetAllOptions()
 
-  -- GUB:UnitBarsUpdateStatus()
-  -- Delay Update status things like pets may not be loaded yet.
+  -- Delay Update status because things like pets may not be loaded yet.
   C_TimerAfter(UpdateStatusDelay, GUB.UnitBarsUpdateStatus)
 end
 
