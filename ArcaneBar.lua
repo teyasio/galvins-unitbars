@@ -1,7 +1,7 @@
 --
--- ChiBar.lua
+-- ArcaneBar.lua
 --
--- Displays the monk chi bar.
+-- Displays the mage arcane bar.
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -45,41 +45,40 @@ local C_PetBattles, C_TimerAfter, UIParent =
 
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.BBar                     Contains the ember bar displayed on screen.
+-- UnitBarF.BBar                     Contains an instance of bar functions for arcane bar.
 --
--- UnitBarF.ShadowBar                Contains the shadow bar displayed on screen.
+-- UnitBarF.ArcaneBar                Contains the arcane bar displayed on screen.
 --
--- ChiData                           Contains all the data for the chi bar.
---   Texture                         Path name to the texture.
---   TextureWidth, TextureHeight     Width and Height of the orbs in texture mode.
---   [TextureType]
---     Level                         Frame level to display the texture on.
---     Width, Height                 Width and Height of the texture.
---     Left, Right, Top, Bottom      Texcoords inside the Texture that locate each texture.
+-- ArcaneData                        Contains all the data for the arcane charges texture.
+--   AtlasName                       Atlas for the arcane texture.
+--   Width                           Width of the texture and box size in texture mode.
+--   Height                          Height of the texture and box size in texture mode.
+--   DarkAlpha                       Alpha for the the unlit arcane texture in texture mode.
 --
--- ChiSBar                           Texture for orb in box mode.
--- ChiDarkTexture                    Dark texture for orb in texture mode.
--- ChiLightTexture                   Light texture for orb in texture mode.
--- ChangeChi                         Change texture for ChiSBar and ChiLightTexture
---
+-- ChangeArcane                      ChangeTexture number for ArcaneSBar and ArcaneLightTexture
+-- ArcaneSBar                        Contains the lit arcane charge texture for box mode.
+-- ArcaneDarkTexture                 Contains the dark arcane charge texture for texture mode.
+-- ArcaneLightTexture                Contains the lit arcane charge texture for texture mode.
 -------------------------------------------------------------------------------
-local MaxChiOrbs = 6
-local ExtraChiOrbStart = 5
+local MaxArcaneCharges = 4
 local Display = false
-local NamePrefix = 'Chi '
+local Update = false
+local NamePrefix = 'Arcane '
 
 -- Powertype constants
-local PowerChi = ConvertPowerType['CHI']
+local PowerArcane = ConvertPowerType['ARCANE_CHARGES']
 
--- shadow orbs Texture constants
+-- Arcane charges texture constants
 local BoxMode = 1
 local TextureMode = 2
 
-local ChangeChi = 3
+local ChangeArcane = 3
 
-local ChiSBar = 10
-local ChiDarkTexture = 20
-local ChiLightTexture = 21
+local ArcaneSBar = 10
+local ArcaneDarkTexture = 11
+local ArcaneLightTexture = 12
+
+local RegionGroup = 7
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -89,17 +88,17 @@ local GF = { -- Get function data
 }
 
 local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,                BoxMode },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,           BoxMode,
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
     GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,            BoxMode },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,                 BoxMode,
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
     GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                      ChiSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                        ChiSBar,
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ArcaneSBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              ArcaneSBar,
     GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                       BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                    ChiDarkTexture, ChiLightTexture },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          ArcaneDarkTexture, ArcaneLightTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -113,133 +112,103 @@ local TDregion = { -- Trigger data for region
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
-local RegionGroup = 8
-
-local VTs = {'whole', 'Chi',
-             'auras', 'Auras'}
+local VTs = {'whole', 'Arcane Charges',
+             'auras', 'Auras'          }
 local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Orb 1',    VTs, TD}, -- 1
-  {2,   'Orb 2',    VTs, TD}, -- 2
-  {3,   'Orb 3',    VTs, TD}, -- 3
-  {4,   'Orb 4',    VTs, TD}, -- 4
-  {5,   'Orb 5',    VTs, TD}, -- 5
-  {6,   'Orb 6',    VTs, TD}, -- 6
-  {'a', 'All', {'whole', 'Chi',
+  {1,   'Charge 1',    VTs, TD}, -- 1
+  {2,   'Charge 2',    VTs, TD}, -- 2
+  {3,   'Charge 3',    VTs, TD}, -- 3
+  {4,   'Charge 4',    VTs, TD}, -- 4
+  {'a', 'All', {'whole', 'Arcane Charges',
                 'state', 'Active',
-                'auras', 'Auras'  }, TD}, -- 7
-  {'r', 'Region',   VTs, TDregion}, -- 8
+                'auras', 'Auras'          }, TD}, -- 5
+  {'r', 'Region',     VTs, TDregion}, -- 6
 }
 
-local ChiData = {
-  TextureWidth = 21 + 8, TextureHeight = 21 + 8,
-  [ChiDarkTexture] = {
-    Level = 1,
-    Width = 21, Height = 21,
-    AtlasName = 'MonkUI-OrbOff',
-  },
-  [ChiLightTexture] = {
-    Level = 2,
-    Width = 21, Height = 21,
-    AtlasName = 'MonkUI-LightOrb',
-  },
+local ArcaneData = {
+  AtlasName = [[Mage-ArcaneCharge]],
+  Width = 31, Height = 31,
+  DarkAlpha = 0.3
 }
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.ArcaneBar.StatusCheck = GUB.Main.StatusCheck
 
 --*****************************************************************************
 --
--- Chibar display
+-- Arcanebar display
 --
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
--- Update the number of chi orbs of the player
+-- Update the number of arcane charges of the player
 --
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
 --              True bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
+function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerType)
 
   -- Check if bar is not visible or has active flag waiting for activity.
   if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
 
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerChi
+  PowerType = PowerType and ConvertPowerType[PowerType] or PowerArcane
 
   -- Return if not the correct powertype.
-  if PowerType ~= PowerChi then
+  if PowerType ~= PowerArcane then
     return
   end
 
-  local ChiOrbs = UnitPower('player', PowerChi)
-  local NumOrbs = UnitPowerMax('player', PowerChi)
+  local ArcaneCharges = UnitPower('player', PowerArcane)
+  local NumCharges = UnitPowerMax('player', PowerArcane)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+
+  if Main.UnitBars.Testing then
+    ArcaneCharges = self.UnitBar.TestMode.ArcaneCharges
+  end
 
   local BBar = self.BBar
 
-  if Main.UnitBars.Testing then
-    local TestMode = self.UnitBar.TestMode
-
-    if TestMode.Ascension then
-      NumOrbs = MaxChiOrbs
-    else
-      NumOrbs = MaxChiOrbs - 1
-    end
-    ChiOrbs = TestMode.Chi
-
-    -- clip chi
-    if ChiOrbs > NumOrbs then
-      ChiOrbs = NumOrbs
-    end
-  end
-
-  -- Check for max chi change
-  if NumOrbs ~= self.NumOrbs then
-    self.NumOrbs = NumOrbs
-
-    -- Change the number of boxes in the bar.
-    for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
-      BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
-    end
-
-    BBar:Display()
-  end
-
-  for ChiIndex = 1, MaxChiOrbs do
-    BBar:ChangeTexture(ChangeChi, 'SetHiddenTexture', ChiIndex, ChiIndex > ChiOrbs)
+  for ArcaneIndex = 1, MaxArcaneCharges do
+    BBar:ChangeTexture(ChangeArcane, 'SetHiddenTexture', ArcaneIndex, ArcaneIndex > ArcaneCharges)
 
     if EnableTriggers then
-      BBar:SetTriggers(ChiIndex, 'active', ChiIndex <= ChiOrbs)
-      BBar:SetTriggers(ChiIndex, 'chi', ChiOrbs)
+      BBar:SetTriggers(ArcaneIndex, 'active', ArcaneIndex <= ArcaneCharges)
+      BBar:SetTriggers(ArcaneIndex, 'arcane charges', ArcaneCharges)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'chi', ChiOrbs)
+    BBar:SetTriggers(RegionGroup, 'arcane charges', ArcaneCharges)
     BBar:DoTriggers()
   end
 
-  -- Set this IsActive flag
-  self.IsActive = ChiOrbs > 0
+  -- Set the IsActive flag.
+  self.IsActive = ArcaneCharges > 0
 
   -- Do a status check.
   self:StatusCheck()
 end
 
+--*****************************************************************************
+--
+-- Arcanebar creation/setting
+--
+--*****************************************************************************
+
 -------------------------------------------------------------------------------
 -- EnableMouseClicks    UnitBarsF function
 --
--- This will enable or disbable mouse clicks for the chi bar.
+-- This will enable or disbable mouse clicks for the arcane bar.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ChiBar:EnableMouseClicks(Enable)
+function Main.UnitBarsF.ArcaneBar:EnableMouseClicks(Enable)
   local BBar = self.BBar
 
   -- Enable/disable for border.
@@ -252,16 +221,16 @@ end
 -------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
--- Sets different parts of the chibar.
+-- Sets different parts of the arcanebar.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
+function Main.UnitBarsF.ArcaneBar:SetAttr(TableName, KeyName)
   local BBar = self.BBar
 
   if not BBar:OptionsSet() then
 
     BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
 
     BBar:SO('Layout', 'BoxMode',       function(v)
       if v then
@@ -281,10 +250,10 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
     BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
     BBar:SO('Layout', 'TextureScale',  function(v) BBar:SetScaleTextureFrame(0, TextureMode, v) Display = true end)
-    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, ChiSBar, 'in', v)
-                                                   BBar:SetFadeTimeTexture(0, ChiLightTexture, 'in', v) end)
-    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, ChiSBar, 'out', v)
-                                                   BBar:SetFadeTimeTexture(0, ChiLightTexture, 'out', v) end)
+    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, ArcaneSBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(0, ArcaneLightTexture, 'in', v) end)
+    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, ArcaneSBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(0, ArcaneLightTexture, 'out', v) end)
     BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
     BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
@@ -321,18 +290,19 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, ChiSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, ChiSBar, v) end)
-    BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ChiSBar, OD.r, OD.g, OD.b, OD.a) end)
-    BBar:SO('Bar', '_Size',            function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, ChiSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'StatusBarTexture',  function(v) BBar:SetTexture(0, ArcaneSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',     function(v) BBar:SetRotateTexture(0, ArcaneSBar, v) end)
+    BBar:SO('Bar', 'Color',             function(v, UB, OD) BBar:SetColorTexture(OD.Index, ArcaneSBar, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Bar', '_Size',             function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',           function(v) BBar:SetPaddingTexture(0, ArcaneSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if Main.UnitBars.Testing then
+  if Update or Main.UnitBars.Testing then
     self:Update()
+    Update = false
     Display = true
   end
 
@@ -345,49 +315,53 @@ end
 -------------------------------------------------------------------------------
 -- CreateBar
 --
--- UnitBarF     The unitbar frame which will contain the chi bar.
+-- UnitBarF     The unitbar frame which will contain the arcane bar.
 -- UB           Unitbar data.
 -- ScaleFrame   ScaleFrame which the unitbar must be a child of for scaling.
 -------------------------------------------------------------------------------
-function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
-  local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxChiOrbs)
+function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
+  local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxArcaneCharges)
 
   local Names = {}
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ChiSBar)
+    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ArcaneSBar)
 
   -- Create texture mode.
-  for ChiIndex = 1, MaxChiOrbs do
-    BBar:CreateTextureFrame(ChiIndex, TextureMode, 0)
+  BBar:CreateTextureFrame(0, TextureMode, 0)
 
-    for TextureNumber, CD in pairs(ChiData) do
-      if type(TextureNumber) == 'number' then
-        BBar:CreateTexture(ChiIndex, TextureMode, 'texture', CD.Level, TextureNumber)
-        BBar:SetAtlasTexture(ChiIndex, TextureNumber, CD.AtlasName)
-        BBar:SetSizeTexture(ChiIndex, TextureNumber, CD.Width, CD.Height)
-      end
-    end
-    local Name = NamePrefix .. Groups[ChiIndex][2]
+  BBar:CreateTexture(0, TextureMode, 'texture', 1, ArcaneDarkTexture)
+  BBar:CreateTexture(0, TextureMode, 'texture', 2, ArcaneLightTexture)
 
-    BBar:SetTooltip(ChiIndex, nil, Name)
-    Names[ChiIndex] = Name
-  end
+  BBar:SetAtlasTexture(0, ArcaneDarkTexture, ArcaneData.AtlasName)
+  BBar:SetAtlasTexture(0, ArcaneLightTexture, ArcaneData.AtlasName)
 
-  BBar:SetHiddenTexture(0, ChiSBar, true)
-  BBar:SetHiddenTexture(0, ChiDarkTexture, false)
+  BBar:SetAlphaTexture(0, ArcaneDarkTexture, ArcaneData.DarkAlpha)
+
+  BBar:SetSizeTexture(0, ArcaneDarkTexture, ArcaneData.Width, ArcaneData.Height)
+  BBar:SetSizeTexture(0, ArcaneLightTexture, ArcaneData.Width, ArcaneData.Height)
 
   BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)
-  BBar:SetSizeTextureFrame(0, TextureMode, ChiData.TextureWidth, ChiData.TextureHeight)
+  BBar:SetSizeTextureFrame(0, TextureMode, ArcaneData.Width, ArcaneData.Height)
 
-  BBar:SetChangeTexture(ChangeChi, ChiLightTexture, ChiSBar)
+  BBar:SetHiddenTexture(0, ArcaneSBar, true)
+  BBar:SetHiddenTexture(0, ArcaneDarkTexture, false)
+
+  for ArcaneIndex = 1, MaxArcaneCharges do
+    local Name = NamePrefix .. Groups[ArcaneIndex][2]
+
+    BBar:SetTooltip(ArcaneIndex, nil, Name)
+    Names[ArcaneIndex] = Name
+  end
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
+  BBar:SetChangeTexture(ChangeArcane, ArcaneLightTexture, ArcaneSBar)
+
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleTexture(0, ChiDarkTexture, 1)
-  BBar:SetScaleTexture(0, ChiLightTexture, 1)
+  BBar:SetScaleTexture(0, ArcaneDarkTexture, 1)
+  BBar:SetScaleTexture(0, ArcaneLightTexture, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
@@ -396,11 +370,10 @@ end
 
 --*****************************************************************************
 --
--- Chibar Enable/Disable functions
+-- Arcanebar Enable/Disable functions
 --
 --*****************************************************************************
 
-function Main.UnitBarsF.ChiBar:Enable(Enable)
+function Main.UnitBarsF.ArcaneBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end
-

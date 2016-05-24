@@ -27,12 +27,12 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
-local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
+local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
       GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
+      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 local C_PetBattles, C_TimerAfter, UIParent =
@@ -68,7 +68,7 @@ end
 -- RuneBorderTexture                 Rune border used to show above the rune texture.
 -- RuneEnergizeBorder                Border to show around the rune texture for energize.
 --
--- RuneTextureData                   Contains information for runes.
+-- RuneData                          Contains information for runes.
 --   Width, Height                   Width and Height of the runes.
 --   Border                          Border texture that surrounds a rune.
 --   BorderEnergize                  Same as border, except only shown during energize.
@@ -81,12 +81,6 @@ local MaxRunes = 6
 local Display = false
 local Update = false
 local Color = false
-
--- Rune type constants.
-local RuneBlood = 1
-local RuneUnholy = 2
-local RuneFrost = 3
-local RuneDeath = 4
 
 local BarMode = 1
 local RuneMode = 2
@@ -137,7 +131,9 @@ local TDregion = { -- Trigger data for region
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
-local VTs = {'state', 'Recharging', 'state', 'Empowered', 'auras', 'Auras'}
+local VTs = {'state', 'Recharging',
+             'state', 'Empowered',
+             'auras', 'Auras'      }
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Rune 1',    VTs, TD},  -- 1
   {2,   'Rune 2',    VTs, TD},  -- 2
@@ -145,11 +141,11 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {4,   'Rune 4',    VTs, TD},  -- 4
   {5,   'Rune 5',    VTs, TD},  -- 5
   {6,   'Rune 6',    VTs, TD},  -- 6
-  {'a', 'All', VTs, TD},  -- 7
+  {'a', 'All',       VTs, TD},  -- 7
   {'r', 'Region',    VTs, TDregion},  -- 8
 }
 
-local RuneTextureData = {
+local RuneData = {
   Width = 22, Height = 22,
 
   Border = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Ring]],
@@ -627,26 +623,26 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:SetBackdropBorderTexture(0, RuneEnergizeSBar, BarEnergizeBorder, true)
     BBar:SetBackdropBorderSizeTexture(0, RuneEnergizeSBar, BarEnergizeBorderSize)
 
-  local Color = RuneTextureData.BorderColor
+  local Color = RuneData.BorderColor
 
   for RuneIndex = 1, MaxRunes do
     BBar:SetFillTexture(RuneIndex, RuneSBar, 0)
 
     BBar:CreateTextureFrame(RuneIndex, RuneMode, 3)
       BBar:CreateTexture(RuneIndex, RuneMode, 'cooldown', 4, RuneTexture)
-      BBar:SetTexture(RuneIndex, RuneTexture, RuneTextureData.Background)
-      BBar:SetSizeTexture(RuneIndex, RuneTexture, RuneTextureData.Width, RuneTextureData.Height)
-      BBar:SetSizeCooldownTexture(RuneIndex, RuneTexture, RuneTextureData.Width * RuneTextureData.CDwidth,
-                                                          RuneTextureData.Height * RuneTextureData.CDheight, 0, 1)
+      BBar:SetTexture(RuneIndex, RuneTexture, RuneData.Background)
+      BBar:SetSizeTexture(RuneIndex, RuneTexture, RuneData.Width, RuneData.Height)
+      BBar:SetSizeCooldownTexture(RuneIndex, RuneTexture, RuneData.Width * RuneData.CDwidth,
+                                                          RuneData.Height * RuneData.CDheight, 0, 1)
 
       BBar:CreateTexture(RuneIndex, RuneMode, 'texture', 5, RuneBorderTexture)
-      BBar:SetTexture(RuneIndex, RuneBorderTexture, RuneTextureData.Border)
+      BBar:SetTexture(RuneIndex, RuneBorderTexture, RuneData.Border)
       BBar:SetColorTexture(RuneIndex, RuneBorderTexture, Color.r, Color.g, Color.b, Color.a)
-      BBar:SetSizeTexture(RuneIndex, RuneBorderTexture, RuneTextureData.Width, RuneTextureData.Height)
+      BBar:SetSizeTexture(RuneIndex, RuneBorderTexture, RuneData.Width, RuneData.Height)
 
       BBar:CreateTexture(RuneIndex, RuneMode, 'texture', 6, RuneEnergizeTexture)
-      BBar:SetTexture(RuneIndex, RuneEnergizeTexture, RuneTextureData.BorderEnergize)
-      BBar:SetSizeTexture(RuneIndex, RuneEnergizeTexture, RuneTextureData.Width, RuneTextureData.Height)
+      BBar:SetTexture(RuneIndex, RuneEnergizeTexture, RuneData.BorderEnergize)
+      BBar:SetSizeTexture(RuneIndex, RuneEnergizeTexture, RuneData.Width, RuneData.Height)
 
       local Name = Groups[RuneIndex][2]
       Names[RuneIndex] = Name
@@ -656,7 +652,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
   BBar:SetSizeTextureFrame(0, BarMode, UB.Bar.Width, UB.Bar.Height)
-  BBar:SetSizeTextureFrame(0, RuneMode, RuneTextureData.Width, RuneTextureData.Height)
+  BBar:SetSizeTextureFrame(0, RuneMode, RuneData.Width, RuneData.Height)
 
   -- Set the texture scale for Texture Size triggers.
   BBar:SetScaleTexture(0, RuneTexture, 1)

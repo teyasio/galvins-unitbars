@@ -29,12 +29,12 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
-local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
+local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
       GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
+      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 local C_PetBattles, C_TimerAfter, UIParent =
@@ -56,7 +56,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
 -- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
 --
--- Shards                            ChangeTexture number for ShardBar and ShardLightTexture
+-- ChangeShards                      ChangeTexture number for ShardBar and ShardLightTexture
 -- ShardSBar                         Contains the lit shard texture for box mode.
 -- ShardDarkTexture                  Contains the dark shard texture for texture mode.
 -- ShardLightTexture                 Contains the lit shard textuire for texture mode.
@@ -73,7 +73,7 @@ local PowerShard = ConvertPowerType['SOUL_SHARDS']
 local BoxMode = 1
 local TextureMode = 2
 
-local Shards = 3
+local ChangeShards = 3
 
 local ShardSBar = 10
 local ShardDarkTexture = 11
@@ -113,14 +113,17 @@ local TDregion = { -- Trigger data for region
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
-local VTs = {'whole', 'Soul Shards', 'auras', 'Auras'}
+local VTs = {'whole', 'Soul Shards',
+             'auras', 'Auras'       }
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Shard 1',    VTs, TD}, -- 1
   {2,   'Shard 2',    VTs, TD}, -- 2
   {3,   'Shard 3',    VTs, TD}, -- 3
   {4,   'Shard 4',    VTs, TD}, -- 4
   {5,   'Shard 5',    VTs, TD}, -- 5
-  {'a', 'All', {'whole', 'Soul Shards', 'state', 'Active', 'auras', 'Auras'}, TD},   -- 6
+  {'a', 'All', {'whole', 'Soul Shards',
+                'state', 'Active',
+                'auras', 'Auras'       }, TD},   -- 6
   {'r', 'Region',     VTs, TDregion},  -- 7
 }
 
@@ -172,14 +175,13 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   if Main.UnitBars.Testing then
-    SoulShards = self.UnitBar.TestMode.Shards
+    SoulShards = self.UnitBar.TestMode.SoulShards
   end
 
-  self.SoulShards = SoulShards
   local BBar = self.BBar
 
   for ShardIndex = 1, MaxSoulShards do
-    BBar:ChangeTexture(Shards, 'SetHiddenTexture', ShardIndex, ShardIndex > SoulShards)
+    BBar:ChangeTexture(ChangeShards, 'SetHiddenTexture', ShardIndex, ShardIndex > SoulShards)
 
     if EnableTriggers then
       BBar:SetTriggers(ShardIndex, 'active', ShardIndex <= SoulShards)
@@ -362,7 +364,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
-  BBar:SetChangeTexture(Shards, ShardLightTexture, ShardSBar)
+  BBar:SetChangeTexture(ChangeShards, ShardLightTexture, ShardSBar)
 
   -- Set the texture scale for bar offset triggers.
   BBar:SetScaleTexture(0, ShardDarkTexture, 1)

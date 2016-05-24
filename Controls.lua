@@ -43,7 +43,7 @@ local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime  =
 -- Predictors        Table that keeps track of predictor frames.
 --                   The keyname is the Frame and the value is true or nil
 -------------------------------------------------------------------------------
-local SpellsTPS = 0.10 -- 5 times per second.
+local SpellsTPS = 0.10 -- 10 times per second.
 local SpellsPerRun = 1000
 local SpellsLoaded = false
 local Tooltip = nil

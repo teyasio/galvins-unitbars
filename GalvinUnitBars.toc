@@ -27,6 +27,7 @@ Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 # Load Addon files
 DefaultUB.lua
 Main.lua
+Controls.lua
 Bar.lua
 HealthPowerBar.lua
 RuneBar.lua
@@ -34,5 +35,5 @@ ComboBar.lua
 HolyBar.lua
 ShardBar.lua
 ChiBar.lua
+ArcaneBar.lua
 Options.lua
-Controls.lua
