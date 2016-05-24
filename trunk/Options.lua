@@ -98,6 +98,8 @@ local MenuButtons = nil
 local o = {
 
   -- Test mode
+  TestModeUnitLevelMin = -1,
+  TestModeUnitLevelMax = 113,
   TestModeRechargeMin = 0,
   TestModeRechargeMax = 7,
   TestModeEnergizeMin = 0,
@@ -110,6 +112,8 @@ local o = {
   TestModeChiMax = 6,
   TestModePointsMin = 0,
   TestModePointsMax = 8,
+  TestModeArcaneChargesMin = 0,
+  TestModeArcaneChargesMax = 4,
 
   -- Fade for all unitbars.
   FadeOutTime = 1,
@@ -261,15 +265,17 @@ local ValueName_AllDropdown = {
          'Predicted Health',    -- 3
          'Predicted Power',     -- 4
          'Predicted Cost',      -- 5
-         'Unit',                -- 6
-         'Time',                -- 7
+         'Name',                -- 6
+         'Level',               -- 7
+         'Time',                -- 8
   [99] = 'None',                -- 99
 }
 
 local ValueName_HapDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
-  [6]  = 'Unit',
+  [6]  = 'Name',
+  [7]  = 'Level',
   [99] = 'None',
 }
 
@@ -277,7 +283,8 @@ local ValueName_HealthDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
   [3]  = 'Predicted Health',
-  [6]  = 'Unit',
+  [6]  = 'Name',
+  [7]  = 'Level',
   [99] = 'None',
 }
 
@@ -286,7 +293,8 @@ local ValueName_PowerDropdown = {
   [2]  = 'Maximum Value',
   [4]  = 'Predicted Power',
   [5]  = 'Predicted Cost',
-  [6]  = 'Unit',
+  [6]  = 'Name',
+  [7]  = 'Level',
   [99] = 'None',
 }
 
@@ -294,12 +302,13 @@ local ValueName_ManaDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
   [5]  = 'Predicted Cost',
-  [6]  = 'Unit',
+  [6]  = 'Name',
+  [7]  = 'Level',
   [99] = 'None',
 }
 
 local ValueName_RuneDropdown = {
-  [7]  = 'Time',
+  [8]  = 'Time',
   [99] = 'None',
 }
 
@@ -324,17 +333,22 @@ local ValueType_ValueDropdown = {
   'Percentage',           -- 9
 }
 
+local ValueType_NameDropdown = {
+  [30] = 'Unit Name',
+  [31] = 'Realm Name',
+  [32] = 'Unit Name and Realm',
+}
+
+local ValueType_LevelDropdown = {
+  [40] = 'Unit Level',
+  [41] = 'Scaled Level',
+  [42] = 'Unit Level and Scaled',
+}
+
 local ValueType_TimeDropdown = {
   [20] = 'Seconds',
   [21] = 'Seconds.0',
   [22] = 'Seconds.00',
-}
-
-local ValueType_UnitDropdown = {
-  [30] = 'Unit Name',
-  [31] = 'Realm Name',
-  [32] = 'Unit Name and Realm',
-  [33] = 'Unit Level',
 }
 
 local ValueType_WholeDropdown = {
@@ -351,8 +365,9 @@ local ValueTypeMenuDropdown = {
   predictedhealth = ValueType_ValueDropdown,
   predictedpower  = ValueType_ValueDropdown,
   predictedcost   = ValueType_ValueDropdown,
+  name            = ValueType_NameDropdown,
+  level           = ValueType_LevelDropdown,
   time            = ValueType_TimeDropdown,
-  unit            = ValueType_UnitDropdown,
   none            = ValueType_NoneDropdown,
 
   -- prevent error if these values are found.
@@ -367,16 +382,18 @@ local ConvertValueName = {
          predictedhealth   = 3,
          predictedpower    = 4,
          predictedcost     = 5,
-         unit              = 6,
-         time              = 7,
+         name              = 6,
+         level             = 7,
+         time              = 8,
          none              = 99,
          'current',         -- 1
          'maximum',         -- 2
          'predictedhealth', -- 3
          'predictedpower',  -- 4
          'predictedcost',   -- 5
-         'unit',            -- 6
-         'time',            -- 7
+         'name',            -- 6
+         'level',           -- 7
+         'time',            -- 8
   [99] = 'none',            -- 99
 }
 
@@ -396,7 +413,9 @@ local ConvertValueType = {
   unitname                 = 30,
   realmname                = 31,
   unitnamerealm            = 32,
-  unitlevel                = 33,
+  unitlevel                = 40,
+  scaledlevel              = 41,
+  unitlevelscaled          = 42,
   [1]  = 'whole',
   [2]  = 'short',
   [3]  = 'thousands',
@@ -412,7 +431,9 @@ local ConvertValueType = {
   [30] = 'unitname',
   [31] = 'realmname',
   [32] = 'unitnamerealm',
-  [33] = 'unitlevel',
+  [40] = 'unitlevel',
+  [41] = 'scaledlevel',
+  [42] = 'unitlevelscaled',
 }
 
 local TextLineDropdown = {
@@ -4139,11 +4160,35 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = 1,
     }
   end
+  if UBD.TestMode.UnitLevel ~= nil then
+    TestModeArgs.UnitLevel = {
+      type = 'range',
+      name = 'Unit Level',
+      order = 104,
+      desc = 'Change the bars level',
+      step = 1,
+      width = 'double',
+      min = o.TestModeUnitLevelMin,
+      max = o.TestModeUnitLevelMax,
+    }
+  end
+  if UBD.TestMode.ScaledLevel ~= nil then
+    TestModeArgs.ScaledLevel = {
+      type = 'range',
+      name = 'Scaled Level',
+      order = 105,
+      desc = 'Change the bars scaled level',
+      step = 1,
+      width = 'double',
+      min = o.TestModeUnitLevelMin,
+      max = o.TestModeUnitLevelMax,
+    }
+  end
   if UBD.TestMode.RuneTime ~= nil then
     TestModeArgs.RuneTime = {
       type = 'range',
       name = 'Time',
-      order = 104,
+      order = 200,
       desc = '',
       step = .01,
       width = 'double',
@@ -4156,7 +4201,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.RuneRecharge = {
       type = 'range',
       name = 'Recharge',
-      order = 105,
+      order = 201,
       desc = 'Change a rune to recharging, Max for all recharging',
       width = 'double',
       step = 1,
@@ -4168,7 +4213,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.RuneEnergize = {
       type = 'range',
       name = 'Empowerment',
-      order = 106,
+      order = 203,
       desc = 'Change a rune to empowered. Max for all empowered',
       width = 'double',
       step = 1,
@@ -4176,11 +4221,11 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = o.TestModeEnergizeMax,
     }
   end
-  if UBD.TestMode.Shards ~= nil then
-    TestModeArgs.Shards = {
+  if UBD.TestMode.SoulShards ~= nil then
+    TestModeArgs.SoulShards = {
       type = 'range',
       name = 'Shards',
-      order = 107,
+      order = 300,
       desc = 'Change how many shards are lit',
       width = 'double',
       step = 1,
@@ -4192,7 +4237,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.HolyPower = {
       type = 'range',
       name = 'Holy Power',
-      order = 108,
+      order = 400,
       desc = 'Change how many holy runes are lit',
       width = 'double',
       step = 1,
@@ -4204,14 +4249,14 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.Ascension = {
       type = 'toggle',
       name = 'Ascension',
-      order = 109,
+      order = 500,
     }
   end
   if UBD.TestMode.Chi ~= nil then
     TestModeArgs.Chi = {
       type = 'range',
       name = 'Chi',
-      order = 110,
+      order = 501,
       desc = 'Change how many chi orbs are lit',
       width = 'double',
       step = 1,
@@ -4223,26 +4268,38 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.DeeperStratagem = {
       type = 'toggle',
       name = 'Deeper Stratagem',
-      order = 111,
+      order = 600,
     }
   end
   if UBD.TestMode.Anticipation ~= nil then
     TestModeArgs.Anticipation = {
       type = 'toggle',
       name = 'Anticipation',
-      order = 112,
+      order = 601,
     }
   end
-  if UBD.TestMode.Points ~= nil then
-    TestModeArgs.Points = {
+  if UBD.TestMode.ComboPoints ~= nil then
+    TestModeArgs.ComboPoints = {
       type = 'range',
       name = 'Combo Points',
-      order = 113,
+      order = 602,
       desc = 'Change how many combo points are lit',
       width = 'double',
       step = 1,
       min = o.TestModePointsMin,
       max = o.TestModePointsMax,
+    }
+  end
+  if UBD.TestMode.ArcaneCharges ~= nil then
+    TestModeArgs.ArcaneCharges = {
+      type = 'range',
+      name = 'Arcane Charges',
+      order = 700,
+      desc = 'Change how many arcane charges are lit',
+      width = 'double',
+      step = 1,
+      min = o.TestModeArcaneChargesMin,
+      max = o.TestModeArcaneChargesMax,
     }
   end
 
@@ -5209,17 +5266,25 @@ local function CreateOtherOptions(BarType, Order, Name)
         step = 0.01,
         isPercent = true,
       },
+      AnchorPoint = {
+        type = 'select',
+        name = 'Anchor Point',
+        order = 3,
+        style = 'dropdown',
+        desc = 'Change the anchor point of the bar.  This effects where the bar will change size from',
+        values = PositionDropdown,
+      },
       FrameStrata = {
         type = 'select',
         name = 'Frame Strata',
-        order = 3,
+        order = 4,
         desc = 'Sets the frame strata making the bar appear below or above other frames',
         values = FrameStrataDropdown,
         style = 'dropdown',
       },
     },
   }
-  OtherOptions.args.ResetOptions = CreateResetOptions(BarType, 3, 'Reset', OtherOptions)
+  OtherOptions.args.ResetOptions = CreateResetOptions(BarType, 10, 'Reset', OtherOptions)
 
   return OtherOptions
 end
@@ -6830,9 +6895,9 @@ local function CreateAlignSwapOptions()
             local KeyName = Info[#Info]
 
             if KeyName == 'x' or KeyName == 'y' then
-              local BarX, BarY = Bar:GetRect(AlignSwapAnchor)
+              local UB = AlignSwapAnchor.UnitBar
+              local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
 
-              BarX, BarY = floor(BarX + 0.5), floor(BarY + 0.5)
               if KeyName == 'x' then
                 return format('%s', floor(BarX + 0.5))
               else
@@ -6854,8 +6919,7 @@ local function CreateAlignSwapOptions()
               local UB = AlignSwapAnchor.UnitBar
 
               -- Position unitbar in new location.
-              AlignSwapAnchor:ClearAllPoints()
-              AlignSwapAnchor:SetPoint('TOPLEFT', UB.x, UB.y)
+              Main:SetAnchorPoint(AlignSwapAnchor, UB.x, UB.y)
             else
               if KeyName == 'Swap' and Value then
                 Main.UnitBars.Align = false
@@ -6934,7 +6998,7 @@ local function CreateAlignSwapOptions()
       BarLocation = {
         type = 'group',
         name = function()
-                 return format('Bar Location (%s)', AlignSwapAnchor.Name)
+                 return format('Bar Location (%s)    Anchor Point (%s)', AlignSwapAnchor.Name, PositionDropdown[AlignSwapAnchor.UnitBar.Other.AnchorPoint])
                end,
         dialogInline = true,
         order = 30,

@@ -330,6 +330,8 @@ GUB.DefaultUB.Default = {
       TestMode = {
         Value = 0.50,
         PredictedHealth = 0.25,
+        UnitLevel = 1,
+        ScaledLevel = 1
       },
       Layout = {
         EnableTriggers = false,
@@ -346,6 +348,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -449,6 +452,8 @@ GUB.DefaultUB.Default = {
         Value = 0.25,
         PredictedPower = 0.25,
         PredictedCost = 0.25,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -464,6 +469,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -568,6 +574,8 @@ GUB.DefaultUB.Default = {
       TestMode = {
         Value = 0.50,
         PredictedHealth = 0.25,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -584,6 +592,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -686,6 +695,8 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -699,6 +710,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -799,6 +811,8 @@ GUB.DefaultUB.Default = {
       TestMode = {
         Value = 0.50,
         PredictedHealth = 0.25,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -815,6 +829,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -917,6 +932,8 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -930,6 +947,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1033,6 +1051,8 @@ GUB.DefaultUB.Default = {
       TestMode = {
         Value = 0.50,
         PredictedHealth = 0.25,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -1046,6 +1066,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1150,6 +1171,8 @@ GUB.DefaultUB.Default = {
       },
       TestMode = {
         Value = 0.50,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -1163,6 +1186,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1266,6 +1290,8 @@ GUB.DefaultUB.Default = {
       TestMode = {
         Value = 0.50,
         PredictedCost = 0.25,
+        UnitLevel = 1,
+        ScaledLevel = 1,
       },
       Layout = {
         EnableTriggers = false,
@@ -1280,6 +1306,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Background = {
@@ -1428,6 +1455,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -1562,7 +1590,7 @@ GUB.DefaultUB.Default = {
       Enabled = true,
       UsedByClass = {ROGUE = '', DRUID = ''},
       x = 0,
-      y = 201,
+      y = 195,
       Status = {
         HideNotUsable   = true,
         ShowAlways      = false,
@@ -1574,7 +1602,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        Points = 0,
+        ComboPoints = 0,
         DeeperStratagem = false,
         Anticipation = false,
       },
@@ -1604,6 +1632,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -1746,7 +1775,7 @@ GUB.DefaultUB.Default = {
       Enabled = true,
       UsedByClass = {PALADIN = '3'},
       x = 0,
-      y = 171,
+      y = 154,
       Status = {
         HideNotUsable   = true,
         ShowAlways      = false,
@@ -1782,6 +1811,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -1878,7 +1908,7 @@ GUB.DefaultUB.Default = {
       Enabled = true,
       UsedByClass = {WARLOCK = ''},
       x = 0,
-      y = 134,
+      y = 112,
       Status = {
         HideNotUsable   = true,
         ShowAlways      = false,
@@ -1890,7 +1920,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        Shards = 0,
+        SoulShards = 0,
       },
       Layout = {
         BoxMode = false,
@@ -1914,6 +1944,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -2010,7 +2041,7 @@ GUB.DefaultUB.Default = {
       Enabled = true,
       UsedByClass = {MONK = '3'},
       x = 0,
-      y = 98,
+      y = 69,
       Status = {
         HideNotUsable   = true,
         ShowAlways      = false,
@@ -2022,8 +2053,8 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        Ascension = true,
         Chi = 0,
+        Ascension = true,
       },
       Layout = {
         BoxMode = false,
@@ -2047,6 +2078,7 @@ GUB.DefaultUB.Default = {
       Other = {
         Scale = 1,
         Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
       },
       Region = {
@@ -2108,6 +2140,136 @@ GUB.DefaultUB.Default = {
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 4
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
           {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 6
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MenuSync = false,
+        HideTabs = false,
+        Action = {},
+        ActionSync = {},
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Static = false,
+          HideAuras = false,
+          OffsetAll = true,
+          Action = {Type = 1},
+          Name = '',
+          GroupNumber = 1,
+          OrderNumber = 0,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
+          GetFnTypeID = 'none',
+          GetPars = {},
+        },
+      },
+    },
+-- ArcaneBar
+    ArcaneBar = {
+      Name = 'Arcane Bar',
+      OptionOrder = 15,
+      Enabled = true,
+      UsedByClass = {MAGE = '1'},
+      x = 0,
+      y = 30,
+      Status = {
+        HideNotUsable   = true,
+        ShowAlways      = false,
+        HideWhenDead    = true,
+        HideNoTarget    = false,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
+      },
+      TestMode = {
+        ArcaneCharges = 0,
+      },
+      Layout = {
+        BoxMode = false,
+        EnableTriggers = false,
+        HideRegion = false,
+        Swap = false,
+        Float = false,
+        BorderPadding = 6,
+        Rotation = 90,
+        Slope = 0,
+        Padding = 0,
+        TextureScale = 1,
+        FadeInTime = DefaultFadeInTime,
+        FadeOutTime = DefaultFadeOutTime,
+        Align = false,
+        AlignPaddingX = 0,
+        AlignPaddingY = 0,
+        AlignOffsetX = 0,
+        AlignOffsetY = 0,
+      },
+      Other = {
+        Scale = 1,
+        Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
+        FrameStrata = 'MEDIUM',
+      },
+      Region = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0.188, g = 0.094, b = 0.313, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Background = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {
+          All = false,
+          r = 0.034, g = 0.129, b = 0.317, a = 1,
+          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 1
+          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 2
+          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 3
+          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 4
+        },
+        EnableBorderColor = false,
+        BorderColor = {
+          All = false,
+          r = 1, g = 1, b = 1, a = 1,
+          {r = 1, g = 1, b = 1, a = 1},  -- 1
+          {r = 1, g = 1, b = 1, a = 1},  -- 2
+          {r = 1, g = 1, b = 1, a = 1},  -- 3
+          {r = 1, g = 1, b = 1, a = 1},  -- 4
+        },
+      },
+      Bar = {
+        Advanced = false,
+        Width = 40,
+        Height = 25,
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {
+          All = false,
+          r = 0.376, g = 0.784, b = 0.972, a = 1,
+          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 1
+          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 2
+          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 3
+          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 4
         },
       },
       Triggers = {
@@ -2305,7 +2467,8 @@ ChangesText[1] = [[
 |cff00ff00New power bar types added|r Astral Power, Maelstrom, Insanity, Fury, and Pain
 |cff00ff00Bars removed|r Shadow, Maelstrom, Ember, Demonic, Anticipation
 |cff00ff00Arcane bar|r for arcane mages added
-|cff00ff00Predicted power|r (Player Power only) Any spell with a cast time that returns power will be shown as predicted power
+|cff00ff00Predicted power|r (Player Power only) will auto detect any spell that returns a resource with a cast time
+|cff00ff00Predicted cost|r (Power bars only) Similar to predicted power. except it shows how much resource will be spent
 |cff00ff00All bars have an alpha setting|r Found under Other options for each bar. This changes transparency
 |cff00ff00Font size can be much larger|r Found under text settings then font
 |cff00ff00Rune bars animation|r should be stutter free
@@ -2314,6 +2477,10 @@ ChangesText[1] = [[
 |cff00ff00Region|r also added to reset options for each bar
 |cff00ff00Predicted Value|r renamed to Predicted Health for health bars and Predicted Power for power bars.  Trigger options type "(predicted...)" is for Predicted Health or Power and "cost" is for Predicted Cost
 |cff00ff00Copy and Paste|r had some improvements
+|cff00ff00Each trigger|r "Type" has its own icon
+|cff00ff00Level|r added under to Value Name in Text settings
+|cff00ff00Level|r added for triggers, Unit Level and Scaled Level
+|cff00ff00Anchor|r point can be changed for any bar.  Found under "other" settings
 ]]
 
 

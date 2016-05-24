@@ -29,12 +29,12 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
-local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
+local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
       GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
+      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 local C_PetBattles, C_TimerAfter, UIParent =
@@ -47,12 +47,12 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -- UnitBarF.BBar                     Contains the holy bar displayed on screen.
 --
--- RuneSBar                          Holy rune for box mode.
--- RuneDarkTexture                   Dark holy rune texture for texture mode.
--- RuneLightTexture                  Lit holy rune texture for texture mode.
+-- HolySBar                          Holy rune for box mode.
+-- HolyDarkTexture                   Dark holy rune texture for texture mode.
+-- HolyLightTexture                  Lit holy rune texture for texture mode.
 -- TextureMode                       TextureFrame number for texture mode.
 -- BoxMode                           TextureFrame number for box mode.
--- Runes                             ChangeTexture number for RuneLightTexture and RuneBar.
+-- ChangeHoly                        ChangeTexture number for HolyLightTexture and HolySBar.
 --
 -- HolyData                          Contains the data to create the holy bar.
 --   Texture                         Texture that contains the holy runes.
@@ -76,11 +76,11 @@ local PowerHoly = ConvertPowerType['HOLY_POWER']
 local BoxMode = 1
 local TextureMode = 2
 
-local Runes = 3
+local ChangeHoly = 3
 
-local RuneSBar = 10
-local RuneDarkTexture = 12
-local RuneLightTexture = 13
+local HolySBar = 10
+local HolyDarkTexture = 12
+local HolyLightTexture = 13
 
 local RegionGroup = 7
 
@@ -98,11 +98,11 @@ local TD = { -- Trigger data
   { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
   { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
     GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            RuneSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            HolySBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,              HolySBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneDarkTexture, RuneLightTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          HolyDarkTexture, HolyLightTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -116,15 +116,18 @@ local TDregion = { -- Trigger data for region
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
-local VTs = {'whole', 'Holy Power', 'auras', 'Auras'}
+local VTs = {'whole', 'Holy Power',
+             'auras', 'Auras'      }
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Rune 1',    VTs, TD}, -- 1
   {2,   'Rune 2',    VTs, TD}, -- 2
   {3,   'Rune 3',    VTs, TD}, -- 3
   {4,   'Rune 4',    VTs, TD}, -- 4
   {5,   'Rune 5',    VTs, TD}, -- 5
-  {'a', 'All', {'whole', 'Holy Power', 'state', 'Active', 'auras', 'Auras'}, TD},  -- 6
-  {'r', 'Region',         VTs, TDregion},                                                     -- 7
+  {'a', 'All', {'whole', 'Holy Power',
+                'state', 'Active',
+                'auras', 'Auras'      }, TD},  -- 6
+  {'r', 'Region',         VTs, TDregion}, -- 7
 }
 
 local HolyData = {
@@ -203,13 +206,13 @@ function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
     HolyPower = self.UnitBar.TestMode.HolyPower
   end
 
-  for RuneIndex = 1, MaxHolyRunes do
+  for HolyIndex = 1, MaxHolyRunes do
     if EnableTriggers then
-      BBar:SetTriggers(RuneIndex, 'active', RuneIndex <= HolyPower)
-      BBar:SetTriggers(RuneIndex, 'holy power', HolyPower)
+      BBar:SetTriggers(HolyIndex, 'active', HolyIndex <= HolyPower)
+      BBar:SetTriggers(HolyIndex, 'holy power', HolyPower)
     end
 
-    BBar:ChangeTexture(Runes, 'SetHiddenTexture', RuneIndex, RuneIndex > HolyPower)
+    BBar:ChangeTexture(ChangeHoly, 'SetHiddenTexture', HolyIndex, HolyIndex > HolyPower)
   end
 
   if EnableTriggers then
@@ -278,10 +281,10 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
     BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
     BBar:SO('Layout', 'TextureScale',  function(v) BBar:SetScaleTextureFrame(0, TextureMode, v) Display = true end)
-    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, RuneSBar, 'in', v)
-                                                   BBar:SetFadeTimeTexture(0, RuneLightTexture, 'in', v) end)
-    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, RuneSBar, 'out', v)
-                                                   BBar:SetFadeTimeTexture(0, RuneLightTexture, 'out', v) end)
+    BBar:SO('Layout', 'FadeInTime',    function(v) BBar:SetFadeTimeTexture(0, HolySBar, 'in', v)
+                                                   BBar:SetFadeTimeTexture(0, HolyLightTexture, 'in', v) end)
+    BBar:SO('Layout', 'FadeOutTime',   function(v) BBar:SetFadeTimeTexture(0, HolySBar, 'out', v)
+                                                   BBar:SetFadeTimeTexture(0, HolyLightTexture, 'out', v) end)
     BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
     BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
@@ -318,11 +321,11 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, RuneSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, RuneSBar, v) end)
-    BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, HolySBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, HolySBar, v) end)
+    BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, HolySBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, RuneSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, HolySBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -354,45 +357,45 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, RuneSBar)
+    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, HolySBar)
 
   -- Create texture mode.
-  for RuneIndex, HD in ipairs(HolyData) do
+  for HolyIndex, HD in ipairs(HolyData) do
 
-    BBar:CreateTextureFrame(RuneIndex, TextureMode, 0)
-      BBar:CreateTexture(RuneIndex, TextureMode, 'texture', 1, RuneDarkTexture)
-      BBar:CreateTexture(RuneIndex, TextureMode, 'texture', 2, RuneLightTexture)
+    BBar:CreateTextureFrame(HolyIndex, TextureMode, 0)
+      BBar:CreateTexture(HolyIndex, TextureMode, 'texture', 1, HolyDarkTexture)
+      BBar:CreateTexture(HolyIndex, TextureMode, 'texture', 2, HolyLightTexture)
 
-    BBar:SetTexture(RuneIndex, RuneDarkTexture, HolyData.Texture)
-    BBar:SetTexture(RuneIndex, RuneLightTexture, HolyData.Texture)
+    BBar:SetTexture(HolyIndex, HolyDarkTexture, HolyData.Texture)
+    BBar:SetTexture(HolyIndex, HolyLightTexture, HolyData.Texture)
 
-    BBar:SetSizeTexture(RuneIndex, RuneDarkTexture, HD.Width, HD.Height)
-    BBar:SetSizeTexture(RuneIndex, RuneLightTexture, HD.Width, HD.Height)
+    BBar:SetSizeTexture(HolyIndex, HolyDarkTexture, HD.Width, HD.Height)
+    BBar:SetSizeTexture(HolyIndex, HolyLightTexture, HD.Width, HD.Height)
 
-    BBar:SetCoordTexture(RuneIndex, RuneDarkTexture, HD.Left, HD.Right, HD.Top, HD.Bottom)
-    BBar:SetGreyscaleTexture(RuneIndex, RuneDarkTexture, true)
-    BBar:SetColorTexture(RuneIndex, RuneDarkTexture, DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
+    BBar:SetCoordTexture(HolyIndex, HolyDarkTexture, HD.Left, HD.Right, HD.Top, HD.Bottom)
+    BBar:SetGreyscaleTexture(HolyIndex, HolyDarkTexture, true)
+    BBar:SetColorTexture(HolyIndex, HolyDarkTexture, DarkColor.r, DarkColor.g, DarkColor.b, DarkColor.a)
 
-    BBar:SetCoordTexture(RuneIndex, RuneLightTexture, HD.Left, HD.Right, HD.Top, HD.Bottom)
+    BBar:SetCoordTexture(HolyIndex, HolyLightTexture, HD.Left, HD.Right, HD.Top, HD.Bottom)
 
      -- Set and save the name for tooltips for box mode.
-    local Name = NamePrefix .. Groups[RuneIndex][2]
+    local Name = NamePrefix .. Groups[HolyIndex][2]
 
-    BBar:SetTooltip(RuneIndex, nil, Name)
+    BBar:SetTooltip(HolyIndex, nil, Name)
 
-    Names[RuneIndex] = Name
+    Names[HolyIndex] = Name
   end
 
   BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)
   BBar:SetSizeTextureFrame(0, TextureMode, HolyData.BoxWidth, HolyData.BoxHeight)
 
   -- Set the texture scale for Texture Size triggers.
-  BBar:SetScaleTexture(0, RuneDarkTexture, 1)
-  BBar:SetScaleTexture(0, RuneLightTexture, 1)
+  BBar:SetScaleTexture(0, HolyDarkTexture, 1)
+  BBar:SetScaleTexture(0, HolyLightTexture, 1)
   BBar:SetScaleTextureFrame(0, BoxMode, 1)
 
-  BBar:SetChangeTexture(Runes, RuneLightTexture, RuneSBar)
-  BBar:SetHiddenTexture(0, RuneDarkTexture, false)
+  BBar:SetChangeTexture(ChangeHoly, HolyLightTexture, HolySBar)
+  BBar:SetHiddenTexture(0, HolyDarkTexture, false)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 

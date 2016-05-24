@@ -32,12 +32,12 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
-local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
+local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
       GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
+      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 local C_PetBattles, C_TimerAfter, UIParent =
@@ -50,8 +50,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -- UnitBarF.BBar         Contains the Health and power bar displayed on screen.
 -- StatusBar             TextureNumber for Status Bar
--- StatusCostBar         TextureNumber for status cost bar.
--- PredictedBar          TextureNumber for Predicted Bar
+-- PredictedBar          TextureNumber for Predicted health and power Bar
 -- PredictedCostBar      TextureNumber for Predicted Cost Bar
 -- StatusBars            Change Texture for Status Bar and Predicted and Cost Bars.
 --
@@ -66,7 +65,7 @@ local MaxSpells = 1024
 local StatusBar = 1
 local PredictedBar = 2
 local PredictedCostBar = 3
-local StatusBars = 1
+local ChangeStatusBars = 1
 
 -- Powertype constants
 local PowerMana = ConvertPowerType['MANA']
@@ -106,8 +105,19 @@ local TD = { -- Trigger data
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
-local HealthVTs = {'whole', 'Health', 'percent', 'Health (percent)', 'whole', 'Predicted Health', 'auras', 'Auras'}
-local PowerVTs = {'whole', 'Power', 'percent', 'Power (percent)', 'whole', 'Predicted Power', 'whole', 'Predicted Cost', 'auras', 'Auras'}
+local HealthVTs = {'whole',   'Health',
+                   'percent', 'Health (percent)',
+                   'whole',   'Predicted Health',
+                   'whole',   'Unit Level',
+                   'whole',   'Scaled Level',
+                   'auras',   'Auras'            }
+local PowerVTs = {'whole',   'Power',
+                  'percent', 'Power (percent)',
+                  'whole',   'Predicted Power',
+                  'whole',   'Predicted Cost',
+                  'whole',   'Unit Level',
+                  'whole',   'Scaled Level',
+                  'auras',   'Auras'           }
 
 local HealthGroups = { -- BoxNumber, Name, ValueTypes,
   {1, '', HealthVTs, TD}, -- 1
@@ -320,6 +330,8 @@ local function UpdateHealthBar(self, Event, Unit)
 
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
+  local Level = UnitLevel(Unit)
+  local ScaledLevel = UnitEffectiveLevel(Unit)
   local PredictedHealing = Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
 
   if Main.UnitBars.Testing then
@@ -332,11 +344,12 @@ local function UpdateHealthBar(self, Event, Unit)
     CurrValue = floor(MaxValue * TestMode.Value)
     PredictedHealing = floor(MaxValue * PredictedHealth)
 
+    Level = TestMode.UnitLevel
+    ScaledLevel = TestMode.ScaledLevel
+
   -- Just switched out of test mode do a clean up.
   elseif self.Testing then
     self.Testing = false
-
-    PredictedHealing = 0
 
     if MaxValue == 0 then
       BBar:SetSliderTexture(1, PredictedBar, 0)
@@ -404,7 +417,7 @@ local function UpdateHealthBar(self, Event, Unit)
 
   BBar:SetFillTexture(1, StatusBar, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'unit', Unit)
+    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Unit)
   end
 
   -- Check triggers
@@ -412,6 +425,8 @@ local function UpdateHealthBar(self, Event, Unit)
     BBar:SetTriggers(1, 'health', CurrValue)
     BBar:SetTriggers(1, 'health (percent)', CurrValue, MaxValue)
     BBar:SetTriggers(1, 'predicted health', PredictedHealing)
+    BBar:SetTriggers(1, 'unit level', Level)
+    BBar:SetTriggers(1, 'scaled level', ScaledLevel)
     BBar:DoTriggers()
   end
 
@@ -488,6 +503,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
+  local Level = UnitLevel(Unit)
+  local ScaledLevel = UnitEffectiveLevel(Unit)
 
   local PredictedPower = self.PredictedPower or 0
   local PredictedCost = self.PredictedCost or 0
@@ -513,6 +530,9 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     CurrValue = floor(MaxValue * TestMode.Value)
     PredictedPower = floor(MaxValue * TestPredictedPower)
     PredictedCost = floor(MaxValue * TestPredictedCost)
+
+    Level = TestMode.UnitLevel
+    ScaledLevel = TestMode.ScaledLevel
 
   -- Just switched out of test mode do a clean up.
   elseif self.Testing then
@@ -594,7 +614,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   BBar:SetFillTexture(1, StatusBar, Value)
 
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'unit', Unit)
+    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Unit)
   end
 
   -- Check triggers
@@ -603,6 +623,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     BBar:SetTriggers(1, 'power (percent)', CurrValue, MaxValue)
     BBar:SetTriggers(1, 'predicted power', PredictedPower)
     BBar:SetTriggers(1, 'predicted cost', PredictedCost)
+    BBar:SetTriggers(1, 'unit level', Level)
+    BBar:SetTriggers(1, 'scaled level', ScaledLevel)
     BBar:DoTriggers()
   end
 
@@ -614,8 +636,6 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     end
   else
     if CurrValue > 0 then
-      if self.BarType == 'PlayerPower' then
-      end
       IsActive = true
     end
   end
@@ -690,7 +710,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       Update = true
     end)
 
-    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(StatusBars, 'SetFillReverseTexture', 1, v) end)
+    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', 1, v) end)
     BBar:SO('Layout', 'HideText',       function(v)
       if v then
         BBar:SetValueRawFont(1, '')
@@ -751,8 +771,8 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(1, StatusBar, v) end)
-    BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(StatusBars, 'SetFillDirectionTexture', 1, v) end)
-    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(StatusBars, 'SetRotateTexture', 1, v) end)
+    BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillDirectionTexture', 1, v) end)
+    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetRotateTexture', 1, v) end)
 
     if DBar.PredictedColor ~= nil then
       BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(1, PredictedBar, v) end)
@@ -770,7 +790,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Bar', 'TaggedColor',           function(v, UB) Update = true end)
 
     BBar:SO('Bar', '_Size',                 function(v, UB) BBar:SetSizeTextureFrame(1, 1, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',               function(v) BBar:ChangeTexture(StatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'Padding',               function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -812,12 +832,12 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltip(1, nil, UB.Name)
 
   -- Use setchange for all statusbars.
-  BBar:SetChangeTexture(StatusBars, StatusBar, PredictedBar, PredictedCostBar)
+  BBar:SetChangeTexture(ChangeStatusBars, StatusBar, PredictedBar, PredictedCostBar)
 
   -- Show the bars.
   BBar:SetHidden(1, 1, false)
-  BBar:ChangeTexture(StatusBars, 'SetHiddenTexture', 1, false)
-  BBar:ChangeTexture(StatusBars, 'SetFillTexture', 1, 0)
+  BBar:ChangeTexture(ChangeStatusBars, 'SetHiddenTexture', 1, false)
+  BBar:ChangeTexture(ChangeStatusBars, 'SetFillTexture', 1, 0)
 
   -- Set this for trigger bar offsets
   BBar:SetOffsetTextureFrame(1, 1, 0, 0, 0, 0)

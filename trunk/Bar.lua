@@ -31,12 +31,12 @@ local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasP
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
 local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
       UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
-local UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitGetIncomingHeals, GetRealmName, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
+local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
+      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
       GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID =
-      GetShapeshiftFormID, GetSpecialization, GetEclipseDirection, GetInventoryItemID
+local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
+      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
 local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 local C_PetBattles, C_TimerAfter, UIParent =
@@ -538,10 +538,15 @@ local ValueLayout = {
   realmname = '%s',
   unitnamerealm = '%s',
   unitlevel = '%s',
+  scaledlevel = '%s',
+  unitlevelscaled = '%s',
   timeSS = '%d',
   timeSS_H = '%.1f',
   timeSS_HH = '%.2f',
-  charges = '%d',
+}
+
+local SetValueParSize = {
+  level = 3
 }
 
 local DefaultBackdrop = {
@@ -570,6 +575,18 @@ local FrameBorder = {
     top = 4,
     bottom = 4
   }
+}
+
+local AnchorPointWord = {
+  LEFT = 'Left',
+  RIGHT = 'Right',
+  TOP = 'Top',
+  BOTTOM = 'Bottom',
+  TOPLEFT = 'Top Left',
+  TOPRIGHT = 'Top Right',
+  BOTTOMLEFT = 'Bottom Left',
+  BOTTOMRIGHT = 'Bottom Right',
+  CENTER = 'Center'
 }
 
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -948,6 +965,12 @@ end
 --        if no children found or no visible child frames, then nil gets returned.
 --        Frames don't have to be a parent of ParentFrame.
 --        Return values are not scaled.
+--
+-- returns:
+--   Left     < 0 then outside the parent frame.
+--   Top      > 0 then outside the parent frame.
+--   width    Total width that covers the child frames.
+--   height   Total height that covers the child drames.
 -------------------------------------------------------------------------------
 local function GetBoundsRect(ParentFrame, Frames)
   local Left = nil
@@ -993,10 +1016,9 @@ local function GetBoundsRect(ParentFrame, Frames)
   end
 
   if not FirstFrame then
-    local x = Left - ParentLeft
-    local y = Top - ParentTop
 
-    return x, y, Right - Left, Top - Bottom
+    -- See comments above
+    return Left - ParentLeft, Top - ParentTop,   Right - Left, Top - Bottom
   else
 
     -- No frames found that were visible. return nil
@@ -1060,19 +1082,19 @@ end
 local function BoxInfo(Frame)
   if not Main.UnitBars.HideLocationInfo then
     local BarDB = Frame.BarDB
-    local BarX, BarY = GetRect(BarDB.Anchor)
+    local UB = BarDB.Anchor.UnitBar
+    local AnchorPoint = AnchorPointWord[UB.Other.AnchorPoint]
+    local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
     local BoxX, BoxY = 0, 0
-
-    BarX, BarY = floor(BarX + 0.5), floor(BarY + 0.5)
 
     if Frame.BF then
       local BF = Frame.BF
       BoxX, BoxY = GetRect(BF)
       BoxX, BoxY = floor(BoxX + 0.5), floor(BoxY + 0.5)
 
-      return format('Bar (%d, %d)  Box (%d, %d)', BarX, BarY, BoxX, BoxY)
+      return format('Bar (%s %d, %d)  Box (%d, %d)', AnchorPoint, BarX, BarY, BoxX, BoxY)
     else
-      return format('Bar (%d, %d)', BarX, BarY)
+      return format('Bar (%s %d, %d)', AnchorPoint, BarX, BarY)
     end
   end
 end
@@ -1306,6 +1328,7 @@ local function OnUpdate_Display(self)
 
   local UBF = self.UnitBarF
   local UB = UBF.UnitBar
+  local Anchor = UBF.Anchor
 
   local BoxLocations = UB.BoxLocations
   local BoxOrder = UB.BoxOrder
@@ -1338,6 +1361,7 @@ local function OnUpdate_Display(self)
   if ProfileChanged then
     self.OldFloat = nil
   end
+
   local FloatFirstTime = self.OldFloat ~= Float and Float
   self.OldFloat = Float
 
@@ -1447,15 +1471,20 @@ local function OnUpdate_Display(self)
   end
 
   Region:SetSize(Width, Height)
-
   SetFrames(nil, BoxFrames, OffsetX * -1 + BorderPadding, OffsetY * -1 - BorderPadding)
-  UBF:SetSize(Width, Height)
+
+  local SetSize = true
 
   if Float then
     if BoxLocations then
 
       -- Offset unitbar so the boxes don't move. Shift bar to the left and up based on borderpadding.
-      UBF:SetSize(Width, Height, OffsetX + BorderPadding * -1, OffsetY + BorderPadding)
+      -- Skip offsetting when switching to floating mode first time.
+      if not FloatFirstTime then
+
+        Main:SetAnchorSize(Anchor, Width, Height, OffsetX + BorderPadding * -1, OffsetY + BorderPadding)
+        SetSize = false
+      end
     else
       BoxLocations = {}
       UB.BoxLocations = BoxLocations
@@ -1482,6 +1511,9 @@ local function OnUpdate_Display(self)
       -- Set a reference to boxframe for dragging.
       BL.x, BL.y = BF.x, BF.y
     end
+  end
+  if SetSize then
+    Main:SetAnchorSize(Anchor, Width, Height)
   end
 end
 
@@ -1537,9 +1569,9 @@ end
 --
 -- Sets the transparency for a boxframe or texture frame.
 --
--- BoxNumber        Box to set alpha on or in.
--- TextureNumber    if not nil then the texture frame gets alpha
--- Alpha            Between 0 and 1
+-- BoxNumber        Box to set alpha on.
+-- TextureNumber    if not nil then the texture frame gets alpha.
+-- Alpha            Between 0 and 1.
 -------------------------------------------------------------------------------
 function BarDB:SetAlpha(BoxNumber, TextureFrameNumber, Alpha)
   repeat
@@ -1599,6 +1631,23 @@ function BarDB:ShowRowTextureFrame(TextureFrameNumber)
         TF.Hidden = false
       end
     end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetAlphaTexture
+--
+-- Sets the transparency for a texture
+--
+-- BoxNumber       Box containg the texture
+-- TextureNumber   Texture to change the alpha of.
+-- Alpha           Between 0 and 1.
+-------------------------------------------------------------------------------
+function BarDB:SetAlphaTexture(BoxNumber, TextureNumber, Alpha)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetAlpha(Alpha)
   until LastBox
 end
 
@@ -4013,7 +4062,59 @@ local FontGetValue = {}
     return NumberToDigitGroups(Round(Value / 1000000, 1))
   end
 
-  -- unitname, realmname, unitnamerealm, unitlevel  (no function needed)
+  local function SetNameData(FS, Value, ValueType)
+    local Name, Realm = UnitName(FS.name)
+
+    Name = Name or ''
+
+    if ValueType == 'unitname' then
+      return Name
+    else
+      Realm = Realm or ''
+      if ValueType == 'realmname' then
+        return Realm
+      else
+        if Realm ~= '' then
+          Realm = '-' .. Realm
+        end
+        return Name .. Realm
+      end
+    end
+  end
+
+  FontGetValue['unitname'] = SetNameData
+  FontGetValue['realmname'] = SetNameData
+  FontGetValue['unitnamerealm'] = SetNameData
+
+  local function SetLevelData(FS, Value, ValueType)
+    local UnitLevelScaled = nil
+    local Level = FS.level
+    local ScaledLevel = FS.level2
+
+    if Level == -1 or ScaledLevel == -1 then
+      Level = [[|TInterface\TargetingFrame\UI-TargetingFrame-Skull:0:0|t]]
+      if ScaledLevel == -1 then
+        ScaledLevel = Level
+      end
+      UnitLevelScaled = Level
+    end
+
+    if ValueType == 'unitlevel' then
+      return Level
+    elseif ValueType == 'scaledlevel' then
+      return ScaledLevel
+    else
+      if Level ~= ScaledLevel then
+        return format('%s (%s)', ScaledLevel, Level)
+      else
+        return UnitLevelScaled or Level
+      end
+    end
+  end
+
+  FontGetValue['unitlevel'] = SetLevelData
+  FontGetValue['scaledlevel'] = SetLevelData
+  FontGetValue['unitlevelscaled'] = SetLevelData
 
   -- timeSS, timeSS_H, timeSS_HH (no function needed)
 
@@ -4022,7 +4123,7 @@ local FontGetValue = {}
 --
 -- BoxNumber          Boxnumber that contains the font string.
 -- ...                Type, Value pairs.  Example:
---                      'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
+--                      'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'name', Unit)
 --
 -- NOTES: SetValue() is optimized for speed since this function gets called a lot.
 -------------------------------------------------------------------------------
@@ -4034,7 +4135,7 @@ local function SetValue(FS, FontString, Layout, NumValues, ValueName, ValueType,
   if NumValues > 1 then
     if Name ~= 'none' then
       local Type = ValueType[NumValues]
-      local Value = FS[Name] or FS[Type]
+      local Value = FS[Name]
       local GetValue = FontGetValue[Type]
 
       SetValue(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, Value ~= '' and GetValue and GetValue(FS, Value, Type) or Value, ...)
@@ -4043,7 +4144,7 @@ local function SetValue(FS, FontString, Layout, NumValues, ValueName, ValueType,
     end
   elseif Name ~= 'none' then
     local Type = ValueType[NumValues]
-    local Value = FS[Name] or FS[Type]
+    local Value = FS[Name]
     local GetValue = FontGetValue[Type]
 
     FontString:SetFormattedText(Layout, Value ~= '' and GetValue and GetValue(FS, Value, Type) or Value, ...)
@@ -4052,32 +4153,28 @@ local function SetValue(FS, FontString, Layout, NumValues, ValueName, ValueType,
   end
 end
 
+-- SetValueFont
 function BarDB:SetValueFont(BoxNumber, ...)
   local Frame = self.BoxFrames[BoxNumber]
 
   local FS = Frame.FS
   local TextFrame = FS.TextFrame
+  local MaxPar = select('#', ...)
+  local ParValue2 = nil
+  local Index = 1
 
-  for Index = 1, select('#', ...), 2 do
+  repeat
     local ParType = select(Index, ...)
     local ParValue = select(Index + 1, ...)
+    local ParSize = SetValueParSize[ParType] or 2
 
-    if ParType == 'unit' then
-      local Name, Realm = UnitName(ParValue)
-      Name = Name or ''
-      Realm = Realm or ''
-
-      FS.unitname = Name
-      FS.realmname = Realm
-      if Realm ~= '' then
-        Realm = '-' .. Realm
-      end
-      FS.unitnamerealm = Name .. Realm
-      FS.unitlevel = UnitLevel(ParValue)
-    else
-      FS[ParType] = ParValue
+    FS[ParType] = ParValue
+    if ParSize == 3 then
+      FS[ParType .. '2'] = select(Index + 2, ...)
     end
-  end
+    Index = Index + ParSize
+  until Index > MaxPar
+
   local Text = FS.Text
 
   for Index = 1, FS.NumStrings do
@@ -4178,7 +4275,7 @@ end
 -- StartValue           Starting value in seconds.  This will start dipslaying seconds from this value.
 -- Direction            Direction to go in +1 or -1
 -- ...                  Additional Type, Value pairs. Optional.  Example:
---                        'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'unit', Unit)
+--                        'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'name', Unit)
 -------------------------------------------------------------------------------
 function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Direction, ...)
   local Step = Direction == 1 and 0.1 or Direction == -1 and -0.1 or 0.1
@@ -4228,24 +4325,21 @@ function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Dire
       FontTime.FS = FS
       FontTime.Frame = Frame
 
-      for Index = 1, select('#', ...), 2 do
-        local ParType = select(Index, ...)
-        local ParValue = select(Index + 1, ...)
+      local MaxPar = select('#', ...)
+      if MaxPar > 0 then
+        local Index = 1
 
-        if ParType == 'unit' then
-          local Name, Realm = UnitName(ParValue)
-          Name = Name or ''
-          Realm = Realm or ''
+        repeat
+          local ParType = select(Index, ...)
+          local ParValue = select(Index + 1, ...)
+          local ParSize = SetValueParSize[ParType] or 2
 
-          FS.unitname = Name
-          FS.realmname = Realm
-          if Realm ~= '' then
-            Realm = '-' .. Realm
-          end
-          FS.unitnamerealm = Name .. Realm
-        else
           FS[ParType] = ParValue
-        end
+          if ParSize == 3 then
+            FS[ParType .. '2'] = select(Index + 2, ...)
+          end
+          Index = Index + ParSize
+        until Index > MaxPar
       end
 
       Main:SetTimer(FontTime, SetValueTimer, 0.1, WaitTime)
