@@ -448,7 +448,7 @@ local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this obje
 
 local BarDB = {}
 local Args = {}
-local FontStrings = {}
+local BarTextData = {}
 
 local DoOptionData = {}
 local VirtualFrameLevels = nil
@@ -1365,6 +1365,9 @@ local function OnUpdate_Display(self)
   local FloatFirstTime = self.OldFloat ~= Float and Float
   self.OldFloat = Float
 
+  if BoxOrder then
+    Main:ListTable(BoxOrder)
+  end
   -- Draw the box frames.
   for Index = 1, NumBoxes do
     local BoxIndex = BoxOrder and BoxOrder[Index] or Index
@@ -1413,7 +1416,6 @@ local function OnUpdate_Display(self)
                 BoxPaddingY = BoxPaddingY + Slope
               end
             end
-
             BF:SetPoint(Point, LastBF, ParentPoint, BoxPaddingX, BoxPaddingY)
           end
           if FirstBF == nil then
@@ -3893,20 +3895,20 @@ end
 function GUB.Bar:SetHighlightFont(BarType, HideTextHighlight, TextIndex)
   local UnitBars = Main.UnitBars
 
-  -- Iterate thru fontstrings
-  for BT, FSA in pairs(FontStrings) do
+  -- Iterate thru text data
+  for BT, TextData in pairs(BarTextData) do
 
     -- Iterate thru the fontstring array.
-    for _, FS in ipairs(FSA) do
-      local Text = FS.Text
+    for _, TD in ipairs(TextData) do
+      local Text = TD.Text
 
       if Text then
         local NumStrings = #Text
 
-        for Index, TF in ipairs(FS.TextFrames) do
+        for Index, TF in ipairs(TD.TextFrames) do
           local r, g, b, a = 1, 1, 1, 0
 
-          if not HideTextHighlight and not UnitBars[FS.BarType].Layout.HideText then
+          if not HideTextHighlight and not UnitBars[TD.BarType].Layout.HideText then
 
             -- Check if fontstring is active.
             if Index <= NumStrings then
@@ -3921,7 +3923,7 @@ function GUB.Bar:SetHighlightFont(BarType, HideTextHighlight, TextIndex)
 
               -- match bartype and text index then set it to green.
               -- if bartype matches but not the index then set to white.
-              elseif FS.BarType == BarType and TextIndex == Index then
+              elseif TD.BarType == BarType and TextIndex == Index then
                 r, g, b, a = 0, 1, 0, 1
               else
                 a = 1
@@ -3988,9 +3990,9 @@ end
 --
 --  Subfunction of SetValue()
 --
---  Usage: Value = FontGetValue[Type](FS, Value, ValueType)
+--  Usage: Value = FontGetValue[Type](TextData, Value, ValueType)
 --
---  FS          FS object created by Main:CreateFontString()
+--  TextData    TextData object created by CreateFont()
 --  Value       Value to be modifed in some way.
 --  ValueType   Same value as Type below.
 --  Type        Will call a certain function based on Type.
@@ -3999,7 +4001,7 @@ end
 -------------------------------------------------------------------------------
 local FontGetValue = {}
 
-  local function FontGetValue_Short(FS, Value, ValueType)
+  local function FontGetValue_Short(TextData, Value, ValueType)
     if Value >= 10000000 then
       if ValueType == 'short_dgroups' then
         return format('%sm', NumberToDigitGroups(Round(Value / 1000000, 1)))
@@ -4026,17 +4028,17 @@ local FontGetValue = {}
 
   -- whole (no function needed)
 
-  FontGetValue['whole_dgroups'] = function(FS, Value, ValueType)
+  FontGetValue['whole_dgroups'] = function(TextData, Value, ValueType)
     return NumberToDigitGroups(Value)
   end
 
-  FontGetValue['percent'] = function(FS, Value, ValueType)
-    local MaxValue = FS.maximum
+  FontGetValue['percent'] = function(TextData, Value, ValueType)
+    local MaxValue = TextData.maximum
 
     if MaxValue == 0 then
       return 0
     else
-      local PercentFn = FS.PercentFn
+      local PercentFn = TextData.PercentFn
 
       if PercentFn then
         return PercentFn(Value, MaxValue)
@@ -4046,24 +4048,24 @@ local FontGetValue = {}
     end
   end
 
-  FontGetValue['thousands'] = function(FS, Value, ValueType)
+  FontGetValue['thousands'] = function(TextData, Value, ValueType)
     return Value / 1000
   end
 
-  FontGetValue['thousands_dgroups'] = function(FS, Value, ValueType)
+  FontGetValue['thousands_dgroups'] = function(TextData, Value, ValueType)
     return NumberToDigitGroups(Round(Value / 1000))
   end
 
-  FontGetValue['millions'] = function(FS, Value, ValueType)
+  FontGetValue['millions'] = function(TextData, Value, ValueType)
     return Value / 1000000
   end
 
-  FontGetValue['millions_dgroups'] = function(FS, Value, ValueType)
+  FontGetValue['millions_dgroups'] = function(TextData, Value, ValueType)
     return NumberToDigitGroups(Round(Value / 1000000, 1))
   end
 
-  local function SetNameData(FS, Value, ValueType)
-    local Name, Realm = UnitName(FS.name)
+  local function SetNameData(TextData, Value, ValueType)
+    local Name, Realm = UnitName(TextData.name)
 
     Name = Name or ''
 
@@ -4086,10 +4088,10 @@ local FontGetValue = {}
   FontGetValue['realmname'] = SetNameData
   FontGetValue['unitnamerealm'] = SetNameData
 
-  local function SetLevelData(FS, Value, ValueType)
+  local function SetLevelData(TextData, Value, ValueType)
     local UnitLevelScaled = nil
-    local Level = FS.level
-    local ScaledLevel = FS.level2
+    local Level = TextData.level
+    local ScaledLevel = TextData.level2
 
     if Level == -1 or ScaledLevel == -1 then
       Level = [[|TInterface\TargetingFrame\UI-TargetingFrame-Skull:0:0|t]]
@@ -4127,27 +4129,27 @@ local FontGetValue = {}
 --
 -- NOTES: SetValue() is optimized for speed since this function gets called a lot.
 -------------------------------------------------------------------------------
-local function SetValue(FS, FontString, Layout, NumValues, ValueName, ValueType, ...)
+local function SetValue(TextData, FontString, Layout, NumValues, ValueNames, ValueTypes, ...)
 
   -- if we have paramters left then get them.
-  local Name = ValueName[NumValues]
+  local Name = ValueNames[NumValues]
 
   if NumValues > 1 then
     if Name ~= 'none' then
-      local Type = ValueType[NumValues]
-      local Value = FS[Name]
-      local GetValue = FontGetValue[Type]
+      local ValueType = ValueTypes[NumValues]
+      local Value = TextData[Name]
+      local GetValue = FontGetValue[ValueType]
 
-      SetValue(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, Value ~= '' and GetValue and GetValue(FS, Value, Type) or Value, ...)
+      SetValue(TextData, FontString, Layout, NumValues - 1, ValueNames, ValueTypes, Value ~= '' and GetValue and GetValue(TextData, Value, ValueType) or Value, ...)
     else
-      SetValue(FS, FontString, Layout, NumValues - 1, ValueName, ValueType, ...)
+      SetValue(TextData, FontString, Layout, NumValues - 1, ValueNames, ValueTypes, ...)
     end
   elseif Name ~= 'none' then
-    local Type = ValueType[NumValues]
-    local Value = FS[Name]
-    local GetValue = FontGetValue[Type]
+    local ValueType = ValueTypes[NumValues]
+    local Value = TextData[Name]
+    local GetValue = FontGetValue[ValueType]
 
-    FontString:SetFormattedText(Layout, Value ~= '' and GetValue and GetValue(FS, Value, Type) or Value, ...)
+    FontString:SetFormattedText(Layout, Value ~= '' and GetValue and GetValue(TextData, Value, ValueType) or Value, ...)
   else
     FontString:SetFormattedText(Layout, ...)
   end
@@ -4157,8 +4159,8 @@ end
 function BarDB:SetValueFont(BoxNumber, ...)
   local Frame = self.BoxFrames[BoxNumber]
 
-  local FS = Frame.FS
-  local TextFrame = FS.TextFrame
+  local TextData = Frame.TextData
+  local TextFrame = TextData.TextFrame
   local MaxPar = select('#', ...)
   local ParValue2 = nil
   local Index = 1
@@ -4168,22 +4170,22 @@ function BarDB:SetValueFont(BoxNumber, ...)
     local ParValue = select(Index + 1, ...)
     local ParSize = SetValueParSize[ParType] or 2
 
-    FS[ParType] = ParValue
+    TextData[ParType] = ParValue
     if ParSize == 3 then
-      FS[ParType .. '2'] = select(Index + 2, ...)
+      TextData[ParType .. '2'] = select(Index + 2, ...)
     end
     Index = Index + ParSize
   until Index > MaxPar
 
-  local Text = FS.Text
+  local Text = TextData.Text
 
-  for Index = 1, FS.NumStrings do
-    local FontString = FS[Index]
-    local TS = Text[Index]
-    local ValueName = TS.ValueName
+  for Index = 1, TextData.NumStrings do
+    local FontString = TextData[Index]
+    local Txt = Text[Index]
+    local ValueNames = Txt.ValueNames
 
     -- Display the font string
-    local ReturnOK, Msg = pcall(SetValue, FS, FontString, TS.Layout, #ValueName, ValueName, TS.ValueType)
+    local ReturnOK, Msg = pcall(SetValue, TextData, FontString, Txt.Layout, #ValueNames, ValueNames, Txt.ValueTypes)
 
     if not ReturnOK then
       FontString:SetFormattedText('Err (%d)', Index)
@@ -4203,10 +4205,10 @@ function BarDB:SetValueRawFont(BoxNumber, Text)
   repeat
     local Frame = NextBox(self, BoxNumber)
 
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
-    for Index = 1, FS.NumStrings do
-      FS[Index]:SetText(Text)
+    for Index = 1, TextData.NumStrings do
+      TextData[Index]:SetText(Text)
     end
   until LastBox
 end
@@ -4221,33 +4223,33 @@ local function SetValueTimer(self)
 
   if TimeElapsed < self.Duration then
     local Counter = self.Counter
-    local FS = self.FS
-    local Text = FS.Text
+    local TextData = self.TextData
+    local Text = TextData.Text
 
-    FS.time = Counter
+    TextData.time = Counter
 
-    if FS.Multi then
-      for Index = 1, FS.NumStrings do
-        local FontString = FS[Index]
-        local TS = Text[Index]
-        local ValueName = TS.ValueName
+    if TextData.Multi then
+      for Index = 1, TextData.NumStrings do
+        local FontString = TextData[Index]
+        local Txt = Text[Index]
+        local ValueNames = Txt.ValueNames
 
         -- Display the font string
-        local ReturnOK, Msg = pcall(SetValue, FS, FontString, TS.Layout, #ValueName, ValueName, TS.ValueType)
+        local ReturnOK, Msg = pcall(SetValue, TextData, FontString, Txt.Layout, #ValueNames, ValueNames, Txt.ValueTypes)
 
         if not ReturnOK then
           FontString:SetFormattedText('Err (%d)', Index)
         end
       end
     else
-      local TS = FS.Text[1]
-      local ValueName = TS.ValueName
+      local Txt = TextData.Text[1]
+      local ValueNames = Txt.ValueNames
 
       -- Display the font string
-      local ReturnOK, Msg = pcall(SetValue, FS, FS[1], TS.Layout, #ValueName, ValueName, TS.ValueType)
+      local ReturnOK, Msg = pcall(SetValue, TextData, TextData[1], Txt.Layout, #ValueNames, ValueNames, Txt.ValueTypes)
 
       if not ReturnOK then
-        FS[1]:SetFormattedText('Err (%d)', 1)
+        TextData[1]:SetFormattedText('Err (%d)', 1)
       end
     end
     Counter = Counter + self.Step
@@ -4257,9 +4259,9 @@ local function SetValueTimer(self)
 
     -- stop timer
     Main:SetTimer(self, nil)
-    local FS = self.FS
-    for Index = 1, FS.NumStrings do
-      FS[Index]:SetText('')
+    local TextData = self.TextData
+    for Index = 1, TextData.NumStrings do
+      TextData[Index]:SetText('')
     end
   end
 end
@@ -4292,7 +4294,7 @@ function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Dire
     Main:SetTimer(FontTime, nil)
 
     Duration = Duration or 0
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
     if Duration > 0 then
       local CurrentTime = GetTime()
@@ -4322,7 +4324,7 @@ function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Dire
       FontTime.StartValue = StartValue
       FontTime.Counter = StartValue
       FontTime.Step = Step
-      FontTime.FS = FS
+      FontTime.TextData = TextData
       FontTime.Frame = Frame
 
       local MaxPar = select('#', ...)
@@ -4334,9 +4336,9 @@ function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Dire
           local ParValue = select(Index + 1, ...)
           local ParSize = SetValueParSize[ParType] or 2
 
-          FS[ParType] = ParValue
+          TextData[ParType] = ParValue
           if ParSize == 3 then
-            FS[ParType .. '2'] = select(Index + 2, ...)
+            TextData[ParType .. '2'] = select(Index + 2, ...)
           end
           Index = Index + ParSize
         until Index > MaxPar
@@ -4344,8 +4346,8 @@ function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Dire
 
       Main:SetTimer(FontTime, SetValueTimer, 0.1, WaitTime)
     else
-      for Index = 1, FS.NumStrings do
-        FS[Index]:SetText('')
+      for Index = 1, TextData.NumStrings do
+        TextData[Index]:SetText('')
       end
     end
   until LastBox
@@ -4354,20 +4356,20 @@ end
 -------------------------------------------------------------------------------
 -- GetLayoutFont
 --
--- ValueName      Array containing the names.
--- ValueType      Array containing the types.
+-- ValueNames      Array containing the names.
+-- ValueTypes      Array containing the types.
 --
 -- Returns:
 --   Layout       String containing the new layout.
 -------------------------------------------------------------------------------
-local function GetLayoutFont(ValueName, ValueType)
+local function GetLayoutFont(ValueNames, ValueTypes)
   local LastName = nil
   local Sep = ''
   local SepFlag = false
 
   local Layout = ''
 
-  for NameIndex, Name in ipairs(ValueName) do
+  for NameIndex, Name in ipairs(ValueNames) do
     if Name ~= 'none' then
 
       -- Add a '/' between current and maximum.
@@ -4382,7 +4384,7 @@ local function GetLayoutFont(ValueName, ValueType)
       end
 
       LastName = Name
-      Layout = Layout .. Sep .. (ValueLayout[ValueType[NameIndex]] or '')
+      Layout = Layout .. Sep .. (ValueLayout[ValueTypes[NameIndex]] or '')
     end
   end
 
@@ -4402,11 +4404,11 @@ function BarDB:SetColorFont(BoxNumber, TextLine, r, g, b, a)
 
   repeat
     local Frame = NextBox(self, BoxNumber)
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
     -- Check for fontstrings
-    if FS then
-      local FontString = FS[TextLine]
+    if TextData then
+      local FontString = TextData[TextLine]
 
       if FontString then
         FontString:SetTextColor(r, g, b, a)
@@ -4432,16 +4434,16 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
 
   repeat
     local Frame = NextBox(self, BoxNumber)
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
     -- Check for fontstrings
-    if FS then
-      local TS = Text[TextLine]
-      local TF = FS.TextFrames[TextLine]
+    if TextData then
+      local Txt = Text[TextLine]
+      local TF = TextData.TextFrames[TextLine]
 
-      if TF and TS then
+      if TF and Txt then
         TF:ClearAllPoints()
-        TF:SetPoint(TS.FontPosition, Frame, TS.Position, TS.OffsetX + (OffsetX or 0), TS.OffsetY + (OffsetY or 0))
+        TF:SetPoint(Txt.FontPosition, Frame, Txt.Position, Txt.OffsetX + (OffsetX or 0), Txt.OffsetY + (OffsetY or 0))
       end
     end
   until LastBox
@@ -4463,20 +4465,20 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
 
   repeat
     local Frame = NextBox(self, BoxNumber)
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
     -- Check for fontstrings
-    if FS then
-      local FontString = FS[TextLine]
-      local TS = Text[TextLine]
+    if TextData then
+      local FontString = TextData[TextLine]
+      local Txt = Text[TextLine]
 
-      if FontString and TS then
+      if FontString and Txt then
 
         -- Set font size
-        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', TS.FontType), Size, TS.FontStyle)
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Size, Txt.FontStyle)
 
         if not ReturnOK then
-          FontString:SetFont(LSM:Fetch('font', TS.FontType), Size, 'NONE')
+          FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
         end
       end
     end
@@ -4499,20 +4501,20 @@ function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
 
   repeat
     local Frame = NextBox(self, BoxNumber)
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
     -- Check for fontstrings
-    if FS then
-      local FontString = FS[TextLine]
-      local TS = Text[TextLine]
+    if TextData then
+      local FontString = TextData[TextLine]
+      local Txt = Text[TextLine]
 
-      if FontString and TS then
+      if FontString and Txt then
 
         -- Set font size
-        local ReturnOK, Message = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), TS.FontSize, TS.FontStyle)
+        local ReturnOK, Message = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), Txt.FontSize, Txt.FontStyle)
 
         if not ReturnOK then
-          FontString:SetFont(LSM:Fetch('font', Type), TS.FontSize, 'NONE')
+          FontString:SetFont(LSM:Fetch('font', Type), Txt.FontSize, 'NONE')
         end
       end
     end
@@ -4535,20 +4537,20 @@ function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
 
   repeat
     local Frame = NextBox(self, BoxNumber)
-    local FS = Frame.FS
+    local TextData = Frame.TextData
 
     -- Check for fontstrings
-    if FS then
-      local FontString = FS[TextLine]
-      local TS = Text[TextLine]
+    if TextData then
+      local FontString = TextData[TextLine]
+      local Txt = Text[TextLine]
 
-      if FontString and TS then
+      if FontString and Txt then
 
         -- Set font size
-        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', TS.FontType), TS.FontSize, Style)
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Txt.FontSize, Style)
 
         if not ReturnOK then
-          FontString:SetFont(LSM:Fetch('font', TS.FontType), TS.FontSize, 'NONE')
+          FontString:SetFont(LSM:Fetch('font', Txt.FontType), Txt.FontSize, 'NONE')
         end
       end
     end
@@ -4573,17 +4575,16 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
   repeat
     local Frame, BoxIndex = NextBox(self, BoxNumber)
 
-    local FS = Frame.FS
-    local TextFrames = FS.TextFrames
-    local TF = nil
+    local TextData = Frame.TextData
+    local TextFrames = TextData.TextFrames
     local NumStrings = nil
 
     -- Adjust the fontstring array based on the text settings.
     for Index = 1, #Text do
-      local FontString = FS[Index]
-      local TS = Text[Index]
-      local TF = TextFrames[Index]
-      local Color = TS.Color
+      local FontString = TextData[Index]
+      local Txt = Text[Index]
+      local TextFrame = TextFrames[Index]
+      local Color = Txt.Color
       local c = nil
       local ColorAll = Color.All
 
@@ -4595,42 +4596,42 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
 
       -- Since Text is dynamic we need to make sure no values are missing.
       -- If they are they'll be copied from defaults.
-      Main:CopyMissingTableValues(DefaultTextSettings, TS)
+      Main:CopyMissingTableValues(DefaultTextSettings, Txt)
 
       -- Update the layout if not in custom mode.
-      if not TS.Custom then
-        TS.Layout = GetLayoutFont(TS.ValueName, TS.ValueType)
+      if not Txt.Custom then
+        Txt.Layout = GetLayoutFont(Txt.ValueNames, Txt.ValueTypes)
       end
 
       -- Create a new fontstring if one doesn't exist.
       if FontString == nil then
-        TF = CreateFrame('Frame', nil, Frame)
-        TF:SetBackdrop(FrameBorder)
-        TF:SetBackdropBorderColor(1, 1, 1, 0)
+        TextFrame = CreateFrame('Frame', nil, Frame)
+        TextFrame:SetBackdrop(FrameBorder)
+        TextFrame:SetBackdropBorderColor(1, 1, 1, 0)
 
-        TextFrames[Index] = TF
-        FontString = TF:CreateFontString()
+        TextFrames[Index] = TextFrame
+        FontString = TextFrame:CreateFontString()
 
-        FontString:SetAllPoints(TF)
-        FS[Index] = FontString
+        FontString:SetAllPoints(TextFrame)
+        TextData[Index] = FontString
       end
 
       -- Set font size, type, and style
-      self:SetTypeFont(BoxNumber, Index, TS.FontType)
-      self:SetSizeFont(BoxNumber, Index, TS.FontSize)
-      self:SetStyleFont(BoxNumber, Index, TS.FontStyle)
+      self:SetTypeFont(BoxNumber, Index, Txt.FontType)
+      self:SetSizeFont(BoxNumber, Index, Txt.FontSize)
+      self:SetStyleFont(BoxNumber, Index, Txt.FontStyle)
 
       -- Set font location
-      FontString:SetJustifyH(TS.FontHAlign)
-      FontString:SetJustifyV(TS.FontVAlign)
-      FontString:SetShadowOffset(TS.ShadowOffset, -TS.ShadowOffset)
+      FontString:SetJustifyH(Txt.FontHAlign)
+      FontString:SetJustifyV(Txt.FontVAlign)
+      FontString:SetShadowOffset(Txt.ShadowOffset, -Txt.ShadowOffset)
 
       -- Position the font by moving textframe.
       self:SetOffsetFont(BoxNumber, Index)
-      TF:SetSize(TS.Width, TS.Height)
+      TextFrame:SetSize(Txt.Width, Txt.Height)
 
-      -- Set the texture frame to be on top.
-      TF:SetFrameLevel(TopFrame:GetFrameLevel() + 1)
+      -- Set the text frame to be on top.
+      TextFrame:SetFrameLevel(TopFrame:GetFrameLevel() + 1)
 
       if FontString:GetText() == nil then
         FontString:SetText('')
@@ -4647,12 +4648,12 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
     end
 
     -- Erase font string data no longer used.
-    for Index = NumStrings + 1, FS.NumStrings do
-      FS[Index]:SetText('')
+    for Index = NumStrings + 1, TextData.NumStrings do
+      TextData[Index]:SetText('')
     end
-    FS.Multi = Multi
-    FS.NumStrings = NumStrings
-    FS.Text = Text
+    TextData.Multi = Multi
+    TextData.NumStrings = NumStrings
+    TextData.Text = Text
   until LastBox
 end
 
@@ -4672,21 +4673,21 @@ function BarDB:CreateFont(BoxNumber, PercentFn)
   repeat
     local Frame = NextBox(self, BoxNumber)
 
-    local FS = {}
+    local TextData = {}
 
-    -- Add font strings to the fontstrings table.
-    if FontStrings[BarType] == nil then
-      FontStrings[BarType] = {}
+    -- Add text data to the bar text data table.
+    if BarTextData[BarType] == nil then
+      BarTextData[BarType] = {}
     end
-    local FSS = FontStrings[BarType]
-    FSS[#FSS + 1] = FS
+    local BTD = BarTextData[BarType]
+    BTD[#BTD + 1] = TextData
 
-    -- Store the font data and save it to the BoxFrame or TextureFrame.
-    FS.BarType = BarType
-    FS.NumStrings = 0
-    FS.TextFrames = {}
-    FS.PercentFn = PercentFn
-    Frame.FS = FS
+    -- Store the text data.
+    TextData.BarType = BarType
+    TextData.NumStrings = 0
+    TextData.TextFrames = {}
+    TextData.PercentFn = PercentFn
+    Frame.TextData = TextData
   until LastBox
 end
 
