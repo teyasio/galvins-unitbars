@@ -1058,7 +1058,7 @@ end
 --   Action
 --     remove         Remove a table that matches Key
 --     copy           Copy a value from Source to Dest. Keys is the name of the value being copied.
---     move           Move a value from source to Dest. Keys is thje name of the value being moved.
+--     move           Move a value from source to Dest. Keys is the name of the value being moved.
 --     movetable      Move a sub table from Source to Dest.  Keys is the subtable.
 --     custom         Calls ConvertCustom to make changes.
 --
@@ -1139,8 +1139,8 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
       local Text = SourceUB.Text
       for Index = 1, #Text do
         local TS = Text[Index]
-        local ValueName = TS.ValueName
-        local ValueType = TS.ValueType
+        local ValueName = TS.ValueName or TS.ValueNames
+        local ValueType = TS.ValueType or TS.ValueTypes
 
         for ValueIndex = 1, #ValueName do
           local VName = ValueName[ValueIndex]
@@ -1328,8 +1328,8 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
 
       for Index = 1, #Text do
         local TS = Text[Index]
-        local ValueName = TS.ValueName
-        local ValueType = TS.ValueType
+        local ValueName = TS.ValueName or TS.ValueNames
+        local ValueType = TS.ValueType or TS.ValueTypes
 
         for ValueIndex = 1, #ValueName do
           local VName = ValueName[ValueIndex]
@@ -1344,6 +1344,39 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
             end
             ValueName[ValueIndex] = VName
           end
+        end
+      end
+    end
+  elseif Ver == 7 then
+    -- Convert ValueName and ValueType to plural
+    if SourceKey == 'Text' then
+      local Text = SourceUB.Text
+      local DubText = DUB[BarType].Text
+
+      for Index = 1, #Text do
+        local TS = Text[Index]
+        local DubTS = DubText[Index]
+        local ValueName = TS.ValueName
+        local ValueType = TS.ValueType
+
+        if ValueName then
+          TS.ValueNames = {}
+          TS.ValueTypes = {}
+
+          Main:CopyTableValues(TS.ValueName, TS.ValueNames, true)
+          Main:CopyTableValues(TS.ValueType, TS.ValueTypes, true)
+
+          -- Since the defaults was changed to ValueNames and ValueTypes
+          -- A nil has to be filled in for the first index.
+          if TS.ValueNames[1] == nil then
+            TS.ValueNames[1] = DubTS.ValueNames[1]
+          end
+          if TS.ValueTypes[1] == nil then
+            TS.ValueTypes[1] = DubTS.ValueTypes[1]
+          end
+
+          TS.ValueName = nil
+          TS.ValueType = nil
         end
       end
     end
@@ -1376,8 +1409,8 @@ local function ConvertUnitBarData(Ver)
   }
 
   local ConvertUBData2 = {
-    {Action = 'movetable', Source = 'Region.BackdropSettings',              Dest = 'Region',              'Padding'},
-    {Action = 'movetable', Source = 'Background.BackdropSettings',          Dest = 'Background',          'Padding'},
+    {Action = 'movetable', Source = 'Region.BackdropSettings',         Dest = 'Region',              'Padding'},
+    {Action = 'movetable', Source = 'Background.BackdropSettings',     Dest = 'Background',          'Padding'},
 
     {Action = 'move', Source = 'Region.BackdropSettings',              Dest = 'Region',              'BgTexture', 'BdTexture:BorderTexture',
                                                                                                      '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
@@ -1393,6 +1426,11 @@ local function ConvertUnitBarData(Ver)
     {Action = 'custom',    Source = '',                                 '=BoxOrder', '=Text', '=Triggers'},
   }
 
+  local ConvertUBData7 = {
+    {Action = 'custom',    Source = '',                                 '=Text'},
+  }
+
+
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
 
@@ -1407,6 +1445,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData345
   elseif Ver == 6 then
     ConvertUBData = ConvertUBData6
+  elseif Ver == 7 then
+    ConvertUBData = ConvertUBData7
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1503,7 +1543,6 @@ local function ConvertUnitBarData(Ver)
       end
     end
   end
-  UnitBars.Version = 3
 end
 
 -------------------------------------------------------------------------------
@@ -4383,6 +4422,10 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 500 then
     -- Convert profile from a version before 5.00
     ConvertUnitBarData(6)
+  end
+  if Ver == nil or Ver < 501 then
+    -- Convert profile from a version before 5.01
+    ConvertUnitBarData(7)
   end
   if Ver ~= Version then
     CleanUnitBars()

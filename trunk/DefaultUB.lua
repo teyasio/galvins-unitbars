@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 500
+GUB.DefaultUB.Version = 501
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -135,8 +135,8 @@ GUB.DefaultUB.Version = 500
 --
 --     Custom             - If true a user inputed layout is used instead of one being automatically generated.
 --     Layout             - Layout used in string.format for displaying the values.
---     ValueName          - An array of strings that tell what each position will display.
---     ValueType          - Tells how the value will be displayed.
+--     ValueNames         - An array of strings that tell what each position will display.
+--     ValueTypes         - Tells how the value will be displayed.
 --
 --     FontType           - Type of font to use.
 --     FontSize           - Size of the font.
@@ -384,8 +384,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -507,8 +507,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -629,8 +629,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -744,8 +744,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -866,8 +866,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -981,8 +981,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1102,8 +1102,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1220,8 +1220,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1342,8 +1342,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'current'},
-          ValueType = {'whole'},
+          ValueNames = {'current'},
+          ValueTypes = {'whole'},
 
           FontType = UBFontType,
           FontSize = 16,
@@ -1526,8 +1526,8 @@ GUB.DefaultUB.Default = {
         { -- 1
           Custom    = false,
           Layout    = '',
-          ValueName = {'time'},
-          ValueType = {'timeSS'},
+          ValueNames = {'time'},
+          ValueTypes = {'timeSS'},
 
           FontType = UBFontType,
           FontSize = 16,

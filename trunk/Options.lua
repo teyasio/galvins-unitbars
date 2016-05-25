@@ -1784,7 +1784,7 @@ end
 -- TxtLine        Used to retrieve what text line number is being used.
 -- Order          Order number in the options frame.
 -------------------------------------------------------------------------------
-local function ModifyTextValueOptions(BarType, VOA, Action, ValueName, ValueIndex)
+local function ModifyTextValueOptions(BarType, VOA, Action, ValueNames, ValueIndex)
   local ValueNameMenu = DUB[BarType].Text._ValueNameMenu
   local ValueNameDropdown = ValueNameMenuDropdown[ValueNameMenu]
 
@@ -1804,11 +1804,11 @@ local function ModifyTextValueOptions(BarType, VOA, Action, ValueName, ValueInde
       name = format('Value Type %s', ValueIndex),
       disabled = function()
                    -- Disable if the ValueName is not found in the menu.
-                   return ValueName[ValueIndex] == 'none' or
-                          ValueNameDropdown[ConvertValueName[ValueName[ValueIndex]]] == nil
+                   return ValueNames[ValueIndex] == 'none' or
+                          ValueNameDropdown[ConvertValueName[ValueNames[ValueIndex]]] == nil
                  end,
       values = function()
-                 local VName = ValueName[ValueIndex]
+                 local VName = ValueNames[ValueIndex]
                  if ValueNameDropdown[ConvertValueName[VName]] == nil then
 
                    -- Valuename not found in the menu so return an empty menu
@@ -1835,8 +1835,8 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
   local ValueNameMenu = DUB[BarType].Text._ValueNameMenu
 
   local TS = UB.Text[TxtLine[TL.name]]
-  local ValueName = TS.ValueName
-  local ValueType = TS.ValueType
+  local ValueNames = TS.ValueNames
+  local ValueTypes = TS.ValueTypes
   local NumValues = 0
   local MaxValueNames = o.MaxValueNames
   local VOA = nil
@@ -1853,10 +1853,10 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
             if strfind(St, 'ValueName') then
 
               -- Check if the valuename is not found in the menu.
-              return ConvertValueName[ValueName[ValueIndex]]
+              return ConvertValueName[ValueNames[ValueIndex]]
 
             elseif strfind(St, 'ValueType') then
-              return ConvertValueType[ValueType[ValueIndex]]
+              return ConvertValueType[ValueTypes[ValueIndex]]
             end
           end,
     set = function(Info, Value)
@@ -1865,11 +1865,11 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
 
             if strfind(St, 'ValueName') then
               local VName = ConvertValueName[Value]
-              ValueName[ValueIndex] = VName
+              ValueNames[ValueIndex] = VName
 
-              -- ValueType menu may have changed, so we need to update ValueType.
+              -- ValueType menu may have changed, so we need to update ValueTypes.
               local Dropdown = ValueTypeMenuDropdown[VName]
-              local Value = ConvertValueType[ValueType[ValueIndex]]
+              local Value = ConvertValueType[ValueTypes[ValueIndex]]
 
               if Dropdown[Value] == nil then
                 Value = 100
@@ -1878,10 +1878,10 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
                     Value = Index
                   end
                 end
-                ValueType[ValueIndex] = ConvertValueType[Value]
+                ValueTypes[ValueIndex] = ConvertValueType[Value]
               end
             elseif strfind(St, 'ValueType') then
-              ValueType[ValueIndex] = ConvertValueType[Value]
+              ValueTypes[ValueIndex] = ConvertValueType[Value]
             end
 
             -- Update the font.
@@ -1925,11 +1925,11 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
                      return HideTooltip(NumValues == 1)
                    end,
         func = function()
-                 ModifyTextValueOptions(BarType, VOA, 'remove', ValueName, NumValues)
+                 ModifyTextValueOptions(BarType, VOA, 'remove', ValueNames, NumValues)
 
                  -- remove last value type.
-                 tremove(ValueName, NumValues)
-                 tremove(ValueType, NumValues)
+                 tremove(ValueNames, NumValues)
+                 tremove(ValueTypes, NumValues)
 
                  NumValues = NumValues - 1
 
@@ -1950,11 +1950,11 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
                    end,
         func = function()
                  NumValues = NumValues + 1
-                 ModifyTextValueOptions(BarType, VOA, 'add', ValueName, NumValues)
+                 ModifyTextValueOptions(BarType, VOA, 'add', ValueNames, NumValues)
 
                  -- Add a new value setting.
-                 ValueName[NumValues] = DUB[BarType].Text[1].ValueName[1]
-                 ValueType[NumValues] = DUB[BarType].Text[1].ValueType[1]
+                 ValueNames[NumValues] = DUB[BarType].Text[1].ValueNames[1]
+                 ValueTypes[NumValues] = DUB[BarType].Text[1].ValueTypes[1]
 
                  -- Update the font to reflect changes
                  UBF:SetAttr('Text', '_Font')
@@ -1984,8 +1984,8 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
   VOA = TL.args.Value.args
 
   -- Add additional value options if needed
-  for Index in ipairs(ValueName) do
-    ModifyTextValueOptions(BarType, VOA, 'add', ValueName, Index)
+  for Index, Value in ipairs(ValueNames) do
+    ModifyTextValueOptions(BarType, VOA, 'add', ValueNames, Index)
     NumValues = Index
   end
 end
