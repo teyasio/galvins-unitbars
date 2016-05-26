@@ -130,8 +130,9 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Value                           Current value, work around for padding function dealing with statusbars.
 --                                   Also used by SetFill functions.
 --   SliderSize                      If not nill then the texture is being used as a slider.
---   SmoothTime                      Amount of time it takes to fill a texture from current value to new value.
---                                   Used by SetFillSmoothTimeTexture() and SetFillTexture()
+--   Speed                           Like duration except its speed.  So if this was 10secs.  Then it would be 10secs to go from 0 to 1
+--                                   or 5secs from 0 to 0.5 or 0.25 to 0.75.
+--                                   Used by SetFillSpeedTexture() and SetFillTexture()
 --   SetFill                         Flag used by OnSizeChangedTexture().  When a texture changes size SetFill()
 --                                   will be called to update the fill.  This only works if SetFill() was called prior.
 --   StartTime
@@ -159,8 +160,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --    RotationPoint                  Used by Display() to rotate the bar.
 --    BoxFrames                      Used by NextBox() for iteration.
---    TextureFillTime                Amount of times per second the fill timer is called.
---    TextureSmoothFillTime          Amount of times per second the smooth fill timer is called.
 --    DoOptionData                   Resusable table for passing back information. Used by DoOption().
 --
 --  RotationPoint data structure
@@ -459,8 +458,6 @@ local BoxFrames = nil
 local NextBoxFrame = 0
 local LastBox = true
 
-local TextureFillTime = 1 / 40  -- 40 times per second
-local TextureSmoothFillTime = 1 / 60 -- 60 times per second.
 local TextureSpark = [[Interface\CastingBar\UI-CastingBar-Spark]]
 local TextureSparkSize = 32
 
@@ -2989,12 +2986,15 @@ end
 --                   The timer will be called. The higher the number the smoother
 --                   the animation but also the more cpu is consumed.
 -- StartTime         Starting time if nil then starts instantly.
--- Duration          Time it will take to reach from StartValue to EndValue.
+-- Duration          Time it will take to go from StartValue to EndValue.
 -- StartValue        Starting value between 0 and 1.  If nill the current value
 --                   is used instead.
 -- EndValue          Ending value between 0 and 1. If nill 1 is used.
+-- Constant          If true then the bar fills at a constant speed
+--                   Duration becomes Speed. The speed is is equal to the amount of
+--                   time it would take to go from 0 to 1.
 -------------------------------------------------------------------------------
-local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndValue)
+local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndValue, Constant)
   Main:SetTimer(Texture, nil)
   Duration = Duration or 0
   StartValue = StartValue and StartValue or Texture.Value
@@ -3004,11 +3004,18 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
   if StartValue ~= EndValue and Duration > 0 then
     -- Set up the paramaters.
     local CurrentTime = GetTime()
+    local Range = EndValue - StartValue
+
+    -- Turn duration into constant speed if set.
+    if Constant then
+      Duration = abs(Range) * (Duration / 1)
+    end
+
     StartTime = StartTime and StartTime or CurrentTime
     Texture.StartTime = StartTime
 
     Texture.Duration = Duration
-    Texture.Range = EndValue - StartValue
+    Texture.Range = Range
     Texture.Value = StartValue
     Texture.StartValue = StartValue
     Texture.EndValue = EndValue
@@ -3070,7 +3077,7 @@ end
 function BarDB:SetFillTimeTexture(BoxNumber, TextureNumber, StartTime, Duration, StartValue, EndValue)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
 
-  SetFillTime(Texture, TextureFillTime, StartTime, Duration, StartValue, EndValue)
+  SetFillTime(Texture, 1 / Main.UnitBars.BarFillFPS, StartTime, Duration, StartValue, EndValue)
 end
 
 -------------------------------------------------------------------------------
@@ -3085,14 +3092,16 @@ end
 -- ShowSpark        If true spark will be shown, else hidden.  If nil nothing.
 --
 -- NOTE: See SetFill().
+--       This fills at a constant speed.  The speed is calculated from the time
+--       it would take to fill the bar from empty to full.
 -------------------------------------------------------------------------------
 function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
-  local SmoothTime = Texture.SmoothTime or 0
+  local Speed = Texture.Speed or 0
 
-  -- If smoothtime > 0 then fill the texture from its current value to a new value.
-  if SmoothTime > 0 then
-    SetFillTime(Texture, TextureSmoothFillTime, nil, SmoothTime, nil, Value)
+  -- If Speed > 0 then fill the texture from its current value to a new value.
+  if Speed > 0 then
+    SetFillTime(Texture, 1 / Main.UnitBars.BarFillFPS, nil, Speed, nil, Value, true)
   else
     local Spark = nil
 
@@ -3126,16 +3135,16 @@ function BarDB:SetFillReverseTexture(BoxNumber, TextureNumber, Action)
 end
 
 -------------------------------------------------------------------------------
--- SetFillSmoothTimeTexture
+-- SetFillSpeedTexture
 --
--- Makes SetFillTexture fill a bar over time as it changes value.
--- Also sets how long it will take a bar to fill.
+-- Changes the speed from the bar will fill at.
 --
 -- BoxNumber       Box containing the texture
 -- TextureNumber   Texture to smooth fill on.
--- Time            If 0 then this is disabled.
+-- Speed           The amount of time it takes to fill from 0 to 1.
+--                 So a speed of 10 would take 10sec from 0 to 1.  Or 5sec from 0 to 0.5
 -------------------------------------------------------------------------------
-function BarDB:SetFillSmoothTimeTexture(BoxNumber, TextureNumber, Time)
+function BarDB:SetFillSpeedTexture(BoxNumber, TextureNumber, Speed)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
@@ -3157,7 +3166,7 @@ function BarDB:SetFillSmoothTimeTexture(BoxNumber, TextureNumber, Time)
       Texture.Duration = 0
     end
 
-    Texture.SmoothTime = Time
+    Texture.Speed = Speed
   until LastBox
 end
 

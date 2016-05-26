@@ -99,7 +99,7 @@ local o = {
 
   -- Test mode
   TestModeUnitLevelMin = -1,
-  TestModeUnitLevelMax = 113,
+  TestModeUnitLevelMax = 200,
   TestModeRechargeMin = 0,
   TestModeRechargeMax = 7,
   TestModeEnergizeMin = 0,
@@ -118,6 +118,10 @@ local o = {
   -- Fade for all unitbars.
   FadeOutTime = 1,
   FadeInTime = 1,
+
+  -- Bar fill FPS for all unitbars
+  BarFillFPSMin = 10,
+  BarFillFPSMax = 200,
 
   -- Text settings.
   MaxTextLines = 4,
@@ -161,7 +165,7 @@ local o = {
   LayoutPaddingMin = -50,
   LayoutPaddingMax = 50,
   LayoutSmoothFillMin = 0,
-  LayoutSmoothFillMax = 1,
+  LayoutSmoothFillMax = 2,
   LayoutTextureScaleMin = 0.55,
   LayoutTextureScaleMax = 4.6,
   LayoutFadeInTimeMin = 0,
@@ -4517,7 +4521,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
       type = 'range',
       name = 'Smooth Fill',
       order = 61,
-      desc = 'The amount of time in seconds to do a smooth fill update',
+      desc = 'Changes the fill animaton speed',
       step = 0.01,
       min = o.LayoutSmoothFillMin,
       max = o.LayoutSmoothFillMax,
@@ -6205,7 +6209,7 @@ local function CreateClassColorOptions(Order, Name)
       ClassTaggedColor = {
         type = 'toggle',
         name = 'Tagged Color',
-        desc = 'Use tagged color if unit is tagged',
+        desc = 'Use tagged color if the unit is tagged and not a player',
         order = 9,
       },
       Spacer10 = CreateSpacer(10),
@@ -6325,7 +6329,7 @@ local function CreateCombatColorOptions(Order, Name)
       CombatTaggedColor = {
         type = 'toggle',
         name = 'Tagged Color',
-        desc = 'Use tagged color if unit is tagged',
+        desc = 'Use tagged color if the unit is tagged and not a player',
         order = 2,
       },
       -- NPC
@@ -6661,6 +6665,15 @@ local function CreateMainOptions()
                     name = 'Test Mode',
                     order = 7,
                     desc = 'All bars will be displayed using fixed values',
+                  },
+                  BarFillFPS = {
+                    type = 'range',
+                    name = 'Bar Fill FPS',
+                    order = 8,
+                    desc = 'Change the frame rate of smooth fill and timer bars. Higher values will reduce choppyness, but will consume more cpu',
+                    min = o.BarFillFPSMin,
+                    max = o.BarFillFPSMax,
+                    step = 1,
                   },
                 },
               },

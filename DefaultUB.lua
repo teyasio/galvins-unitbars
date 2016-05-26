@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 501
+GUB.DefaultUB.Version = 502
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -25,6 +25,8 @@ GUB.DefaultUB.Version = 501
 -- IsLocked               - Boolean. If true all unitbars can not be clicked on.
 -- IsClamped              - Boolean. If true all frames can't be moved off screen.
 -- Testing                - Boolean. If true the bars are currently in test mode.
+-- BarFillFPS             - Controls the frame rate of statusbar fill animation for timer bars and smooth fill.
+--                          Higher values use more cpu.
 -- Align                  - Boolean. If true then bars can be aligned.
 -- Swap                   - Boolean. If true then bars can swap locations.
 -- AlignSwapAdvanced      - Boolean. If true then advanced mode is set for align and swap.
@@ -35,6 +37,7 @@ GUB.DefaultUB.Version = 501
 -- HideTooltips           - Boolean. If true tooltips are not shown when mousing over unlocked bars.
 -- HideTooltipsDesc       - Boolean. If true the descriptions inside the tooltips will not be shown when mousing over
 -- HideTextHighlight      - Boolean. If true then text frames will not be highlighted when the options are opened.
+-- AlignAndSwapEnabled    - Boolean. If true then align and swap can be accessed, otherwise cant be.
 -- HideLocationInfo       - Boolean. If true the location information for bars and boxes is not shown in tooltips when mousing over.
 -- ReverseFading          - Boolean. If true then transition from fading in one direction then going to the other is smooth.
 -- FadeOutTime            - Time in seconds before a bar completely goes hidden.
@@ -42,8 +45,9 @@ GUB.DefaultUB.Version = 501
 -- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
 -- AuraListOn             - If true then the aura list utility is active.
 -- AuraListUnits          - String. Contains a list of units seperated by spaces for the aura utility to track.
--- CombatClassColor       - If true thne then the combat colors will use player class colors.
--- CombatTaggedColor      - If true then Tagged color will be used along with combat color.
+-- ClassTaggedColor       - Boolean.  If true then if the target is an NPC, then tagged color will be shown.
+-- CombatClassColor       - If true then then the combat colors will use player class colors.
+-- CombatTaggedColor      - If true then Tagged color will be used along with combat color if the unit is not a player..
 -- CombatColor            - Table containing the colors hostile, attack, friendly, flagged, none.
 -- PlayerCombatColor      - Same as CombatColor but for players only.
 -- PowerColor             - Table containing the power colors, rage, focus, etc.  Set in Main.lua
@@ -62,7 +66,7 @@ GUB.DefaultUB.Version = 501
 --   Name                 - Name of the bar.
 --   UnitType             - Type of unit: 'player', 'pet', 'focus', 'target'
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
---   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this.
+--   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this. Set in Main.lua
 --   UsedByClass          - If a bar doesn't have this key then any class can use the bar and be any spec or no spec.
 --                          Contains the data for HideNotUsable flag.  Not all unitbars use this. This is also used for Enable Bar Options.
 --                          Example1: {DRUID = '1234'}
@@ -80,6 +84,7 @@ GUB.DefaultUB.Version = 501
 --                                             by class and/or specialization.
 --                                             Not everybar has this flag.  If one is present then
 --                                             the bar has a UsedByClass table.
+--                            ShowAlways       Show the bar all the time.
 --                            HideWhenDead     Hide the unitbar when the player is dead.
 --                            HideNoTarget     Hide the unitbar when the player has no target.
 --                            HideInVehicle    Hide the unitbar if in a vehicle.
@@ -87,11 +92,13 @@ GUB.DefaultUB.Version = 501
 --                            HideNotActive    Hide the unitbar if its not active. Only checked out of combat.
 --                            HideNoCombat     Hide the unitbar when not in combat.
 --
+--   TestMode             - Table used during test mode.
 --   BoxLocations         - Only exists if the bar was set to Floating mode.  Contains the box frame positions.
 --   BoxOrder             - Contains the order the boxes are displayed in for each bar.  Not all bars have this.
 --
 -- Layout                 - Not all bars use every field.
 --   BoxMode              - If true the bar uses boxes (statusbars) instead of textures.
+--   EnableTriggers       - If true then triggers are activated.
 --   HideRegion           - A box with a background thats behind the bar.  If true then this is hidden.
 --   Swap                 - If true then boxes inside of a bar can swap locations.
 --   Float                - If true then boxes inside of a bar can be moved anywhere on screen.
@@ -113,6 +120,7 @@ GUB.DefaultUB.Version = 501
 -- Other                  - For anything not related mostly this will be for scale and maybe alpha
 --   Scale                - Sets the scale of the unitbar frame.
 --   Alpha                - Sets the transparency of the unitbar frame.
+--   AnchorPoint          - Sets which point the anchor will use.
 --   FrameStrata          - Sets the strata for the frame to appear on.
 --
 -- Region, Background*    - Not every bar has this.
@@ -125,10 +133,28 @@ GUB.DefaultUB.Version = 501
 --   Padding
 --     Left, Right,
 --     Top, Bottom        - Positive values go inwards, negative values outward.
+--   Color                - Table. Contains color for multiple boxes or for one.
+--   EnableBorderColor    - If true then the border color can be changed.
+--   BorderColor          - Table. This gets used for the border color if Enabled.
 --
+-- Bar
+--   Advanced             - If true then the bar can size can be changed with small movements.
+--   Width                - Width of the bar in box mode.
+--   Height               - Height of the bar in box mode.
+--   FillDirection        - 'HORIZONTAL' or 'VERTICAL'
+--   RotateTexture        - if true then the statusbar texture is rotated vertically.
+--   PaddingAll           - If true then one value sets all 4.
+--   Padding
+--
+--     Left, Right        - Negative values go left.
+--     Top, Bottom        - Negative values go down.
+--   StatusBarTexture     - Texture used for the statusbar
+--                          Health and Power bars used additional StatusBar textures.
+--   Color                - Table, contains the color for one or more status bars.
+
 -- Text                   - Text settings used for displaying numerical or string.
---   Multi                  If key is not present then no text lines can be created.
---   ValueNameMenu        - Tells the options what kind of menu to use for this bar.
+--   _Multi                 If key is not present then no text lines can be created.
+--   _ValueNameMenu       - Tells the options what kind of menu to use for this bar.
 --
 --   [x]                  - Each array element is a text line (fontstring).
 --                          If mutli is false or not present. Then [1] is used.
@@ -150,26 +176,7 @@ GUB.DefaultUB.Version = 501
 --     ShadowOffset       - Number of pixels to move the shadow towards the bottom right of the font.
 --     Color              - Color of the text.  This also supports 'color all' for bars like runebar.
 --
--- Triggers               - Contains all the raw data for triggers.
---   GroupNumber          - Current group number selected in the trigger options.
---   Action               - Current action selected in the trigger options.
---
---   Default              - Default trigger.  This can't be copied from one bar to another.
---     Enabled            - True or False.  Enable or disable the trigger.
---     Minimize           - True or False.  Minimizes just the trigger, not all.
---     Name               - Name of trigger.  If blank then used a default name in the options.
---     GroupNumber        - Group for the trigger.  Can be any number.
---     OrderNumber        - Used by the options UI to position where the triggers will visual appear.
---     Value              - Value of the trigger.  For boolean triggers 1 = true and 2 = false.
---     TypeID             - Identifies what the type is. See Bar.lua for details.
---     Type               - Can be anything that describes what type it is.
---     ValueTypeID        - Indentifies what value type it is.
---     ValueType          - Can be anything that best describes what type of value is being used.
---     GetFnTypeID        - Identifier to determin which GetFunction to be used.
---                          '' means not GetFunction is defined for this trigger.
---     Condition          - Logical conditonal that is used to activate a trigger.
---     Pars[1 to 4]       - Contains raw data that is used to modify the bar object.
---
+-- Triggers               - See Bar.lua triggers
 --
 -- General (Health and power bars)
 --   PredictedHealth      - Boolean.  Used by health bars only.
@@ -181,8 +188,10 @@ GUB.DefaultUB.Version = 501
 --   TaggedColor          - Boolean.  Used by health bars only.
 --                                    If true then a tagged color will be shown if unit is tagged.
 --
---   PredictedPower       - Boolean.  Used by Player Power
---                                    If true predicted power will be shown.
+--   PredictedHealth      - Boolean.  Used by health bars.  If true then incoming healing will be shown.
+--   PredictedPower       - Boolean.  Used by Player Power.  If true predicted power will be shown.
+--   PredictedCost        - Boolean.  Used by power bars and Mana Power.  If true then cost of a spell with a cast time will be shown.
+--
 -- General (Rune Bar)
 --
 --   RuneMode             - 'rune'     Only rune textures are shown.
@@ -198,11 +207,10 @@ GUB.DefaultUB.Version = 501
 --   BarSpark             - Boolean.  If true a spark is drawn on bar.
 --   HideCooldownFlash    - Boolean.  If true a flash cooldown animation is not shown when a rune comes off cooldown.
 --   CooldownAnimation    - Boolean.  If false cooldown animation is not shown.
---   CooldownText         - Boolean.  If true then cooldown text gets displayed.
 --   RunePosition         - Frame position of the rune attached to bar.  When bars and runes are shown.
 --   RuneOffsetX          - Horizontal offset from RunePosition.
 --   RuneOffsetY          - Vertical offset from RunePosition.
---   Energize             - Color all table for the energized borders.
+--   ColorEnergize        - Color all table for the energized borders.
 -------------------------------------------------------------------------------
 local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBorderTexture = 'Blizzard Tooltip'
@@ -260,6 +268,7 @@ GUB.DefaultUB.Default = {
     IsLocked = false,
     IsClamped = true,
     Testing = false,
+    BarFillFPS = 60,
     Align = false,
     Swap = false,
     AlignSwapAdvanced = false,
@@ -2481,6 +2490,8 @@ ChangesText[1] = [[
 |cff00ff00Level|r added under to Value Name in Text settings
 |cff00ff00Level|r added for triggers, Unit Level and Scaled Level
 |cff00ff00Anchor|r point can be changed for any bar.  Found under "other" settings
+|cff00ff00Smooth Fill|r now fills at a constant speed.  Max time set to 2 seconds cause of this change
+|cff00ff00Bar Fill FPS|r found under General -> Main -> Layout.  Changes the FPS of smooth fill and timer bars
 ]]
 
 
