@@ -400,13 +400,13 @@ local function UpdateHealthBar(self, Event, Unit)
       -- Stop smooth animation, so slider can be positioned instantly.
       -- Only during change.  Want slider to smooth slide when cost doesn't change.
       if Change then
-        BBar:SetFillSmoothTimeTexture(1, PredictedBar, 0)
+        BBar:SetFillSpeedTexture(1, PredictedBar, 0)
       end
 
       BBar:SetFillTexture(1, PredictedBar, Value)
 
       if Change then
-        BBar:SetFillSmoothTimeTexture(1, PredictedBar, UB.Layout.SmoothFill)
+        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFill)
       end
       self.LastPredictedHealing = PredictedHealing
     end
@@ -574,13 +574,13 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
       -- Stop smooth animation, so slider can be positioned instantly.
       -- Only during change.  Want slider to smooth slide when cost doesn't change.
       if Change then
-        BBar:SetFillSmoothTimeTexture(1, PredictedBar, 0)
+        BBar:SetFillSpeedTexture(1, PredictedBar, 0)
       end
 
       BBar:SetFillTexture(1, PredictedBar, Value)
 
       if Change then
-        BBar:SetFillSmoothTimeTexture(1, PredictedBar, UB.Layout.SmoothFill)
+        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFill)
       end
       self.LastPredictedPower = PredictedPower
     end
@@ -598,13 +598,13 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
       end
 
       if Change then
-        BBar:SetFillSmoothTimeTexture(1, PredictedCostBar, 0)
+        BBar:SetFillSpeedTexture(1, PredictedCostBar, 0)
       end
 
       BBar:SetFillTexture(1, PredictedCostBar, Value - Cost)
 
       if Change then
-        BBar:SetFillSmoothTimeTexture(1, PredictedCostBar, UB.Layout.SmoothFill)
+        BBar:SetFillSpeedTexture(1, PredictedCostBar, UB.Layout.SmoothFill)
       end
       self.LastPredictedCost = PredictedCost
     end
@@ -718,7 +718,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFill',     function(v) BBar:ChangeTexture(StatusBar, 'SetFillSmoothTimeTexture', 1, v) end)
+    BBar:SO('Layout', 'SmoothFill',     function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
     if DGen then
       if DGen.UseBarColor ~= nil then
         BBar:SO('General', 'UseBarColor', function(v) Update = true end)
