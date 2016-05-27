@@ -2929,9 +2929,9 @@ local function SetFill(Texture, Value, Spark)
       SliderSize = Height * SliderSize
 
       if ReverseFill then
-        y = Height - Height * Value - SliderSize
+        y = Height - Height * SliderValue - SliderSize
       else
-        y = Height * Value
+        y = Height * SliderValue
       end
 
       SubFrame:SetHeight(SliderSize)
@@ -3229,8 +3229,6 @@ function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration,
 
   CooldownFrame:SetDrawEdge(Line or false)
   CooldownFrame:SetDrawBling(not HideFlash)
-
-  CooldownFrame.AG:Play()
 
   CooldownFrame:SetCooldown(StartTime or 0, Duration or 0)
 end
@@ -3826,19 +3824,6 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
         CooldownFrame:ClearAllPoints()  -- Undoing template SetAllPoints
         CooldownFrame:SetPoint('CENTER', SubTexture, 'CENTER', 0, 0)
         CooldownFrame:SetHideCountdownNumbers(true)
-
-        -- This animation group is a workaround so that the cooldown animation doesn't
-        -- break when the texture scale gets changed.
-        local AG = CooldownFrame:CreateAnimationGroup()
-        local A = AG:CreateAnimation('Alpha')
-
-        AG:SetLooping('NONE')
-        A:SetOrder(1)
-        A:SetDuration(0)
-        A:SetFromAlpha(1)
-        A:SetToAlpha(1)
-        CooldownFrame.AG = AG
-        CooldownFrame.A = A
 
         Texture.CooldownFrame = CooldownFrame
         FrameLevel = FrameLevel + 1

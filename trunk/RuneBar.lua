@@ -38,17 +38,6 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
 local C_PetBattles, C_TimerAfter, UIParent =
       C_PetBattles, C_Timer.After, UIParent
 
--- temp fix till blizzard fixes GetRuneCooldown() from crashing client if you're not a death knight
-local GetRuneCooldown1 = GetRuneCooldown
-
-local function GetRuneCooldown(RuneIndex)
-  if Main.PlayerClass ~= 'DEATHKNIGHT' then
-    return 0, 0, true
-  else
-    return GetRuneCooldown1(RuneIndex)
-  end
-end
-
 -------------------------------------------------------------------------------
 -- Locals
 --
@@ -332,6 +321,10 @@ local function StartRuneCooldown(RuneBar, RuneIndex, Energize)
   local LastDuration = RuneBar.LastDuration
 
   local StartTime, Duration, RuneReady = GetRuneCooldown(RuneIndex)
+
+  if StartTime == nil then
+    StartTime, Duration, RuneReady = 0, 0, true
+  end
 
   if LastDuration == nil then
     LastDuration = {}
