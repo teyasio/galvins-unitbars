@@ -115,9 +115,9 @@ local o = {
   TestModeArcaneChargesMin = 0,
   TestModeArcaneChargesMax = 4,
 
-  -- Fade for all unitbars.
-  FadeOutTime = 1,
-  FadeInTime = 1,
+  -- Animation for all unitbars.
+  AnimationOutTime = 10,
+  AnimationInTime = 10,
 
   -- Bar fill FPS for all unitbars
   BarFillFPSMin = 10,
@@ -168,10 +168,10 @@ local o = {
   LayoutSmoothFillMax = 2,
   LayoutTextureScaleMin = 0.55,
   LayoutTextureScaleMax = 4.6,
-  LayoutFadeInTimeMin = 0,
-  LayoutFadeInTimeMax = 1,
-  LayoutFadeOutTimeMin = 0,
-  LayoutFadeOutTimeMax = 1,
+  LayoutAnimationInTimeMin = 0,
+  LayoutAnimationInTimeMax = 10,
+  LayoutAnimationOutTimeMin = 0,
+  LayoutAnimationOutTimeMax = 10,
   LayoutAlignOffsetXMin = - 50,
   LayoutAlignOffsetXMax = 50,
   LayoutAlignOffsetYMin = -50,
@@ -531,6 +531,11 @@ local AuraStackOperatorDropdown = {
   '>=',            -- 4
   '=',             -- 5
   '<>',            -- 6
+}
+
+local AnimationTypeDropdown = {
+  alpha = 'Alpha',
+  scale = 'Scale',
 }
 
 local ConvertTypeIDColorIcon = {
@@ -4440,6 +4445,21 @@ local function CreateLayoutOptions(BarType, Order, Name)
       desc = 'Hides all text',
     }
   end
+
+  if UBD.Layout.AnimationType ~= nil then
+    Spacer = true
+    LayoutArgs.Spacer33= CreateSpacer(33)
+
+    LayoutArgs.AnimationType = {
+      type = 'select',
+      name = 'Animation Type',
+      order = 34,
+      style = 'dropdown',
+      desc = 'Changes the type of animation played when showing or hiding bar objects',
+      values = AnimationTypeDropdown,
+    }
+  end
+
   if Spacer then
     LayoutArgs.Spacer40 = CreateSpacer(40)
     Spacer = false
@@ -4549,28 +4569,28 @@ local function CreateLayoutOptions(BarType, Order, Name)
     Spacer = false
   end
 
-  if UBD.Layout.FadeInTime ~= nil then
+  if UBD.Layout.AnimationInTime ~= nil then
     Spacer = true
-    LayoutArgs.FadeInTime = {
+    LayoutArgs.AnimationInTime = {
       type = 'range',
-      name = 'Fade-in',
+      name = 'Animation-in',
       order = 71,
-      desc = 'Amount of time in seconds to fade in a bar object',
+      desc = 'The amount of time in seconds to play animation after showing a bar object',
       step = 0.1,
-      min = o.LayoutFadeInTimeMin,
-      max = o.LayoutFadeInTimeMax,
+      min = o.LayoutAnimationInTimeMin,
+      max = o.LayoutAnimationInTimeMax,
     }
   end
-  if UBD.Layout.FadeOutTime ~= nil then
+  if UBD.Layout.AnimationOutTime ~= nil then
     Spacer = true
-    LayoutArgs.FadeOutTime = {
+    LayoutArgs.AnimationOutTime = {
       type = 'range',
-      name = 'Fade-out',
+      name = 'Animation-out',
       order = 72,
-      desc = 'Amount of time in seconds to fade out a bar object',
+      desc = 'The amount of time in seconds to play animation after showing a bar object',
       step = 0.1,
-      min = o.LayoutFadeOutTimeMin,
-      max = o.LayoutFadeOutTimeMax,
+      min = o.LayoutAnimationOutTimeMin,
+      max = o.LayoutAnimationOutTimeMax,
     }
   end
   if Spacer then
@@ -6605,7 +6625,10 @@ local function CreateMainOptions()
 
                 Main.UnitBars[KeyName] = Value
                 Main:UnitBarsSetAllOptions()
-                GUB:UnitBarsUpdateStatus()
+
+                if strfind(KeyName, 'Animation') == nil then
+                  GUB:UnitBarsUpdateStatus()
+                end
 
                 -- Update align and swap bar location if needed if clamped cause bar to go off screen.
                 if KeyName == 'IsClamped' and not Main.UnitBars.Align and Options.AlignSwapOptionsOpen then
@@ -6703,49 +6726,49 @@ local function CreateMainOptions()
                   },
                 },
               },
-              Fading = {
-                name = 'Fading',
+              Animation = {
+                name = 'Animation',
                 type = 'group',
                 order = 3,
                 dialogInline = true,
                 args = {
-                  ReverseFading = {
+                  ReverseAnimation = {
                     type = 'toggle',
-                    name = 'Reverse Fading',
+                    name = 'Reverse Animation',
                     order = 1,
-                    desc = 'Fading in/out can switch direction smoothly',
+                    desc = 'Animation in/out can switch direction smoothly',
                   },
-                  FadeInTime = {
+                  AnimationInTime = {
                     type = 'range',
-                    name = 'Fade-in',
+                    name = 'Animation-in',
                     order = 8,
-                    desc = 'The amount of time in seconds to fade in a bar',
+                    desc = 'The amount of time in seconds to play animation after showing a bar',
                     min = 0,
-                    max = o.FadeInTime,
+                    max = o.AnimationInTime,
                     step = 0.1,
-                    get = function()
-                            return Main.UnitBars.FadeInTime
-                          end,
-                    set = function(Info, Value)
-                            Main.UnitBars.FadeInTime = Value
-                            Main:UnitBarsSetAllOptions()
-                          end,
+                 --   get = function()
+                 --           return Main.UnitBars.AnimationInTime
+                 --         end,
+                 --   set = function(Info, Value)
+                 --           Main.UnitBars.AnimationInTime = Value
+                 --           Main:UnitBarsSetAllOptions()
+                 --         end,
                   },
-                  FadeOutTime = {
+                  AnimationOutTime = {
                     type = 'range',
-                    name = 'Fade-out',
+                    name = 'Animation-out',
                     order = 9,
-                    desc = 'The amount of time in seconds to fade out a bar',
+                    desc = 'The amount of time in seconds to play animation before hiding a bar',
                     min = 0,
-                    max = o.FadeOutTime,
+                    max = o.AnimationOutTime,
                     step = 0.1,
-                    get = function()
-                            return Main.UnitBars.FadeOutTime
-                          end,
-                    set = function(Info, Value)
-                            Main.UnitBars.FadeOutTime = Value
-                            Main:UnitBarsSetAllOptions()
-                          end,
+                 --   get = function()
+                 --           return Main.UnitBars.AnimationOutTime
+                 --         end,
+                  --  set = function(Info, Value)
+                  --          Main.UnitBars.AnimationOutTime = Value
+                  --          Main:UnitBarsSetAllOptions()
+                  --        end,
                   },
                 },
               },

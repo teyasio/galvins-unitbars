@@ -86,6 +86,9 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- BarDB.Settings                    Used by triggers to keep track of the original settings for each frame/texture.
 -- BarDB.Groups                      Used by triggers.  Used to keep track of triggers.
 --
+-- BarDB.AGroups                     Used by animation to keep track of animation groups. Created by SetAnimationBar()
+-- BarDB.Animation                   Used to play animation when showing or hiding the bar. Created by SetAnimationBar()
+--
 -- BoxFrame data structure
 --
 --   Name                            Name of the boxframe.  This will appear on tooltips.
@@ -152,6 +155,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   CooldownFrame                   Frame used to do a cooldown on the texture.
 --
 --   Backdrop                        Table containing the backdrop.
+--   Animation                       Contains the animation to play when showing or hiding a texture.  Created by SetAnimationTexture()
 --
 --  Spark data structure
 --    ParentFrame                    Contains a reference to Texture.
@@ -442,6 +446,35 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   TextLine                      0 for all text lines or contains the current text line. If nil then the trigger is not using text.
 --   Select                        true or false. Only one trigger per group can be selected.
 --   OffsetAll                     true or false. Used for bar offset size.  By options.
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Animation
+--
+-- AGroups[AType]              Contains animation groups and animations.  This is created and used by GetAnimation()
+--                             AType is address of the Object and the Type.  See below for different types.
+--   Animation                 Child of group. Animation created by CreateAnimation()
+--     ScaleFrame              Currently used for scaling the Anchor (unitbar)
+--       x, y                  Coordinates of the Objects 'CENTER'
+--       ObjectParent          The Objects Parent.  Object:GetParent()
+--     Group                   Contains the Animation Group.  child of Object
+--       Animation             Reference to Animation. Used by OnFinishPlaying()
+--     Object                  Object that will be animated. Can be frame or texture.
+--       IsAnimating           If true the object is animating.  If the object is the Anchor or a texture.
+--                               Then that Anchor or Texture will have the IsAnimating tag on it.
+--     GroupType               string. Type of group:
+--                               'Parent'     This is created for the the bar when hiding or showing.
+--                               'Children'   This is created for any textures or frame the bar uses.
+--     Type                    string.  Type of animation to play can be 'scale' or 'alpha'.
+--     StopPlayingFn           Call back function.  This gets called when ever StopPlaying() is called
+--     InUse                   reference to AGroups[AType].InUse
+--     DurationIn              Duration in seconds to play animation after showing an Object.
+--     DurationOut             Duration in seconds to play animation before hiding an object.
+--     FromValue               Where the animation is starting from.
+--     ToValue                 Where the animation is going to.
+--
+--   InUse                     Contains a list of Animations being used for each Object.
+--     Animation               reference to Animation above.
 -------------------------------------------------------------------------------
 local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this object'
 
@@ -1307,6 +1340,449 @@ end
 
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 --
+-- Animation functions
+--
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+local AnimationFunctionName = {
+  smoothing  = 'SetSmoothing',   ParSize = 2,
+  duration   = 'SetDuration',    ParSize = 2,
+  startdelay = 'SetStartDelay',  ParSize = 2,
+  enddelay   = 'SetEndDelay',    ParSize = 2,
+  order      = 'SetOrder',       ParSize = 2,
+  fromalpha  = 'SetFromAlpha',   ParSize = 2,
+  toalpha    = 'SetToAlpha',     ParSize = 2,
+  fromscale  = 'SetFromScale',   ParSize = 3,
+  toscale    = 'SetToScale',     ParSize = 3,
+}
+
+-------------------------------------------------------------------------------
+-- GetAnimation
+--
+-- Get an animation of type for an object
+--
+-- Usage: Animation, AGroups = GetAnimation(AGroups, Object, GroupType, Type)
+--
+-- AGroups     Animation data. If nil then a new AGroups will get created.
+-- Object      Frame or Texture
+-- GroupType   'parent' or 'children'
+-- Type        'alpha' or 'scale'
+--
+-- NOTES: Animation.StopPlayingFn gets passed Animation.Group
+-------------------------------------------------------------------------------
+local function GetAnimation(AGroups, Object, GroupType, Type)
+  if AGroups == nil then
+    AGroups = {}
+  end
+
+  local InUse = AGroups.InUse
+  local AType = tostring(Object) .. Type
+  local Animation = AGroups[AType]
+
+  if InUse == nil then
+    InUse = {}
+    AGroups.InUse = InUse
+  end
+
+  -- Create if not found.
+  if Animation == nil then
+    local AnimationGroup = nil
+    local ScaleFrame = nil
+
+    if Object.IsAnchor and Type == 'scale' then
+      local ObjectParent = Object:GetParent()
+
+      AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
+      ScaleFrame = CreateFrame('Frame', nil, Main.UnitBarsParent)
+      ScaleFrame:SetParent(ObjectParent)
+      ScaleFrame.ObjectParent = ObjectParent
+    else
+      AnimationGroup = Object:CreateAnimationGroup()
+    end
+
+    -- Uppercase the first letter in Type
+    Animation = AnimationGroup:CreateAnimation(gsub(Type, '%a', strupper, 1))
+
+    AnimationGroup.Animation = Animation
+    Animation.Group = AnimationGroup
+
+    Animation.DurationIn = 0
+    Animation.DurationOut = 0
+    Animation.GroupType = GroupType
+    Animation.Type = Type
+    Animation.StopPlayingFn = false
+    Animation.Object = Object
+    Animation.ScaleFrame = ScaleFrame
+    Animation.InUse = InUse
+
+    Animation:SetOrder(1)
+
+    AGroups[AType] = Animation
+  end
+
+  -- Call stopplaying function if changing types
+  local AnimationInUse = InUse[Object]
+
+  if AnimationInUse and AnimationInUse ~= Animation then
+
+    -- Copy other animations settings
+    Animation.DurationIn = AnimationInUse.DurationIn
+    Animation.DurationOut = AnimationInUse.DurationOut
+    Animation.StopPlayingFn = AnimationInUse.StopPlayingFn
+
+    if AnimationInUse.Group:IsPlaying() then
+      local Fn = AnimationInUse.StopPlayingFn
+
+      if Fn then
+        Fn(AnimationInUse.Group)
+      end
+    end
+  end
+  InUse[Object] = Animation
+
+  return Animation, AGroups
+end
+
+-------------------------------------------------------------------------------
+-- StopPlaying
+--
+-- Calls StopPlayingFn on all Animations belonging to the animation group
+--
+-- Usage:   Parent or Children:StopPlaying()
+--
+-- Animation   Animation from GetAnimation()
+-- GroupType  'parent' or 'children' or 'all'
+--
+-- NOTES:  If GroupType is nil then all animation is stopped
+-------------------------------------------------------------------------------
+local function StopPlaying(Animation, GroupType)
+  for _, A in pairs(Animation.InUse) do
+    if A.Group:IsPlaying() and (GroupType == 'all' or A.GroupType == GroupType) then
+      local Fn = A.StopPlayingFn
+
+      if Fn then
+        Fn(A.Group)
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- AnyPlaying
+--
+-- Returns true if any animation is playing that matches GroupType
+--
+-- Animation   Animation from GetAnimation()
+-- GroupType  'parent' or 'children'
+-------------------------------------------------------------------------------
+local function AnyPlaying(Animation, GroupType)
+  for _, A in pairs(Animation.InUse) do
+    if A.GroupType == GroupType and A.Group:IsPlaying() then
+      return true
+    end
+  end
+  return false
+end
+
+-------------------------------------------------------------------------------
+-- OnFinishPlaying (called by event or direct)
+--
+-- Completes a showhide animation
+--
+-- self               Animation.Group
+-- Direction          Overrides Animation.Direction
+-- ReverseAnimation   If true skips showing or hiding the object.
+-------------------------------------------------------------------------------
+local function OnFinishPlaying(self, Direction, ReverseAnimation)
+  local Animation = self.Animation
+  local Object = Animation.Object
+  local Type = Animation.Type
+
+  self:SetScript('OnFinished', nil)
+  self:Stop()
+  Object.IsAnimating = false
+
+  Direction = Direction or Animation.Direction
+
+  -- Hide or show the object based on direction.
+  if ReverseAnimation == nil or not ReverseAnimation then
+    if Direction == 'in' then
+      Object:Show()
+    elseif Direction == 'out' then
+      Object:Hide()
+    end
+  end
+
+  -- Only complete if there was a direction, otherwise animation
+  -- was never started.
+  if Animation.Direction then
+    if Type == 'alpha' then
+      Object:SetAlpha(1)
+    elseif Type == 'scale' then
+      local ScaleFrame = Animation.ScaleFrame
+
+      Object:SetScale(1)
+
+      if ScaleFrame then
+        self:SetScript('OnUpdate', nil)
+
+        -- Restore anchor
+        ScaleFrame:SetScale(1)
+        ScaleFrame:Hide()
+
+        Object:SetParent(ScaleFrame.ObjectParent)
+        Object:ClearAllPoints()
+        Object:SetPoint('CENTER', ScaleFrame.x, ScaleFrame.y)
+
+        Object.IsAnimating = false
+        Main:SetAnchorPoint(Object)
+      end
+    end
+
+    Animation.Direction = false
+  end
+end
+
+-------------------------------------------------------------------------------
+-- OnScaleFrame (OnUpdate function)
+--
+-- Scales the bars anchor. Blizzard built in animation scaling doesn't work
+-- well with child frames.  So this has to be done instead.
+-------------------------------------------------------------------------------
+local function OnScaleFrame(self)
+  local Animation = self.Animation
+  local Value = Animation.FromValue
+
+  -- Calculate current scale off of progress.
+  local Scale = Value + (Animation.ToValue - Value) * Animation:GetProgress()
+  if Scale > 0 then
+    local ScaleFrame = Animation.ScaleFrame
+
+    ScaleFrame:SetScale(Scale)
+    ScaleFrame:SetPoint('CENTER', ScaleFrame.x / Scale, ScaleFrame.y / Scale)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- PlayAnimation
+--
+-- Plays the animation for showing or hiding.
+--
+-- Animation      Animation to play
+-- Direction      'in' or 'out'
+-------------------------------------------------------------------------------
+local function PlayAnimation(Animation, Direction)
+  local AGroup = Animation.Group
+
+  -- Stop children animation if playing parent animation
+  if Animation.GroupType == 'parent' then
+    StopPlaying(Animation, 'children')
+
+  -- finish animation if trying to play children animation when the parent is animating
+  elseif AnyPlaying(Animation, 'parent') then
+    OnFinishPlaying(AGroup, Direction)
+    return
+  end
+
+  local IsPlaying = AGroup:IsPlaying()
+  local Object = Animation.Object
+  local Type = Animation.Type
+  local Duration = 0
+  local FromValue = 0
+  local ToValue = 0
+
+  Object:Show()
+  if Direction == 'in' then
+    ToValue = 1
+    Duration = Animation.DurationIn
+  else
+    FromValue = 1
+    ToValue = 0
+    Duration = Animation.DurationOut
+  end
+
+  -- Check if frame is invisible
+  if Duration == 0 or not Object:IsVisible() then
+
+    -- Wierd graphical glitches happen if you stop playing
+    -- when animation is not playing.
+    OnFinishPlaying(AGroup, Direction)
+    return
+  end
+
+  if IsPlaying then
+
+    -- Dont play animation of same direction.
+    if Animation.Direction ~= Direction then
+
+      -- Check for reverse animation
+      if Main.UnitBars.ReverseAnimation then
+        local Value = Animation.FromValue
+
+        -- Calculate current FromValue off of progress.
+        FromValue = Value + (Animation.ToValue - Value) * Animation:GetProgress()
+
+        if Direction == 'in' then
+          Duration = (1 - FromValue) * Duration
+        else
+          Duration = FromValue * Duration
+        end
+
+        OnFinishPlaying(AGroup, Direction, true)
+      else
+        OnFinishPlaying(AGroup)
+        Object:Show()
+      end
+    else
+      return
+    end
+  end
+
+  Animation.FromValue = FromValue
+  Animation.ToValue = ToValue
+  Animation.Direction = Direction
+  Animation.StopPlayingFn = OnFinishPlaying
+
+  -- Set and play a new animation
+  if Type == 'alpha' then
+    Animation:SetFromAlpha(FromValue)
+    Animation:SetToAlpha(ToValue)
+
+  elseif Type == 'scale' then
+    Animation:SetFromScale(FromValue, FromValue)
+    Animation:SetToScale(ToValue, ToValue)
+    Animation:SetOrigin('CENTER', 0, 0)
+
+    if Animation.ScaleFrame then
+
+      -- Object is Anchor
+      local _, _, Width, Height = GetRect(Object)
+      local x, y = Main:GetAnchorPoint(Object, 'CENTER')
+      local ScaleFrame = Animation.ScaleFrame
+
+      ScaleFrame:Show()
+      ScaleFrame:ClearAllPoints()
+      ScaleFrame:SetPoint('CENTER', x, y)
+      ScaleFrame:SetSize(Width, Height)
+
+      Object:SetParent(ScaleFrame)
+      Object:ClearAllPoints()
+      Object:SetPoint('TOPLEFT')
+
+      ScaleFrame.x = x
+      ScaleFrame.y = y
+      ScaleFrame:SetScale(1)
+
+      AGroup:SetScript('OnUpdate', OnScaleFrame)
+    end
+  end
+
+  Object.IsAnimating = true
+  Animation:SetDuration(Duration)
+  AGroup:SetScript('OnFinished', OnFinishPlaying)
+  AGroup:Play()
+end
+
+-------------------------------------------------------------------------------
+-- SetAnimationDurationBar
+--
+-- Sets the amount of time an animation will play for a bar
+-- After being hidden or shown.
+--
+-- Direction      'in' or 'out'
+-- Duration       Time in seconds to play for
+-------------------------------------------------------------------------------
+function BarDB:SetAnimationDurationBar(Direction, Duration)
+  local Animation = self.Animation
+
+  if Direction == 'in' then
+    Animation.DurationIn = Duration
+  else
+    Animation.DurationOut = Duration
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetAnimationDurationTexture
+--
+-- Sets the amount of time an animation will play for a texture
+-- After being hidden or shown.
+--
+-- BoxNumber      Box containing the texture
+-- TextureNumber  Number that reference to the actual texture
+-- Direction      'in' or 'out'
+-- Duration       Time in seconds to play for
+-------------------------------------------------------------------------------
+function BarDB:SetAnimationDurationTexture(BoxNumber, TextureNumber, Direction, Duration)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local Animation = Texture.Animation
+
+    if Direction == 'in' then
+      Animation.DurationIn = Duration
+    else
+      Animation.DurationOut = Duration
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetAnimationBar
+--
+-- Sets a new animation type to play the bar gets hidden or shown.
+--
+-- Type  'scale' or 'alpha'
+--
+-- NOTES: This function must be called before any animation can be done.
+--        if type is 'stopall' then all animation gets stopped Parent and Children
+-------------------------------------------------------------------------------
+function BarDB:SetAnimationBar(Type)
+  local Animation = self.Animation
+
+  if Type == 'stopall' then
+    if Animation then
+      StopPlaying(Animation, 'all')
+    end
+  else
+    self.Animation, self.AGroups = GetAnimation(self.AGroups, self.Anchor, 'parent', Type)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- PlayAnimationBar
+--
+-- Same as PlayAnimation() except its for the bar.
+--
+-- Hide if true otherwise shown.
+-------------------------------------------------------------------------------
+function BarDB:PlayAnimationBar(Direction)
+  PlayAnimation(self.Animation, Direction)
+end
+
+-------------------------------------------------------------------------------
+-- SetAnimationTexture
+--
+-- Sets a new animation type to play when textures get hidden or shown.
+--
+-- BoxNumber       Box containing the texture
+-- TextureNumber   Number that is a reference to the actual texture
+-- Type            'scale' or 'alpha'
+--
+-- NOTES: This function must be called before any animation can be done.
+-------------------------------------------------------------------------------
+function BarDB:SetAnimationTexture(BoxNumber, TextureNumber, Type)
+  local AGroups = self.AGroups
+
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.Animation, AGroups = GetAnimation(AGroups, Texture, 'children', Type)
+  until LastBox
+
+  self.AGroups = AGroups
+end
+
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--
 -- Display functions
 --
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1362,9 +1838,6 @@ local function OnUpdate_Display(self)
   local FloatFirstTime = self.OldFloat ~= Float and Float
   self.OldFloat = Float
 
-  if BoxOrder then
-    Main:ListTable(BoxOrder)
-  end
   -- Draw the box frames.
   for Index = 1, NumBoxes do
     local BoxIndex = BoxOrder and BoxOrder[Index] or Index
@@ -1526,7 +1999,7 @@ end
 --
 -- Hides or show the region for the bar
 --
--- Hide if true the hidden is hidden otherwise shown.
+-- Hide if true otherwise shown.
 -------------------------------------------------------------------------------
 function BarDB:SetHiddenRegion(Hide)
   local Region = self.Region
@@ -1665,35 +2138,25 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
     local ShowHideFn = Texture.ShowHideFn
 
     if Hide ~= Hidden then
-      local Fade = Texture.Fade
+      local Animation = Texture.Animation
 
+      if Animation then
+        Animation.Tag = BoxNumber
+      end
       if Hide then
-        if Fade then
-
-          -- Fadeout the texture frame then hide it.
-          Fade:SetAnimation('out')
+        if Animation then
+          PlayAnimation(Animation, 'out')
         else
           Texture:Hide()
-
-          if ShowHideFn then
-            ShowHideFn('out')
-          end
         end
-        Texture.Hidden = true
       else
-        if Fade then
-
-          -- Fade in the texture.
-          Fade:SetAnimation('in')
+        if Animation then
+          PlayAnimation(Animation, 'in')
         else
           Texture:Show()
-
-          if ShowHideFn then
-            ShowHideFn('in')
-          end
         end
-        Texture.Hidden = false
       end
+      Texture.Hidden = Hide
     end
   until LastBox
 end
@@ -3608,6 +4071,7 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
 
   -- Make bar a frame so it can be used in onupdate for Display()
   local Bar = CreateFrame('Frame')
+  local Anchor = UnitBarF.Anchor
 
   -- Copy the functions.
   for FnName, Fn in pairs(BarDB) do
@@ -3619,8 +4083,9 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
   -- Reset the virtual frame levels
   VirtualFrameLevels = nil
 
+  Bar.Hidden = nil
   Bar.UnitBarF = UnitBarF
-  Bar.Anchor = UnitBarF.Anchor
+  Bar.Anchor = Anchor
   Bar.BarType = UnitBarF.BarType
   Bar.NumBoxes = NumBoxes
   Bar.Rotation = 90
@@ -3768,6 +4233,8 @@ end
 -- NOTES:  Textures are always the same size as the texture frame, unless changed with setpointtexture.
 -------------------------------------------------------------------------------
 function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, TextureNumber)
+  local AGroups = self.AGroups
+
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrame = BoxFrame.TextureFrames[TextureFrameNumber]

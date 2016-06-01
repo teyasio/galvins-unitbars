@@ -71,13 +71,12 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]])
 
 ------------------------------------------------------------------------------
--- Unitbars frame layout and animation groups.
+-- Unitbars frame layout.
 --
 -- UnitBarsParent
 --   Anchor
---     Fade
---     AlphaFrame
---       ScaleFrame
+--     ScaleFrame
+--       AlphaFrame
 --         <Unitbar frames start here>
 --
 --
@@ -93,11 +92,13 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                          will bring the parent to top level even if the parent wasn't the actual frame clicked on.
 --   Anchor.IsAnchor      - Flag to determin if a frame is an anchor.
 --   Anchor.UnitBar       - This is used for moving since the move code needs to update the bars position data after each move.
+--   Anchor.UnitBarF      - Reference to UnitBarF for selectframe or animation.
 --   Anchor.Name          - Name of the UnitBar.  This is used by the align and swap options which uses MoveFrameStart()
 --   Anchor.Width,
 --   Anchor.Height        - Size of the anchor
 --   Anchor.LastPoint     - Last AnchorPoint.  Used to detect anchor point changes.
-
+--   Anchor.IsAnimating   - If true then the unitbar is animating.  This is set by PlayAnimation() in bar.lua
+--                          During animation the bar is locked.
 --   AlphaFrame           - Child of Anchor.  Controls the transparency of the bar. Used by UnitBarSetAttr()
 --   ScaleFrame           - Child of AlphaFrame.  Controls scaling of bars to be made larger or smaller thru SetScale().
 --   Fade                 - Table containing the fading animation groups/methods.  The groups are a child of Anchor.
@@ -282,53 +283,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- Fading Animation
---
--- Handles all the micromanaging of fading bars in and out based on a rule set.
--- If the bar is fading out, then no animations are played on the children.
--- So if you have a combo point fading out, and the bar starts to fade out.
--- Then the combo point will stop fading.  If a new combo point tries
--- to fade while the bar is fading, then the combo point will not fade.
---
--- These rules prevent the parent and children from fading at the same time.
--- This gives a better cosmetic look.
---
--- If a frame or texture is currently fading, its fading can be reversed
--- without having to stop the fade, just SetAnimation() to change it and
--- it will pick up from where it left off.
---
---
--- FadingAnimation      Table used by CreateFade() and SetAnimation().
---                      Keeps track of every animation and what bar is using them.
---
--- FadingAnimation
---   [UnitBarF]                    - To keep track of what bar is using fading.
---     Total                       - Total number of fading animation groups in use.
---     [Index] = Fade              - Array element containing the fade animation group.
---
---
--- Fade                       - Animation group for fading.
---   FadeA                    - Animation for fading.
---   UnitBarF                 - Unitbar that is using the animation.
---   Object                   - Parent of the animation group.
---   Action                   - if false no animation playing.
---                              'in' currently fading in.
---                              'out' currently fading out.
---   Parent                   - If true then its a parent fade.
---   DurationIn               - Time in seconds for fade in.
---   DurationOut              - Time in seconds for fade out.
---   Fn                       - Calls Fn() after fade in or out has completed.
-
---
--- Read the notes on CreateFade() on what methods to use in Fade.
---
--- Fade methods
---   SetDuration()
---   SetAnimation()
---   SetFn()
--------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
 -- MoveFrames
 --
 -- Before a moveframe is moved.  MoveFrameStart checks to see if each frame
@@ -442,8 +396,6 @@ local PredictedSpells = nil
 
 local RegEventFrames = {}
 local RegUnitEventFrames = {}
-
-local FadingAnimation = {}
 
 local SelectFrameBorder = {
   bgFile   = '',
@@ -1630,11 +1582,14 @@ end
 -- GetAnchorPoint
 --
 -- Returns the anchor x, y point position
+--
+-- Anchor        Anchor whos position you're getting
+-- AnchorPoint   If not nil then uses this instead.
 ------------------------------------------------------------------------------
-function GUB.Main:GetAnchorPoint(Anchor)
+function GUB.Main:GetAnchorPoint(Anchor, AnchorPoint)
   local APx, APy, Width, Height = Bar:GetRect(Anchor)
 
-  local Distance = AnchorDistance[Anchor.UnitBar.Other.AnchorPoint]
+  local Distance = AnchorDistance[AnchorPoint or Anchor.UnitBar.Other.AnchorPoint]
   local DistanceX = Distance.x
   local DistanceY = Distance.y
 
@@ -1667,49 +1622,53 @@ function GUB.Main:SetAnchorPoint(Anchor, x, y, OffsetX, OffsetY, OffsetWidth, Of
       end
     end
   else
-    local UB = Anchor.UnitBar
-    local AnchorPoint = UB.Other.AnchorPoint
-    local LastPoint = Anchor.LastPoint
+    local IsAnimating = Anchor.IsAnimating or false
 
-    if x == nil or OffsetX or LastPoint ~= AnchorPoint then
+    if not IsAnimating then
+      local UB = Anchor.UnitBar
+      local AnchorPoint = UB.Other.AnchorPoint
+      local LastPoint = Anchor.LastPoint
 
-      -- GetRect wont work if the frame was never setpointed.
-      if LastPoint then
-        local APx, APy, Width, Height = Bar:GetRect(Anchor)
+      if x == nil or OffsetX or LastPoint ~= AnchorPoint then
 
-        local Distance = AnchorDistance[AnchorPoint]
-        local DistanceX = Distance.x
-        local DistanceY = Distance.y
-        local DiffX = 0
-        local DiffY = 0
+        -- GetRect wont work if the frame was never setpointed.
+        if LastPoint then
+          local APx, APy, Width, Height = Bar:GetRect(Anchor)
 
-        -- if OffsetX, OffsetY, then the frame gets offsetted
-        if OffsetX then
-          APx = APx + OffsetX
-          APy = APy + OffsetY
-          Width = OffsetWidth
-          Height = OffsetHeight
+          local Distance = AnchorDistance[AnchorPoint]
+          local DistanceX = Distance.x
+          local DistanceY = Distance.y
+          local DiffX = 0
+          local DiffY = 0
+
+          -- if OffsetX, OffsetY, then the frame gets offsetted
+          if OffsetX then
+            APx = APx + OffsetX
+            APy = APy + OffsetY
+            Width = OffsetWidth
+            Height = OffsetHeight
+          end
+
+          -- Recalc point without causing frame movement.
+          -- Calc difference between last and current position.
+          -- This lets the anchor position be changed and be able to set
+          -- a new location at the same time.
+          if x then
+            DiffX = x - UB.x
+            DiffY = y - UB.y
+          end
+
+          x = APx + Width * DistanceX - DistanceX + DiffX
+          y = APy + Height * DistanceY - DistanceY + DiffY
         end
-
-        -- Recalc point without causing frame movement.
-        -- Calc difference between last and current position.
-        -- This lets the anchor position be changed and be able to set
-        -- a new location at the same time.
-        if x then
-          DiffX = x - UB.x
-          DiffY = y - UB.y
-        end
-
-        x = APx + Width * DistanceX - DistanceX + DiffX
-        y = APy + Height * DistanceY - DistanceY + DiffY
+        Anchor.LastPoint = AnchorPoint
       end
-      Anchor.LastPoint = AnchorPoint
+
+      Anchor:ClearAllPoints()
+      Anchor:SetPoint(AnchorPoint, x, y)
+
+      UB.x, UB.y = x, y
     end
-
-    Anchor:ClearAllPoints()
-    Anchor:SetPoint(AnchorPoint, x, y)
-
-    UB.x, UB.y = x, y
   end
 end
 
@@ -2536,293 +2495,6 @@ function GUB.Main:CopyUnitBar(Source, Dest, SourceTablePath, DestTablePath)
 end
 
 -------------------------------------------------------------------------------
--- FinishAnimation
---
--- Finishes a fading animation or skips to the end of one.
---
--- Subfunction of SetAnimation()
---
--- self       Animation group to finish (Fade)
--- NewAction  If specified will use this instead of self.Action
---            Must be 'in' or 'out' or nil.
--------------------------------------------------------------------------------
-local function FinishAnimation(self, NewAction)
-  local Object = self.Object
-  local Action = NewAction or self.Action
-
-  self:SetScript('OnFinished', nil)
-  self:Stop()
-
-  -- Call Fn only if frame is visible
-  local Fn = self.Fn
-
-  if Fn and Object:IsVisible() then
-    Fn(self.Action)
-  end
-
-  -- Hide or show the object based on action.
-  if Action == 'in' then
-    Object:Show()
-  else
-    Object:Hide()
-  end
-  Object:SetAlpha(1)
-
-  self.Action = false
-end
-
--------------------------------------------------------------------------------
--- PlayAnimation
---
--- Plays a fading animation.
---
--- Subfunction of SetAnimation()
---
--- Fade          Animation group to play.
--- Action        Must be 'in' or 'out'
--- ReverseFade   If true then the Fade passed must be currently fading.
---               The fading will get reversed.
--------------------------------------------------------------------------------
-local function PlayAnimation(Fade, Action, ReverseFade)
-  local Object = Fade.Object
-  local FadeA = Fade.FadeA
-  local Duration = 0
-  local ToAlpha = 0
-  local FromAlpha = 0
-
-  -- set up for a new fade.
-  Object:Show()
-  if ReverseFade or Action == 'out' then
-    FromAlpha = Object:GetAlpha()
-
-    -- Set up for reverse fading.
-    if ReverseFade then
-      Action = Fade.Action == 'in' and 'out' or 'in'
-    end
-  end
-
-  -- Get change and duration.
-  if Action == 'in' then
-    ToAlpha = 1
-    Duration = Fade.DurationIn
-  else
-    -- ToAlpha already set to zero.
-    Duration = Fade.DurationOut
-  end
-
-  -- Check for zero duration or invisible frame.
-  -- Things get wonky if an animation is tried on an invisible frame.
-  -- so fast forward the animation to the end instead.
-  if Duration == 0 or not Fade.Object:IsVisible() then
-    FinishAnimation(Fade, Action)
-  else
-
-    -- Set up for reverse fade.  This will reverse the current fade.
-    if ReverseFade then
-      Fade:Stop()
-
-      local Alpha = FromAlpha
-
-      if Action == 'in' then
-        Alpha = 1 - Alpha
-      end
-      Duration = Alpha * Duration
-    else
-
-      -- Starting a new fade, set the script.
-      Fade:SetScript('OnFinished', FinishAnimation)
-    end
-
-    -- Need to set Action cause Play will call FinishAnimation right on the spot.
-    -- IE FromAlpha and ToAlpha being the same value.
-    Fade.Action = Action
-
-    -- Set and play the fade.
-    FadeA:SetFromAlpha(FromAlpha)
-    FadeA:SetToAlpha(ToAlpha)
-    FadeA:SetDuration(Duration)
-    Fade:Play()
-  end
-end
-
--------------------------------------------------------------------------------
--- SetAnimation  (fade method)
---
--- Stop or starts fading.
---
--- Usage:  Fade:SetAnimation(Action)
---
--- self        Animation group (Fade)
--- Action      'in'          Starts fading animation in. Stops any old animation first or reverses.
---             'out'         Starts fading animation out. Stops any old animation first or reverses.
---             'stop'        Stops fading animation and calls Fn
---             'stopall'     Stops all animation.
---
--- NOTE:  This is for cosmetic perposes.
---
---        A parent fade will only play but will stop all child animations first.
---        The current child fade animation will skip to the end instead of playing.
---        Child fades will not play if the parent is fading.  Instead they'll skip to the
---        end of their animation right away.
---
---        Fading can be reversed by doing SetAnimation() in the opposite direction
---        on a fade already playing.
--------------------------------------------------------------------------------
-local function SetAnimation(self, Action)
-  local ReverseFade = false
-  local FadeAction = self.Action
-
-  -- Stop or play the fade.
-  if Action == 'stop' then
-    if FadeAction then
-      FinishAnimation(self)
-    end
-    return
-  end
-
-  if Action == 'in' or Action == 'out' then
-    if FadeAction then
-      if FadeAction ~= Action then
-
-        -- Fade already playing, reverse fade if unitbar options is set.
-        if UnitBars.ReverseFading then
-          ReverseFade = true
-        else
-          FinishAnimation(self)
-        end
-      else
-        -- Return since the same type of fade is already playing.
-        return
-      end
-    end
-  end
-
-  -- Search for parent or children fading.
-  local StopAll = Action == 'stopall'
-  local NotParent = not self.Parent
-  local FA = FadingAnimation[self.UnitBarF]
-
-  for Index = 1, FA.Total do
-    local Fade = FA[Index]
-    if Fade.Action then
-
-      -- Stop all animation if stopall is set.
-      if StopAll then
-        FinishAnimation(Fade)
-
-      elseif Fade.Parent == NotParent then
-
-        -- If parent is fading then stop all children animations.
-        if self.Parent then
-          FinishAnimation(Fade)
-        else
-
-          -- End current animation since the parent is fading, and return.
-          -- Since Fade is not playing we need to specify an action.
-          FinishAnimation(self, Action)
-          return
-        end
-      end
-    end
-  end
-
-  -- Return if stopall.
-  if StopAll then
-    return
-  end
-
-  -- Play the fading animation. in or out.
-  PlayAnimation(self, Action, ReverseFade)
-end
-
--------------------------------------------------------------------------------
--- SetDuration   (Fade method)
---
--- Sets the time in seconds that it will take for fading.
---
--- Usage: Fade:SetDuration(Action, Seconds)
---
--- self       Animation group (fade)
--- Seconds    Time in seconds.
--- Action     'in' for for fading in duration.
---            'out' for fading out duration.
---
--- NOTE:  The change doesn't change the current fading animation only new ones.
--------------------------------------------------------------------------------
-local function SetDuration(self, Action, Seconds)
-
-  -- Set the duration for in/out.
-  if Action == 'in' then
-    self.DurationIn = Seconds
-  else
-    self.DurationOut = Seconds
-  end
-end
-
--------------------------------------------------------------------------------
--- CreateFade
---
--- Create a fadein or fadeout animation.
---
--- Usage:  Fade = CreateFade(UnitBarF, Object, Parent)
---
--- UnitBarF   One or more fade animations being created under this bar.
--- Object     Must be a frame or texture.
--- Parent     If true then the fading animation is considered to belong to
---            the parent frame. Otherwise leave this nil.
--- Fn         If specified calls Fn(Action)
---
--- Fade       Animation containing all the info needed to fade in or out.
---            See notes at top of the file for breakdown of this table.
---
--- List of methods used with fade
---
--- Fade:SetDuration('in' or 'out', Seconds)
--- Fade:SetAnimation('in' or 'out' or 'stop' or 'stopall')
--- Fade:SetFn(Fn)  Calls Fn after a fade out or fade in has completed.
---
--- See notes above on how each one is used.
--------------------------------------------------------------------------------
-function GUB.Main:CreateFade(UnitBarF, Object, Parent)
-
-  -- Create an animation for fading.
-  local Fade = Object:CreateAnimationGroup()
-  local FadeA = Fade:CreateAnimation('Alpha')
-
-  -- Set the animation group values.
-  Fade:SetLooping('NONE')
-  FadeA:SetOrder(1)
-  FadeA:SetDuration(0)
-
-  Fade.FadeA = FadeA
-  Fade.UnitBarF = UnitBarF
-  Fade.Object = Object
-  Fade.Action = false
-  Fade.Parent = Parent or false
-  Fade.DurationIn = 0
-  Fade.DurationOut = 0
-
-  -- Create a new entry for the UnitBar if one doesn't exist.
-  local FA = FadingAnimation[UnitBarF]
-  if FA == nil then
-    FA = {Total = 0}
-    FadingAnimation[UnitBarF] = FA
-  end
-
-  -- Store the fade animation
-  local Total = FA.Total + 1
-  FA[Total] = Fade
-  FA.Total = Total
-
-  -- Set methods.
-  Fade.SetAnimation = SetAnimation
-  Fade.SetDuration = SetDuration
-  Fade.SetFn = function(self, Fn) self.Fn = Fn end
-
-  return Fade
-end
-
--------------------------------------------------------------------------------
 -- HideUnitBar
 --
 -- Usage: HideUnitBar(UnitBarF, HideBar)
@@ -2831,9 +2503,9 @@ end
 -- HideBar        Hide the bar if equal to true otherwise show.
 -------------------------------------------------------------------------------
 local function HideUnitBar(UnitBarF, HideBar)
-  local Fade = UnitBarF.Fade
-
   if HideBar ~= UnitBarF.Hidden then
+    local BBar = UnitBarF.BBar
+
     if HideBar then
 
       -- Disable cast tracking if active
@@ -2842,20 +2514,19 @@ local function HideUnitBar(UnitBarF, HideBar)
       -- Disable Aura tracking if active
       Main:SetAuraTracker(UnitBarF, 'unregister')
 
-      -- Start the animation fadeout.
-      Fade:SetAnimation('out')
+      BBar:PlayAnimationBar('out')
+
       UnitBarF.Hidden = true
     else
       UnitBarF.Hidden = false
-
-      -- Start the animation fadein.
-      Fade:SetAnimation('in')
 
       -- Disable cast tracking if active
       Main:SetCastTracker(UnitBarF, 'register')
 
       -- Enable Aura tracking if active
       Main:SetAuraTracker(UnitBarF, 'register')
+
+      BBar:PlayAnimationBar('in')
     end
   end
 end
@@ -3937,6 +3608,11 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:UnitBarStartMoving(Frame, Button)
 
+  -- Prevent any kind of frame modification if the unitbar is animating.
+  if Frame.IsAnimating then
+    return true
+  end
+
   -- Handle selection of unitbars for the alignment tool.
   if Button == 'RightButton' and UnitBars.AlignAndSwapEnabled and not IsModifierKeyDown() then
     Options:OpenAlignSwapOptions(Frame)  -- Frame is anchor
@@ -4035,8 +3711,8 @@ function GUB.Main:UnitBarsSetAllOptions()
   local ATOFrame = Options.ATOFrame
   local IsLocked = UnitBars.IsLocked
   local IsClamped = UnitBars.IsClamped
-  local FadeOutTime = UnitBars.FadeOutTime
-  local FadeInTime = UnitBars.FadeInTime
+  local AnimationOutTime = UnitBars.AnimationOutTime
+  local AnimationInTime = UnitBars.AnimationInTime
 
   -- Update text highlight only when options window is open
   if Options.MainOptionsOpen then
@@ -4050,10 +3726,12 @@ function GUB.Main:UnitBarsSetAllOptions()
 
   -- Apply the settings.
   for _, UBF in ipairs(UnitBarsFE) do
+    local BBar = UBF.BBar
     UBF:EnableMouseClicks(not IsLocked)
     UBF.Anchor:SetClampedToScreen(IsClamped)
-    UBF.Fade:SetDuration('out', FadeOutTime)
-    UBF.Fade:SetDuration('in', FadeInTime)
+
+    BBar:SetAnimationDurationBar('out', AnimationOutTime)
+    BBar:SetAnimationDurationBar('in', AnimationInTime)
   end
 
   -- Last Auras
@@ -4082,7 +3760,7 @@ function GUB.Main:UnitBarSetAttr(UnitBarF)
   local Alpha = UBO.Alpha
   local Anchor = UnitBarF.Anchor
 
-  -- Frame.
+  -- Scale.
   UnitBarF.ScaleFrame:SetScale(UBO.Scale)
 
   -- Alpha.
@@ -4108,13 +3786,17 @@ end
 -------------------------------------------------------------------------------
 local function SetUnitBarLayout(UnitBarF, BarType)
   local UB = UnitBarF.UnitBar
+  local BBar = UnitBarF.BBar
   local Anchor = UnitBarF.Anchor
 
-  -- Stop any old fade animation for this unitbar.
-  UnitBarF.Fade:SetAnimation('stopall')
+  -- Set a reference to UnitBar[BarType] for moving.
+  -- This needs to be first incase animation functions need
+  -- this reference.
+  UnitBarF.Anchor.UnitBar = UB
 
-  --Set a reference to UnitBar[BarType] for moving.
-  Anchor.UnitBar = UB
+  -- Stop any old animation for this unitbar.
+  BBar:SetAnimationBar('stopall')
+  BBar:SetAnimationBar('scale')
 
   UnitBarF.IsActive = false
 
@@ -4122,11 +3804,11 @@ local function SetUnitBarLayout(UnitBarF, BarType)
   UnitBarF.Visible = false
   UnitBarF.Hidden = true
 
-  -- Hide the frame.
-  UnitBarF.Anchor:Hide()
-
-  -- Set Attributes for the bar.
+  -- Show the unitbar.  Then SetAttr and then hide.
+  -- Weird things happen when the bar gets drawn when hidden.
+  Anchor:Show()
   UnitBarF:SetAttr()
+  Anchor:Hide()
 end
 
 -------------------------------------------------------------------------------
@@ -4146,9 +3828,10 @@ local function CreateUnitBar(UnitBarF, BarType)
     UnitBarF.Created = true
 
     -- Create the anchor frame.
+    -- Anchor gets hidden in SetUnitBarLayout()
     local Anchor = CreateFrame('Frame', 'GUB-Anchor-' .. BarType, UnitBarsParent)
 
-    --Set a reference to UnitBar[BarType] for moving.
+    -- Weird stuff happens if I dont hide here.
     Anchor:Hide()
 
     -- Save a lookback to UnitBarF in anchor for selection (selectframe)
@@ -4162,29 +3845,26 @@ local function CreateUnitBar(UnitBarF, BarType)
     -- Get name for align and swap.
     Anchor.Name = UnitBars[BarType].Name
 
-    -- Create the alpha frame
-    local AlphaFrame = CreateFrame('Frame', nil, Anchor)
-    AlphaFrame:SetPoint('TOPLEFT', 0, 0)
-    AlphaFrame:SetSize(1, 1)
-
     -- Create the scale frame.
-    local ScaleFrame = CreateFrame('Frame', nil, AlphaFrame)
+    local ScaleFrame = CreateFrame('Frame', nil, Anchor)
     ScaleFrame:SetPoint('TOPLEFT', 0, 0)
     ScaleFrame:SetSize(1, 1)
+
+    -- Create the alpha frame.
+    local AlphaFrame = CreateFrame('Frame', nil, ScaleFrame)
+    AlphaFrame:SetPoint('TOPLEFT', 0, 0)
+    AlphaFrame:SetSize(1, 1)
 
     -- Save the bartype.
     UnitBarF.BarType = BarType
 
     -- Save the frames.
     UnitBarF.Anchor = Anchor
-    UnitBarF.AlphaFrame = AlphaFrame
     UnitBarF.ScaleFrame = ScaleFrame
+    UnitBarF.AlphaFrame = AlphaFrame
 
     -- Save the enable bar function.
     UnitBarF.BarVisible = UB.BarVisible
-
-    -- Create an animation for fade in/out.  Make this a parent fade.
-    UnitBarF.Fade = Main:CreateFade(UnitBarF, Anchor, true)
 
     if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
       HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
@@ -4269,15 +3949,9 @@ function GUB.Main:SetUnitBars(ProfileChanged)
           JustCreated = true
         end
 
-      elseif Created then
-
-        if ProfileChanged then
-          UBF.Hidden = true
-          UBF.Anchor:Hide()
-        else
-          -- Hide the unitbar.
-          HideUnitBar(UBF, true)
-        end
+      -- disabled
+      elseif Created and not ProfileChanged then
+        HideUnitBar(UBF, true)
       end
       if ProfileChanged and Created or JustCreated then
         SetUnitBarLayout(UBF, BarType)
@@ -4506,8 +4180,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 8 then
-    GUBData.ShowMessage = 8
+  if GUBData.ShowMessage ~= 9 then
+    GUBData.ShowMessage = 9
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
