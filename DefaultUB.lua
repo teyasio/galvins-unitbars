@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 503
+GUB.DefaultUB.Version = 510
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -39,9 +39,10 @@ GUB.DefaultUB.Version = 503
 -- HideTextHighlight      - Boolean. If true then text frames will not be highlighted when the options are opened.
 -- AlignAndSwapEnabled    - Boolean. If true then align and swap can be accessed, otherwise cant be.
 -- HideLocationInfo       - Boolean. If true the location information for bars and boxes is not shown in tooltips when mousing over.
--- ReverseFading          - Boolean. If true then transition from fading in one direction then going to the other is smooth.
--- FadeOutTime            - Time in seconds before a bar completely goes hidden.
--- FadeInTime             - Time in seconds before a bar completely becomes visible.
+-- AnimationType          - string. Type of animation to play when hiding and showing bars.
+-- ReverseAnimation       - Boolean. If true then transition from animating in one direction then going to the other is smooth.
+-- AnimationOutTime       - Time in seconds before a bar completely goes hidden.
+-- AnimationInTime        - Time in seconds before a bar completely becomes visible.
 -- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
 -- AuraListOn             - If true then the aura list utility is active.
 -- AuraListUnits          - String. Contains a list of units seperated by spaces for the aura utility to track.
@@ -109,8 +110,8 @@ GUB.DefaultUB.Version = 503
 --   Slope                - Tilts the bar up or down only when the bar is at 90, 180, 270, or 360 degrees.
 --   Padding              - Distance in pixels between each box inside a bar.
 --   TextureScale         - Scale of a texture when a bar is in not in boxmode.  Also the size of the runes for the runebar.
---   FadeInTime           - Amount of time to fade in a texture or box texture.
---   FadeOutTime          - Amount of time to fade out a texture or box texture.
+--   AnimationInTime      - Amount of time to play animation after showing a texture or box texture.
+--   AnimationOutTime     - Amount of time to play animation before hiding a texture or box texture.
 --   Align                - If true then boxes in a bar can be aligned.
 --   AlignPaddingX        - Horizontal distance between each box when aligning.
 --   AlignPaddingY        - Vertical distance between each box when aligning.
@@ -219,8 +220,9 @@ local GUBStatusBarTexture = 'GUB Bright Bar'
 local DefaultSound = 'None'
 local DefaultSoundChannel = 'SFX'
 local UBFontType = 'Arial Narrow'
-local DefaultFadeOutTime = 1
-local DefaultFadeInTime = 0.30
+local DefaultAnimationType = 'alpha'
+local DefaultAnimationOutTime = 0.7
+local DefaultAnimationInTime = 0.30
 
 GUB.DefaultUB.InCombatOptionsMessage = "Can't have options opened during combat"
 
@@ -281,9 +283,9 @@ GUB.DefaultUB.Default = {
     HideTextHighlight = false,
     AlignAndSwapEnabled = true,
     HideLocationInfo = false,
-    ReverseFading = true,
-    FadeInTime = DefaultFadeInTime,
-    FadeOutTime = DefaultFadeOutTime,
+    ReverseAnimation = true,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
     HighlightDraggedBar = false,
     AuraListOn = false,
     AuraListUnits = 'player',
@@ -1625,8 +1627,9 @@ GUB.DefaultUB.Default = {
         Rotation = 90,
         Slope = 0,
         Padding = 0,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
+        AnimationType = DefaultAnimationType,
+        AnimationInTime = DefaultAnimationInTime,
+        AnimationOutTime = DefaultAnimationOutTime,
         Align = false,
         AlignPaddingX = 0,
         AlignPaddingY = 0,
@@ -1809,8 +1812,9 @@ GUB.DefaultUB.Default = {
         Slope = 0,
         Padding = 0,
         TextureScale = 1,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
+        AnimationType = DefaultAnimationType,
+        AnimationInTime = DefaultAnimationInTime,
+        AnimationOutTime = DefaultAnimationOutTime,
         Align = false,
         AlignPaddingX = 0,
         AlignPaddingY = 0,
@@ -1942,8 +1946,9 @@ GUB.DefaultUB.Default = {
         Slope = 0,
         Padding = 0,
         TextureScale = 1,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
+        AnimationType = DefaultAnimationType,
+        AnimationInTime = DefaultAnimationInTime,
+        AnimationOutTime = DefaultAnimationOutTime,
         Align = false,
         AlignPaddingX = 0,
         AlignPaddingY = 0,
@@ -2076,8 +2081,9 @@ GUB.DefaultUB.Default = {
         Slope = 0,
         Padding = 0,
         TextureScale = 1,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
+        AnimationType = DefaultAnimationType,
+        AnimationInTime = DefaultAnimationInTime,
+        AnimationOutTime = DefaultAnimationOutTime,
         Align = false,
         AlignPaddingX = 0,
         AlignPaddingY = 0,
@@ -2212,8 +2218,9 @@ GUB.DefaultUB.Default = {
         Slope = 0,
         Padding = 0,
         TextureScale = 1,
-        FadeInTime = DefaultFadeInTime,
-        FadeOutTime = DefaultFadeOutTime,
+        AnimationType = DefaultAnimationType,
+        AnimationInTime = DefaultAnimationInTime,
+        AnimationOutTime = DefaultAnimationOutTime,
         Align = false,
         AlignPaddingX = 0,
         AlignPaddingY = 0,
@@ -2492,6 +2499,7 @@ ChangesText[1] = [[
 |cff00ff00Anchor|r point can be changed for any bar.  Found under "other" settings
 |cff00ff00Smooth Fill|r now fills at a constant speed.  Max time set to 2 seconds cause of this change
 |cff00ff00Bar Fill FPS|r found under General -> Main -> Layout.  Changes the FPS of smooth fill and timer bars
+|cff00ff00Animation|r rewritten. Fade is now 'alpha'. Animation has Scale or Alpha.  All fade settings need to be redone
 ]]
 
 
