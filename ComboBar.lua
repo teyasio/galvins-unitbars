@@ -250,7 +250,6 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     ComboPoints = ComboPoints + 1
   end
 
-  -- Check for combo point change
   if NumPoints ~= self.NumPoints then
     NumPointsChanged = true
     self.NumPoints = NumPoints

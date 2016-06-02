@@ -639,6 +639,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
       IsActive = true
     end
   end
+
   self.IsActive = IsActive
 
   -- Do a status check.

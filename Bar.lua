@@ -89,6 +89,9 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- BarDB.AGroups                     Used by animation to keep track of animation groups. Created by SetAnimationBar()
 -- BarDB.Animation                   Used to play animation when showing or hiding the bar. Created by SetAnimationBar()
 --
+-- BarDB.IsDisplayWaiting            Used by Display() and DisplayWaiting().  If Display() was called when the bar
+--                                   was hidden.  It will not display, instead it will set this flag to true.
+--                                   Then you call DisplayWaiting() only works once unless the bar is still invisible.
 -- BoxFrame data structure
 --
 --   Name                            Name of the boxframe.  This will appear on tooltips.
@@ -460,8 +463,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --     Group                   Contains the Animation Group.  child of Object
 --       Animation             Reference to Animation. Used by OnFinishPlaying()
 --     Object                  Object that will be animated. Can be frame or texture.
---       IsAnimating           If true the object is animating.  If the object is the Anchor or a texture.
---                               Then that Anchor or Texture will have the IsAnimating tag on it.
 --     GroupType               string. Type of group:
 --                               'Parent'     This is created for the the bar when hiding or showing.
 --                               'Children'   This is created for any textures or frame the bar uses.
@@ -580,8 +581,11 @@ local SetValueParSize = {
 }
 
 local DefaultBackdrop = {
-  bgFile   = '', -- background texture
-  edgeFile = '', -- border texture
+  bgFile   = LSM:Fetch('background', 'Blizzard Dialog Background'),
+  edgeFile = LSM:Fetch('border', 'Blizzard Dialog'),
+
+--  bgFile   = '', -- background texture
+--  edgeFile = '', -- border texture
   tile = true,   -- True to repeat the background texture to fill the frame, false to scale it.
   tileSize = 16,  -- Size (width or height) of the square repeating background tiles (in pixels).
   edgeSize = 12,  -- Thickness of edge segments and square size of edge corners (in pixels).
@@ -1343,17 +1347,6 @@ end
 -- Animation functions
 --
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-local AnimationFunctionName = {
-  smoothing  = 'SetSmoothing',   ParSize = 2,
-  duration   = 'SetDuration',    ParSize = 2,
-  startdelay = 'SetStartDelay',  ParSize = 2,
-  enddelay   = 'SetEndDelay',    ParSize = 2,
-  order      = 'SetOrder',       ParSize = 2,
-  fromalpha  = 'SetFromAlpha',   ParSize = 2,
-  toalpha    = 'SetToAlpha',     ParSize = 2,
-  fromscale  = 'SetFromScale',   ParSize = 3,
-  toscale    = 'SetToScale',     ParSize = 3,
-}
 
 -------------------------------------------------------------------------------
 -- GetAnimation
@@ -1389,12 +1382,8 @@ local function GetAnimation(AGroups, Object, GroupType, Type)
     local ScaleFrame = nil
 
     if Object.IsAnchor and Type == 'scale' then
-      local ObjectParent = Object:GetParent()
-
       AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
-      ScaleFrame = CreateFrame('Frame', nil, Main.UnitBarsParent)
-      ScaleFrame:SetParent(ObjectParent)
-      ScaleFrame.ObjectParent = ObjectParent
+      ScaleFrame = Object.AnchorPointFrame
     else
       AnimationGroup = Object:CreateAnimationGroup()
     end
@@ -1499,7 +1488,6 @@ local function OnFinishPlaying(self, Direction, ReverseAnimation)
 
   self:SetScript('OnFinished', nil)
   self:Stop()
-  Object.IsAnimating = false
 
   Direction = Direction or Animation.Direction
 
@@ -1517,6 +1505,7 @@ local function OnFinishPlaying(self, Direction, ReverseAnimation)
   if Animation.Direction then
     if Type == 'alpha' then
       Object:SetAlpha(1)
+
     elseif Type == 'scale' then
       local ScaleFrame = Animation.ScaleFrame
 
@@ -1527,15 +1516,13 @@ local function OnFinishPlaying(self, Direction, ReverseAnimation)
 
         -- Restore anchor
         ScaleFrame:SetScale(1)
-        ScaleFrame:Hide()
-
-        Object:SetParent(ScaleFrame.ObjectParent)
-        Object:ClearAllPoints()
-        Object:SetPoint('CENTER', ScaleFrame.x, ScaleFrame.y)
-
-        Object.IsAnimating = false
-        Main:SetAnchorPoint(Object)
+        Main:SetAnchorPoint(Object, 'UB')
       end
+    end
+
+    local Fn = Animation.Fn
+    if Fn then
+      Fn(Direction)
     end
 
     Animation.Direction = false
@@ -1554,11 +1541,13 @@ local function OnScaleFrame(self)
 
   -- Calculate current scale off of progress.
   local Scale = Value + (Animation.ToValue - Value) * Animation:GetProgress()
+
   if Scale > 0 then
     local ScaleFrame = Animation.ScaleFrame
 
     ScaleFrame:SetScale(Scale)
-    ScaleFrame:SetPoint('CENTER', ScaleFrame.x / Scale, ScaleFrame.y / Scale)
+    ScaleFrame:ClearAllPoints()
+    ScaleFrame:SetPoint('CENTER')
   end
 end
 
@@ -1583,7 +1572,6 @@ local function PlayAnimation(Animation, Direction)
     return
   end
 
-  local IsPlaying = AGroup:IsPlaying()
   local Object = Animation.Object
   local Type = Animation.Type
   local Duration = 0
@@ -1602,14 +1590,11 @@ local function PlayAnimation(Animation, Direction)
 
   -- Check if frame is invisible
   if Duration == 0 or not Object:IsVisible() then
-
-    -- Wierd graphical glitches happen if you stop playing
-    -- when animation is not playing.
     OnFinishPlaying(AGroup, Direction)
     return
   end
 
-  if IsPlaying then
+  if AGroup:IsPlaying() then
 
     -- Dont play animation of same direction.
     if Animation.Direction ~= Direction then
@@ -1652,31 +1637,15 @@ local function PlayAnimation(Animation, Direction)
     Animation:SetToScale(ToValue, ToValue)
     Animation:SetOrigin('CENTER', 0, 0)
 
-    if Animation.ScaleFrame then
+    local ScaleFrame = Animation.ScaleFrame
+    if ScaleFrame then
 
       -- Object is Anchor
-      local _, _, Width, Height = GetRect(Object)
-      local x, y = Main:GetAnchorPoint(Object, 'CENTER')
-      local ScaleFrame = Animation.ScaleFrame
-
-      ScaleFrame:Show()
-      ScaleFrame:ClearAllPoints()
-      ScaleFrame:SetPoint('CENTER', x, y)
-      ScaleFrame:SetSize(Width, Height)
-
-      Object:SetParent(ScaleFrame)
-      Object:ClearAllPoints()
-      Object:SetPoint('TOPLEFT')
-
-      ScaleFrame.x = x
-      ScaleFrame.y = y
-      ScaleFrame:SetScale(1)
-
+      ScaleFrame:SetPoint('CENTER')
       AGroup:SetScript('OnUpdate', OnScaleFrame)
     end
   end
 
-  Object.IsAnimating = true
   Animation:SetDuration(Duration)
   AGroup:SetScript('OnFinished', OnFinishPlaying)
   AGroup:Play()
@@ -1768,14 +1737,20 @@ end
 -- Type            'scale' or 'alpha'
 --
 -- NOTES: This function must be called before any animation can be done.
+--        This also sets the ShowHideFn call back.
 -------------------------------------------------------------------------------
 function BarDB:SetAnimationTexture(BoxNumber, TextureNumber, Type)
   local AGroups = self.AGroups
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local ShowHideFn = Texture.ShowHideFn
 
     Texture.Animation, AGroups = GetAnimation(AGroups, Texture, 'children', Type)
+
+    if ShowHideFn then
+      Texture.Animation.Fn = ShowHideFn
+    end
   until LastBox
 
   self.AGroups = AGroups
@@ -1990,8 +1965,19 @@ local function OnUpdate_Display(self)
 end
 
 function BarDB:Display()
-  self.ProfileChanged = Main.ProfileChanged
-  self:SetScript('OnUpdate', OnUpdate_Display)
+  if not self.Anchor:IsVisible() then
+    self.IsDisplayWaiting = true
+  else
+    self.ProfileChanged = Main.ProfileChanged
+    self:SetScript('OnUpdate', OnUpdate_Display)
+  end
+end
+
+function BarDB:DisplayWaiting()
+  if self.IsDisplayWaiting then
+    self.IsDisplayWaiting = false
+    self:Display()
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -2140,20 +2126,23 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
     if Hide ~= Hidden then
       local Animation = Texture.Animation
 
-      if Animation then
-        Animation.Tag = BoxNumber
-      end
       if Hide then
         if Animation then
           PlayAnimation(Animation, 'out')
         else
           Texture:Hide()
+          if ShowHideFn then
+            ShowHideFn('out')
+          end
         end
       else
         if Animation then
           PlayAnimation(Animation, 'in')
         else
           Texture:Show()
+          if ShowHideFn then
+            ShowHideFn('in')
+          end
         end
       end
       Texture.Hidden = Hide
@@ -2180,10 +2169,12 @@ function BarDB:SetShowHideFnTexture(BoxNumber, TextureNumber, Fn)
   repeat
     local BoxFrame, BN = NextBox(self, BoxNumber)
     local Texture = BoxFrame.TFTextures[TextureNumber]
+    local Animation = Texture.Animation
+    local ShowHideFn = nil
 
-    Texture.ShowHideFn = function(Action)
-      Fn(self, BN, TextureNumber, Action == 'in' and 'show' or 'hide')
-    end
+    Texture.ShowHideFn = function(Direction)
+                           Fn(self, BN, TextureNumber, Direction == 'in' and 'show' or 'hide')
+                         end
   until LastBox
 end
 
@@ -2610,8 +2601,8 @@ function BarDB:SetBackdropBorder(BoxNumber, TextureFrameNumber, TextureName, Pat
     Frame:SetBackdrop(Backdrop)
 
     -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    --Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    --Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
   until LastBox
 end
 
