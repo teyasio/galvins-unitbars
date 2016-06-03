@@ -116,8 +116,8 @@ local o = {
   TestModeArcaneChargesMax = 4,
 
   -- Animation for all unitbars.
-  AnimationOutTime = 10,
-  AnimationInTime = 10,
+  AnimationOutTime = 1,
+  AnimationInTime = 1,
 
   -- Bar fill FPS for all unitbars
   BarFillFPSMin = 10,
@@ -169,7 +169,7 @@ local o = {
   LayoutTextureScaleMin = 0.55,
   LayoutTextureScaleMax = 4.6,
   LayoutAnimationInTimeMin = 0,
-  LayoutAnimationInTimeMax = 10,
+  LayoutAnimationInTimeMax = 1,
   LayoutAnimationOutTimeMin = 0,
   LayoutAnimationOutTimeMax = 10,
   LayoutAlignOffsetXMin = - 50,
@@ -5305,6 +5305,23 @@ local function CreateOtherOptions(BarType, Order, Name)
         desc = 'Sets the frame strata making the bar appear below or above other frames',
         values = FrameStrataDropdown,
         style = 'dropdown',
+      },
+      MainAnimationType = {
+        type = 'toggle',
+        name = 'Main Animation Type',
+        order = 5,
+        desc = 'Uses the Animation Type setting in Main Animation',
+      },
+      AnimationTypeBar = {
+        type = 'select',
+        name = 'Animation Type Bar',
+        order = 6,
+        style = 'dropdown',
+        desc = 'Changes the type of animation played when showing or hiding the bar',
+        values = AnimationTypeDropdown,
+        disabled = function()
+                     return UBF.UnitBar.Other.MainAnimationType
+                   end
       },
     },
   }
