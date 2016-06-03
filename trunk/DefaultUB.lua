@@ -284,6 +284,7 @@ GUB.DefaultUB.Default = {
     AlignAndSwapEnabled = true,
     HideLocationInfo = false,
     ReverseAnimation = true,
+    AnimationType = 'alpha',
     AnimationInTime = DefaultAnimationInTime,
     AnimationOutTime = DefaultAnimationOutTime,
     HighlightDraggedBar = false,

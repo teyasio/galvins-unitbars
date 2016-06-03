@@ -3707,6 +3707,7 @@ function GUB.Main:UnitBarsSetAllOptions()
   local ATOFrame = Options.ATOFrame
   local IsLocked = UnitBars.IsLocked
   local IsClamped = UnitBars.IsClamped
+  local AnimationType = UnitBars.AnimationType
   local AnimationOutTime = UnitBars.AnimationOutTime
   local AnimationInTime = UnitBars.AnimationInTime
 
@@ -3726,6 +3727,7 @@ function GUB.Main:UnitBarsSetAllOptions()
     UBF:EnableMouseClicks(not IsLocked)
     UBF.Anchor:SetClampedToScreen(IsClamped)
 
+    BBar:SetAnimationBar(AnimationType)
     BBar:SetAnimationDurationBar('out', AnimationOutTime)
     BBar:SetAnimationDurationBar('in', AnimationInTime)
   end
@@ -3792,7 +3794,6 @@ local function SetUnitBarLayout(UnitBarF, BarType)
 
   -- Stop any old animation for this unitbar.
   BBar:SetAnimationBar('stopall')
-  BBar:SetAnimationBar('scale')
 
   UnitBarF.IsActive = false
 
@@ -3804,6 +3805,10 @@ local function SetUnitBarLayout(UnitBarF, BarType)
   -- Show the unitbar.  Then SetAttr and then hide.
   -- Weird things happen when the bar gets drawn when hidden.
   UnitBarF:SetAttr()
+
+  -- This is a fix to prevent a bar's borders from getting corrupted if some
+  -- kind of scaling animation was playing on the previous profile.
+  C_TimerAfter(0.008, function() UnitBarF:SetAttr() end)
 end
 
 -------------------------------------------------------------------------------
@@ -3970,8 +3975,8 @@ function GUB.Main:SetUnitBars(ProfileChanged)
   Options:AddRemoveBarGroups()
 
   if ProfileChanged == nil then
-    GUB:UnitBarsUpdateStatus()
     Main:UnitBarsSetAllOptions()
+    GUB:UnitBarsUpdateStatus()
   end
 
   Main.ProfileChanged = false

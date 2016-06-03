@@ -6738,6 +6738,15 @@ local function CreateMainOptions()
                     order = 1,
                     desc = 'Animation in/out can switch direction smoothly',
                   },
+                  AnimationType = {
+                    type = 'select',
+                    name = 'Animation Type',
+                    order = 2,
+                    style = 'dropdown',
+                    desc = 'Changes the type of animation played when showing or hiding bars',
+                    values = AnimationTypeDropdown,
+                  },
+                  Spacer = CreateSpacer(3),
                   AnimationInTime = {
                     type = 'range',
                     name = 'Animation-in',
@@ -6746,13 +6755,6 @@ local function CreateMainOptions()
                     min = 0,
                     max = o.AnimationInTime,
                     step = 0.1,
-                 --   get = function()
-                 --           return Main.UnitBars.AnimationInTime
-                 --         end,
-                 --   set = function(Info, Value)
-                 --           Main.UnitBars.AnimationInTime = Value
-                 --           Main:UnitBarsSetAllOptions()
-                 --         end,
                   },
                   AnimationOutTime = {
                     type = 'range',
@@ -6762,13 +6764,6 @@ local function CreateMainOptions()
                     min = 0,
                     max = o.AnimationOutTime,
                     step = 0.1,
-                 --   get = function()
-                 --           return Main.UnitBars.AnimationOutTime
-                 --         end,
-                  --  set = function(Info, Value)
-                  --          Main.UnitBars.AnimationOutTime = Value
-                  --          Main:UnitBarsSetAllOptions()
-                  --        end,
                   },
                 },
               },
