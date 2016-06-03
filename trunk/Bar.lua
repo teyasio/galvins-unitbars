@@ -1128,9 +1128,9 @@ local function BoxInfo(Frame)
       BoxX, BoxY = GetRect(BF)
       BoxX, BoxY = floor(BoxX + 0.5), floor(BoxY + 0.5)
 
-      return format('Bar (%s %d, %d)  Box (%d, %d)', AnchorPoint, BarX, BarY, BoxX, BoxY)
+      return format('Bar - %s (%d, %d)  Box (%d, %d)', AnchorPoint, BarX, BarY, BoxX, BoxY)
     else
-      return format('Bar (%s %d, %d)', AnchorPoint, BarX, BarY)
+      return format('Bar - %s (%d, %d)', AnchorPoint, BarX, BarY)
     end
   end
 end
@@ -1527,6 +1527,7 @@ local function OnFinishPlaying(self, Direction, ReverseAnimation)
         self:SetScript('OnUpdate', nil)
 
         -- Restore anchor
+        Object.IsScaling = false
         OnFrame:SetScale(1)
         Main:SetAnchorPoint(Object, 'UB')
       end
@@ -1570,11 +1571,7 @@ local function OnScaleFrame(self)
   local Scale = Value + (Animation.ToValue - Value) * Animation:GetProgress()
 
   if Scale > 0 then
-    local OnFrame = Animation.OnFrame
-
-    OnFrame:SetScale(Scale)
-    OnFrame:ClearAllPoints()
-    OnFrame:SetPoint('CENTER')
+    Animation.OnFrame:SetScale(Scale)
   end
 end
 
@@ -1662,6 +1659,10 @@ local function PlayAnimation(Animation, Direction)
     if OnFrame then
 
       -- Object is Anchor
+      -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
+      Object.IsScaling = true
+      OnFrame:SetScale(0.01)
+      OnFrame:ClearAllPoints()
       OnFrame:SetPoint('CENTER')
       AGroup:SetScript('OnUpdate', OnScaleFrame)
     end
@@ -2848,10 +2849,10 @@ function BarDB:SetOffsetTextureFrame(BoxNumber, TextureFrameNumber, Left, Right,
     local x, y = BorderFrame:GetSize()
 
     if x < 10 or y < 10 then
-      BorderFrame:SetPoint('LEFT', 0, 0)
-      BorderFrame:SetPoint('RIGHT', 0, 0)
-      BorderFrame:SetPoint('TOP', 0, 0)
-      BorderFrame:SetPoint('BOTTOM', 0, 0)
+      BorderFrame:SetPoint('LEFT')
+      BorderFrame:SetPoint('RIGHT')
+      BorderFrame:SetPoint('TOP')
+      BorderFrame:SetPoint('BOTTOM')
     end
 
   until LastBox
@@ -4301,7 +4302,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
 
         local CooldownFrame = CreateFrame('Cooldown', nil, SubFrame, 'CooldownFrameTemplate')
         CooldownFrame:ClearAllPoints()  -- Undoing template SetAllPoints
-        CooldownFrame:SetPoint('CENTER', SubTexture, 'CENTER', 0, 0)
+        CooldownFrame:SetPoint('CENTER', SubTexture, 'CENTER')
         CooldownFrame:SetHideCountdownNumbers(true)
 
         Texture.CooldownFrame = CooldownFrame

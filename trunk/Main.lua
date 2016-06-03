@@ -1623,8 +1623,10 @@ function GUB.Main:SetAnchorPoint(Anchor, x, y)
   Anchor:ClearAllPoints()
   Anchor:SetPoint('TOPLEFT', x, y)
 
-  AnchorPointFrame:ClearAllPoints()
-  AnchorPointFrame:SetPoint(UB.Other.AnchorPoint)
+  if not Anchor.IsScaling then
+    AnchorPointFrame:ClearAllPoints()
+    AnchorPointFrame:SetPoint(UB.Other.AnchorPoint)
+  end
 
   UB.x, UB.y = x, y
 end
@@ -3150,7 +3152,7 @@ function GUB.Main:MoveFrameStop(MoveFrames)
       elseif Flags.Align then
         -- Align
         MoveFrame:ClearAllPoints()
-        MoveFrame:SetPoint(MovePoint, MoveSelectFrame, MoveSelectPoint, 0, 0)
+        MoveFrame:SetPoint(MovePoint, MoveSelectFrame, MoveSelectPoint)
       end
     end
     if MoveSelectFrame == nil or not Flags.Swap and not Flags.Align then
@@ -3707,7 +3709,6 @@ function GUB.Main:UnitBarsSetAllOptions()
   local ATOFrame = Options.ATOFrame
   local IsLocked = UnitBars.IsLocked
   local IsClamped = UnitBars.IsClamped
-  local AnimationType = UnitBars.AnimationType
   local AnimationOutTime = UnitBars.AnimationOutTime
   local AnimationInTime = UnitBars.AnimationInTime
 
@@ -3727,7 +3728,6 @@ function GUB.Main:UnitBarsSetAllOptions()
     UBF:EnableMouseClicks(not IsLocked)
     UBF.Anchor:SetClampedToScreen(IsClamped)
 
-    BBar:SetAnimationBar(AnimationType)
     BBar:SetAnimationDurationBar('out', AnimationOutTime)
     BBar:SetAnimationDurationBar('in', AnimationInTime)
   end
@@ -3757,6 +3757,14 @@ function GUB.Main:UnitBarSetAttr(UnitBarF)
   local UBO = UnitBarF.UnitBar.Other
   local Alpha = UBO.Alpha
   local Anchor = UnitBarF.Anchor
+  local BBar = UnitBarF.BBar
+
+  -- Set animation type
+  if UBO.MainAnimationType then
+    BBar:SetAnimationBar(UnitBars.AnimationType)
+  else
+    BBar:SetAnimationBar(UBO.AnimationTypeBar)
+  end
 
   -- Scale.
   UnitBarF.ScaleFrame:SetScale(UBO.Scale)
@@ -4185,8 +4193,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 9 then
-    GUBData.ShowMessage = 9
+  if GUBData.ShowMessage ~= 10 then
+    GUBData.ShowMessage = 10
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

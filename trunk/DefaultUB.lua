@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 510
+GUB.DefaultUB.Version = 511
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -362,6 +362,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -483,6 +485,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -606,6 +610,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -724,6 +730,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -843,6 +851,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -961,6 +971,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -1080,6 +1092,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -1200,6 +1214,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -1320,6 +1336,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Background = {
         PaddingAll = true,
@@ -1469,6 +1487,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Region = {
         PaddingAll = true,
@@ -1647,6 +1667,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Region = {
         PaddingAll = true,
@@ -1827,6 +1849,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Region = {
         PaddingAll = true,
@@ -1961,6 +1985,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Region = {
         PaddingAll = true,
@@ -2096,6 +2122,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Region = {
         PaddingAll = true,
@@ -2233,6 +2261,8 @@ GUB.DefaultUB.Default = {
         Alpha = 1,
         AnchorPoint = 'TOPLEFT',
         FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
       },
       Region = {
         PaddingAll = true,
@@ -2476,7 +2506,7 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
-5.00
+5.11
 
 |cff00ff00ComboBar|r has been recoded.  Bar and Background settings will have to be redone
 
@@ -2500,7 +2530,9 @@ ChangesText[1] = [[
 |cff00ff00Anchor|r point can be changed for any bar.  Found under "other" settings
 |cff00ff00Smooth Fill|r now fills at a constant speed.  Max time set to 2 seconds cause of this change
 |cff00ff00Bar Fill FPS|r found under General -> Main -> Layout.  Changes the FPS of smooth fill and timer bars
-|cff00ff00Animation|r rewritten. Fade is now 'alpha'. Animation has Scale or Alpha.  All fade settings need to be redone
+|cff00ff00Animation|r rewritten. Animation Type settings found under Main -> Animation
+|cff00ff00Animation Type Bar|r setting found under Other settings for each bar.  If you want the bar to use its own animation type.
+|cff00ff00Animation Type|r setting under Layout for each bar changes the way the bar objects hide and show
 ]]
 
 

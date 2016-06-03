@@ -724,8 +724,8 @@ local function CreateButton(PredictFrame, EditBox, Index)
   Button:Hide()
 
   if Index > 1 then
-    Button:SetPoint('TOPLEFT', Buttons[Index - 1], 'BOTTOMLEFT', 0, 0)
-    Button:SetPoint('TOPRIGHT', Buttons[Index - 1], 'BOTTOMRIGHT', 0, 0)
+    Button:SetPoint('TOPLEFT', Buttons[Index - 1], 'BOTTOMLEFT')
+    Button:SetPoint('TOPRIGHT', Buttons[Index - 1], 'BOTTOMRIGHT')
   else
     Button:SetPoint('TOPLEFT', PredictFrame, 12, -1)
     Button:SetPoint('TOPRIGHT', PredictFrame, -7, 0)
@@ -853,7 +853,7 @@ local function PredictorConstructor()
   EditBox:SetMaxLetters(256)
 
   EditBox:SetPoint('BOTTOMLEFT', Frame, 'BOTTOMLEFT', 6, 0)
-  EditBox:SetPoint('BOTTOMRIGHT', Frame, 'BOTTOMRIGHT', 0, 0)
+  EditBox:SetPoint('BOTTOMRIGHT', Frame, 'BOTTOMRIGHT')
   EditBox:SetHeight(19)
 
   local Label = Frame:CreateFontString(nil, 'OVERLAY', 'GameFontNormalSmall')
