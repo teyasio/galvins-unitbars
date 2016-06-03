@@ -581,11 +581,8 @@ local SetValueParSize = {
 }
 
 local DefaultBackdrop = {
-  bgFile   = LSM:Fetch('background', 'Blizzard Dialog Background'),
-  edgeFile = LSM:Fetch('border', 'Blizzard Dialog'),
-
---  bgFile   = '', -- background texture
---  edgeFile = '', -- border texture
+  bgFile   = '' ,
+  edgeFile = '',
   tile = true,   -- True to repeat the background texture to fill the frame, false to scale it.
   tileSize = 16,  -- Size (width or height) of the square repeating background tiles (in pixels).
   edgeSize = 12,  -- Thickness of edge segments and square size of edge corners (in pixels).
@@ -927,22 +924,27 @@ local function RestoreSettings(BarDB, FunctionName, BoxNumber, TexN)
 end
 
 -------------------------------------------------------------------------------
--- CreateBackdrop
+-- GetBackdrop
 --
--- Creates a backdrop from a backdrop settings table. And saves it to Object.
+-- Gets a backdrop from a backdrop settings table. And saves it to Object.
 --
 -- Object     Object to save the backdrop to.
 --
 -- Returns:
 --  Backdrop   Reference to backdrop saved to Object.
+--             If object already has a backdrop it returns that one instead.
 -------------------------------------------------------------------------------
-local function CreateBackdrop(Object)
-  local NewBackdrop = {}
+local function GetBackdrop(Object)
+  local Backdrop = Object.Backdrop
 
-  Main:CopyTableValues(DefaultBackdrop, NewBackdrop, true)
-  Object.Backdrop = NewBackdrop
+  if Backdrop == nil then
+    Backdrop = {}
 
-  return NewBackdrop
+    Main:CopyTableValues(DefaultBackdrop, Backdrop, true)
+    Object.Backdrop = Backdrop
+  end
+
+  return Backdrop
 end
 
 -------------------------------------------------------------------------------
@@ -1379,11 +1381,15 @@ local function GetAnimation(AGroups, Object, GroupType, Type)
   -- Create if not found.
   if Animation == nil then
     local AnimationGroup = nil
-    local ScaleFrame = nil
+    local OnFrame = nil
 
-    if Object.IsAnchor and Type == 'scale' then
+    if GroupType == 'parent' then
       AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
-      ScaleFrame = Object.AnchorPointFrame
+      if Object.IsAnchor then
+        OnFrame = Object.AnchorPointFrame
+      else
+        OnFrame = Object
+      end
     else
       AnimationGroup = Object:CreateAnimationGroup()
     end
@@ -1400,7 +1406,8 @@ local function GetAnimation(AGroups, Object, GroupType, Type)
     Animation.Type = Type
     Animation.StopPlayingFn = false
     Animation.Object = Object
-    Animation.ScaleFrame = ScaleFrame
+
+    Animation.OnFrame = OnFrame
     Animation.InUse = InUse
 
     Animation:SetOrder(1)
@@ -1483,6 +1490,7 @@ end
 -------------------------------------------------------------------------------
 local function OnFinishPlaying(self, Direction, ReverseAnimation)
   local Animation = self.Animation
+  local OnFrame = Animation.OnFrame
   local Object = Animation.Object
   local Type = Animation.Type
 
@@ -1506,20 +1514,23 @@ local function OnFinishPlaying(self, Direction, ReverseAnimation)
     if Type == 'alpha' then
       Object:SetAlpha(1)
 
+      local OnFrame = Animation.OnFrame
+      if OnFrame then
+        OnFrame:SetAlpha(1)
+        self:SetScript('OnUpdate', nil)
+      end
     elseif Type == 'scale' then
-      local ScaleFrame = Animation.ScaleFrame
-
       Object:SetScale(1)
 
-      if ScaleFrame then
+      local OnFrame = Animation.OnFrame
+      if OnFrame then
         self:SetScript('OnUpdate', nil)
 
         -- Restore anchor
-        ScaleFrame:SetScale(1)
+        OnFrame:SetScale(1)
         Main:SetAnchorPoint(Object, 'UB')
       end
     end
-
     local Fn = Animation.Fn
     if Fn then
       Fn(Direction)
@@ -1530,11 +1541,27 @@ local function OnFinishPlaying(self, Direction, ReverseAnimation)
 end
 
 -------------------------------------------------------------------------------
--- OnScaleFrame (OnUpdate function)
+-- OnFrame (OnUpdate function)
 --
--- Scales the bars anchor. Blizzard built in animation scaling doesn't work
--- well with child frames.  So this has to be done instead.
+-- Functions for Alpha and Scale.
+--
+-- NOTES: Blizzards animation group for alpha alters the alpha of all child
+--        frames.  This causes conflicts with other alpha settings in the bar.
+--        So by doing SetAlpha() here.  These conflicts are avoided.
+--
+--        Blizzard built in animation scaling doesn't work well with child frames.
+--        So this has to be done instead.
 -------------------------------------------------------------------------------
+local function OnAlphaFrame(self)
+  local Animation = self.Animation
+  local Value = Animation.FromValue
+
+  -- Calculate current alpha off of progress.
+  local Alpha = Value + (Animation.ToValue - Value) * Animation:GetProgress()
+
+  Animation.OnFrame:SetAlpha(Alpha)
+end
+
 local function OnScaleFrame(self)
   local Animation = self.Animation
   local Value = Animation.FromValue
@@ -1543,11 +1570,11 @@ local function OnScaleFrame(self)
   local Scale = Value + (Animation.ToValue - Value) * Animation:GetProgress()
 
   if Scale > 0 then
-    local ScaleFrame = Animation.ScaleFrame
+    local OnFrame = Animation.OnFrame
 
-    ScaleFrame:SetScale(Scale)
-    ScaleFrame:ClearAllPoints()
-    ScaleFrame:SetPoint('CENTER')
+    OnFrame:SetScale(Scale)
+    OnFrame:ClearAllPoints()
+    OnFrame:SetPoint('CENTER')
   end
 end
 
@@ -1562,18 +1589,11 @@ end
 local function PlayAnimation(Animation, Direction)
   local AGroup = Animation.Group
 
-  -- Stop children animation if playing parent animation
-  if Animation.GroupType == 'parent' then
-    StopPlaying(Animation, 'children')
-
-  -- finish animation if trying to play children animation when the parent is animating
-  elseif AnyPlaying(Animation, 'parent') then
-    OnFinishPlaying(AGroup, Direction)
-    return
-  end
+  Animation.StopPlayingFn = OnFinishPlaying
 
   local Object = Animation.Object
   local Type = Animation.Type
+  local OnFrame = Animation.OnFrame
   local Duration = 0
   local FromValue = 0
   local ToValue = 0
@@ -1625,23 +1645,24 @@ local function PlayAnimation(Animation, Direction)
   Animation.FromValue = FromValue
   Animation.ToValue = ToValue
   Animation.Direction = Direction
-  Animation.StopPlayingFn = OnFinishPlaying
 
   -- Set and play a new animation
   if Type == 'alpha' then
     Animation:SetFromAlpha(FromValue)
     Animation:SetToAlpha(ToValue)
 
+    if OnFrame then
+      AGroup:SetScript('OnUpdate', OnAlphaFrame)
+    end
   elseif Type == 'scale' then
     Animation:SetFromScale(FromValue, FromValue)
     Animation:SetToScale(ToValue, ToValue)
     Animation:SetOrigin('CENTER', 0, 0)
 
-    local ScaleFrame = Animation.ScaleFrame
-    if ScaleFrame then
+    if OnFrame then
 
       -- Object is Anchor
-      ScaleFrame:SetPoint('CENTER')
+      OnFrame:SetPoint('CENTER')
       AGroup:SetScript('OnUpdate', OnScaleFrame)
     end
   end
@@ -2196,7 +2217,7 @@ function BarDB:SetBackdropRegion(TextureName, PathName)
   SaveSettings(self, 'SetBackdropRegion', nil, nil, TextureName, PathName)
 
   local Region = self.Region
-  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Backdrop = GetBackdrop(Region)
 
   Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
   Region:SetBackdrop(Backdrop)
@@ -2218,7 +2239,7 @@ function BarDB:SetBackdropBorderRegion(TextureName, PathName)
   SaveSettings(self, 'SetBackdropBorderRegion', nil, nil, TextureName, PathName)
 
   local Region = self.Region
-  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Backdrop = GetBackdrop(Region)
 
   Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
   Region:SetBackdrop(Backdrop)
@@ -2237,7 +2258,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropTileRegion(Tile)
   local Region = self.Region
-  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Backdrop = GetBackdrop(Region)
 
   Backdrop.tile = Tile
   Region:SetBackdrop(Backdrop)
@@ -2256,7 +2277,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropTileSizeRegion(TileSize)
   local Region = self.Region
-  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Backdrop = GetBackdrop(Region)
 
   Backdrop.tileSize = TileSize
   Region:SetBackdrop(Backdrop)
@@ -2275,7 +2296,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropBorderSizeRegion(BorderSize)
   local Region = self.Region
-  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Backdrop = GetBackdrop(Region)
 
   Backdrop.edgeSize = BorderSize
   Region:SetBackdrop(Backdrop)
@@ -2294,7 +2315,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetBackdropPaddingRegion(Left, Right, Top, Bottom)
   local Region = self.Region
-  local Backdrop = Region.Backdrop or CreateBackdrop(Region)
+  local Backdrop = GetBackdrop(Region)
   local Insets = Backdrop.insets
 
   Insets.left = Left
@@ -2565,7 +2586,7 @@ function BarDB:SetBackdrop(BoxNumber, TextureFrameNumber, TextureName, PathName)
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
-    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Backdrop = GetBackdrop(Frame)
 
     Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
     Frame:SetBackdrop(Backdrop)
@@ -2595,14 +2616,14 @@ function BarDB:SetBackdropBorder(BoxNumber, TextureFrameNumber, TextureName, Pat
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
-    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Backdrop = GetBackdrop(Frame)
 
     Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
     Frame:SetBackdrop(Backdrop)
 
     -- Need to set color since it gets lost when setting backdrop.
-    --Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    --Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
+    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
   until LastBox
 end
 
@@ -2622,7 +2643,7 @@ function BarDB:SetBackdropTile(BoxNumber, TextureFrameNumber, Tile)
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
-    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Backdrop = GetBackdrop(Frame)
 
     Backdrop.tile = Tile
     Frame:SetBackdrop(Backdrop)
@@ -2649,7 +2670,7 @@ function BarDB:SetBackdropTileSize(BoxNumber, TextureFrameNumber, TileSize)
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
-    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Backdrop = GetBackdrop(Frame)
 
     Backdrop.tileSize = TileSize
     Frame:SetBackdrop(Backdrop)
@@ -2676,7 +2697,7 @@ function BarDB:SetBackdropBorderSize(BoxNumber, TextureFrameNumber, BorderSize)
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
-    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Backdrop = GetBackdrop(Frame)
 
     Backdrop.edgeSize = BorderSize
     Frame:SetBackdrop(Backdrop)
@@ -2703,7 +2724,7 @@ function BarDB:SetBackdropPadding(BoxNumber, TextureFrameNumber, Left, Right, To
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
-    local Backdrop = Frame.Backdrop or CreateBackdrop(Frame)
+    local Backdrop = GetBackdrop(Frame)
     local Insets = Backdrop.insets
 
     Insets.left = Left
@@ -2916,7 +2937,7 @@ function BarDB:SetBackdropTexture(BoxNumber, TextureNumber, TextureName, PathNam
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Backdrop = GetBackdrop(Texture)
 
     Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
     Texture:SetBackdrop(Backdrop)
@@ -2942,7 +2963,7 @@ function BarDB:SetBackdropBorderTexture(BoxNumber, TextureNumber, TextureName, P
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Backdrop = GetBackdrop(Texture)
 
     Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
     Texture:SetBackdrop(Backdrop)
@@ -2965,7 +2986,7 @@ end
 function BarDB:SetBackdropTileTexture(BoxNumber, TextureNumber, Tile)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Backdrop = GetBackdrop(Texture)
 
     Backdrop.tile = Tile
     Texture:SetBackdrop(Backdrop)
@@ -2988,7 +3009,7 @@ end
 function BarDB:SetBackdropTileSizeTexture(BoxNumber, TextureNumber, TileSize)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Backdrop = GetBackdrop(Texture)
 
     Backdrop.tileSize = TileSize
     Texture:SetBackdrop(Backdrop)
@@ -3011,7 +3032,7 @@ end
 function BarDB:SetBackdropBorderSizeTexture(BoxNumber, TextureNumber, BorderSize)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Backdrop = GetBackdrop(Texture)
 
     Backdrop.edgeSize = BorderSize
     Texture:SetBackdrop(Backdrop)
@@ -3034,7 +3055,7 @@ end
 function BarDB:SetBackdropPaddingTexture(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Backdrop = Texture.Backdrop or CreateBackdrop(Texture)
+    local Backdrop = GetBackdrop(Texture)
     local Insets = Backdrop.insets
 
     Insets.left = Left
