@@ -145,7 +145,7 @@ local RuneData = {
   CDheight = 0.625,
 }
 
-local BarEnergizeBorder = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]]
+local BarEnergizeBorder = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder]]
 local BarEnergizeBorderSize = 12
 
 -------------------------------------------------------------------------------
@@ -410,7 +410,7 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
     end
   end
 
-  local RuneIndex = select(1, ...)
+  local RuneIndex = ...
   local Energize = false
 
   if RuneIndex and RuneIndex > 0 and RuneIndex <= MaxRunes then

@@ -76,9 +76,9 @@ local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
 local TextButtonWidgetType = 'GUB_Text_Button'
 
-local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuOpened.tga]]
-local MenuClosedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuClosed.tga]]
-local MenuBulletIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuBullet.tga]]
+local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuOpened]]
+local MenuClosedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuClosed]]
+local MenuBulletIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuBullet]]
 
 local SpellsTimer = {}
 local SpellList = {}

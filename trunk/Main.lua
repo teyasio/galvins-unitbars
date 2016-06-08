@@ -65,10 +65,10 @@ local C_PetBattles, C_TimerAfter, UIParent =
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
 ------------------------------------------------------------------------------
-LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar.tga]])
-LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar.tga]])
-LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Textures\GUB_EmptyBar.tga]])
-LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]])
+LSM:Register('statusbar', 'GUB Bright Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidBrightBar]])
+LSM:Register('statusbar', 'GUB Dark Bar', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SolidDarkBar]])
+LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Textures\GUB_EmptyBar]])
+LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder]])
 
 ------------------------------------------------------------------------------
 -- Unitbars frame layout.
@@ -399,7 +399,7 @@ local RegUnitEventFrames = {}
 
 local SelectFrameBorder = {
   bgFile   = '',
-  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder]],
   tile = true,
   tileSize = 16,
   edgeSize = 6,
@@ -518,7 +518,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UNIT_EXITED_VEHICLE',           GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_DISPLAYPOWER',             GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_MAXPOWER',                 GUB.UnitBarsUpdateStatus, 'player')
-    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'UNIT_FACTION',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_DISABLED',         GUB.UnitBarsUpdateStatus)
@@ -1579,26 +1579,6 @@ local function GetHighestFrameLevel(Frame)
   return HighestFrameLevel
 end
 
-------------------------------------------------------------------------------
--- GetAnchorPoint
---
--- Returns the anchor x, y point position
---
--- Anchor        Anchor whos position you're getting
--- AnchorPoint   If not nil then uses this instead.
-------------------------------------------------------------------------------
-function GUB.Main:GetAnchorPoint(Anchor, AnchorPoint)
-  local APx, APy, Width, Height = Bar:GetRect(Anchor)
-
-  local Distance = AnchorOffset[AnchorPoint or Anchor.UnitBar.Other.AnchorPoint]
-
-  local DistanceX = Distance.x
-  local DistanceY = Distance.y
-
-  return APx + Width * DistanceX - DistanceX,
-         APy + Height * DistanceY - DistanceY
-end
-
 -------------------------------------------------------------------------------
 -- SetAnchorPoint
 --
@@ -2006,7 +1986,7 @@ function GUB.Main:SetAuraTracker(Object, Action, ...)
         TrackedAuras[Object] = TrackedAura
       end
 
-      TrackedAura.Fn = select(1, ...)
+      TrackedAura.Fn = ...
       return
 
     -- Turn off aura tracking for this object
@@ -2520,6 +2500,7 @@ local function HideUnitBar(UnitBarF, HideBar)
       Main:SetAuraTracker(UnitBarF, 'unregister')
 
       BBar:PlayAnimationBar('out')
+      BBar:SetAnimationBar('stopall')
 
       UnitBarF.Hidden = true
     else
@@ -2531,10 +2512,10 @@ local function HideUnitBar(UnitBarF, HideBar)
       -- Enable Aura tracking if active
       Main:SetAuraTracker(UnitBarF, 'register')
 
-      BBar:PlayAnimationBar('in')
-
       -- Update bar if BBar:Display() was called when the bar was not visible.
       BBar:DisplayWaiting()
+
+      BBar:PlayAnimationBar('in')
     end
   end
 end
@@ -2667,7 +2648,7 @@ local function MoveFrameSetHighlightFrame(Action, SelectFrame, r, g, b, a)
 end
 
 -------------------------------------------------------------------------------
--- MoveFrameGetNearestFrame
+-- MoveFrameGetNearestFrame (called by setscript)
 --
 -- Gets the closest frame to the one being moved.
 --
@@ -2704,8 +2685,8 @@ local function MoveFrameCalcDistance(Distance, SelectLineDistance, SelectMFSize,
   return Distance
 end
 
-local function MoveFrameGetNearestFrame(self)
-  local Move = self.Move
+local function MoveFrameGetNearestFrame(TrackingFrame)
+  local Move = TrackingFrame.Move
   local Flags = Move.Flags
   local MoveFrame = Move.Frame
   local Swap = Flags.Swap
@@ -2713,7 +2694,7 @@ local function MoveFrameGetNearestFrame(self)
   local Align = Flags.Align
 
   if Float and (Align and not Swap or Swap and not Align) or not Float and Swap and not Align then
-    local Type = self.Type
+    local Type = TrackingFrame.Type
     local MoveFrames = Move.Frames
 
     local MoveFrameCenterX, MoveFrameCenterY = MoveFrame:GetCenter()
@@ -3307,7 +3288,7 @@ function GUB:TrackCast(Event, Unit, Name, Rank, CastID)
 end
 
 -------------------------------------------------------------------------------
--- AuraUpdate (called by event)
+-- AuraUpdate (called by setscript)
 --
 -- Used by SetAuraTracker()
 --
@@ -3455,7 +3436,6 @@ function GUB:CheckPredictedSpells(Event)
   elseif PredictedSpells[-1] == nil then
     Event = SpellBookChanged
   end
-
 
   local SpellID = 0
   local SkillType = 0
@@ -3693,6 +3673,25 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
+-- SetAnimationTypeUnitBar
+--
+-- Sets the animation for the bar based on animation settings in 'other'
+--
+-- UnitBarF    The Unitbar frame to change the type of.
+-------------------------------------------------------------------------------
+local function SetAnimationTypeUnitBar(UnitBarF)
+  local UBO = UnitBarF.UnitBar.Other
+  local BBar = UnitBarF.BBar
+
+  -- Set animation type
+  if UBO.MainAnimationType then
+    BBar:SetAnimationBar(UnitBars.AnimationType)
+  else
+    BBar:SetAnimationBar(UBO.AnimationTypeBar)
+  end
+end
+
+-------------------------------------------------------------------------------
 -- UnitBarsSetAllOptions
 --
 -- Handles the settings that effect all the unitbars.
@@ -3728,6 +3727,7 @@ function GUB.Main:UnitBarsSetAllOptions()
     UBF:EnableMouseClicks(not IsLocked)
     UBF.Anchor:SetClampedToScreen(IsClamped)
 
+    SetAnimationTypeUnitBar(UBF)
     BBar:SetAnimationDurationBar('out', AnimationOutTime)
     BBar:SetAnimationDurationBar('in', AnimationInTime)
   end
@@ -3760,11 +3760,7 @@ function GUB.Main:UnitBarSetAttr(UnitBarF)
   local BBar = UnitBarF.BBar
 
   -- Set animation type
-  if UBO.MainAnimationType then
-    BBar:SetAnimationBar(UnitBars.AnimationType)
-  else
-    BBar:SetAnimationBar(UBO.AnimationTypeBar)
-  end
+  SetAnimationTypeUnitBar(UnitBarF)
 
   -- Scale.
   UnitBarF.ScaleFrame:SetScale(UBO.Scale)

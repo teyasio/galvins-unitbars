@@ -46,50 +46,52 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- Locals
 --
 -- BarDB                             Bar Database. All functions are called thru this except for CreateBar().
--- BarDB.UnitBarF                    The bar is a child of UnitBarF.
--- BarDB.ProfileChanged              Used by Display(). If true then the profile was changed in some way.
--- BarDB.Anchor                      Reference to the UnitBar's anchor frame.
--- BarDB.BarType                     The type of bar it belongs to.
--- BarDB.Options                     Used by SO() and DoOption().
--- BarDB.OptionsData                 Used by DoOption() and SetOptionData().
--- BarDB.ParentFrame                 The whole bar will be a child of this frame.
--- BarDB.Region                      Visible region around the bar. Child of ParentFrame.
---   Colors                          Saved color used by SetColor() and GetColor()
---   Hidden                          If true the region is hidden.
---   Anchor                          Reference to the UnitBarF.Anchor.  Used for Mouse interaction.
---   BarDB                           BarDB.  Reference to the Bar database.  Used for mouse interaction
---   Name                            Name for the tooltip.  Used for tooltip, dragging.
---   Backdrop                        Table containing the backdrop.
--- BarDB.NumBoxes                    Total number of boxes the bar was created with.
--- BarDB.TopFrame                    Contains a reference to the frame that has the highest frame level.
--- BarDB.Rotation                    Rotation in degrees for the bar.
--- BarDB.Slope                       Adjusts the horizontal or vertical slope of a bar.
--- BarDB.Swap                        Boxes can be swapped with eachother by dragging one on top of the other.
--- BarDB.Float                       Boxes can be dragged and dropped anywhere on the screen.
--- BarDB.Align                       If false then alignment is disabled.
--- BarDB.AlignOffsetX                Horizontal offset for the aligned group of boxes.
--- BarDB.AlignOffsetY                Vertical offset for the aligned group of boxes
--- BarDB.AlignPadding                Amount of horizontal distance to set the moving boxframe near another one when aligned
--- BarDB.BorderPadding               Amount of padding between the region's border of the bar and the boxes.
--- BarDB.Justify                     'SIDE' of boxframe or 'CORNER'.
--- BarDB.RegionEnabled               If false the bars region is not shown and doesn't interact with mouse.
+--   UnitBarF                        The bar is a child of UnitBarF.
+--   ProfileChanged                  Used by Display(). If true then the profile was changed in some way.
+--   Anchor                          Reference to the UnitBar's anchor frame.
+--   BarType                         The type of bar it belongs to.
+--   Options                         Used by SO() and DoOption().
+--   OptionsData                     Used by DoOption() and SetOptionData().
+--   ParentFrame                     The whole bar will be a child of this frame.
+--
+--   Region                          Visible region around the bar. Child of ParentFrame.
+--     Colors                        Saved color used by SetColor() and GetColor()
+--     Hidden                        If true the region is hidden.
+--     Anchor                        Reference to the UnitBarF.Anchor.  Used for Mouse interaction.
+--     BarDB                         BarDB.  Reference to the Bar database.  Used for mouse interaction
+--     Name                          Name for the tooltip.  Used for tooltip, dragging.
+--     Backdrop                      Table containing the backdrop. Set by GetBackDrop()
+--
+--   NumBoxes                        Total number of boxes the bar was created with.
+--   TopFrame                        Contains a reference to the frame that has the highest frame level.
+--   Rotation                        Rotation in degrees for the bar.
+--   Slope                           Adjusts the horizontal or vertical slope of a bar.
+--   Swap                            Boxes can be swapped with eachother by dragging one on top of the other.
+--   Float                           Boxes can be dragged and dropped anywhere on the screen.
+--   Align                           If false then alignment is disabled.
+--   AlignOffsetX                    Horizontal offset for the aligned group of boxes.
+--   AlignOffsetY                    Vertical offset for the aligned group of boxes
+--   AlignPadding                    Amount of horizontal distance to set the moving boxframe near another one when aligned
+--   BorderPadding                   Amount of padding between the region's border of the bar and the boxes.
+--   Justify                         'SIDE' of boxframe or 'CORNER'.
+--   RegionEnabled                   If false the bars region is not shown and doesn't interact with mouse.
 --                                   HideRegion and ShowRegion functions no longer work.
--- BarDB.ChangeTextures[]            List of texture numbers used with SetChangeTexture() and ChangeTexture()
--- BarDB.BoxLocations[]              List of x, y coordinates for each boxframe when in floating mode.
--- BarDB.BoxOrder[]                  Table box indexes containing the order the boxes should be listed in.
+--   ChangeTextures[]                List of texture numbers used with SetChangeTexture() and ChangeTexture()
+--   BoxLocations[]                  List of x, y coordinates for each boxframe when in floating mode.
+--   BoxOrder[]                      Table box indexes containing the order the boxes should be listed in.
 --
--- BarDB.BoxFrames[]                 An array containing all the box frames in the bar.
---   TextureFrames[]                 An array containing all the texture frames for the box.
---     Texture[]                     An array containing all the texture/statusbars for the texture frame.
---       SubTexture                  Texture that is a child of Texture[].
+--   BoxFrames[]                     An array containing all the box frames in the bar.
+--     TextureFrames[]               An array containing all the texture frames for the box.
+--       Texture[]                   An array containing all the texture/statusbars for the texture frame.
+--         SubTexture                Texture that is a child of Texture[].
 --
--- BarDB.Settings                    Used by triggers to keep track of the original settings for each frame/texture.
--- BarDB.Groups                      Used by triggers.  Used to keep track of triggers.
+--   Settings                        Used by triggers to keep track of the original settings for each frame/texture.
+--   Groups                          Used by triggers.  Used to keep track of triggers.
 --
--- BarDB.AGroups                     Used by animation to keep track of animation groups. Created by SetAnimationBar()
--- BarDB.Animation                   Used to play animation when showing or hiding the bar. Created by SetAnimationBar()
+--   AGroups                         Used by animation to keep track of animation groups. Created by GetAnimation() in SetAnimationBar()
+--   AGroup                          Used to play animation when showing or hiding the bar. Created by GetAnimation() in SetAnimationBar()
 --
--- BarDB.IsDisplayWaiting            Used by Display() and DisplayWaiting().  If Display() was called when the bar
+--   IsDisplayWaiting                Used by Display() and DisplayWaiting().  If Display() was called when the bar
 --                                   was hidden.  It will not display, instead it will set this flag to true.
 --                                   Then you call DisplayWaiting() only works once unless the bar is still invisible.
 -- BoxFrame data structure
@@ -128,8 +130,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   CurrentTexture                  Contains the current texture name.  This is to prevent the texture from getting
 --                                   set to the same texture.  Which would cause a graphical glitch.  Used by SetTexture()
 --   Hidden                          If true then the statusbar/texture is hidden.
---   ShowHideFn                      This function will get called after calling SetHiddenTexture().  If fade is set then
---                                   the function will get called after the fade has ended.  Otherwise it happens instantly.
+--   ShowHideFn                      This function will get called after calling SetHiddenTexture().  If animation is set then
+--                                   the function will get called after the animation has ended.  Otherwise it happens instantly.
 --   RotateTexture                   If true then the texture is rotated 90 degrees.
 --   ReverseFill                     If true then the texture will fill in the opposite direction.
 --   FillDirection                   Can be 'HORIZONTAL' or 'VERTICAL'.
@@ -157,8 +159,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --   CooldownFrame                   Frame used to do a cooldown on the texture.
 --
---   Backdrop                        Table containing the backdrop.
---   Animation                       Contains the animation to play when showing or hiding a texture.  Created by SetAnimationTexture()
+--   Backdrop                        Table containing the backdrop.  Created by GetBackdrop()
+--   AGroup                          Contains the animation to play when showing or hiding a texture.  Created by GetAnimation() in SetAnimationTexture()
 --
 --  Spark data structure
 --    ParentFrame                    Contains a reference to Texture.
@@ -319,7 +321,10 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --                                 If the boxnumber is nil then Region is appended to the function name.
 -- TypeIDGetfn                     Table of get functions.  Converts a get function type id to a function.
 --
+-- TypeIDCanAnimate                Table containing which TypeIDs support animation.
+--
 -- CalledByTrigger                 true or false. if true then the function was called out side of the trigger system.
+-- AnimateTimeTrigger              if not nil then the trigger is animated.  This contains the time in seconds for the animation.
 --
 -- Settings data structure.
 -- Settings[Bar function name]     Hash table using the function name that it was called by to store.
@@ -368,7 +373,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --   Objects[TypeIndex]            TypeIndex comes from TypeID and Type
 --     OneTime[Trigger]            Hash table based off trigger, aura trigger, and static trigger for index.
---                                 If true then the object executed once, other false for haven't executed yet
+--                                 If true then the object executed once, otherwise false for haven't executed yet
+--     CanAnimate                  true or false. If true then the object can use animation.
 --     Group                       Parent reference to Groups[GroupNumber]
 --     TexN[]                      Array of texture number or texture frame number.
 --                                 If nil then the object doesn't use textures.
@@ -418,12 +424,16 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Pars[1 to 4]                  Array containing elements passed to the SetFunction.
 --   GetPars[1 to 4]               Array containing elements passed to the GetFunction.
 --
+--   CanAnimate                    true or false.  If true then the trigger can animate.
+--   Animate                       true or false. if true then the trigger will animate
+--   AnimateTime                   Time in seconds to play animation.
+--
 --   AuraOperator                  and' or 'or'. Used by auras only.
 --   State                         True or False. Used when ValueTypeID = 'state'
 --                                   If true then a trigger is the current state.
 --                                   If false then its not in that state.
 --
---   Conditions.All                True or False.  If true then all conditions have to be true, other just one.
+--   Conditions.All                True or False.  If true then all conditions have to be true, otherwise just one.
 --   Conditions[]                  Contains one or more conditions. Not used by Aura or Static.
 --     OrderNumber                 Used by options. This is updated in CheckTriggers()
 --     Operator                    can be '<', '>', '<=', '>=', '==', '<>'
@@ -454,28 +464,36 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -------------------------------------------------------------------------------
 -- Animation
 --
+-- AnimationType               Table that converts type into a usable type for CreateAnimation.  Used by GetAnimation()
+--
 -- AGroups[AType]              Contains animation groups and animations.  This is created and used by GetAnimation()
 --                             AType is address of the Object and the Type.  See below for different types.
---   Animation                 Child of group. Animation created by CreateAnimation()
---     ScaleFrame              Currently used for scaling the Anchor (unitbar)
---       x, y                  Coordinates of the Objects 'CENTER'
---       ObjectParent          The Objects Parent.  Object:GetParent()
---     Group                   Contains the Animation Group.  child of Object
---       Animation             Reference to Animation. Used by OnFinishPlaying()
---     Object                  Object that will be animated. Can be frame or texture.
---     GroupType               string. Type of group:
+--   Animation                 Child of AGroup. Created by CreateAnimationGroup()
+--
+--   ScaleFrame                Currently used for scaling the Anchor (unitbar)
+--     x, y                    Coordinates of the Objects 'CENTER'
+--     ObjectParent            The Objects Parent.  Object:GetParent()
+--   Group                     Contains the Animation Group.  child of Object
+--     Animation               Reference to Animation. Used by StopAnimation()
+--   Object                    Object that will be animated. Can be frame or texture.
+--   GroupType                 string. Type of group:
 --                               'Parent'     This is created for the the bar when hiding or showing.
 --                               'Children'   This is created for any textures or frame the bar uses.
---     Type                    string.  Type of animation to play can be 'scale' or 'alpha'.
---     StopPlayingFn           Call back function.  This gets called when ever StopPlaying() is called
---     InUse                   reference to AGroups[AType].InUse
---     DurationIn              Duration in seconds to play animation after showing an Object.
---     DurationOut             Duration in seconds to play animation before hiding an object.
---     FromValue               Where the animation is starting from.
---     ToValue                 Where the animation is going to.
+--   Type                      string.  Type of animation to play can be 'scale' or 'alpha'.
+--   StopPlayingFn             Call back function.  This gets called when ever StopPlaying() is called
+--
+--   -----------------------   These keys are only used for alpha and scale, otherwise nil
+--
+--   Direction                 'in' or 'out' out means will hide after done, otherwise show.
+--   DurationIn                Duration in seconds to play animation after showing an Object.
+--   DurationOut               Duration in seconds to play animation before hiding an object.
+--   -----------------------
+--
+--   FromValue                 Where the animation is starting from.
+--   ToValue                   Where the animation is going to.
 --
 --   InUse                     Contains a list of Animations being used for each Object.
---     Animation               reference to Animation above.
+--     AGroup                  reference to AGroup.
 -------------------------------------------------------------------------------
 local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this object'
 
@@ -486,6 +504,7 @@ local BarTextData = {}
 local DoOptionData = {}
 local VirtualFrameLevels = nil
 local CalledByTrigger = false
+local AnimateTimeTrigger = nil
 local MaxTextLines = 4
 
 local BoxFrames = nil
@@ -548,11 +567,23 @@ local TypeIDfn = {
   [TT.TypeID_Sound]                 = 'PlaySound',
 }
 
+-- For animation functions
+local TypeIDCanAnimate = {
+  [TT.TypeID_TextFontOffset]        = true,
+  [TT.TypeID_TextFontSize]          = true,
+}
+
 local TypeIDGetfn = {
   [TT.TypeID_ClassColor]  = Main.GetClassColor,
   [TT.TypeID_PowerColor]  = Main.GetPowerColor,
   [TT.TypeID_CombatColor] = Main.GetCombatColor,
   [TT.TypeID_TaggedColor] = Main.GetTaggedColor,
+}
+
+local AnimationType = {
+  alpha = 'Alpha',
+  scale = 'Scale',
+  move = 'Translation',
 }
 
 local ValueLayout = {
@@ -583,10 +614,10 @@ local SetValueParSize = {
 local DefaultBackdrop = {
   bgFile   = '' ,
   edgeFile = '',
-  tile = true,   -- True to repeat the background texture to fill the frame, false to scale it.
-  tileSize = 16,  -- Size (width or height) of the square repeating background tiles (in pixels).
-  edgeSize = 12,  -- Thickness of edge segments and square size of edge corners (in pixels).
-  insets = {      -- Positive values shrink the border inwards, negative expand it outwards.
+  tile = false,  -- True to repeat the background texture to fill the frame, false to scale it.
+  tileSize = 16, -- Size (width or height) of the square repeating background tiles (in pixels).
+  edgeSize = 12, -- Thickness of edge segments and square size of edge corners (in pixels).
+  insets = {     -- Positive values shrink the border inwards, negative expand it outwards.
     left = 4 ,
     right = 4,
     top = 4,
@@ -596,7 +627,7 @@ local DefaultBackdrop = {
 
 local FrameBorder = {
   bgFile   = '',
-  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder.tga]],
+  edgeFile = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder]],
   tile = false,
   tileSize = 16,
   edgeSize = 6,
@@ -1355,108 +1386,105 @@ end
 --
 -- Get an animation of type for an object
 --
--- Usage: Animation, AGroups = GetAnimation(AGroups, Object, GroupType, Type)
+-- Usage: AGroup = GetAnimation(BarDB, Object, GroupType, Type)
 --
--- AGroups     Animation data. If nil then a new AGroups will get created.
 -- Object      Frame or Texture
 -- GroupType   'parent' or 'children'
--- Type        'alpha' or 'scale'
+-- Type        'alpha', 'scale', or 'move'
 --
--- NOTES: Animation.StopPlayingFn gets passed Animation.Group
+-- NOTES: AGroup.StopPlayingFn gets passed AGroup
 -------------------------------------------------------------------------------
-local function GetAnimation(AGroups, Object, GroupType, Type)
+local function GetAnimation(BarDB, Object, GroupType, Type)
+  local AGroups = BarDB.AGroups
   if AGroups == nil then
     AGroups = {}
+    BarDB.AGroups = AGroups
   end
 
-  local InUse = AGroups.InUse
   local AType = tostring(Object) .. Type
-  local Animation = AGroups[AType]
+  local AGroup = AGroups[AType]
 
+  local InUse = AGroups.InUse
   if InUse == nil then
     InUse = {}
     AGroups.InUse = InUse
   end
 
   -- Create if not found.
-  if Animation == nil then
-    local AnimationGroup = nil
+  if AGroup == nil then
+    local Animation = nil
     local OnFrame = nil
 
     if GroupType == 'parent' then
-      AnimationGroup = CreateFrame('Frame'):CreateAnimationGroup()
+      AGroup = CreateFrame('Frame'):CreateAnimationGroup()
       if Object.IsAnchor then
         OnFrame = Object.AnchorPointFrame
       else
         OnFrame = Object
       end
     else
-      AnimationGroup = Object:CreateAnimationGroup()
+      AGroup = Object:CreateAnimationGroup()
     end
 
     -- Uppercase the first letter in Type
-    Animation = AnimationGroup:CreateAnimation(gsub(Type, '%a', strupper, 1))
-
-    AnimationGroup.Animation = Animation
-    Animation.Group = AnimationGroup
-
-    Animation.DurationIn = 0
-    Animation.DurationOut = 0
-    Animation.GroupType = GroupType
-    Animation.Type = Type
-    Animation.StopPlayingFn = false
-    Animation.Object = Object
-
-    Animation.OnFrame = OnFrame
-    Animation.InUse = InUse
-
+    local Animation = AGroup:CreateAnimation(AnimationType[Type])
     Animation:SetOrder(1)
 
-    AGroups[AType] = Animation
+    AGroup.Animation = Animation
+
+    AGroup.DurationIn = 0
+    AGroup.DurationOut = 0
+    AGroup.GroupType = GroupType
+    AGroup.Type = Type
+    AGroup.StopPlayingFn = nil
+
+    AGroup.Object = Object
+    AGroup.OnFrame = OnFrame
+    AGroup.InUse = InUse
+
+    AGroups[AType] = AGroup
   end
 
-  -- Call stopplaying function if changing types
-  local AnimationInUse = InUse[Object]
+  -- Call stop playing function if changing types
+  local AGroupInUse = InUse[Object]
 
-  if AnimationInUse and AnimationInUse ~= Animation then
+  if AGroupInUse and AGroupInUse ~= AGroup then
 
-    -- Copy other animations settings
-    Animation.DurationIn = AnimationInUse.DurationIn
-    Animation.DurationOut = AnimationInUse.DurationOut
-    Animation.StopPlayingFn = AnimationInUse.StopPlayingFn
+    -- Copy other animation group settings
+    AGroup.DurationIn = AGroupInUse.DurationIn
+    AGroup.DurationOut = AGroupInUse.DurationOut
+    AGroup.StopPlayingFn = AGroupInUse.StopPlayingFn
 
-    if AnimationInUse.Group:IsPlaying() then
-      local Fn = AnimationInUse.StopPlayingFn
+    if AGroupInUse:IsPlaying() then
+      local Fn = AGroupInUse.StopPlayingFn
 
       if Fn then
-        Fn(AnimationInUse.Group)
+        Fn(AGroupInUse)
       end
     end
   end
-  InUse[Object] = Animation
+  InUse[Object] = AGroup
 
-  return Animation, AGroups
+  return AGroup
 end
 
 -------------------------------------------------------------------------------
 -- StopPlaying
 --
--- Calls StopPlayingFn on all Animations belonging to the animation group
+-- Calls StopPlayingFn on all Animation groups
 --
--- Usage:   Parent or Children:StopPlaying()
---
--- Animation   Animation from GetAnimation()
+-- AGroup      Animation group from GetAnimation()
 -- GroupType  'parent' or 'children' or 'all'
 --
--- NOTES:  If GroupType is nil then all animation is stopped
+-- NOTES:  If GroupType is 'all' then all animation is stopped
 -------------------------------------------------------------------------------
-local function StopPlaying(Animation, GroupType)
-  for _, A in pairs(Animation.InUse) do
-    if A.Group:IsPlaying() and (GroupType == 'all' or A.GroupType == GroupType) then
-      local Fn = A.StopPlayingFn
+local function StopPlaying(AGroup, GroupType)
+  for _, AG in pairs(AGroup.InUse) do
+    if (GroupType == 'all' or AG.GroupType == GroupType) and AG:IsPlaying() then
+      local Fn = AG.StopPlayingFn
 
       if Fn then
-        Fn(A.Group)
+        Fn(AG)
       end
     end
   end
@@ -1470,9 +1498,9 @@ end
 -- Animation   Animation from GetAnimation()
 -- GroupType  'parent' or 'children'
 -------------------------------------------------------------------------------
-local function AnyPlaying(Animation, GroupType)
-  for _, A in pairs(Animation.InUse) do
-    if A.GroupType == GroupType and A.Group:IsPlaying() then
+local function AnyPlaying(AGroup, GroupType)
+  for _, AG in pairs(AGroup.InUse) do
+    if AG.GroupType == GroupType and AG:IsPlaying() then
       return true
     end
   end
@@ -1480,71 +1508,83 @@ local function AnyPlaying(Animation, GroupType)
 end
 
 -------------------------------------------------------------------------------
--- OnFinishPlaying (called by event or direct)
+-- StopAnimation (called direct or by OnFinish
 --
--- Completes a showhide animation
+-- Stops an animation and restores the object.
 --
--- self               Animation.Group
--- Direction          Overrides Animation.Direction
--- ReverseAnimation   If true skips showing or hiding the object.
+-- AGroup             Animation group
+-- ReverseAnimation   If true just stops playing.
+--
+-- NOTES: Only alpha and scale support the call back AGroup.Fn
+--        This functions returns the current x, y of a Move animation.
 -------------------------------------------------------------------------------
-local function OnFinishPlaying(self, Direction, ReverseAnimation)
-  local Animation = self.Animation
-  local OnFrame = Animation.OnFrame
-  local Object = Animation.Object
-  local Type = Animation.Type
+local function StopAnimation(AGroup, ReverseAnimation)
+  local Type = AGroup.Type
 
-  self:SetScript('OnFinished', nil)
-  self:Stop()
+  ReverseAnimation = ReverseAnimation or false
+  AGroup:SetScript('OnFinished', nil)
 
-  Direction = Direction or Animation.Direction
-
-  -- Hide or show the object based on direction.
-  if ReverseAnimation == nil or not ReverseAnimation then
-    if Direction == 'in' then
-      Object:Show()
-    elseif Direction == 'out' then
-      Object:Hide()
-    end
+  if Type ~= 'move' then
+    AGroup:Stop()
   end
 
-  -- Only complete if there was a direction, otherwise animation
-  -- was never started.
-  if Animation.Direction then
-    if Type == 'alpha' then
-      Object:SetAlpha(1)
+  if not ReverseAnimation then
+    local Object = AGroup.Object
+    local Direction = AGroup.Direction
+    local Fn = AGroup.Fn
+    local OnFrame = AGroup.OnFrame
+    local IsVisible = Object:IsVisible()
 
-      local OnFrame = Animation.OnFrame
-      if OnFrame then
-        OnFrame:SetAlpha(1)
-        self:SetScript('OnUpdate', nil)
-      end
-    elseif Type == 'scale' then
-      Object:SetScale(1)
-
-      local OnFrame = Animation.OnFrame
-      if OnFrame then
-        self:SetScript('OnUpdate', nil)
-
-        -- Restore anchor
-        Object.IsScaling = false
-        OnFrame:SetScale(1)
-        Main:SetAnchorPoint(Object, 'UB')
-      end
-    end
-    local Fn = Animation.Fn
-    if Fn then
-      Fn(Direction)
+    if OnFrame then
+      OnFrame:SetAlpha(1)
+      AGroup:SetScript('OnUpdate', nil)
     end
 
-    Animation.Direction = false
+    -- Alpha or Scale.
+    if Direction then
+      if Direction == 'in' then
+        Object:Show()
+      elseif Direction == 'out' then
+        Object:Hide()
+      end
+      if Type == 'alpha' then
+        Object:SetAlpha(1)
+
+      elseif Type == 'scale' then
+        Object:SetScale(1)
+
+        if OnFrame then
+
+          -- Restore anchor
+          Object.IsScaling = false
+          OnFrame:SetScale(1)
+          Main:SetAnchorPoint(Object, 'UB')
+        end
+      end
+      if Fn and IsVisible then
+        Fn(Direction)
+      end
+
+      AGroup.Direction = ''
+    elseif Type == 'move' then
+      local Progress = AGroup:IsPlaying() and AGroup:GetProgress() or 1
+      AGroup:Stop()
+
+      local x = AGroup.FromValueX + AGroup.OffsetX * Progress
+      local y = AGroup.FromValueY + AGroup.OffsetY * Progress
+
+      Object:ClearAllPoints()
+      Object:SetPoint(AGroup.Point, AGroup.RRegion, AGroup.RPoint, AGroup.ToValueX, AGroup.ToValueY)
+
+      return x, y
+    end
   end
 end
 
 -------------------------------------------------------------------------------
--- OnFrame (OnUpdate function)
+-- OnFrame (OnUpdate functions)
 --
--- Functions for Alpha and Scale.
+-- Functions for Alpha, Scale, Move
 --
 -- NOTES: Blizzards animation group for alpha alters the alpha of all child
 --        frames.  This causes conflicts with other alpha settings in the bar.
@@ -1553,25 +1593,23 @@ end
 --        Blizzard built in animation scaling doesn't work well with child frames.
 --        So this has to be done instead.
 -------------------------------------------------------------------------------
-local function OnAlphaFrame(self)
-  local Animation = self.Animation
-  local Value = Animation.FromValue
+local function OnAlphaFrame(AGroup)
+  local Value = AGroup.FromValue
 
   -- Calculate current alpha off of progress.
-  local Alpha = Value + (Animation.ToValue - Value) * Animation:GetProgress()
+  local Alpha = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
 
-  Animation.OnFrame:SetAlpha(Alpha)
+  AGroup.OnFrame:SetAlpha(Alpha)
 end
 
-local function OnScaleFrame(self)
-  local Animation = self.Animation
-  local Value = Animation.FromValue
+local function OnScaleFrame(AGroup)
+  local Value = AGroup.FromValue
 
   -- Calculate current scale off of progress.
-  local Scale = Value + (Animation.ToValue - Value) * Animation:GetProgress()
+  local Scale = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
 
   if Scale > 0 then
-    Animation.OnFrame:SetScale(Scale)
+    AGroup.OnFrame:SetScale(Scale)
   end
 end
 
@@ -1580,96 +1618,138 @@ end
 --
 -- Plays the animation for showing or hiding.
 --
--- Animation      Animation to play
--- Direction      'in' or 'out'
+-- Usage:  PlayAnimation(AGroup, 'in' or 'out')
+--            Fades or Scales amimation in or out.
+--            Used with animation types: alpha or scale
+--         PlayAnimation(AGroup, Duration, Point, RRegion, RPoint, FromX, FromY, ToX, ToY)
+--            Moves an object from FromX, FromY to ToX, ToY
+--            Used with animation type: move
+--            StopAnimation() will return the x, y of the last animated position.
+--
+-- AGroup             Animation group to be played
+-- 'in'               Animation gets played after object is shown.
+-- 'out'              Animation gets played then object is hidden.
+-- Duration           Amount of time in seconds to play animation
+-- RRegion            Relative region
+-- RPoint             Relative point
+-- x, y               This is where object will be SetPointed to after animation.
+-- OffsetX, OffsetY   Amount of offset to be animated.
 -------------------------------------------------------------------------------
-local function PlayAnimation(Animation, Direction)
-  local AGroup = Animation.Group
+local function PlayAnimation(AGroup, ...)
+  local Animation = AGroup.Animation
 
-  Animation.StopPlayingFn = OnFinishPlaying
+  AGroup.StopPlayingFn = StopAnimation
 
-  local Object = Animation.Object
-  local Type = Animation.Type
-  local OnFrame = Animation.OnFrame
+  local Object = AGroup.Object
+  local Type = AGroup.Type
+  local OnFrame = AGroup.OnFrame
+  local Direction = nil
+  local OffsetX = nil
+  local OffsetY = nil
   local Duration = 0
   local FromValue = 0
   local ToValue = 0
 
-  Object:Show()
-  if Direction == 'in' then
-    ToValue = 1
-    Duration = Animation.DurationIn
-  else
-    FromValue = 1
-    ToValue = 0
-    Duration = Animation.DurationOut
+  if Type == 'alpha' or Type == 'scale' then
+    Direction = ...
+    AGroup.Direction = Direction
+
+    Object:Show()
+    if Direction == 'in' then
+      ToValue = 1
+      Duration = AGroup.DurationIn
+    elseif Direction == 'out' then
+      FromValue = 1
+      ToValue = 0
+      Duration = AGroup.DurationOut
+    end
+  elseif Type == 'move' then
+    Duration = ...
+    local Point, RRegion, RPoint, FromX, FromY, ToX, ToY = select(2, ...)
+
+    OffsetX = ToX - FromX
+    OffsetY = ToY - FromY
+
+    AGroup.Point = Point
+    AGroup.RRegion = RRegion
+    AGroup.RPoint = RPoint
+    AGroup.OffsetX = OffsetX
+    AGroup.OffsetY = OffsetY
+    AGroup.FromValueX = FromX
+    AGroup.FromValueY = FromY
+    AGroup.ToValueX = ToX
+    AGroup.ToValueY = ToY
+
+    Object:ClearAllPoints()
+    Object:SetPoint(Point, RRegion, RPoint, FromX, FromY)
+    Animation:SetOffset(OffsetX, OffsetY)
   end
 
-  -- Check if frame is invisible
-  if Duration == 0 or not Object:IsVisible() then
-    OnFinishPlaying(AGroup, Direction)
+  -- Check if frame is invisible or nothing to do.
+  if Duration == 0 or (OffsetX == 0 and OffsetY == 0) or not Object:IsVisible() then
+    StopAnimation(AGroup)
     return
   end
 
   if AGroup:IsPlaying() then
 
-    -- Dont play animation of same direction.
-    if Animation.Direction ~= Direction then
-
-      -- Check for reverse animation
+    -- Check for reverse animation for alpha or scale.
+    if Direction then
       if Main.UnitBars.ReverseAnimation then
-        local Value = Animation.FromValue
+        local Value = AGroup.FromValue
+        local Progress = AGroup:GetProgress()
 
-        -- Calculate current FromValue off of progress.
-        FromValue = Value + (Animation.ToValue - Value) * Animation:GetProgress()
-
-        if Direction == 'in' then
-          Duration = (1 - FromValue) * Duration
-        else
-          Duration = FromValue * Duration
+        -- Calculate FromValue and duration
+        FromValue = Value + (AGroup.ToValue - Value) * Progress
+        if Direction then
+          if Direction == 'in' then
+            Duration = abs(1 - FromValue) * Duration
+          else
+            Duration = FromValue * Duration
+          end
         end
 
-        OnFinishPlaying(AGroup, Direction, true)
+        StopAnimation(AGroup, true)
       else
-        OnFinishPlaying(AGroup)
+        StopAnimation(AGroup)
         Object:Show()
       end
-    else
-      return
     end
   end
 
-  Animation.FromValue = FromValue
-  Animation.ToValue = ToValue
-  Animation.Direction = Direction
+  -- Alpha or scale
+  if Direction then
+    AGroup.FromValue = FromValue
+    AGroup.ToValue = ToValue
 
-  -- Set and play a new animation
-  if Type == 'alpha' then
-    Animation:SetFromAlpha(FromValue)
-    Animation:SetToAlpha(ToValue)
+    -- Set and play a new animation
+    if Type == 'alpha' then
+      Animation:SetFromAlpha(FromValue)
+      Animation:SetToAlpha(ToValue)
 
-    if OnFrame then
-      AGroup:SetScript('OnUpdate', OnAlphaFrame)
-    end
-  elseif Type == 'scale' then
-    Animation:SetFromScale(FromValue, FromValue)
-    Animation:SetToScale(ToValue, ToValue)
-    Animation:SetOrigin('CENTER', 0, 0)
+      if OnFrame then
+        AGroup:SetScript('OnUpdate', OnAlphaFrame)
+      end
+    else
+      Animation:SetFromScale(FromValue, FromValue)
+      Animation:SetToScale(ToValue, ToValue)
+      Animation:SetOrigin('CENTER', 0, 0)
 
-    if OnFrame then
+      if OnFrame then
 
-      -- Object is Anchor
-      -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
-      Object.IsScaling = true
-      OnFrame:SetScale(0.01)
-      OnFrame:ClearAllPoints()
-      OnFrame:SetPoint('CENTER')
-      AGroup:SetScript('OnUpdate', OnScaleFrame)
+        -- Object is Anchor
+        -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
+        Object.IsScaling = true
+        OnFrame:SetScale(0.01)
+        OnFrame:ClearAllPoints()
+        OnFrame:SetPoint('CENTER')
+        AGroup:SetScript('OnUpdate', OnScaleFrame)
+      end
     end
   end
 
   Animation:SetDuration(Duration)
-  AGroup:SetScript('OnFinished', OnFinishPlaying)
+  AGroup:SetScript('OnFinished', StopAnimation)
   AGroup:Play()
 end
 
@@ -1683,12 +1763,12 @@ end
 -- Duration       Time in seconds to play for
 -------------------------------------------------------------------------------
 function BarDB:SetAnimationDurationBar(Direction, Duration)
-  local Animation = self.Animation
+  local AGroup = self.AGroup
 
   if Direction == 'in' then
-    Animation.DurationIn = Duration
+    AGroup.DurationIn = Duration
   else
-    Animation.DurationOut = Duration
+    AGroup.DurationOut = Duration
   end
 end
 
@@ -1706,12 +1786,12 @@ end
 function BarDB:SetAnimationDurationTexture(BoxNumber, TextureNumber, Direction, Duration)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Animation = Texture.Animation
+    local AGroup = Texture.AGroup
 
     if Direction == 'in' then
-      Animation.DurationIn = Duration
+      AGroup.DurationIn = Duration
     else
-      Animation.DurationOut = Duration
+      AGroup.DurationOut = Duration
     end
   until LastBox
 end
@@ -1724,17 +1804,17 @@ end
 -- Type  'scale' or 'alpha'
 --
 -- NOTES: This function must be called before any animation can be done.
---        if type is 'stopall' then all animation gets stopped Parent and Children
+--        if type is 'stopall' then all children animation gets stopped.
 -------------------------------------------------------------------------------
 function BarDB:SetAnimationBar(Type)
-  local Animation = self.Animation
+  local AGroup = self.AGroup
 
   if Type == 'stopall' then
-    if Animation then
-      StopPlaying(Animation, 'all')
+    if AGroup then
+      StopPlaying(AGroup, 'children')
     end
   else
-    self.Animation, self.AGroups = GetAnimation(self.AGroups, self.Anchor, 'parent', Type)
+    self.AGroup = GetAnimation(self, self.Anchor, 'parent', Type)
   end
 end
 
@@ -1746,7 +1826,7 @@ end
 -- Hide if true otherwise shown.
 -------------------------------------------------------------------------------
 function BarDB:PlayAnimationBar(Direction)
-  PlayAnimation(self.Animation, Direction)
+  PlayAnimation(self.AGroup, Direction)
 end
 
 -------------------------------------------------------------------------------
@@ -1762,20 +1842,16 @@ end
 --        This also sets the ShowHideFn call back.
 -------------------------------------------------------------------------------
 function BarDB:SetAnimationTexture(BoxNumber, TextureNumber, Type)
-  local AGroups = self.AGroups
-
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
     local ShowHideFn = Texture.ShowHideFn
 
-    Texture.Animation, AGroups = GetAnimation(AGroups, Texture, 'children', Type)
+    Texture.AGroup = GetAnimation(self, Texture, 'children', Type)
 
     if ShowHideFn then
-      Texture.Animation.Fn = ShowHideFn
+      Texture.AGroup.Fn = ShowHideFn
     end
   until LastBox
-
-  self.AGroups = AGroups
 end
 
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2146,11 +2222,11 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
     local ShowHideFn = Texture.ShowHideFn
 
     if Hide ~= Hidden then
-      local Animation = Texture.Animation
+      local AGroup = Texture.AGroup
 
       if Hide then
-        if Animation then
-          PlayAnimation(Animation, 'out')
+        if AGroup then
+          PlayAnimation(AGroup, 'out')
         else
           Texture:Hide()
           if ShowHideFn then
@@ -2158,8 +2234,8 @@ function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
           end
         end
       else
-        if Animation then
-          PlayAnimation(Animation, 'in')
+        if AGroup then
+          PlayAnimation(AGroup, 'in')
         else
           Texture:Show()
           if ShowHideFn then
@@ -2191,7 +2267,6 @@ function BarDB:SetShowHideFnTexture(BoxNumber, TextureNumber, Fn)
   repeat
     local BoxFrame, BN = NextBox(self, BoxNumber)
     local Texture = BoxFrame.TFTextures[TextureNumber]
-    local Animation = Texture.Animation
     local ShowHideFn = nil
 
     Texture.ShowHideFn = function(Direction)
@@ -3240,35 +3315,6 @@ function BarDB:SetRotateTexture(BoxNumber, TextureNumber, Action)
 end
 
 -------------------------------------------------------------------------------
--- SetFadeTimeTexture
---
--- BoxNumber       BoxFrame containing the texture.
--- TextureNumber   Texture to set fade for.
--- Action          'in' sets the amount of time in seconds for fading in.
---                 'out' sets the amount of time in seconds for fading out.
--- Seconds         Number of seconds to fade in or out.
--------------------------------------------------------------------------------
-function BarDB:SetFadeTimeTexture(BoxNumber, TextureNumber, Action, Seconds)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Fade = Texture.Fade
-
-    if Seconds > 0 or Fade then
-
-      -- Create fade if one doesn't exist.
-      if Fade == nil then
-        Fade = Main:CreateFade(self.UnitBarF, Texture)
-        Fade:SetFn(Texture.ShowHideFn)
-        Texture.Fade = Fade
-      end
-
-      -- Set the duration of the fade in.
-      Fade:SetDuration(Action, Seconds)
-    end
-  until LastBox
-end
-
--------------------------------------------------------------------------------
 -- SetFill
 --
 -- Subfunction of SetFillTexture, SetFillTimeTexture
@@ -3426,26 +3472,26 @@ end
 --
 -- Fills a bar over time
 -------------------------------------------------------------------------------
-local function SetFillTimer(self)
-  local TimeElapsed = GetTime() - self.StartTime
-  local Duration = self.Duration
+local function SetFillTimer(Texture)
+  local TimeElapsed = GetTime() - Texture.StartTime
+  local Duration = Texture.Duration
 
   if TimeElapsed <= Duration then
 
     -- Calculate current value.
-    local Value = self.StartValue + self.Range * (TimeElapsed / Duration)
-    SetFill(self, Value, self.Spark)
+    local Value = Texture.StartValue + Texture.Range * (TimeElapsed / Duration)
+    SetFill(Texture, Value, Texture.Spark)
   else
 
     -- Stop timer
-    Main:SetTimer(self, nil)
+    Main:SetTimer(Texture, nil)
 
     -- set the end value.
-    SetFill(self, self.EndValue)
+    SetFill(Texture, Texture.EndValue)
 
     -- Hide spark
-    if self.Spark then
-      self.Spark:Hide()
+    if Texture.Spark then
+      Texture.Spark:Hide()
     end
   end
 end
@@ -3945,8 +3991,7 @@ end
 -- OffsetX, OffsetY       X, Y offset in pixels from Point.
 -------------------------------------------------------------------------------
 function BarDB:SetPointTexture(BoxNumber, TextureNumber, Point, ...)
-  local RelativeTextureNumber = select(1, ...)
-  local RelativePoint = select(2, ...)
+  local RelativeTextureNumber, RelativePoint = select(1, ...)
   local OffsetX = select(3, ...) or 0
   local OffsetY = select(4, ...) or 0
   local Relative = true
@@ -4199,19 +4244,19 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, Level)
 end
 
 -------------------------------------------------------------------------------
--- OnSizeChangedTexture
+-- OnSizeChangedTexture (called by setscript)
 --
 -- Updates the width and height of a statusbar or texture.
 --
--- self            StatusBar
+-- self            PaddingFrame
 -- Width, Height   Width and Height of the StatusBar
 --
 -- NOTES:  This function makes sure a texture always stretches to the size of
 --         the textures subframe.  It also makes sure that statusbar gets updated
 --         if its size was changed and it was setfilled.
 -------------------------------------------------------------------------------
-local function OnSizeChangedTexture(self, Width, Height)
-  local Texture = self:GetParent()
+local function OnSizeChangedTexture(PaddingFrame, Width, Height)
+  local Texture = PaddingFrame:GetParent()
 
   Texture.Width = Width
   Texture.Height = Height
@@ -4246,8 +4291,6 @@ end
 -- NOTES:  Textures are always the same size as the texture frame, unless changed with setpointtexture.
 -------------------------------------------------------------------------------
 function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, TextureNumber)
-  local AGroups = self.AGroups
-
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrame = BoxFrame.TextureFrames[TextureFrameNumber]
@@ -4640,8 +4683,7 @@ function BarDB:SetValueFont(BoxNumber, ...)
   local Index = 1
 
   repeat
-    local ParType = select(Index, ...)
-    local ParValue = select(Index + 1, ...)
+    local ParType, ParValue = select(Index, ...)
     local ParSize = SetValueParSize[ParType] or 2
 
     TextData[ParType] = ParValue
@@ -4692,12 +4734,12 @@ end
 --
 -- Timer function for FontSetValueTime
 -------------------------------------------------------------------------------
-local function SetValueTimer(self)
-  local TimeElapsed = GetTime() - self.StartTime
+local function SetValueTimer(FontTime)
+  local TimeElapsed = GetTime() - FontTime.StartTime
 
-  if TimeElapsed < self.Duration then
-    local Counter = self.Counter
-    local TextData = self.TextData
+  if TimeElapsed < FontTime.Duration then
+    local Counter = FontTime.Counter
+    local TextData = FontTime.TextData
     local Text = TextData.Text
 
     TextData.time = Counter
@@ -4726,14 +4768,14 @@ local function SetValueTimer(self)
         TextData[1]:SetFormattedText('Err (%d)', 1)
       end
     end
-    Counter = Counter + self.Step
+    Counter = Counter + FontTime.Step
     Counter = Counter > 0 and Counter or 0
-    self.Counter = Counter
+    FontTime.Counter = Counter
   else
 
     -- stop timer
-    Main:SetTimer(self, nil)
-    local TextData = self.TextData
+    Main:SetTimer(FontTime, nil)
+    local TextData = FontTime.TextData
     for Index = 1, TextData.NumStrings do
       TextData[Index]:SetText('')
     end
@@ -4806,8 +4848,7 @@ function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Dire
         local Index = 1
 
         repeat
-          local ParType = select(Index, ...)
-          local ParValue = select(Index + 1, ...)
+          local ParType, ParValue = select(Index, ...)
           local ParSize = SetValueParSize[ParType] or 2
 
           TextData[ParType] = ParValue
@@ -4896,10 +4937,13 @@ end
 --
 -- Offsets the font without changing the location.
 --
--- BoxNumber      Boxframe that contains the font.
--- TextLine       Which line of text is being changed.
--- OffsetX        Distance in pixels to offset horizontally
--- OffsetY        Distance in pixels to offset vertically
+-- BoxNumber          Boxframe that contains the font.
+-- TextLine           Which line of text is being changed.
+-- OffsetX            Distance in pixels to offset horizontally
+-- OffsetY            Distance in pixels to offset vertically
+--                    If OffsetX and OffsetY are nil then option setting is used.
+--
+-- NOTES: Supports animation if called by a trigger.
 -------------------------------------------------------------------------------
 function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
   SaveSettings(self, 'SetOffsetFont', BoxNumber, TextLine, OffsetX, OffsetY)
@@ -4916,8 +4960,53 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
       local TF = TextData.TextFrames[TextLine]
 
       if TF and Txt then
-        TF:ClearAllPoints()
-        TF:SetPoint(Txt.FontPosition, Frame, Txt.Position, Txt.OffsetX + (OffsetX or 0), Txt.OffsetY + (OffsetY or 0))
+        local AGroup = TF.AGroup
+        local IsPlaying = AGroup and AGroup:IsPlaying() or false
+        local Ox = Txt.OffsetX
+        local Oy = Txt.OffsetY
+
+        if AnimateTimeTrigger then
+          local LastX = TF.LastX or 0
+          local LastY = TF.LastY or 0
+
+          if OffsetX ~= LastX or OffsetY ~= LastY then
+            TF.LastX = OffsetX
+            TF.LastY = OffsetY
+            TF.Animate = false
+
+            -- Create animation if not found
+            if AGroup == nil then
+              AGroup = GetAnimation(self, TF, 'children', 'move')
+              TF.AGroup = AGroup
+            end
+
+            if IsPlaying then
+              LastX, LastY = StopAnimation(AGroup)
+              LastX = LastX - Ox
+              LastY = LastY - Oy
+            end
+            PlayAnimation(AGroup, AnimateTimeTrigger, Txt.FontPosition, Frame, Txt.Position, Ox + LastX, Oy + LastY, Ox + OffsetX, Oy + OffsetY)
+
+          -- offset hasn't changed
+          elseif not IsPlaying then
+            TF:ClearAllPoints()
+            TF:SetPoint(Txt.FontPosition, Frame, Txt.Position, Ox + OffsetX, Oy + OffsetY)
+          end
+        else
+          -- Non animated trigger call or called outside of triggers or trigger disabled.
+          if IsPlaying then
+            StopAnimation(AGroup)
+          end
+          -- This will get called if changing profiles cause UndoTriggers() will get called.
+          if CalledByTrigger or Main.ProfileChanged then
+            print('clear lastxy', CalledByTrigger, Main.ProfileChanged)
+            TF.LastX = OffsetX
+            TF.LastY = OffsetY
+          end
+
+          TF:ClearAllPoints()
+          TF:SetPoint(Txt.FontPosition, Frame, Txt.Position, Ox + (OffsetX or 0), Oy + (OffsetY or 0))
+        end
       end
     end
   until LastBox
@@ -4930,7 +5019,7 @@ end
 --
 -- BoxNumber      Boxframe that contains the font.
 -- TextLine       Which line of text is being changed.
--- Size           Size of the font
+-- Size           Size of the font. If nil uses option setting.
 -------------------------------------------------------------------------------
 function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
   SaveSettings(self, 'SetSizeFont', BoxNumber, TextLine, Size)
@@ -4947,6 +5036,7 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
       local Txt = Text[TextLine]
 
       if FontString and Txt then
+        Size = Size or Txt.FontSize
 
         -- Set font size
         local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Size, Txt.FontStyle)
@@ -4966,7 +5056,7 @@ end
 --
 -- BoxNumber      Boxframe that contains the font.
 -- TextLine       Which line of text is being changed.
--- Type           Type of font.
+-- Type           Type of font. If nil uses option setting.
 -------------------------------------------------------------------------------
 function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
   SaveSettings(self, 'SetTypeFont', BoxNumber, TextLine, Type)
@@ -4983,6 +5073,7 @@ function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
       local Txt = Text[TextLine]
 
       if FontString and Txt then
+        Type = Type or Txt.FontType
 
         -- Set font size
         local ReturnOK, Message = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), Txt.FontSize, Txt.FontStyle)
@@ -5003,6 +5094,7 @@ end
 -- BoxNumber      Boxframe that contains the font.
 -- TextLine       Which line of text is being changed.
 -- Style          Can be, NONE, OUTLINE, THICK. or a combination.
+--                If nil uses option setting.
 -------------------------------------------------------------------------------
 function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
   SaveSettings(self, 'SetStyleFont', BoxNumber, TextLine, Style)
@@ -5021,7 +5113,7 @@ function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
       if FontString and Txt then
 
         -- Set font size
-        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Txt.FontSize, Style)
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Txt.FontSize, Style or Txt.FontStyle)
 
         if not ReturnOK then
           FontString:SetFont(LSM:Fetch('font', Txt.FontType), Txt.FontSize, 'NONE')
@@ -5034,7 +5126,7 @@ end
 -------------------------------------------------------------------------------
 -- UpdateFont
 --
--- Updates a font based on the text settings in UniBar.Text
+-- Updates a font based on the text settings in UnitBar.Text
 --
 -- BoxNumber            BoxFrame that contains the font.
 -- ColorIndex           Sets color[ColorIndex] bypassing Color.All setting.
@@ -5091,9 +5183,9 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
       end
 
       -- Set font size, type, and style
-      self:SetTypeFont(BoxNumber, Index, Txt.FontType)
-      self:SetSizeFont(BoxNumber, Index, Txt.FontSize)
-      self:SetStyleFont(BoxNumber, Index, Txt.FontStyle)
+      self:SetTypeFont(BoxNumber, Index)
+      self:SetSizeFont(BoxNumber, Index)
+      self:SetStyleFont(BoxNumber, Index)
 
       -- Set font location
       FontString:SetJustifyH(Txt.FontHAlign)
@@ -5491,6 +5583,17 @@ function BarDB:CheckTriggers()
           Condition.OrderNumber = ConditionIndex
         end
 
+        -- Set Animation data if theres animation
+        local AnimateTime = Trigger.AnimateTime
+
+        if AnimateTime == nil then
+          Trigger.AnimateTime = 0.01
+          Trigger.Animate = false
+        else
+          Trigger.CanAnimate = Object.CanAnimate or false
+          Trigger.AnimateTime = AnimateTime <= 0 and 0.01 or AnimateTime
+        end
+
         -- Validate get function type ID
         -- For now get function is used for color.
         local GetFnTypeID = Trigger.GetFnTypeID or 'none'
@@ -5805,6 +5908,9 @@ function BarDB:EnableTriggers(Enable, TriggerGroups)
 
           Object.Function = self[FunctionName]
           Object.FunctionName = FunctionName
+
+          -- For animation
+          Object.CanAnimate = TypeIDCanAnimate[TypeID] or false
 
           Object.Restore = false
 
@@ -6466,9 +6572,13 @@ function BarDB:DoTriggers()
         local OneTime = Trigger.OneTime
 
         if not Hidden then
+          local Fn = Object.Function
+          local AnimateTime = Trigger.AnimateTime
           local Pars = Trigger.Pars
           local GetFnTypeID = Trigger.GetFnTypeID
           local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
+
+          AnimateTimeTrigger = Trigger.CanAnimate and Trigger.Animate and Trigger.AnimateTime or nil
 
           -- Do get function
           if GetFnTypeID ~= 'none' then
@@ -6492,16 +6602,14 @@ function BarDB:DoTriggers()
 
               -- Do all text lines
               if TextLine == 0 then
-                local Fn = Object.Function
-
                 for TextLine = 1, MaxTextLines do
                   Fn(self, BoxNumber, TextLine, p1, p2, p3, p4)
                 end
               else
-                Object.Function(self, BoxNumber, TextLine, p1, p2, p3, p4)
+                Fn(self, BoxNumber, TextLine, p1, p2, p3, p4)
               end
             else
-              Object.Function(self, p1, p2, p3, p4)
+              Fn(self, p1, p2, p3, p4)
             end
           else
             local Fn = Object.Function
@@ -6511,6 +6619,9 @@ function BarDB:DoTriggers()
               Fn(self, BoxNumber, TexN[Index], p1, p2, p3, p4)
             end
           end
+
+          -- Animation must be deactivated.
+          AnimateTimeTrigger = nil
         end
         Object.Restore = true
       end

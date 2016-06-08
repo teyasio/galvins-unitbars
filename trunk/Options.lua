@@ -116,8 +116,8 @@ local o = {
   TestModeArcaneChargesMax = 4,
 
   -- Animation for all unitbars.
-  AnimationOutTime = 1,
-  AnimationInTime = 1,
+  AnimationOutTime = 10,
+  AnimationInTime = 10,
 
   -- Bar fill FPS for all unitbars
   BarFillFPSMin = 10,
@@ -142,6 +142,8 @@ local o = {
   FontFieldHeightMax = 200,
 
   -- Trigger settings
+  TriggerAnimateTimeMin = 0.01,
+  TriggerAnimateTimeMax = 10,
   TriggerTextureScaleMin = 0.55,
   TriggerTextureScaleMax = 5,
   TriggerBarOffsetAllMin = -100,
@@ -169,7 +171,7 @@ local o = {
   LayoutTextureScaleMin = 0.55,
   LayoutTextureScaleMax = 4.6,
   LayoutAnimationInTimeMin = 0,
-  LayoutAnimationInTimeMax = 1,
+  LayoutAnimationInTimeMax = 10,
   LayoutAnimationOutTimeMin = 0,
   LayoutAnimationOutTimeMax = 10,
   LayoutAlignOffsetXMin = - 50,
@@ -539,20 +541,20 @@ local AnimationTypeDropdown = {
 }
 
 local ConvertTypeIDColorIcon = {
-  bartexturecolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBarColor.tga]],
-  bartexture      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBar.tga]],
-  border          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorder.tga]],
-  bordercolor     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorderColor.tga]],
-  texturescale    = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextureScale.tga]],
-  baroffset       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerChangeOffset.tga]],
-  sound           = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerSound.tga]],
-  background      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackground.tga]],
-  backgroundcolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackgroundColor.tga]],
-  fontsize        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeSize.tga]],
-  fontoffset      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeOffset.tga]],
-  fontcolor       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextColor.tga]],
-  fonttype        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextType.tga]],
-  fontstyle       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextOutline.tga]],
+  bartexturecolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBarColor]],
+  bartexture      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBar]],
+  border          = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorder]],
+  bordercolor     = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBorderColor]],
+  texturescale    = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextureScale]],
+  baroffset       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerChangeOffset]],
+  sound           = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerSound]],
+  background      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackground]],
+  backgroundcolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackgroundColor]],
+  fontsize        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeSize]],
+  fontoffset      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextChangeOffset]],
+  fontcolor       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextColor]],
+  fonttype        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextType]],
+  fontstyle       = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerTextOutline]],
 }
 
 --*****************************************************************************
@@ -3314,7 +3316,34 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    end,
           style = 'dropdown',
         },
-        Spacer5 = CreateSpacer(5, nil, function()
+        Spacer3 = CreateSpacer(3, nil, function()
+                                         return Trigger.CanAnimate
+                                       end),
+        Animate = {
+          type = 'toggle',
+          name = 'Animate',
+          desc = 'Apply animation to this trigger',
+          order = 4,
+          hidden = function()
+                     return not Trigger.CanAnimate
+                   end,
+        },
+        AnimateTime = {
+          type = 'range',
+          name = 'Animate Time',
+          order = 5,
+          desc = 'Time in seconds to play animation',
+          step = .01,
+          disabled = function()
+                       return not Trigger.Animate
+                     end,
+          hidden = function()
+                     return not Trigger.CanAnimate
+                   end,
+          min = o.TriggerAnimateTimeMin,
+          max = o.TriggerAnimateTimeMax,
+        },
+        Spacer6 = CreateSpacer(6, nil, function()
                                          local TypeID = Trigger.TypeID
 
                                          return Trigger.TextMultiLine == nil or TypeID ~= 'fontcolor' and TypeID ~= 'fontoffset' and
@@ -3323,7 +3352,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
         TextLine = {
           type = 'select',
           name = 'Text Line',
-          order = 6,
+          order = 7,
           values = TextLineDropdown,
           style = 'dropdown',
           hidden = function()
@@ -3840,7 +3869,9 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
              end
 
              -- Update bar to reflect trigger changes
-             BBar:CheckTriggers()
+             if KeyName ~= 'AnimateTime' and KeyName ~= 'Animate' then
+               BBar:CheckTriggers()
+             end
              UBF:Update()
              BBar:Display()
            end
