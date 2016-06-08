@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 511
+GUB.DefaultUB.Version = 512
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -436,6 +436,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -561,6 +564,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -685,6 +691,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -802,6 +811,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -926,6 +938,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1043,6 +1058,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1166,6 +1184,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1286,6 +1307,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1410,6 +1434,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1606,6 +1633,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '=', Value = 1} },
@@ -1794,6 +1824,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1930,6 +1963,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2066,6 +2102,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2206,6 +2245,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2339,6 +2381,9 @@ GUB.DefaultUB.Default = {
           Type = 'bar color',
           ValueTypeID = '',
           ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateTime = 0,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2530,7 +2575,7 @@ ChangesText[1] = [[
 |cff00ff00Anchor|r point can be changed for any bar.  Found under "other" settings
 |cff00ff00Smooth Fill|r now fills at a constant speed.  Max time set to 2 seconds cause of this change
 |cff00ff00Bar Fill FPS|r found under General -> Main -> Layout.  Changes the FPS of smooth fill and timer bars
-|cff00ff00Animation|r rewritten. Animation Type settings found under Main -> Animation
+|cff00ff00Animation|r rewritten. Replace fade. Animation Type settings found under Main -> Animation
 |cff00ff00Animation Type Bar|r setting found under Other settings for each bar.  If you want the bar to use its own animation type.
 |cff00ff00Animation Type|r setting under Layout for each bar changes the way the bar objects hide and show
 ]]
