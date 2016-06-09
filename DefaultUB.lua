@@ -2517,6 +2517,7 @@ Each trigger has 4 menu buttons.  These can be minimized or maximized by clickin
     |cffff00ffAura name or SpellID|r  If auras was selected under type. Under the spell ID enter the exact spell or start typing part of the spell name.  As you do this, a dropdown box will appear.  If the mod already saw the spell then it will show it in white.  This works best if aura list is always on.  After the aura is added you change the following:
 
         |cffff00ffOwn|r If checked the aura has to be cast from you.
+        |cffff00ffNot Active|r If checked then the aura can not be on the unit.
         |cffff00ffUnit|r Name of the unit that will contain the aura.
         |cffff00ffCondition|r Can set what type of condition you want to compare stacks to.
         |cffff00ffStacks|r Number of stacks to compare.
@@ -2578,6 +2579,7 @@ ChangesText[1] = [[
 |cff00ff00Animation|r rewritten. Replace fade. Animation Type settings found under Main -> Animation
 |cff00ff00Animation Type Bar|r setting found under Other settings for each bar.  If you want the bar to use its own animation type.
 |cff00ff00Animation Type|r setting under Layout for each bar changes the way the bar objects hide and show
+|cff00ff00Not Active|r option added to aura triggers.  You'll find it in each aura option.
 ]]
 
 

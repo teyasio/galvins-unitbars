@@ -135,7 +135,7 @@ local o = {
   FontShadowOffsetMin = 0,
   FontShadowOffsetMax = 10,
   FontSizeMin = 6,
-  FontSizeMax = 185,
+  FontSizeMax = 180,
   FontFieldWidthMin = 20,
   FontFieldWidthMax = 400,
   FontFieldHeightMin = 10,
@@ -156,6 +156,8 @@ local o = {
   TriggerBarOffsetTopMax = 100,
   TriggerBarOffsetBottomMin = -100,
   TriggerBarOffsetBottomMax = 100,
+  TriggerFontSizeMin = -180,
+  TriggerFontSizeMax = 180,
 
   -- Layout settings
   LayoutBorderPaddingMin = -25,
@@ -204,7 +206,7 @@ local o = {
   AlignSwapAdvancedMinMax = 25,
 
   -- Main options window size
-  MainOptionsWidth = 750,
+  MainOptionsWidth = 760,
   MainOptionsHeight = 500,
 
   -- Other options
@@ -2485,33 +2487,51 @@ local function AddAuraOption(Order, UBF, BBar, TO, SpellID, Trigger)
                end,
       },
       SpacerHalf = CreateSpacer(2, 'half'),
+      NotActive = {
+        type = 'toggle',
+        name = 'Not Active',
+        desc = 'If check, the aura can not be on the unit',
+        order = 3,
+      },
       Own = {
         type = 'toggle',
         name = 'Own',
         desc = 'This aura must be cast by you',
-        order = 3,
+        order = 4,
         width = 'half',
+        hidden = function()
+                   return Trigger.Auras[SpellID].NotActive
+                 end,
       },
-      Spacer10 = CreateSpacer(10),
-      Unit = {
-        type = 'input',
-        name = 'Unit',
-        order = 11,
+      AuraGroup = {
+        type = 'group',
+        name = '',
+        hidden = function()
+                   HideTooltip(true)
+                   return Trigger.Auras[SpellID].NotActive
+                 end,
+        args = {
+          Unit = {
+            type = 'input',
+            name = 'Unit',
+            order = 11,
+          },
+          StackOperator = {
+            type = 'select',
+            name = 'Operator',
+            width = 'half',
+            order = 12,
+            values = AuraStackOperatorDropdown,
+          },
+          Stacks = {
+            type = 'input',
+            name = 'Stacks',
+            width = 'half',
+            order = 13,
+          },
+        },
       },
-      StackOperator = {
-        type = 'select',
-        name = 'Operator',
-        width = 'half',
-        order = 12,
-        values = AuraStackOperatorDropdown,
-      },
-      Stacks = {
-        type = 'input',
-        name = 'Stacks',
-        width = 'half',
-        order = 13,
-      },
-    }
+    },
   }
 end
 
@@ -2786,14 +2806,13 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
         p2 = 0
       end
     elseif TypeID == 'fontsize' then
-      local Default = (o.FontSizeMin + o.FontSizeMax) / 2
       p2, p3, p4 = nil, nil, nil
 
-      p1 = tonumber(p1) or Default
+      p1 = tonumber(p1) or 0
 
       -- check for out of bounds
-      if p1 < o.FontSizeMin or p1 > o.FontSizeMax then
-        p1 = Default
+      if p1 < o.TriggerFontSizeMin or p1 > o.TriggerFontSizeMax then
+        p1 = 0
       end
     elseif TypeID == 'fonttype' then
       p2, p3, p4 = nil, nil, nil
@@ -3468,9 +3487,10 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
           type = 'range',
           name = 'Size',
           order = 20,
-          min = o.FontSizeMin,
-          max = o.FontSizeMax,
+          min = o.TriggerFontSizeMin,
+          max = o.TriggerFontSizeMax,
           step = 1,
+          width = 'double',
           hidden = function()
                      return Trigger.TypeID ~= 'fontsize'
                    end,
