@@ -298,17 +298,21 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -- A BoxFrame or TextureFrame can have a font.
 --
--- FSS[BarType]         An array that keeps track of all the FS tables.
+-- BarTextData[BarType] An array that keeps track of all the TextData tables.
 --                      This is used to help display the text frame boxes when options is opened.
 --
--- FS Data structure.
+-- TextData
+--   Multi              Can support more than one text line.
 --   BarType            Type of bar that created the fontstring.
 --   NumStrings         Number of font strings or text lines.
 --   TextFrames         Contains one or more frames used by the fontstrings.
+--     LastX
+--     LastY            For animation. Contains the last position set by a offset test trigger.  SetOffsetFont()
+--     AGroup           Animation for offsetting text.
 --   PercentFn          Function used to calculate percentages from CurrentValue and MaximumValue.
 --   Text               Reference to the current Text data found in UnitBars[BarType].Text
 --
--- FS[]                 Array used to store each fontstring or textline.
+-- TextData[TextLine]   Array used to store the fontstring for each textline
 --
 --
 -- Lowercase hash names are used for SetValueTimeFont and SetValueFont.
@@ -476,10 +480,11 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Group                     Contains the Animation Group.  child of Object
 --     Animation               Reference to Animation. Used by StopAnimation()
 --   Object                    Object that will be animated. Can be frame or texture.
+--   OnObject                  Used by custom animations.  Points to the object being used in OnUpdate scripts.
 --   GroupType                 string. Type of group:
 --                               'Parent'     This is created for the the bar when hiding or showing.
 --                               'Children'   This is created for any textures or frame the bar uses.
---   Type                      string.  Type of animation to play can be 'scale' or 'alpha'.
+--   Type                      string. See GetAnimation() for a list.
 --   StopPlayingFn             Call back function.  This gets called when ever StopPlaying() is called
 --
 --   -----------------------   These keys are only used for alpha and scale, otherwise nil
@@ -584,6 +589,7 @@ local AnimationType = {
   alpha = 'Alpha',
   scale = 'Scale',
   move = 'Translation',
+  fontsize = 'Alpha', -- custom animation
 }
 
 local ValueLayout = {
@@ -691,6 +697,30 @@ local function NextBox(BarDB, BoxNumber)
   end
   return BoxFrames[NextBoxFrame], NextBoxFrame
 end
+
+-------------------------------------------------------------------------------
+-- GetSpeedDuration
+--
+-- Returns a speed in duration in seconds.
+--
+-- StartValue     Where the animation is starting from.
+-- EndValue       Where the animation is ending at.
+-- Speed          Speed must be zero or greater.
+--
+-- Returns:
+--   Duration     Time in seconds to play the animation.
+--                This will always create a constant animation speed.
+-------------------------------------------------------------------------------
+local function GetSpeedDuration(StartValue, EndValue, Speed)
+  local Range = abs(EndValue - StartValue)
+
+  if Speed == 0 then
+    return 0
+  else
+    return Range * ((Speed + 10) / 1000)
+  end
+end
+
 
 -------------------------------------------------------------------------------
 -- RotateSpark
@@ -1390,7 +1420,7 @@ end
 --
 -- Object      Frame or Texture
 -- GroupType   'parent' or 'children'
--- Type        'alpha', 'scale', or 'move'
+-- Type        'alpha', 'scale', 'move', or 'fontsize'
 --
 -- NOTES: AGroup.StopPlayingFn gets passed AGroup
 -------------------------------------------------------------------------------
@@ -1413,14 +1443,14 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
   -- Create if not found.
   if AGroup == nil then
     local Animation = nil
-    local OnFrame = nil
+    local OnObject = nil
 
-    if GroupType == 'parent' then
+    if GroupType == 'parent' or Type == 'fontsize' then
       AGroup = CreateFrame('Frame'):CreateAnimationGroup()
       if Object.IsAnchor then
-        OnFrame = Object.AnchorPointFrame
+        OnObject = Object.AnchorPointFrame
       else
-        OnFrame = Object
+        OnObject = Object
       end
     else
       AGroup = Object:CreateAnimationGroup()
@@ -1439,7 +1469,7 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
     AGroup.StopPlayingFn = nil
 
     AGroup.Object = Object
-    AGroup.OnFrame = OnFrame
+    AGroup.OnObject = OnObject
     AGroup.InUse = InUse
 
     AGroups[AType] = AGroup
@@ -1520,23 +1550,22 @@ end
 -------------------------------------------------------------------------------
 local function StopAnimation(AGroup, ReverseAnimation)
   local Type = AGroup.Type
+  local Progress = AGroup:IsPlaying() and AGroup:GetProgress() or 1
 
   ReverseAnimation = ReverseAnimation or false
   AGroup:SetScript('OnFinished', nil)
 
-  if Type ~= 'move' then
-    AGroup:Stop()
-  end
+  AGroup:Stop()
 
   if not ReverseAnimation then
     local Object = AGroup.Object
     local Direction = AGroup.Direction
     local Fn = AGroup.Fn
-    local OnFrame = AGroup.OnFrame
+    local OnObject = AGroup.OnObject
     local IsVisible = Object:IsVisible()
 
-    if OnFrame then
-      OnFrame:SetAlpha(1)
+    if OnObject then
+      OnObject:SetAlpha(1)
       AGroup:SetScript('OnUpdate', nil)
     end
 
@@ -1553,11 +1582,11 @@ local function StopAnimation(AGroup, ReverseAnimation)
       elseif Type == 'scale' then
         Object:SetScale(1)
 
-        if OnFrame then
+        if OnObject then
 
           -- Restore anchor
           Object.IsScaling = false
-          OnFrame:SetScale(1)
+          OnObject:SetScale(1)
           Main:SetAnchorPoint(Object, 'UB')
         end
       end
@@ -1567,9 +1596,6 @@ local function StopAnimation(AGroup, ReverseAnimation)
 
       AGroup.Direction = ''
     elseif Type == 'move' then
-      local Progress = AGroup:IsPlaying() and AGroup:GetProgress() or 1
-      AGroup:Stop()
-
       local x = AGroup.FromValueX + AGroup.OffsetX * Progress
       local y = AGroup.FromValueY + AGroup.OffsetY * Progress
 
@@ -1577,14 +1603,21 @@ local function StopAnimation(AGroup, ReverseAnimation)
       Object:SetPoint(AGroup.Point, AGroup.RRegion, AGroup.RPoint, AGroup.ToValueX, AGroup.ToValueY)
 
       return x, y
+    elseif Type == 'fontsize' then
+      local Value = AGroup.FromValue
+      local FontType, _, FontStyle = OnObject:GetFont()
+
+      OnObject:SetFont(FontType, AGroup.ToValue, FontStyle)
+
+      return Value + (AGroup.ToValue - Value) * Progress
     end
   end
 end
 
 -------------------------------------------------------------------------------
--- OnFrame (OnUpdate functions)
+-- OnObject (OnUpdate functions)
 --
--- Functions for Alpha, Scale, Move
+-- Functions for alpha, scale, fontsize
 --
 -- NOTES: Blizzards animation group for alpha alters the alpha of all child
 --        frames.  This causes conflicts with other alpha settings in the bar.
@@ -1593,24 +1626,29 @@ end
 --        Blizzard built in animation scaling doesn't work well with child frames.
 --        So this has to be done instead.
 -------------------------------------------------------------------------------
-local function OnAlphaFrame(AGroup)
+local function OnObjectAlpha(AGroup)
   local Value = AGroup.FromValue
-
-  -- Calculate current alpha off of progress.
   local Alpha = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
 
-  AGroup.OnFrame:SetAlpha(Alpha)
+  AGroup.OnObject:SetAlpha(Alpha)
 end
 
-local function OnScaleFrame(AGroup)
+local function OnObjectScale(AGroup)
   local Value = AGroup.FromValue
-
-  -- Calculate current scale off of progress.
   local Scale = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
 
   if Scale > 0 then
-    AGroup.OnFrame:SetScale(Scale)
+    AGroup.OnObject:SetScale(Scale)
   end
+end
+
+local function OnObjectFontSize(AGroup)
+  local Value = AGroup.FromValue
+  local FontSize = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
+  local OnObject = AGroup.OnObject
+
+  local FontType, _, FontStyle = OnObject:GetFont()
+  OnObject:SetFont(FontType, FontSize, FontStyle)
 end
 
 -------------------------------------------------------------------------------
@@ -1624,7 +1662,10 @@ end
 --         PlayAnimation(AGroup, Duration, Point, RRegion, RPoint, FromX, FromY, ToX, ToY)
 --            Moves an object from FromX, FromY to ToX, ToY
 --            Used with animation type: move
---            StopAnimation() will return the x, y of the last animated position.
+--            StopAnimation() will return the current x, y of the animation.
+--         PlayAnimation(AGroup, Duration, FromSize, ToSize)
+--            Animates the size of the object which is a font
+--            StopAnimation() will return the current size of the animation.
 --
 -- AGroup             Animation group to be played
 -- 'in'               Animation gets played after object is shown.
@@ -1642,7 +1683,7 @@ local function PlayAnimation(AGroup, ...)
 
   local Object = AGroup.Object
   local Type = AGroup.Type
-  local OnFrame = AGroup.OnFrame
+  local OnObject = AGroup.OnObject
   local Direction = nil
   local OffsetX = nil
   local OffsetY = nil
@@ -1663,26 +1704,42 @@ local function PlayAnimation(AGroup, ...)
       ToValue = 0
       Duration = AGroup.DurationOut
     end
-  elseif Type == 'move' then
+  else
     Duration = ...
-    local Point, RRegion, RPoint, FromX, FromY, ToX, ToY = select(2, ...)
+    if Type == 'move' then
+      local Point, RRegion, RPoint, FromX, FromY, ToX, ToY = select(2, ...)
 
-    OffsetX = ToX - FromX
-    OffsetY = ToY - FromY
+      OffsetX = ToX - FromX
+      OffsetY = ToY - FromY
 
-    AGroup.Point = Point
-    AGroup.RRegion = RRegion
-    AGroup.RPoint = RPoint
-    AGroup.OffsetX = OffsetX
-    AGroup.OffsetY = OffsetY
-    AGroup.FromValueX = FromX
-    AGroup.FromValueY = FromY
-    AGroup.ToValueX = ToX
-    AGroup.ToValueY = ToY
+      AGroup.Point = Point
+      AGroup.RRegion = RRegion
+      AGroup.RPoint = RPoint
+      AGroup.OffsetX = OffsetX
+      AGroup.OffsetY = OffsetY
+      AGroup.FromValueX = FromX
+      AGroup.FromValueY = FromY
+      AGroup.ToValueX = ToX
+      AGroup.ToValueY = ToY
 
-    Object:ClearAllPoints()
-    Object:SetPoint(Point, RRegion, RPoint, FromX, FromY)
-    Animation:SetOffset(OffsetX, OffsetY)
+      Object:ClearAllPoints()
+      Object:SetPoint(Point, RRegion, RPoint, FromX, FromY)
+      Animation:SetOffset(OffsetX, OffsetY)
+
+    elseif Type == 'fontsize' then
+      local FromValue, ToValue = select(2, ...)
+
+      AGroup.FromValue = FromValue
+      AGroup.ToValue = ToValue
+
+      Animation:SetFromAlpha(0)
+      Animation:SetToAlpha(1)
+
+      local FontType, _, FontStyle = OnObject:GetFont()
+      OnObject:SetFont(FontType, FromValue, FontStyle)
+
+      AGroup:SetScript('OnUpdate', OnObjectFontSize)
+    end
   end
 
   -- Check if frame is invisible or nothing to do.
@@ -1727,23 +1784,23 @@ local function PlayAnimation(AGroup, ...)
       Animation:SetFromAlpha(FromValue)
       Animation:SetToAlpha(ToValue)
 
-      if OnFrame then
-        AGroup:SetScript('OnUpdate', OnAlphaFrame)
+      if OnObject then
+        AGroup:SetScript('OnUpdate', OnObjectAlpha)
       end
     else
       Animation:SetFromScale(FromValue, FromValue)
       Animation:SetToScale(ToValue, ToValue)
       Animation:SetOrigin('CENTER', 0, 0)
 
-      if OnFrame then
+      if OnObject then
 
         -- Object is Anchor
         -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
         Object.IsScaling = true
-        OnFrame:SetScale(0.01)
-        OnFrame:ClearAllPoints()
-        OnFrame:SetPoint('CENTER')
-        AGroup:SetScript('OnUpdate', OnScaleFrame)
+        OnObject:SetScale(0.01)
+        OnObject:ClearAllPoints()
+        OnObject:SetPoint('CENTER')
+        AGroup:SetScript('OnUpdate', OnObjectScale)
       end
     end
   end
@@ -4311,7 +4368,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
       SubFrame:SetValue(1)
       SubFrame:SetOrientation('HORIZONTAL')
 
-      -- Status bar is always the same size of the texture frame.
+      -- Status bar is always the same size of the texture frame's borderframe.
       Texture:SetAllPoints(BorderFrame)
 
       -- Set defaults for statusbar.
@@ -4972,7 +5029,6 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
           if OffsetX ~= LastX or OffsetY ~= LastY then
             TF.LastX = OffsetX
             TF.LastY = OffsetY
-            TF.Animate = false
 
             -- Create animation if not found
             if AGroup == nil then
@@ -4999,9 +5055,8 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
           end
           -- This will get called if changing profiles cause UndoTriggers() will get called.
           if CalledByTrigger or Main.ProfileChanged then
-            print('clear lastxy', CalledByTrigger, Main.ProfileChanged)
-            TF.LastX = OffsetX
-            TF.LastY = OffsetY
+            TF.LastX = OffsetX or 0
+            TF.LastY = OffsetY or 0
           end
 
           TF:ClearAllPoints()
@@ -5036,13 +5091,55 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
       local Txt = Text[TextLine]
 
       if FontString and Txt then
-        Size = Size or Txt.FontSize
+        local ReturnOK = nil
+        local AGroup = FontString.AGroup
+        local IsPlaying = AGroup and AGroup:IsPlaying() or false
+        local OSize = Txt.FontSize
 
-        -- Set font size
-        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Size, Txt.FontStyle)
+        -- Clip size if less than zero.
+        if Size and OSize + Size <= 0 then
+          Size = 0
+        end
 
-        if not ReturnOK then
-          FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
+        if AnimateTimeTrigger then
+          local LastSize = FontString.LastSize or 0
+
+          if Size ~= LastSize then
+            FontString.LastSize = Size
+
+            -- Create animation if not found
+            if AGroup == nil then
+              AGroup = GetAnimation(self, FontString, 'children', 'fontsize')
+              FontString.AGroup = AGroup
+            end
+
+            if IsPlaying then
+              LastSize = StopAnimation(AGroup)
+              LastSize = LastSize - OSize
+            end
+            PlayAnimation(AGroup, AnimateTimeTrigger, OSize + LastSize, OSize + Size)
+
+          -- size hasn't changed
+          elseif not IsPlaying then
+            local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), OSize + Size, Txt.FontStyle)
+            if not ReturnOK then
+              FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
+            end
+          end
+        else
+          -- Non animated trigger call or called outside of triggers or trigger disabled.
+          if IsPlaying then
+            StopAnimation(AGroup)
+          end
+          -- This will get called if changing profiles cause UndoTriggers() will get called.
+          if CalledByTrigger or Main.ProfileChanged then
+            FontString.LastSize = Size or 0
+          end
+
+          local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), OSize + (Size or 0), Txt.FontStyle)
+          if not ReturnOK then
+            FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
+          end
         end
       end
     end
@@ -5159,10 +5256,6 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
         ColorAll = true
       end
       NumStrings = Index
-
-      -- Since Text is dynamic we need to make sure no values are missing.
-      -- If they are they'll be copied from defaults.
-      Main:CopyMissingTableValues(DefaultTextSettings, Txt)
 
       -- Update the layout if not in custom mode.
       if not Txt.Custom then
@@ -5696,7 +5789,7 @@ function BarDB:CheckTriggers()
                 end
               end
             end
-          -- Build a unit list
+          -- Build a unit list, fix missing values
           elseif ValueTypeID == 'auras' then
             local Auras = Trigger.Auras
 
@@ -5707,6 +5800,11 @@ function BarDB:CheckTriggers()
             else
               for SpellID, Aura in pairs(Auras) do
                 Units[Aura.Unit] = 1
+
+                -- Fix missing values
+                if Aura.NotActive == nil then
+                  Aura.NotActive = false
+                end
               end
             end
           else
@@ -6280,7 +6378,16 @@ function BarDB:SetAuraTriggers(TrackedAurasList)
       local TrackedAuras = TrackedAurasList[Aura.Unit]
       local TrackedAura = TrackedAuras and TrackedAuras[SpellID]
 
-      if TrackedAura and TrackedAura.Active then
+      if Aura.NotActive then
+        if TrackedAura == nil or not TrackedAura.Active then
+          NumFound = NumFound + 1
+          if Operator == 'or' then
+            break
+          end
+        elseif Operator == 'and' then
+          break
+        end
+      elseif TrackedAura and TrackedAura.Active then
         local StackOperator = Aura.StackOperator
         local Stacks = Aura.Stacks
         local TrackedAuraStacks = TrackedAura.Stacks

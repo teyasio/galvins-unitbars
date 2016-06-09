@@ -4026,7 +4026,72 @@ function GUB:MediaUpdate(Name, MediaType, Key)
 end
 
 -------------------------------------------------------------------------------
--- CleanUnitBars
+-- FixText
+--
+-- Adds keys that are in the defaults but not in the profile
+-- Removes keys that are in the profile but not in the default
+-------------------------------------------------------------------------------
+local function FixText(BarType, UBD, Text)
+  local DefaultText = UBD.Text
+
+  if Text and DefaultText then
+    -- First text line is the default
+    DefaultText = DefaultText[1]
+
+    if DefaultText then
+      for TextLine, Txt in ipairs(Text) do
+
+        -- Copy any keys that are not in the profile from defaults.
+        Main:CopyMissingTableValues(DefaultText, Txt)
+
+        for Key in pairs(Txt) do
+          if DefaultText[Key] == nil then
+            print('CLEAN:', format('%s.Text.%s.%s', BarType, TextLine, Key))
+            Txt[Key] = nil
+          end
+        end
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- FixTriggers
+--
+-- Adds keys that are in the defaults but not in the profile
+-- Removes keys that are in the profile but not in the default
+-------------------------------------------------------------------------------
+local TriggerExcludeList =  {
+  ['Auras'] = 1,
+  ['Index'] = 1,
+  ['Virtual'] = 1,
+  ['Select'] = 1,
+  ['TypeIndex'] = 1,
+  ['TextLine'] = 1,
+  ['TextMultiLine'] = 1,
+  ['GroupNumbers'] = 1,
+  ['OneTime'] = 1,
+  ['OffsetAll'] = 1,
+  ['OrderNumber'] = 1,
+}
+
+local function FixTriggers(BarType, UBD, Triggers)
+  if Triggers then
+    local DefaultTrigger = UBD.Triggers.Default
+
+    for TriggerIndex, Trigger in ipairs(Triggers) do
+      for Key in pairs(Trigger) do
+        if DefaultTrigger[Key] == nil and TriggerExcludeList[Key] == nil then
+          print('CLEAN:', format('%s.Triggers.%s.%s', BarType, TriggerIndex, Key))
+          Trigger[Key] = nil
+        end
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- FixUnitBars
 --
 -- Deletes anything not on the exclude list.
 --
@@ -4034,39 +4099,47 @@ end
 --         * means a bartype like PlayerPower, RuneBar, etc.
 --         # Means an array element.
 -------------------------------------------------------------------------------
-local function CleanUnitBars(DefaultTable, Table, TablePath, ExcludeList)
-  ExcludeList = ExcludeList or {
-    ['Version'] = 1,
-    ['*.BoxLocations'] = 1,
-    ['*.BoxOrder'] = 1,
-    ['*.Text.#'] = 1,
-    ['*.Triggers.#'] = 1,
-    ['*.Triggers.ActionSync'] = 1,
-  }
+local ExcludeList = {
+  ['Version'] = 1,
+  ['*.BoxLocations'] = 1,
+  ['*.BoxOrder'] = 1,
+  ['*.Text.#'] = 1,
+  ['*.Triggers.#'] = 1,
+  ['*.Triggers.ActionSync'] = 1,
+}
 
+local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
   if DefaultTable == nil then
     DefaultTable = DUB
     Table = UnitBars
     TablePath = ''
+    RTablePath = ''
   end
 
   for Key, Value in pairs(Table) do
     local DefaultValue = DefaultTable[Key]
     local PathKey = Key
+    local RPathKey = Key
 
     if UnitBarsF[Key] then
       PathKey = '*'
+      RPathKey = Key
+
+      FixText(Key, DefaultValue, Value.Text)
+      FixTriggers(Key, DefaultValue, Value.Triggers)
+
     elseif type(Key) == 'number' then
       PathKey = '#'
+      RPathKey = Key
     end
 
     if ExcludeList[format('%s%s', TablePath, PathKey)] == nil then
       if DefaultValue ~= nil then
         if type(Value) == 'table' then
-          CleanUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), ExcludeList)
+          FixUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), format('%s%s.', RTablePath, RPathKey))
         end
       else
-        --print('CLEAN:', format('%s%s', TablePath, PathKey))
+        print('CLEAN:', format('%s%s', RTablePath, RPathKey))
         Table[Key] = nil
       end
     end
@@ -4111,10 +4184,10 @@ function GUB:ApplyProfile()
     -- Convert profile from a version before 5.01
     ConvertUnitBarData(7)
   end
-  if Ver ~= Version then
-    CleanUnitBars()
-    UnitBars.Version = Version
-  end
+
+  -- Make sure profile is accurate.
+  FixUnitBars()
+  UnitBars.Version = Version
 
   Main:SetUnitBars(true)
 
