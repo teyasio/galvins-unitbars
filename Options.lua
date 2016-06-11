@@ -116,8 +116,8 @@ local o = {
   TestModeArcaneChargesMax = 4,
 
   -- Animation for all unitbars.
-  AnimationOutTime = 10,
-  AnimationInTime = 10,
+  AnimationOutTime = 1,
+  AnimationInTime = 1,
 
   -- Bar fill FPS for all unitbars
   BarFillFPSMin = 10,
@@ -173,9 +173,9 @@ local o = {
   LayoutTextureScaleMin = 0.55,
   LayoutTextureScaleMax = 5,
   LayoutAnimationInTimeMin = 0,
-  LayoutAnimationInTimeMax = 10,
+  LayoutAnimationInTimeMax = 1,
   LayoutAnimationOutTimeMin = 0,
-  LayoutAnimationOutTimeMax = 10,
+  LayoutAnimationOutTimeMax = 1,
   LayoutAlignOffsetXMin = - 50,
   LayoutAlignOffsetXMax = 50,
   LayoutAlignOffsetYMin = -50,
