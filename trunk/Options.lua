@@ -134,7 +134,7 @@ local o = {
   FontOffsetYMax = 150,
   FontShadowOffsetMin = 0,
   FontShadowOffsetMax = 10,
-  FontSizeMin = 6,
+  FontSizeMin = 1,
   FontSizeMax = 180,
   FontFieldWidthMin = 20,
   FontFieldWidthMax = 400,
@@ -142,9 +142,9 @@ local o = {
   FontFieldHeightMax = 200,
 
   -- Trigger settings
-  TriggerAnimateTimeMin = 0.01,
-  TriggerAnimateTimeMax = 10,
-  TriggerTextureScaleMin = 0.55,
+  TriggerAnimateSpeedMin = 0.01,
+  TriggerAnimateSpeedMax = 1,
+  TriggerTextureScaleMin = 0.2,
   TriggerTextureScaleMax = 5,
   TriggerBarOffsetAllMin = -100,
   TriggerBarOffsetAllMax = 100,
@@ -168,10 +168,10 @@ local o = {
   LayoutSlopeMax = 100,
   LayoutPaddingMin = -50,
   LayoutPaddingMax = 50,
-  LayoutSmoothFillMin = 0,
-  LayoutSmoothFillMax = 2,
+  LayoutSmoothFillSpeedMin = 0.01,
+  LayoutSmoothFillSpeedMax = 1,
   LayoutTextureScaleMin = 0.55,
-  LayoutTextureScaleMax = 4.6,
+  LayoutTextureScaleMax = 5,
   LayoutAnimationInTimeMin = 0,
   LayoutAnimationInTimeMax = 10,
   LayoutAnimationOutTimeMin = 0,
@@ -3347,20 +3347,21 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                      return not Trigger.CanAnimate
                    end,
         },
-        AnimateTime = {
+        AnimateSpeed = {
           type = 'range',
-          name = 'Animate Time',
+          name = 'Animate Speed',
           order = 5,
-          desc = 'Time in seconds to play animation',
+          desc = 'Changes the speed of the animation',
           step = .01,
+          isPercent = true,
           disabled = function()
                        return not Trigger.Animate
                      end,
           hidden = function()
                      return not Trigger.CanAnimate
                    end,
-          min = o.TriggerAnimateTimeMin,
-          max = o.TriggerAnimateTimeMax,
+          min = o.TriggerAnimateSpeedMin,
+          max = o.TriggerAnimateSpeedMax,
         },
         Spacer6 = CreateSpacer(6, nil, function()
                                          local TypeID = Trigger.TypeID
@@ -3889,7 +3890,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
              end
 
              -- Update bar to reflect trigger changes
-             if KeyName ~= 'AnimateTime' and KeyName ~= 'Animate' then
+             if KeyName ~= 'AnimateSpeed' and KeyName ~= 'Animate' then
                BBar:CheckTriggers()
              end
              UBF:Update()
@@ -4589,21 +4590,32 @@ local function CreateLayoutOptions(BarType, Order, Name)
   if UBD.Layout.SmoothFill ~= nil then
     Spacer = true
     LayoutArgs.SmoothFill = {
-      type = 'range',
+      type = 'toggle',
       name = 'Smooth Fill',
       order = 61,
+      desc = 'Enabled smooth fill',
+    }
+    LayoutArgs.SmoothFillSpeed = {
+      type = 'range',
+      name = 'Smooth Fill Speed',
+      order = 62,
       desc = 'Changes the fill animaton speed',
       step = 0.01,
-      min = o.LayoutSmoothFillMin,
-      max = o.LayoutSmoothFillMax,
+      isPercent = true,
+      disabled = function()
+                   return not UBF.UnitBar.Layout.SmoothFill
+                 end,
+      min = o.LayoutSmoothFillSpeedMin,
+      max = o.LayoutSmoothFillSpeedMax,
     }
   end
+
   if UBD.Layout.TextureScale ~= nil then
     Spacer = true
     LayoutArgs.TextureScale = {
       type = 'range',
       name = 'Texture Scale',
-      order = 62,
+      order = 63,
       desc = 'Changes the texture size of the bar objects',
       step = 0.01,
       isPercent = true,

@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 512
+GUB.DefaultUB.Version = 520
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -349,7 +349,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         PredictedHealth = true,
@@ -438,7 +439,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -476,7 +477,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         PredictedPower = true,
@@ -566,7 +568,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -603,7 +605,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         PredictedHealth = true,
@@ -693,7 +696,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -729,7 +732,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         UseBarColor = false,
@@ -813,7 +817,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -850,7 +854,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         PredictedHealth = true,
@@ -940,7 +945,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -976,7 +981,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         UseBarColor = false,
@@ -1060,7 +1066,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1100,7 +1106,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         PredictedHealth = true,
@@ -1186,7 +1193,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1225,7 +1232,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         UseBarColor = false,
@@ -1309,7 +1317,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1349,7 +1357,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = 0,
+        SmoothFill = false,
+        SmoothFillSpeed = 0.2,
       },
       General = {
         PredictedCost = true,
@@ -1436,7 +1445,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1635,7 +1644,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '=', Value = 1} },
@@ -1826,7 +1835,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -1965,7 +1974,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2104,7 +2113,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2247,7 +2256,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2383,7 +2392,7 @@ GUB.DefaultUB.Default = {
           ValueType = '',
           CanAnimate = false,
           Animate = false,
-          AnimateTime = 0,
+          AnimateSpeed = 0.01,
           State = true,
           AuraOperator = 'or',
           Conditions = { All = false, {Operator = '>', Value = 0} },
@@ -2552,7 +2561,10 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
-5.11
+5.13
+
+If some bars like RuneBar don't appear correctly when using this version for the first time.
+Try reloading UI to fix it.
 
 |cff00ff00ComboBar|r has been recoded.  Bar and Background settings will have to be redone
 
@@ -2574,12 +2586,13 @@ ChangesText[1] = [[
 |cff00ff00Level|r added under to Value Name in Text settings
 |cff00ff00Level|r added for triggers, Unit Level and Scaled Level
 |cff00ff00Anchor|r point can be changed for any bar.  Found under "other" settings
-|cff00ff00Smooth Fill|r now fills at a constant speed.  Max time set to 2 seconds cause of this change
 |cff00ff00Bar Fill FPS|r found under General -> Main -> Layout.  Changes the FPS of smooth fill and timer bars
 |cff00ff00Animation|r rewritten. Replace fade. Animation Type settings found under Main -> Animation
-|cff00ff00Animation Type Bar|r setting found under Other settings for each bar.  If you want the bar to use its own animation type.
+|cff00ff00Animation Type Bar|r setting found under Other settings for each bar.  If you want the bar to use its own animation type
 |cff00ff00Animation Type|r setting under Layout for each bar changes the way the bar objects hide and show
-|cff00ff00Not Active|r option added to aura triggers.  You'll find it in each aura option.
+|cff00ff00Not Active|r option added to aura triggers.  You'll find it in each aura option
+|cff00ff00Smooth fill|r settings will have to be redone.  Now have Smooth Fill and Smooth Fill Speed
+|cff00ff00Animation Triggers|r Bar Offset, Texture Scale, Text Font Size, and Text Font Offset
 ]]
 
 
