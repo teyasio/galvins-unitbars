@@ -406,7 +406,7 @@ local function UpdateHealthBar(self, Event, Unit)
       BBar:SetFillTexture(1, PredictedBar, Value)
 
       if Change then
-        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFill)
+        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFillSpeed)
       end
       self.LastPredictedHealing = PredictedHealing
     end
@@ -580,7 +580,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
       BBar:SetFillTexture(1, PredictedBar, Value)
 
       if Change then
-        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFill)
+        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFillSpeed)
       end
       self.LastPredictedPower = PredictedPower
     end
@@ -604,7 +604,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
       BBar:SetFillTexture(1, PredictedCostBar, Value - Cost)
 
       if Change then
-        BBar:SetFillSpeedTexture(1, PredictedCostBar, UB.Layout.SmoothFill)
+        BBar:SetFillSpeedTexture(1, PredictedCostBar, UB.Layout.SmoothFillSpeed)
       end
       self.LastPredictedCost = PredictedCost
     end
@@ -711,15 +711,16 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       Update = true
     end)
 
-    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', 1, v) end)
-    BBar:SO('Layout', 'HideText',       function(v)
+    BBar:SO('Layout', 'ReverseFill',     function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', 1, v) end)
+    BBar:SO('Layout', 'HideText',        function(v)
       if v then
         BBar:SetValueRawFont(1, '')
       else
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFill',     function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
+    BBar:SO('Layout', 'SmoothFill',      function(v) BBar:ChangeTexture(StatusBar, 'SetSmoothFillTexture', 1, v) end)
+    BBar:SO('Layout', 'SmoothFillSpeed', function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
     if DGen then
       if DGen.UseBarColor ~= nil then
         BBar:SO('General', 'UseBarColor', function(v) Update = true end)

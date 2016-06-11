@@ -1333,6 +1333,13 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
         end
       end
     end
+  elseif Ver == 8 then
+    -- Convert SmoothFill into boolean
+    if SourceKey == 'SmoothFill' then
+      local SmoothFill = SourceUB.SmoothFill
+
+      SourceUB.SmoothFill = SmoothFill == 0 and false or true
+    end
   end
 end
 
@@ -1382,6 +1389,9 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData7 = {
     {Action = 'custom',    Source = '',                                 '=Text'},
   }
+  local ConvertUBData8 = {
+    {Action = 'custom',    Source = 'Layout',                           '=SmoothFill'},
+  }
 
 
   if Ver == 1 then -- First time conversion
@@ -1400,6 +1410,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData6
   elseif Ver == 7 then
     ConvertUBData = ConvertUBData7
+  elseif Ver == 8 then
+    ConvertUBData = ConvertUBData8
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -2427,10 +2439,12 @@ end
 -- Copies the values that exist in the source but do not exist in the destination.
 -- Array indexes are skipped.
 --
--- Source    The source table you're copying data from.
--- Dest      The destination table the data is being copied to.
+-- Source       The source table you're copying data from.
+-- Dest         The destination table the data is being copied to.
+-- Root         true or nil. Only copy missing values from the root of the table.  Dont
+--              search sub tables to copy missing values.
 -------------------------------------------------------------------------------
-function GUB.Main:CopyMissingTableValues(Source, Dest)
+function GUB.Main:CopyMissingTableValues(Source, Dest, Root)
   for k, v in pairs(Source) do
     local d = Dest[k]
     local ts = type(v)
@@ -2448,7 +2462,7 @@ function GUB.Main:CopyMissingTableValues(Source, Dest)
       elseif type(k) ~= 'number' then
         Dest[k] = v
       end
-    elseif ts == 'table' then
+    elseif Root == nil and ts == 'table' then
 
       -- keep searching for missing values in the sub table.
       Main:CopyMissingTableValues(v, d)
@@ -4042,11 +4056,11 @@ local function FixText(BarType, UBD, Text)
       for TextLine, Txt in ipairs(Text) do
 
         -- Copy any keys that are not in the profile from defaults.
-        Main:CopyMissingTableValues(DefaultText, Txt)
+        Main:CopyMissingTableValues(DefaultText, Txt, true)
 
         for Key in pairs(Txt) do
           if DefaultText[Key] == nil then
-            print('CLEAN:', format('%s.Text.%s.%s', BarType, TextLine, Key))
+            --print('ERASED:', format('%s.Text.%s.%s', BarType, TextLine, Key))
             Txt[Key] = nil
           end
         end
@@ -4077,13 +4091,20 @@ local TriggerExcludeList =  {
 
 local function FixTriggers(BarType, UBD, Triggers)
   if Triggers then
-    local DefaultTrigger = UBD.Triggers.Default
+    local DefaultTrigger = UBD.Triggers
+    DefaultTrigger = DefaultTrigger and DefaultTrigger.Default
 
-    for TriggerIndex, Trigger in ipairs(Triggers) do
-      for Key in pairs(Trigger) do
-        if DefaultTrigger[Key] == nil and TriggerExcludeList[Key] == nil then
-          print('CLEAN:', format('%s.Triggers.%s.%s', BarType, TriggerIndex, Key))
-          Trigger[Key] = nil
+    if DefaultTrigger then
+      for TriggerIndex, Trigger in ipairs(Triggers) do
+
+        -- Copy any keys that are not in the profile from defaults.
+        Main:CopyMissingTableValues(DefaultTrigger, Trigger, true)
+
+        for Key in pairs(Trigger) do
+          if DefaultTrigger[Key] == nil and TriggerExcludeList[Key] == nil then
+            --print('ERASED:', format('%s.Triggers.%s.%s', BarType, TriggerIndex, Key))
+            Trigger[Key] = nil
+          end
         end
       end
     end
@@ -4139,7 +4160,7 @@ local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
           FixUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), format('%s%s.', RTablePath, RPathKey))
         end
       else
-        print('CLEAN:', format('%s%s', RTablePath, RPathKey))
+        --print('ERASED:', format('%s%s', RTablePath, RPathKey))
         Table[Key] = nil
       end
     end
@@ -4183,6 +4204,9 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 501 then
     -- Convert profile from a version before 5.01
     ConvertUnitBarData(7)
+  end
+  if Ver == nil or Ver < 513 then
+    ConvertUnitBarData(8)
   end
 
   -- Make sure profile is accurate.
@@ -4262,8 +4286,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 10 then
-    GUBData.ShowMessage = 10
+  if GUBData.ShowMessage ~= 11 then
+    GUBData.ShowMessage = 11
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

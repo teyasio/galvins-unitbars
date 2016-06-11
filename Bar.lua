@@ -120,12 +120,16 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
 --   BorderFrame                     Contains the backdrop and allows the textureframe to be sized without effecting box size.
 --     Backdrop                      Table containing the backdrop.
+--     AGroup                        Contains the animation group for offsetting.
 --
 -- Texture data structure            A texture is actually a frame.  I call it Texture so its not confused with
 --                                   TextureFrame.
 --
 --   Type                            Either 'statusbar' or 'texture'
---   SubFrame                        Child of Texture. Holds the StatusBar or Frame containing the actual texture.
+--   ScaleFrame                      Child of Texture. To avoid conflicts with animation on textures.  Just this frame is now used for SetScaleTexture()
+--     AGroup                        Animation used when scaling the texture thru SetScaleTexture()
+--   PaddingFrame                    Child of ScaleFrame. Allows padding to be added to a texture, without it effecting the real size of the Texture.
+--   SubFrame                        Child of PadddingFrame. Holds the StatusBar or Frame containing the actual texture.
 --   Width, Height                   Width and height of the texture.
 --   CurrentTexture                  Contains the current texture name.  This is to prevent the texture from getting
 --                                   set to the same texture.  Which would cause a graphical glitch.  Used by SetTexture()
@@ -138,7 +142,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Value                           Current value, work around for padding function dealing with statusbars.
 --                                   Also used by SetFill functions.
 --   SliderSize                      If not nill then the texture is being used as a slider.
---   Speed                           Like duration except its speed.  So if this was 10secs.  Then it would be 10secs to go from 0 to 1
+--   SmoothFill                      If true then smooth fill is enabled.
+--   Speed                           How fast animation draws. Between 0.01 and 1.
 --                                   or 5secs from 0 to 0.5 or 0.25 to 0.75.
 --                                   Used by SetFillSpeedTexture() and SetFillTexture()
 --   SetFill                         Flag used by OnSizeChangedTexture().  When a texture changes size SetFill()
@@ -187,14 +192,15 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --  Frame structure
 --
 --    ParentFrame
---      Region                       Bar border
---      BoxFrame                     border and BoxFrame
---        TextureFrame               TextureFrame.
---          BorderFrame              Border and also allows the textureFrame to be larger without effecting Boxsize.
---            Texture (frame)        Container for SubFrame and SubTexture.
---              PaddingFrame         Used by SetPaddingTexture()
---                SubFrame           A frame that holds the texture or statusbar
---                  SubTexture       Statusbar texture or texture.
+--      Region                            Bar border
+--      BoxFrame                          border and BoxFrame
+--        TextureFrame                    TextureFrame.
+--          BorderFrame                   Border and also allows the textureFrame to be larger without effecting Boxsize.
+--            Texture (frame)             Container for SubFrame and SubTexture.
+--              ScaleFrame                For scaling textures.  This is needed so we dont have conflicts scaling in two places.
+--                PaddingFrame            Used by SetPaddingTexture()
+--                  SubFrame              A frame that holds the texture or statusbar
+--                    SubTexture          Statusbar texture or texture.
 --
 -- NOTES:   When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
 --          Will cause GetLeft() etc to return a bad value.  But if you pass the frame
@@ -307,12 +313,14 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   NumStrings         Number of font strings or text lines.
 --   TextFrames         Contains one or more frames used by the fontstrings.
 --     LastX
---     LastY            For animation. Contains the last position set by a offset test trigger.  SetOffsetFont()
+--     LastY            For animation. Contains the last position set by an offset trigger.  SetOffsetFont()
 --     AGroup           Animation for offsetting text.
 --   PercentFn          Function used to calculate percentages from CurrentValue and MaximumValue.
 --   Text               Reference to the current Text data found in UnitBars[BarType].Text
 --
 -- TextData[TextLine]   Array used to store the fontstring for each textline
+--   LastSize           For animation. Contains the last size set by an text font size trigger.  SetSizeFont()
+--   AGroup             Animation for changing text size.
 --
 --
 -- Lowercase hash names are used for SetValueTimeFont and SetValueFont.
@@ -328,7 +336,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- TypeIDCanAnimate                Table containing which TypeIDs support animation.
 --
 -- CalledByTrigger                 true or false. if true then the function was called out side of the trigger system.
--- AnimateTimeTrigger              if not nil then the trigger is animated.  This contains the time in seconds for the animation.
+-- AnimateSpeedTrigger             if not nil then the trigger is animated.  This contains the speed of the animation.
 --
 -- Settings data structure.
 -- Settings[Bar function name]     Hash table using the function name that it was called by to store.
@@ -430,7 +438,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --   CanAnimate                    true or false.  If true then the trigger can animate.
 --   Animate                       true or false. if true then the trigger will animate
---   AnimateTime                   Time in seconds to play animation.
+--   AnimateSpeed                  Speed to play the animation at.
 --
 --   AuraOperator                  and' or 'or'. Used by auras only.
 --   State                         True or False. Used when ValueTypeID = 'state'
@@ -509,7 +517,7 @@ local BarTextData = {}
 local DoOptionData = {}
 local VirtualFrameLevels = nil
 local CalledByTrigger = false
-local AnimateTimeTrigger = nil
+local AnimateSpeedTrigger = nil
 local MaxTextLines = 4
 
 local BoxFrames = nil
@@ -574,6 +582,8 @@ local TypeIDfn = {
 
 -- For animation functions
 local TypeIDCanAnimate = {
+  [TT.TypeID_TextureScale]          = true,
+  [TT.TypeID_BarOffset]             = true,
   [TT.TypeID_TextFontOffset]        = true,
   [TT.TypeID_TextFontSize]          = true,
 }
@@ -586,10 +596,12 @@ local TypeIDGetfn = {
 }
 
 local AnimationType = {
-  alpha = 'Alpha',
-  scale = 'Scale',
-  move = 'Translation',
-  fontsize = 'Alpha', -- custom animation
+  alpha        = 'Alpha',
+  scale        = 'Scale',
+  texturescale = 'Scale',
+  move         = 'Alpha', -- Custom animation.  Animate moving and sizing text dont work together. So need to use custom.
+  fontsize     = 'Alpha', -- Custom animation
+  offset       = 'Alpha', -- Custom animation
 }
 
 local ValueLayout = {
@@ -699,28 +711,44 @@ local function NextBox(BarDB, BoxNumber)
 end
 
 -------------------------------------------------------------------------------
+-- GetSpeed
+--
+-- Returns how fast a value is changing
+--
+-- LastValue      The last value before updating Value.
+-- Value          Current Value.
+-- LastTime       Time that LastValue was set
+-- Time           Current time.
+-------------------------------------------------------------------------------
+local function GetSpeed(LastValue, Value, LastTime, Time)
+  local Diff = abs(LastValue - Value)
+  local TimeDiff = Time - LastTime
+
+  if TimeDiff > 0 then
+    return Diff / TimeDiff
+  else
+    return 0
+  end
+end
+
+-------------------------------------------------------------------------------
 -- GetSpeedDuration
 --
 -- Returns a speed in duration in seconds.
 --
--- StartValue     Where the animation is starting from.
--- EndValue       Where the animation is ending at.
--- Speed          Speed must be zero or greater.
+-- Range          Amount of units to complete.
+-- Speed          Speed must be between 0 and 1. 0 gives back a duration of 0
 --
 -- Returns:
 --   Duration     Time in seconds to play the animation.
 --                This will always create a constant animation speed.
 -------------------------------------------------------------------------------
-local function GetSpeedDuration(StartValue, EndValue, Speed)
-  local Range = abs(EndValue - StartValue)
-
-  if Speed == 0 then
+local function GetSpeedDuration(Range, Speed)
+  if Speed <= 0 then
     return 0
-  else
-    return Range * ((Speed + 10) / 1000)
   end
+  return abs(Range) / (1000 * Speed)
 end
-
 
 -------------------------------------------------------------------------------
 -- RotateSpark
@@ -1006,6 +1034,37 @@ local function GetBackdrop(Object)
   end
 
   return Backdrop
+end
+
+-------------------------------------------------------------------------------
+-- SetOffsetFrame
+--
+-- Offsets the current frame by its 4 sides.
+--
+-- Returns false if the frame was too small.
+-------------------------------------------------------------------------------
+local function SetOffsetFrame(Frame, Left, Right, Top, Bottom)
+
+  Frame:ClearAllPoints()
+
+  Frame:SetPoint('LEFT', Left, 0)
+  Frame:SetPoint('RIGHT', Right, 0)
+  Frame:SetPoint('TOP', 0, Top)
+  Frame:SetPoint('BOTTOM', 0, Bottom)
+
+  -- Check for invalid offset
+  local x, y = Frame:GetSize()
+
+  if x < 10 or y < 10 then
+    Frame:SetPoint('LEFT')
+    Frame:SetPoint('RIGHT')
+    Frame:SetPoint('TOP')
+    Frame:SetPoint('BOTTOM')
+
+    return false
+  else
+    return true
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -1445,7 +1504,7 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
     local Animation = nil
     local OnObject = nil
 
-    if GroupType == 'parent' or Type == 'fontsize' then
+    if GroupType == 'parent' or Type == 'move' or Type == 'offset' or Type == 'fontsize' or Type == 'texturescale' then
       AGroup = CreateFrame('Frame'):CreateAnimationGroup()
       if Object.IsAnchor then
         OnObject = Object.AnchorPointFrame
@@ -1456,7 +1515,6 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
       AGroup = Object:CreateAnimationGroup()
     end
 
-    -- Uppercase the first letter in Type
     local Animation = AGroup:CreateAnimation(AnimationType[Type])
     Animation:SetOrder(1)
 
@@ -1585,9 +1643,11 @@ local function StopAnimation(AGroup, ReverseAnimation)
         if OnObject then
 
           -- Restore anchor
-          Object.IsScaling = false
+          if Object.IsAnchor then
+            Object.IsScaling = false
+            Main:SetAnchorPoint(Object, 'UB')
+          end
           OnObject:SetScale(1)
-          Main:SetAnchorPoint(Object, 'UB')
         end
       end
       if Fn and IsVisible then
@@ -1605,11 +1665,30 @@ local function StopAnimation(AGroup, ReverseAnimation)
       return x, y
     elseif Type == 'fontsize' then
       local Value = AGroup.FromValue
+      local ToValue = AGroup.ToValue
       local FontType, _, FontStyle = OnObject:GetFont()
 
-      OnObject:SetFont(FontType, AGroup.ToValue, FontStyle)
+      OnObject:SetFont(FontType, ToValue, FontStyle)
 
-      return Value + (AGroup.ToValue - Value) * Progress
+      return Value + (ToValue - Value) * Progress
+
+    elseif Type == 'texturescale' then
+      local Value = AGroup.FromValue
+      local ToValue = AGroup.ToValue
+
+      OnObject:SetScale(ToValue)
+
+      return Value + (ToValue - Value) * Progress
+
+    elseif Type == 'offset' then
+      local Left = AGroup.FromValueLeft + AGroup.DistanceLeft * Progress
+      local Right = AGroup.FromValueRight + AGroup.DistanceRight * Progress
+      local Top = AGroup.FromValueTop + AGroup.DistanceTop * Progress
+      local Bottom = AGroup.FromValueBottom + AGroup.DistanceBottom * Progress
+
+      SetOffsetFrame(OnObject, AGroup.ToValueLeft, AGroup.ToValueRight, AGroup.ToValueTop, AGroup.ToValueBottom)
+
+      return Left, Right, Top, Bottom
     end
   end
 end
@@ -1643,12 +1722,33 @@ local function OnObjectScale(AGroup)
 end
 
 local function OnObjectFontSize(AGroup)
+  local OnObject = AGroup.OnObject
   local Value = AGroup.FromValue
   local FontSize = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
-  local OnObject = AGroup.OnObject
 
   local FontType, _, FontStyle = OnObject:GetFont()
+
   OnObject:SetFont(FontType, FontSize, FontStyle)
+end
+
+local function OnObjectMove(AGroup)
+  local OnObject = AGroup.OnObject
+  local Progress = AGroup:GetProgress()
+  local x = AGroup.FromValueX + AGroup.OffsetX * Progress
+  local y = AGroup.FromValueY + AGroup.OffsetY * Progress
+
+  OnObject:ClearAllPoints()
+  OnObject:SetPoint(AGroup.Point, AGroup.RRegion, AGroup.RPoint, x, y)
+end
+
+local function OnObjectOffset(AGroup)
+  local Progress = AGroup:GetProgress()
+  local Left = AGroup.FromValueLeft + AGroup.DistanceLeft * Progress
+  local Right = AGroup.FromValueRight + AGroup.DistanceRight * Progress
+  local Top = AGroup.FromValueTop + AGroup.DistanceTop * Progress
+  local Bottom = AGroup.FromValueBottom + AGroup.DistanceBottom * Progress
+
+  SetOffsetFrame(AGroup.OnObject, Left, Right, Top, Bottom)
 end
 
 -------------------------------------------------------------------------------
@@ -1666,15 +1766,28 @@ end
 --         PlayAnimation(AGroup, Duration, FromSize, ToSize)
 --            Animates the size of the object which is a font
 --            StopAnimation() will return the current size of the animation.
+--         PlayAnimation(AGroup, Duration, FromScale, ToScale)
+--            Same as scale excepts uses SetScale to change scale thru OnUpdate.
+--            StopAnimation() will return the current scale of the animation.
+--         PlayAnimation(AGroup, Duration, FromLeft, FromRight, FromTop, FromBottom,
+--                                         ToLeft, ToRight, ToTop, ToBottom)
+--            Offsets the 4 sides of the frame as animation.
+--            StopAnimation() will return the current 4 offsets of the animation.
 --
--- AGroup             Animation group to be played
--- 'in'               Animation gets played after object is shown.
--- 'out'              Animation gets played then object is hidden.
--- Duration           Amount of time in seconds to play animation
--- RRegion            Relative region
--- RPoint             Relative point
--- x, y               This is where object will be SetPointed to after animation.
--- OffsetX, OffsetY   Amount of offset to be animated.
+-- AGroup                      Animation group to be played
+-- 'in'                        Animation gets played after object is shown.
+-- 'out'                       Animation gets played then object is hidden.
+-- Duration                    Amount of time in seconds to play animation
+-- RRegion                     Relative region
+-- RPoint                      Relative point
+-- x, y                        This is where object will be SetPointed to after animation.
+-- OffsetX, OffsetY            Amount of offset to be animated.
+-- FromSize, ToSize            Source and destination for font size.
+-- FromScale, ToScale          Source and destination for texture scale.
+-- FromLeft, ToLeft            Starting and ending position for the left side of the frame.
+-- FromRight, ToRight          Starting and ending position for the right side of the frame.
+-- FromTop, ToTop              Starting and ending position for the top side of the frame.
+-- FromBottom, ToBottom        Starting and ending position for the bottom side of the frame.
 -------------------------------------------------------------------------------
 local function PlayAnimation(AGroup, ...)
   local Animation = AGroup.Animation
@@ -1722,9 +1835,12 @@ local function PlayAnimation(AGroup, ...)
       AGroup.ToValueX = ToX
       AGroup.ToValueY = ToY
 
-      Object:ClearAllPoints()
-      Object:SetPoint(Point, RRegion, RPoint, FromX, FromY)
-      Animation:SetOffset(OffsetX, OffsetY)
+      Animation:SetFromAlpha(0)
+      Animation:SetToAlpha(1)
+
+      OnObject:ClearAllPoints()
+      OnObject:SetPoint(Point, RRegion, RPoint, FromX, FromY)
+      AGroup:SetScript('OnUpdate', OnObjectMove)
 
     elseif Type == 'fontsize' then
       local FromValue, ToValue = select(2, ...)
@@ -1736,9 +1852,43 @@ local function PlayAnimation(AGroup, ...)
       Animation:SetToAlpha(1)
 
       local FontType, _, FontStyle = OnObject:GetFont()
-      OnObject:SetFont(FontType, FromValue, FontStyle)
 
+      OnObject:SetFont(FontType, FromValue, FontStyle)
       AGroup:SetScript('OnUpdate', OnObjectFontSize)
+
+    elseif Type == 'texturescale' then
+      local FromScale, ToScale = select(2, ...)
+
+      AGroup.FromValue = FromScale
+      AGroup.ToValue = ToScale
+
+      Animation:SetFromScale(FromScale, FromScale)
+      Animation:SetToScale(ToScale, ToScale)
+      Animation:SetOrigin('CENTER', 0, 0)
+
+      OnObject:SetScale(FromScale)
+      AGroup:SetScript('OnUpdate', OnObjectScale)
+
+    elseif Type == 'offset' then
+      local FromLeft, FromRight, FromTop, FromBottom, ToLeft, ToRight, ToTop, ToBottom = select(2, ...)
+      AGroup.DistanceLeft = ToLeft - FromLeft
+      AGroup.DistanceRight = ToRight - FromRight
+      AGroup.DistanceTop = ToTop - FromTop
+      AGroup.DistanceBottom = ToBottom - FromBottom
+      AGroup.FromValueLeft = FromLeft
+      AGroup.FromValueRight = FromRight
+      AGroup.FromValueTop = FromTop
+      AGroup.FromValueBottom = FromBottom
+      AGroup.ToValueLeft = ToLeft
+      AGroup.ToValueRight = ToRight
+      AGroup.ToValueTop = ToTop
+      AGroup.ToValueBottom = ToBottom
+
+      Animation:SetFromAlpha(0)
+      Animation:SetToAlpha(1)
+
+      SetOffsetFrame(OnObject, FromLeft, FromRight, FromTop, FromBottom)
+      AGroup:SetScript('OnUpdate', OnObjectOffset)
     end
   end
 
@@ -1796,10 +1946,12 @@ local function PlayAnimation(AGroup, ...)
 
         -- Object is Anchor
         -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
-        Object.IsScaling = true
+        if Object.IsAnchor then
+          Object.IsScaling = true
+          OnObject:ClearAllPoints()
+          OnObject:SetPoint('CENTER')
+        end
         OnObject:SetScale(0.01)
-        OnObject:ClearAllPoints()
-        OnObject:SetPoint('CENTER')
         AGroup:SetScript('OnUpdate', OnObjectScale)
       end
     end
@@ -2970,23 +3122,54 @@ function BarDB:SetOffsetTextureFrame(BoxNumber, TextureFrameNumber, Left, Right,
   repeat
     local BorderFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber].BorderFrame
 
-    BorderFrame:ClearAllPoints()
+    local AGroup = BorderFrame.AGroup
+    local IsPlaying = AGroup and AGroup:IsPlaying() or false
 
-    BorderFrame:SetPoint('LEFT', Left, 0)
-    BorderFrame:SetPoint('RIGHT', Right, 0)
-    BorderFrame:SetPoint('TOP', 0, Top)
-    BorderFrame:SetPoint('BOTTOM', 0, Bottom)
+    if AnimateSpeedTrigger then
+      local LastLeft = BorderFrame.LastLeft or 0
+      local LastRight = BorderFrame.LastRight or 0
+      local LastTop = BorderFrame.LastTop or 0
+      local LastBottom = BorderFrame.LastBottom or 0
 
-    -- Check for invalid offset
-    local x, y = BorderFrame:GetSize()
+      if Left ~= LastLeft or Right ~= LastRight or Top ~= LastTop or Bottom ~= LastBottom then
+        BorderFrame.LastLeft = Left
+        BorderFrame.LastRight = Right
+        BorderFrame.LastTop = Top
+        BorderFrame.LastBottom = Bottom
 
-    if x < 10 or y < 10 then
-      BorderFrame:SetPoint('LEFT')
-      BorderFrame:SetPoint('RIGHT')
-      BorderFrame:SetPoint('TOP')
-      BorderFrame:SetPoint('BOTTOM')
+        -- Create animation if not found
+        if AGroup == nil then
+          AGroup = GetAnimation(self, BorderFrame, 'children', 'offset')
+          BorderFrame.AGroup = AGroup
+        end
+
+        if IsPlaying then
+          LastLeft, LastRight, LastTop, LastBottom = StopAnimation(AGroup)
+        end
+        local Distance = max(abs(Left - LastLeft), abs(Right - LastRight), abs(Top - LastTop), abs(Bottom - LastBottom))
+        local Duration = GetSpeedDuration(Distance, AnimateSpeedTrigger)
+
+        PlayAnimation(AGroup, Duration, LastLeft, LastRight, LastTop, LastBottom, Left, Right, Top, Bottom)
+
+      -- offset hasn't changed
+      elseif not IsPlaying then
+        SetOffsetFrame(BorderFrame, Left, Right, Top, Bottom)
+      end
+    else
+      -- Non animated trigger call or called outside of triggers or trigger disabled.
+      if IsPlaying then
+        StopAnimation(AGroup)
+      end
+      -- This will get called if changing profiles cause UndoTriggers() will get called.
+      if CalledByTrigger or Main.ProfileChanged then
+        BorderFrame.LastLeft = Left
+        BorderFrame.LastRight = Right
+        BorderFrame.LastTop = Top
+        BorderFrame.LastBottom = Bottom
+      end
+
+      SetOffsetFrame(BorderFrame, Left, Right, Top, Bottom)
     end
-
   until LastBox
 end
 
@@ -3570,8 +3753,7 @@ end
 --                   is used instead.
 -- EndValue          Ending value between 0 and 1. If nill 1 is used.
 -- Constant          If true then the bar fills at a constant speed
---                   Duration becomes Speed. The speed is is equal to the amount of
---                   time it would take to go from 0 to 1.
+--                   Duration becomes Speed. Must be between 0 and 1
 -------------------------------------------------------------------------------
 local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndValue, Constant)
   Main:SetTimer(Texture, nil)
@@ -3587,7 +3769,7 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
 
     -- Turn duration into constant speed if set.
     if Constant then
-      Duration = abs(Range) * (Duration / 1)
+      Duration = GetSpeedDuration(Range * 100, Duration)
     end
 
     StartTime = StartTime and StartTime or CurrentTime
@@ -3676,7 +3858,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
-  local Speed = Texture.Speed or 0
+  local Speed = Texture.SmoothFill and Texture.Speed or 0
 
   -- If Speed > 0 then fill the texture from its current value to a new value.
   if Speed > 0 then
@@ -3720,8 +3902,7 @@ end
 --
 -- BoxNumber       Box containing the texture
 -- TextureNumber   Texture to smooth fill on.
--- Speed           The amount of time it takes to fill from 0 to 1.
---                 So a speed of 10 would take 10sec from 0 to 1.  Or 5sec from 0 to 0.5
+-- Speed           Must be between 0 and 1. 1 = max speed.
 -------------------------------------------------------------------------------
 function BarDB:SetFillSpeedTexture(BoxNumber, TextureNumber, Speed)
   repeat
@@ -3749,6 +3930,22 @@ function BarDB:SetFillSpeedTexture(BoxNumber, TextureNumber, Speed)
   until LastBox
 end
 
+-------------------------------------------------------------------------------
+-- SetSmoothFillTexture
+--
+-- Turns on or off smooth fill
+--
+-- BoxNumber       Box containing the texture
+-- TextureNumber   Texture to smooth fill on.
+-- SmoothFill      If true then smooth fill is enabled, otherwise false.
+-------------------------------------------------------------------------------
+function BarDB:SetSmoothFillTexture(BoxNumber, TextureNumber, SmoothFill)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.SmoothFill = SmoothFill
+  until LastBox
+end
 -------------------------------------------------------------------------------
 -- SetSliderTexture
 --
@@ -4107,12 +4304,56 @@ end
 -- BoxNumber             Box containing the texture.
 -- TextureNumber         Texture to change the scale of.
 -- Scale                 New scale to set.
+--
+-- NOTES: Supports animation if called by a trigger.
 -------------------------------------------------------------------------------
 function BarDB:SetScaleTexture(BoxNumber, TextureNumber, Scale)
   SaveSettings(self, 'SetScaleTexture', BoxNumber, TextureNumber, Scale)
 
   repeat
-    NextBox(self, BoxNumber).TFTextures[TextureNumber]:SetScale(Scale)
+    local ScaleFrame = NextBox(self, BoxNumber).TFTextures[TextureNumber].ScaleFrame
+
+    local AGroup = ScaleFrame.AGroup
+    local IsPlaying = AGroup and AGroup:IsPlaying() or false
+
+    if AnimateSpeedTrigger then
+      local LastScale = ScaleFrame.LastScale or 0
+
+      if Scale ~= LastScale then
+        ScaleFrame.LastScale = Scale
+
+        -- Create animation if not found
+        if AGroup == nil then
+          AGroup = GetAnimation(self, ScaleFrame, 'children', 'texturescale')
+          ScaleFrame.AGroup = AGroup
+        end
+
+        if IsPlaying then
+          LastScale = StopAnimation(AGroup)
+        end
+        local FromScale = LastScale > 0 and LastScale or 0.01
+        local ToScale = Scale > 0 and Scale or 0.1
+
+        local Duration = GetSpeedDuration(abs(ToScale - FromScale) * 50, AnimateSpeedTrigger)
+
+        PlayAnimation(AGroup, Duration, FromScale, ToScale)
+
+      -- Scale hasn't changed
+      elseif not IsPlaying then
+        ScaleFrame:SetScale(Scale)
+      end
+    else
+      -- Non animated trigger call or called outside of triggers or trigger disabled.
+      if IsPlaying then
+        StopAnimation(AGroup)
+      end
+      -- This will get called if changing profiles cause UndoTriggers() will get called.
+      if CalledByTrigger or Main.ProfileChanged then
+        ScaleFrame.LastScale = Scale
+      end
+
+      ScaleFrame:SetScale(Scale)
+    end
   until LastBox
 end
 
@@ -4353,8 +4594,13 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     local TextureFrame = BoxFrame.TextureFrames[TextureFrameNumber]
     local BorderFrame = TextureFrame.BorderFrame
     local SubFrame = nil
-    local Texture = CreateFrame('Frame', nil, BorderFrame)
-    local PaddingFrame = CreateFrame('Frame', nil,  Texture)
+    local ScaleFrame = CreateFrame('Frame', nil, BorderFrame)
+    local Texture = CreateFrame('Frame', nil, ScaleFrame)
+    local PaddingFrame = CreateFrame('Frame', nil, Texture)
+
+    -- Scaleframe is always same size as borderframe.
+    -- This frame is used for scaling other frames only.
+    ScaleFrame:SetAllPoints(BorderFrame)
 
     -- Set base frame level.
     local FrameLevel = GetVirtualFrameLevel(Level)
@@ -4369,6 +4615,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
       SubFrame:SetOrientation('HORIZONTAL')
 
       -- Status bar is always the same size of the texture frame's borderframe.
+      Texture:ClearAllPoints()
       Texture:SetAllPoints(BorderFrame)
 
       -- Set defaults for statusbar.
@@ -4424,6 +4671,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     PaddingFrame:SetScript('OnSizeChanged', OnSizeChangedTexture)
 
     -- Set defaults.
+    Texture.ScaleFrame = ScaleFrame
     Texture.SubFrame = SubFrame
     Texture.PaddingFrame = PaddingFrame
     Texture.Width = 1
@@ -5022,7 +5270,7 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
         local Ox = Txt.OffsetX
         local Oy = Txt.OffsetY
 
-        if AnimateTimeTrigger then
+        if AnimateSpeedTrigger then
           local LastX = TF.LastX or 0
           local LastY = TF.LastY or 0
 
@@ -5041,7 +5289,19 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
               LastX = LastX - Ox
               LastY = LastY - Oy
             end
-            PlayAnimation(AGroup, AnimateTimeTrigger, Txt.FontPosition, Frame, Txt.Position, Ox + LastX, Oy + LastY, Ox + OffsetX, Oy + OffsetY)
+            -- Find the distance
+            local FromX = Ox + LastX
+            local FromY = Oy + LastY
+            local ToX = Ox + OffsetX
+            local ToY = Oy + OffsetY
+
+            local DistanceX = abs(ToX - FromX)
+            local DistanceY = abs(ToY - FromY)
+            local Distance = sqrt(DistanceX * DistanceX + DistanceY * DistanceY)
+
+            local Duration = GetSpeedDuration(Distance, AnimateSpeedTrigger)
+
+            PlayAnimation(AGroup, Duration, Txt.FontPosition, Frame, Txt.Position, FromX, FromY, ToX, ToY)
 
           -- offset hasn't changed
           elseif not IsPlaying then
@@ -5075,7 +5335,27 @@ end
 -- BoxNumber      Boxframe that contains the font.
 -- TextLine       Which line of text is being changed.
 -- Size           Size of the font. If nil uses option setting.
+--
+-- NOTES: Supports animation if called by a trigger.
 -------------------------------------------------------------------------------
+local function ClipFont(Size)
+  if Size < 1 then
+    return 1
+  elseif Size > 185 then
+    return 185
+  else
+    return Size
+  end
+end
+
+local function SetFont(FontString, Txt, Type, Size, Style)
+  Size = ClipFont(Size)
+  local ReturnOK = pcall(FontString.SetFont, FontString, Type, Size, Style)
+  if not ReturnOK then
+    FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
+  end
+end
+
 function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
   SaveSettings(self, 'SetSizeFont', BoxNumber, TextLine, Size)
 
@@ -5091,17 +5371,11 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
       local Txt = Text[TextLine]
 
       if FontString and Txt then
-        local ReturnOK = nil
         local AGroup = FontString.AGroup
         local IsPlaying = AGroup and AGroup:IsPlaying() or false
         local OSize = Txt.FontSize
 
-        -- Clip size if less than zero.
-        if Size and OSize + Size <= 0 then
-          Size = 0
-        end
-
-        if AnimateTimeTrigger then
+        if AnimateSpeedTrigger then
           local LastSize = FontString.LastSize or 0
 
           if Size ~= LastSize then
@@ -5112,19 +5386,20 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
               AGroup = GetAnimation(self, FontString, 'children', 'fontsize')
               FontString.AGroup = AGroup
             end
-
             if IsPlaying then
               LastSize = StopAnimation(AGroup)
               LastSize = LastSize - OSize
             end
-            PlayAnimation(AGroup, AnimateTimeTrigger, OSize + LastSize, OSize + Size)
+            local FromSize = ClipFont(OSize + LastSize)
+            local ToSize = ClipFont(OSize + Size)
+
+            local Duration = GetSpeedDuration(abs(ToSize - FromSize), AnimateSpeedTrigger)
+
+            PlayAnimation(AGroup, Duration, FromSize, ToSize)
 
           -- size hasn't changed
           elseif not IsPlaying then
-            local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), OSize + Size, Txt.FontStyle)
-            if not ReturnOK then
-              FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
-            end
+            SetFont(FontString, Txt, LSM:Fetch('font', Txt.FontType), ClipFont(OSize + Size), Txt.FontStyle)
           end
         else
           -- Non animated trigger call or called outside of triggers or trigger disabled.
@@ -5136,10 +5411,7 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
             FontString.LastSize = Size or 0
           end
 
-          local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), OSize + (Size or 0), Txt.FontStyle)
-          if not ReturnOK then
-            FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
-          end
+          SetFont(FontString, Txt, LSM:Fetch('font', Txt.FontType), ClipFont(OSize + (Size or 0)), Txt.FontStyle)
         end
       end
     end
@@ -5677,15 +5949,9 @@ function BarDB:CheckTriggers()
         end
 
         -- Set Animation data if theres animation
-        local AnimateTime = Trigger.AnimateTime
+        local AnimateSpeed = Trigger.AnimateSpeed
 
-        if AnimateTime == nil then
-          Trigger.AnimateTime = 0.01
-          Trigger.Animate = false
-        else
-          Trigger.CanAnimate = Object.CanAnimate or false
-          Trigger.AnimateTime = AnimateTime <= 0 and 0.01 or AnimateTime
-        end
+        Trigger.CanAnimate = Object.CanAnimate or false
 
         -- Validate get function type ID
         -- For now get function is used for color.
@@ -6680,12 +6946,12 @@ function BarDB:DoTriggers()
 
         if not Hidden then
           local Fn = Object.Function
-          local AnimateTime = Trigger.AnimateTime
+          local AnimateSpeed = Trigger.AnimateSpeed
           local Pars = Trigger.Pars
           local GetFnTypeID = Trigger.GetFnTypeID
           local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
 
-          AnimateTimeTrigger = Trigger.CanAnimate and Trigger.Animate and Trigger.AnimateTime or nil
+          AnimateSpeedTrigger = Trigger.CanAnimate and Trigger.Animate and Trigger.AnimateSpeed or nil
 
           -- Do get function
           if GetFnTypeID ~= 'none' then
@@ -6728,7 +6994,7 @@ function BarDB:DoTriggers()
           end
 
           -- Animation must be deactivated.
-          AnimateTimeTrigger = nil
+          AnimateSpeedTrigger = nil
         end
         Object.Restore = true
       end
