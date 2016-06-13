@@ -164,14 +164,12 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 --              True bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
+--
+-- NOTES: Normally the invisibility check is at the top.  But I need to check
+--        for total boxes first. So the first BBar:Display() contains the
+--        total boxes on the first call.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
-
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
-  end
-
   PowerType = PowerType and ConvertPowerType[PowerType] or PowerChi
 
   -- Return if not the correct powertype.
@@ -179,11 +177,9 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     return
   end
 
+  local BBar = self.BBar
   local ChiOrbs = UnitPower('player', PowerChi)
   local NumOrbs = UnitPowerMax('player', PowerChi)
-  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
-
-  local BBar = self.BBar
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
@@ -209,9 +205,15 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
       BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
     end
-
     BBar:Display()
   end
+
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+    return
+  end
+
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   for ChiIndex = 1, MaxChiOrbs do
     BBar:ChangeTexture(ChangeChi, 'SetHiddenTexture', ChiIndex, ChiIndex > ChiOrbs)

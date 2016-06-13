@@ -91,9 +91,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   AGroups                         Used by animation to keep track of animation groups. Created by GetAnimation() in SetAnimationBar()
 --   AGroup                          Used to play animation when showing or hiding the bar. Created by GetAnimation() in SetAnimationBar()
 --
---   IsDisplayWaiting                Used by Display() and DisplayWaiting().  If Display() was called when the bar
---                                   was hidden.  It will not display, instead it will set this flag to true.
---                                   Then you call DisplayWaiting() only works once unless the bar is still invisible.
 -- BoxFrame data structure
 --
 --   Name                            Name of the boxframe.  This will appear on tooltips.
@@ -2168,6 +2165,7 @@ local function OnUpdate_Display(self)
                 BoxPaddingY = BoxPaddingY + Slope
               end
             end
+
             BF:SetPoint(Point, LastBF, ParentPoint, BoxPaddingX, BoxPaddingY)
           end
           if FirstBF == nil then
@@ -2272,19 +2270,8 @@ local function OnUpdate_Display(self)
 end
 
 function BarDB:Display()
-  if not self.Anchor:IsVisible() then
-    self.IsDisplayWaiting = true
-  else
-    self.ProfileChanged = Main.ProfileChanged
-    self:SetScript('OnUpdate', OnUpdate_Display)
-  end
-end
-
-function BarDB:DisplayWaiting()
-  if self.IsDisplayWaiting then
-    self.IsDisplayWaiting = false
-    self:Display()
-  end
+  self.ProfileChanged = Main.ProfileChanged
+  self:SetScript('OnUpdate', OnUpdate_Display)
 end
 
 -------------------------------------------------------------------------------
@@ -5300,7 +5287,6 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
             local Distance = sqrt(DistanceX * DistanceX + DistanceY * DistanceY)
 
             local Duration = GetSpeedDuration(Distance, AnimateSpeedTrigger)
-
             PlayAnimation(AGroup, Duration, Txt.FontPosition, Frame, Txt.Position, FromX, FromY, ToX, ToY)
 
           -- offset hasn't changed
