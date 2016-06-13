@@ -2526,9 +2526,6 @@ local function HideUnitBar(UnitBarF, HideBar)
       -- Enable Aura tracking if active
       Main:SetAuraTracker(UnitBarF, 'register')
 
-      -- Update bar if BBar:Display() was called when the bar was not visible.
-      BBar:DisplayWaiting()
-
       BBar:PlayAnimationBar('in')
     end
   end

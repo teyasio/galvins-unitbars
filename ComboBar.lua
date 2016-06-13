@@ -202,14 +202,12 @@ end
 --              True bypasses visible and isactive flags.
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
+--
+-- NOTES: Normally the invisibility check is at the top.  But I need to check
+--        for total boxes first. So the first BBar:Display() contains the
+--        total boxes on the first call.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
-
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
-  end
-
   PowerType = PowerType and ConvertPowerType[PowerType] or PowerPoint
 
   -- Return if not the correct powertype.
@@ -217,15 +215,10 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     return
   end
 
-  local ComboPoints = UnitPower('player', PowerPoint)
-  local NumPoints = UnitPowerMax('player', PowerPoint)
-  local UB = self.UnitBar
-  local InactiveAnticipationAlpha = UB.General.InactiveAnticipationAlpha
-  local EnableTriggers = UB.Layout.EnableTriggers
-  local Offset = 0
   local BBar = self.BBar
   local NumPointsChanged = false
-  local OldComboPoints = ComboPoints
+  local ComboPoints = UnitPower('player', PowerPoint)
+  local NumPoints = UnitPowerMax('player', PowerPoint)
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
@@ -245,13 +238,7 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     end
   end
 
-  -- Convert combo points
-  if NumPoints == MaxComboPoints - 1 and ComboPoints > ExtraComboPointStart - 1 then
-    ComboPoints = ComboPoints + 1
-  end
-
   if NumPoints ~= self.NumPoints then
-    NumPointsChanged = true
     self.NumPoints = NumPoints
 
     -- Change the number of boxes in the bar.
@@ -259,11 +246,25 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
       BBar:SetHidden(Index, nil, Hidden)
     end
     BBar:Display()
+    NumPointsChanged = true
   end
 
+  -- Check if bar is not visible or has active flag waiting for activity.
+  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+    return
+  end
+
+  local UB = self.UnitBar
+  local InactiveAnticipationAlpha = UB.General.InactiveAnticipationAlpha
+  local EnableTriggers = UB.Layout.EnableTriggers
   local CPoints = 0
   local APoints = 0
   local TotalPoints = 0
+
+  -- Convert combo points
+  if NumPoints == MaxComboPoints - 1 and ComboPoints > ExtraComboPointStart - 1 then
+    ComboPoints = ComboPoints + 1
+  end
 
   for ComboIndex = 1, MaxComboPoints do
     BBar:ChangeTexture(ChangePoints, 'SetHiddenTexture', ComboIndex, ComboIndex > ComboPoints)
