@@ -2593,9 +2593,9 @@ Try reloading UI to fix it.
 |cff00ff00Animation Type Bar|r setting found under Other settings for each bar.  If you want the bar to use its own animation type
 |cff00ff00Animation Type|r setting under Layout for each bar changes the way the bar objects hide and show
 |cff00ff00Not Active|r option added to aura triggers.  You'll find it in each aura option
-|cff00ff00Smooth fill|r settings will have to be redone.  Now have Smooth Fill and Smooth Fill Speed
+|cff00ff00Smooth fill|r settings will have to be redone.  Now have Smooth Fill Max Time and Smooth Fill Speed
 |cff00ff00Animation Triggers|r Bar Offset, Texture Scale, Text Font Size, and Text Font Offset
-|cff00ff00Smooth fill max time|r Sets the maximum time a smooth fill can take.  Found next to smooth fill
+|cff00ff00Smooth fill max time|r Sets the maximum time a smooth fill can take.  Found next to smooth fill speed
 ]]
 
 
