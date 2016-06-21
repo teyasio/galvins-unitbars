@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 522
+GUB.DefaultUB.Version = 523
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -105,6 +105,8 @@ GUB.DefaultUB.Version = 522
 --   Float                - If true then boxes inside of a bar can be moved anywhere on screen.
 --   ReverseFill          - If true then a bar fills from right to left.
 --   HideText             - If true all text is hidden for this bar.
+--   SmoothFillMaxTime    - The amount of time in seconds a smooth fill animation can take. 0 disables smooth fill.
+--   SmoothFillSpeed      - 0.01 to 1. 0.01 is slowest, 1 is fastest.
 --   BorderPadding        - Amount of pixel distance between the regions border and boxes inside the bar.
 --   Rotation             - Angle in degrees the bar is drawn in from 45 to 360 in 45 degree increments.
 --   Slope                - Tilts the bar up or down only when the bar is at 90, 180, 270, or 360 degrees.
@@ -349,8 +351,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         PredictedHealth = true,
@@ -477,7 +479,7 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
+        SmoothFillMaxTime = 0,
         SmoothFillSpeed = 0.2,
       },
       General = {
@@ -605,8 +607,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         PredictedHealth = true,
@@ -732,8 +734,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         UseBarColor = false,
@@ -854,8 +856,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         PredictedHealth = true,
@@ -981,8 +983,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         UseBarColor = false,
@@ -1106,8 +1108,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         PredictedHealth = true,
@@ -1232,8 +1234,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         UseBarColor = false,
@@ -1357,8 +1359,8 @@ GUB.DefaultUB.Default = {
         EnableTriggers = false,
         ReverseFill = false,
         HideText = false,
-        SmoothFill = false,
-        SmoothFillSpeed = 0.2,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
       },
       General = {
         PredictedCost = true,
@@ -2593,6 +2595,7 @@ Try reloading UI to fix it.
 |cff00ff00Not Active|r option added to aura triggers.  You'll find it in each aura option
 |cff00ff00Smooth fill|r settings will have to be redone.  Now have Smooth Fill and Smooth Fill Speed
 |cff00ff00Animation Triggers|r Bar Offset, Texture Scale, Text Font Size, and Text Font Offset
+|cff00ff00Smooth fill max time|r Sets the maximum time a smooth fill can take.  Found next to smooth fill
 ]]
 
 

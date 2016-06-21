@@ -719,8 +719,8 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFill',      function(v) BBar:ChangeTexture(StatusBar, 'SetSmoothFillTexture', 1, v) end)
-    BBar:SO('Layout', 'SmoothFillSpeed', function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
+    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(StatusBar, 'SetSmoothFillMaxTime', 1, v) end)
+    BBar:SO('Layout', 'SmoothFillSpeed',      function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
     if DGen then
       if DGen.UseBarColor ~= nil then
         BBar:SO('General', 'UseBarColor', function(v) Update = true end)

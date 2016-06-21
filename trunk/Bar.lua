@@ -139,7 +139,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Value                           Current value, work around for padding function dealing with statusbars.
 --                                   Also used by SetFill functions.
 --   SliderSize                      If not nill then the texture is being used as a slider.
---   SmoothFill                      If true then smooth fill is enabled.
+--   SmoothFillMaxTime               Max time in seconds for a smooth fill to complete.
 --   Speed                           How fast animation draws. Between 0.01 and 1.
 --                                   or 5secs from 0 to 0.5 or 0.25 to 0.75.
 --                                   Used by SetFillSpeedTexture() and SetFillTexture()
@@ -3756,7 +3756,12 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
 
     -- Turn duration into constant speed if set.
     if Constant then
+      local SmoothFillMaxTime = Texture.SmoothFillMaxTime
+
       Duration = GetSpeedDuration(Range * 100, Duration)
+      if Duration > SmoothFillMaxTime then
+        Duration = SmoothFillMaxTime
+      end
     end
 
     StartTime = StartTime and StartTime or CurrentTime
@@ -3845,7 +3850,8 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
-  local Speed = Texture.SmoothFill and Texture.Speed or 0
+  local SmoothFillMaxTime = Texture.SmoothFillMaxTime
+  local Speed = SmoothFillMaxTime and SmoothFillMaxTime > 0 and Texture.Speed or 0
 
   -- If Speed > 0 then fill the texture from its current value to a new value.
   if Speed > 0 then
@@ -3918,19 +3924,19 @@ function BarDB:SetFillSpeedTexture(BoxNumber, TextureNumber, Speed)
 end
 
 -------------------------------------------------------------------------------
--- SetSmoothFillTexture
+-- SetSmoothFillMaxTime
 --
--- Turns on or off smooth fill
+-- Set the amount of time in seconds a smooth fill animation can take.
 --
 -- BoxNumber       Box containing the texture
 -- TextureNumber   Texture to smooth fill on.
--- SmoothFill      If true then smooth fill is enabled, otherwise false.
+-- SmoothFill      Time in seconds, if 0 then smooth fill is disabled.
 -------------------------------------------------------------------------------
-function BarDB:SetSmoothFillTexture(BoxNumber, TextureNumber, SmoothFill)
+function BarDB:SetSmoothFillMaxTime(BoxNumber, TextureNumber, SmoothFillMaxTime)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture.SmoothFill = SmoothFill
+    Texture.SmoothFillMaxTime = SmoothFillMaxTime
   until LastBox
 end
 -------------------------------------------------------------------------------
