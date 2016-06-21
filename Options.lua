@@ -168,6 +168,8 @@ local o = {
   LayoutSlopeMax = 100,
   LayoutPaddingMin = -50,
   LayoutPaddingMax = 50,
+  LayoutSmoothFillMaxTimeMin = 0,
+  LayoutSmoothFillMaxTimeMax = 2,
   LayoutSmoothFillSpeedMin = 0.01,
   LayoutSmoothFillSpeedMax = 1,
   LayoutTextureScaleMin = 0.55,
@@ -4587,13 +4589,16 @@ local function CreateLayoutOptions(BarType, Order, Name)
     Spacer = false
   end
 
-  if UBD.Layout.SmoothFill ~= nil then
+  if UBD.Layout.SmoothFillMaxTime ~= nil then
     Spacer = true
-    LayoutArgs.SmoothFill = {
-      type = 'toggle',
-      name = 'Smooth Fill',
-      order = 61,
-      desc = 'Enabled smooth fill',
+    LayoutArgs.SmoothFillMaxTime = {
+      type = 'range',
+      name = 'Smooth Fill Max Time',
+      order = 62,
+      desc = 'Sets the maximum amount of time a smooth fill can take',
+      step = 0.01,
+      min = o.LayoutSmoothFillMaxTimeMin,
+      max = o.LayoutSmoothFillMaxTimeMax,
     }
     LayoutArgs.SmoothFillSpeed = {
       type = 'range',
@@ -4603,7 +4608,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
       step = 0.01,
       isPercent = true,
       disabled = function()
-                   return not UBF.UnitBar.Layout.SmoothFill
+                   return UBF.UnitBar.Layout.SmoothFillMaxTime == 0
                  end,
       min = o.LayoutSmoothFillSpeedMin,
       max = o.LayoutSmoothFillSpeedMax,
