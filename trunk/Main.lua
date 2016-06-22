@@ -1334,11 +1334,11 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
       end
     end
   elseif Ver == 8 then
-    -- Convert SmoothFill into boolean
+    -- Convert SmoothFill into SmoothFillMaxTime
     if SourceKey == 'SmoothFill' then
       local SmoothFill = SourceUB.SmoothFill
 
-      SourceUB.SmoothFill = SmoothFill == 0 and false or true
+      SourceUB.SmoothFillMaxTime = SmoothFill and SmoothFill or 0
     end
   end
 end
