@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 523
+GUB.DefaultUB.Version = 524
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -2563,7 +2563,6 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
-5.13
 
 If some bars like RuneBar don't appear correctly when using this version for the first time.
 Try reloading UI to fix it.
