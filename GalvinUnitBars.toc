@@ -1,4 +1,4 @@
-## Interface: 70300
+## Interface: 70000
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
