@@ -3558,7 +3558,7 @@ end
 local function SetFill(Texture, Value, Spark)
   local ReverseFill = Texture.ReverseFill
   local FillDirection = Texture.FillDirection
-  local Width, Height = Texture.Width, Texture.Height
+  local Width, Height = Texture._Width, Texture._Height
   local SliderSize = Texture.SliderSize
 
   -- Flag setfill for onsizechanged.
@@ -4549,8 +4549,8 @@ end
 local function OnSizeChangedTexture(PaddingFrame, Width, Height)
   local Texture = PaddingFrame:GetParent()
 
-  Texture.Width = Width
-  Texture.Height = Height
+  Texture._Width = Width
+  Texture._Height = Height
 
   if Texture.SetFill then
     local Value = Texture.Value
@@ -4667,8 +4667,8 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     Texture.ScaleFrame = ScaleFrame
     Texture.SubFrame = SubFrame
     Texture.PaddingFrame = PaddingFrame
-    Texture.Width = 1
-    Texture.Height = 1
+    Texture._Width = 1
+    Texture._Height = 1
     Texture.Value = 1
     Texture.RotateTexture = false
     Texture.FillDirection = 'HORIZONTAL'
