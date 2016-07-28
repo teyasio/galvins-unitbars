@@ -3853,8 +3853,7 @@ local function CreateUnitBar(UnitBarF, BarType)
 
     -- Create the anchor frame.
     -- Anchor gets hidden in SetUnitBarLayout()
-    local Anchor = CreateFrame('Frame', nil, UnitBarsParent)
-    --local Anchor = CreateFrame('Frame', 'GUB-Anchor-' .. BarType, UnitBarsParent)
+    local Anchor = CreateFrame('Frame', 'GUB-Anchor-' .. BarType, UnitBarsParent)
 
     -- Weird stuff happens if I dont hide here.
     Anchor:Hide()
