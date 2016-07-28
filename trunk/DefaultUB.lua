@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 525
+GUB.DefaultUB.Version = 526
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -2567,6 +2567,7 @@ ChangesText[1] = [[
 If some bars like RuneBar don't appear correctly when using this version for the first time.
 Try reloading UI to fix it.
 
+|cff00ff00Elvui|r compatability changes made
 |cff00ff00ComboBar|r has been recoded.  Bar and Background settings will have to be redone
 
 |cff00ff00Escape|r key can now close the pop up message box

@@ -71,6 +71,15 @@ LSM:Register('statusbar', 'GUB Empty', [[Interface\Addons\GalvinUnitBars\Texture
 LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder]])
 
 ------------------------------------------------------------------------------
+-- To fix some problems with elvui.  I had to change Width and Height
+-- to _Width and _Height in some code through out the addon.
+--
+-- To the elvui guys.  Next time try to use something that won't conflict.
+-- like _elvuiWidth() and _elvuiHeight().  Its not fair I have to change my code
+-- cause of yours.  The users are the ones that suffer.  Think of the users :P
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
 -- Unitbars frame layout.
 --
 -- UnitBarsParent
@@ -1655,10 +1664,10 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
       if Anchor then
         local AnchorPointFrame = UBF.AnchorPointFrame
 
-        Anchor.Width = nil
-        Anchor.Height = nil
-        AnchorPointFrame.Width = nil
-        AnchorPointFrame.Height = nil
+        Anchor._Width = nil
+        Anchor._Height = nil
+        AnchorPointFrame._Width = nil
+        AnchorPointFrame._Height = nil
       end
     end
     return
@@ -1669,11 +1678,11 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
   local Scale = UB.Other.Scale
 
   if Width then
-    Anchor.Width = Width
-    Anchor.Height = Height
+    Anchor._Width = Width
+    Anchor._Height = Height
   else
-    Width = Anchor.Width or 0.1
-    Height = Anchor.Height or 0.1
+    Width = Anchor._Width or 0.1
+    Height = Anchor._Height or 0.1
   end
 
 
@@ -1681,9 +1690,9 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
   Width = Width * Scale
   Height = Height * Scale
 
-  if Anchor.Width then
-    local APWidth = AnchorPointFrame.Width
-    local APHeight = AnchorPointFrame.Height
+  if Anchor._Width then
+    local APWidth = AnchorPointFrame._Width
+    local APHeight = AnchorPointFrame._Height
 
     if APWidth then
       if Width ~= APWidth or Height ~= APHeight then
@@ -1698,15 +1707,15 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
 
         local Offset = AnchorOffset[AnchorPoint]
 
-        AnchorPointFrame.Width = Width
-        AnchorPointFrame.Height = Height
+        AnchorPointFrame._Width = Width
+        AnchorPointFrame._Height = Height
 
         UB.x = UB.x + DiffX * Offset.x + (OffsetX or 0) * Scale
         UB.y = UB.y + DiffY * Offset.y + (OffsetY or 0) * Scale
       end
     else
-      AnchorPointFrame.Width = Width
-      AnchorPointFrame.Height = Height
+      AnchorPointFrame._Width = Width
+      AnchorPointFrame._Height = Height
     end
   end
 
@@ -4284,8 +4293,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 11 then
-    GUBData.ShowMessage = 11
+  if GUBData.ShowMessage ~= 13 then
+    GUBData.ShowMessage = 13
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
