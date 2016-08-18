@@ -3503,7 +3503,6 @@ function GUB:CheckPredictedSpells(Event)
 
               if PowerType then
                 local SpellInfo = PredictedSpells[SpellID]
-
                 Amount = tonumber(Amount)
 
                 if SpellInfo == nil then
@@ -3519,7 +3518,7 @@ function GUB:CheckPredictedSpells(Event)
                   -- Only do a call back if Event is not nil
                   if Event then
                     for UnitBarF, PredictedSpell in pairs(PredictedSpells) do
-                      if type(UnitBarF) ~= 'number' then
+                      if UnitBarF ~= 'SpellBook' and type(UnitBarF) ~= 'number' then
                         local Fn = PredictedSpell.Fn
 
                         if Fn then
