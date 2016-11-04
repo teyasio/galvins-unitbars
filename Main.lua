@@ -720,6 +720,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:GetTaggedColor(Unit, p2, p3, p4, r, g, b, a)
   Unit = Unit or ''
+
   if UnitBars.TaggedTest or UnitExists(Unit) and not UnitPlayerControlled(Unit) and UnitIsTapDenied(Unit) then
     local Color = UnitBars.TaggedColor
 

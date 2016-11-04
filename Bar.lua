@@ -19,8 +19,8 @@ local LSM = Main.LSM
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
 local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
@@ -1713,7 +1713,8 @@ local function OnObjectScale(AGroup)
   local Value = AGroup.FromValue
   local Scale = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
 
-  if Scale > 0 then
+  -- getting a huge number somehow, no idea why.
+  if Scale ~= mhuge and Scale > 0 then
     AGroup.OnObject:SetScale(Scale)
   end
 end
@@ -5003,6 +5004,7 @@ function BarDB:SetValueFont(BoxNumber, ...)
 
     if not ReturnOK then
       FontString:SetFormattedText('Err (%d)', Index)
+      print(Msg)
     end
   end
 end
