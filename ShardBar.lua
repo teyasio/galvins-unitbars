@@ -195,7 +195,7 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
   end
 
   -- Set the IsActive flag.
-  self.IsActive = SoulShards > 0
+  self.IsActive = SoulShards ~= 3
 
   -- Do a status check.
   self:StatusCheck()
