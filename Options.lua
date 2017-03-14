@@ -111,7 +111,7 @@ local o = {
   TestModeChiMin = 0,
   TestModeChiMax = 6,
   TestModePointsMin = 0,
-  TestModePointsMax = 8,
+  TestModePointsMax = 10,
   TestModeArcaneChargesMin = 0,
   TestModeArcaneChargesMax = 4,
 

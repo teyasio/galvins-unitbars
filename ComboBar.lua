@@ -66,7 +66,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --         box after.  Then the Update() code sets the alpha back to 1 for lit anticipation
 --         points.  This creates a fade animation that looks good.
 -------------------------------------------------------------------------------
-local MaxComboPoints = 9
+local MaxComboPoints = 11
 local ExtraComboPointStart = 6
 local Display = false
 local Update = false
@@ -126,15 +126,17 @@ local VTs = {'whole', 'Total Points',
              'whole', 'Anticipation Points',
              'auras', 'Auras'               }
 local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Point 1',    VTs, TD}, -- 1
-  {2,   'Point 2',    VTs, TD}, -- 2
-  {3,   'Point 3',    VTs, TD}, -- 3
-  {4,   'Point 4',    VTs, TD}, -- 4
-  {5,   'Point 5',    VTs, TD}, -- 5
-  {6,   'Point 6',    VTs, TD}, -- 6
-  {7,   'Anticipation 1',     VTs, TD}, -- 7
-  {8,   'Anticipation 2',     VTs, TD}, -- 8
-  {9,   'Anticipation 3',     VTs, TD}, -- 9
+  {1,   'Point 1',  VTs, TD}, -- 1
+  {2,   'Point 2',  VTs, TD}, -- 2
+  {3,   'Point 3',  VTs, TD}, -- 3
+  {4,   'Point 4',  VTs, TD}, -- 4
+  {5,   'Point 5',  VTs, TD}, -- 5
+  {6,   'Point 6',  VTs, TD}, -- 6
+  {7,   'Ant 1',    VTs, TD}, -- 7
+  {8,   'Ant 2',    VTs, TD}, -- 8
+  {9,   'Ant 3',    VTs, TD}, -- 9
+  {10,  'Ant 4',    VTs, TD}, -- 10
+  {11,  'Ant 5',    VTs, TD}, -- 11
   {'a', 'All', {'whole', 'Total Points',
                 'whole', 'Combo Points',
                 'whole', 'Anticipation Points',
@@ -145,9 +147,9 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
 
 -- Combo layouts
 local ComboLayout = {
-  [5] = {[6] = true,  [7] = true,  [8] = true,  [9] = true},
-  [6] = {[6] = false, [7] = true,  [8] = true,  [9] = true},
-  [8] = {[6] = true,  [7] = false, [8] = false, [9] = false },
+  [5]  = {[6] = true,  [7] = true,  [8] = true,  [9] = true,  [10] = true,  [11] = true  },
+  [6]  = {[6] = false, [7] = true,  [8] = true,  [9] = true,  [10] = true,  [11] = true  },
+  [10] = {[6] = true,  [7] = false, [8] = false, [9] = false, [10] = false, [11] = false },
 }
 
 local ComboData = {
@@ -482,7 +484,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(0, ComboDarkTexture, false)
 
   BBar:SetChangeBox(ChangeComboPoints, 1, 2, 3, 4, 5, 6)
-  BBar:SetChangeBox(ChangeAnticipationPoints, 7, 8, 9)
+  BBar:SetChangeBox(ChangeAnticipationPoints, 7, 8, 9, 10, 11)
 
   BBar:ChangeBox(ChangeComboPoints, 'SetSizeTextureFrame', BoxMode, UB.BarCombo.Width, UB.BarCombo.Height)
   BBar:ChangeBox(ChangeAnticipationPoints, 'SetSizeTextureFrame', BoxMode, UB.BarAnticipation.Width, UB.BarAnticipation.Height)
