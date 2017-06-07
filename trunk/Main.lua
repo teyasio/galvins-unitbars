@@ -27,6 +27,7 @@ GUB.RuneBar = {}
 GUB.ComboBar = {}
 GUB.HolyBar = {}
 GUB.ShardBar = {}
+GUB.FragmentBar = {}
 GUB.ChiBar = {}
 GUB.ArcaneBar = {}
 GUB.Options = Options
@@ -34,17 +35,16 @@ GUB.Options = Options
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
 local LSM = LibStub('LibSharedMedia-3.0')
-local OldWoWVersion = select(4, GetBuildInfo()) < 70000
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -159,8 +159,13 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.ProfileChanged    - If true then profile is currently being changed. This is set by SetUnitBars()
 -- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
 -- Main.Reset             - If true then a reset happened.  This is set by CreateResetOptions() in options.lua.
+-- Main.PlayerSpecializationChanged
+--                        - If true then the player changed their specialization.
+-- Main.PlayerSpecialization
+--                        - Number. Contains the current specialization of the player.
 -- Main.UnitBars          - Set by SharedData()
 -- Main.PlayerClass       - Set by SharedData()
+-- Main.ConvertPlayerClass - Turns player class into lower case with spaces. Also contains list of uppercaase class in alphabetical order.
 -- Main.PlayerPowerType   - Set by SharedData() and UnitBarsUpdateStatus()
 -- Main.ConvertCombatColor - Reference to ConvertCombatColor
 -- Main.PowerColorType    - Reference to PowerColorType
@@ -192,11 +197,12 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- HasFocus               - True or false. If true then the player has a focus.
 -- HasPet                 - True or false. If true then the player has a pet.
 
--- PlayerClass            - Name of the class for the player in english.
+-- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
+-- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in.
--- PlayerSpecialization   - The current specialization for the player
+-- PlayerSpecialization   - The current specialization for the player, 0 for none.
 --
 -- RegEventFrames         - Table used by RegEvent()
 -- RegUnitEventFrames     - Table used by RegUnitEvent()
@@ -421,7 +427,7 @@ local SelectFrameBorder = {
 }
 
 local DialogBorder = {
-  bgFile   = LSM:Fetch('background', 'Blizzard Dialog Background'),
+  bgFile   = LSM:Fetch('background', 'Blizzard Dialog Background Dark'),
   edgeFile = LSM:Fetch('border', 'Blizzard Dialog'),
   tile = true,
   tileSize = 20,
@@ -471,6 +477,16 @@ local PowerColorType = {
   INSANITY = 13, FURY = 17, PAIN = 18,
 }
 
+local ConvertPlayerClass = {
+  DEATHKNIGHT = 'Death Knight',  DEMONHUNTER = 'Demon Hunter',  DRUID  = 'Druid',  HUNTER = 'Hunter',  MAGE    = 'Mage',    MONK    = 'Monk',
+  PALADIN     = 'Paladin',       PRIEST      = 'Priest',        ROGUE  = 'Rogue',  SHAMAN = 'Shaman',  WARLOCK = 'Warlock', WARRIOR = 'Warrior',
+  ['Death Knight'] = 'DEATHKNIGHT', ['Demon Hunter'] = 'DEMONHUNTER', Druid = 'DRUID', Hunter = 'HUNTER', Mage    = 'MAGE',    Monk    = 'MONK',
+  Paladin          = 'PALADIN',     Priest           = 'PRIEST',      Rogue = 'ROGUE', Shaman = 'SHAMAN', Warlock = 'WARLOCK', Warrior = 'WARRIOR',
+
+  'DEATHKNIGHT', 'DEMONHUNTER', 'DRUID',  'HUNTER', 'MAGE',    'MONK',
+  'PALADIN',     'PRIEST',      'ROGUE',  'SHAMAN', 'WARLOCK', 'WARRIOR'
+}
+
 DUB.FocusHealth.BarVisible  = function() return HasFocus end
 DUB.FocusPower.BarVisible   = function() return HasFocus end
 DUB.PetHealth.BarVisible    = function() return HasPet end
@@ -489,6 +505,7 @@ Main.LSM = LSM
 Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
 Main.ConvertCombatColor = ConvertCombatColor
+Main.ConvertPlayerClass = ConvertPlayerClass
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
 
@@ -870,6 +887,18 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
 end
 
 -------------------------------------------------------------------------------
+-- GetGameVersion
+--
+-- Returns the current version of the game as an interger
+--
+-- Example: 725 would be 7.2.5
+-------------------------------------------------------------------------------
+local function GetGameVersion()
+  local v1, v2, v3 = strsplit('.', GetBuildInfo())
+  return (tonumber(v1) or 1) * 100 +  (tonumber(v2) or 0) * 10 + (tonumber(v3) or 0)
+end
+
+-------------------------------------------------------------------------------
 -- ShowMessage
 --
 -- Displays a message on the screen in a box, with an Okay button.
@@ -962,7 +991,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
   local ContentFrame = MessageBox.ContentFrame
   ContentFrame:SetSize(Width - 45, 1000)
 
-  FontString:SetText("Galvin's Unit Bars\n\n" .. Message .. '\n' .. '|cffffff00This list can be viewed under Help -> Changes')
+  FontString:SetText("Galvin's Unit Bars\n\n" .. '|cffffff00This list can be viewed under Help -> Changes|r' .. '\n' .. Message .. '\n')
 
   local Height = FontString:GetStringHeight()
   local Scroller = MessageBox.Scroller
@@ -1402,7 +1431,18 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData8 = {
     {Action = 'custom',    Source = 'Layout',                           '=SmoothFill'},
   }
-
+  local ConvertUBData9 = {
+    {Action = 'movetable', Source = '',                                 Dest = '',                 '=Other:Attributes'},
+    {Action = 'movetable', Source = 'General',                          Dest = 'Layout',           'ColorEnergize'},
+    {Action = 'move',      Source = 'General',                          Dest = 'Layout',           'BarSpark', 'ClassColor', 'CombatColor',
+                                                                                                   'CooldownAnimation', 'CooldownLine',
+                                                                                                   'EnergizeShow', 'EnergizeTime', '!HideCooldownFlash:CooldownFlash',
+                                                                                                   'InactiveAnticipationAlpha', 'PredictedCost',
+                                                                                                   'PredictedHealth', 'PredictedPower', 'RuneMode',
+                                                                                                   'RuneOffsetX', 'RuneOffsetY', 'RunePosition',
+                                                                                                   'TaggedColor', 'TextureScaleAnticipation',
+                                                                                                   'TextureScaleCombo', 'UseBarColor' },
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1422,6 +1462,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData7
   elseif Ver == 8 then
     ConvertUBData = ConvertUBData8
+  elseif Ver == 9 then
+    ConvertUBData = ConvertUBData9
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1464,6 +1506,7 @@ local function ConvertUnitBarData(Ver)
           -- Find the keys and store the results in KeysFound.
           for UBKey, Value in pairs(SourceUB) do
             if Exact and UBKey == SourceKey or not Exact and strfind(UBKey, SourceKey) then
+              -- Check to see if the source key exists in the defaults.
               if Action ~= 'custom' and SourceUBD and SourceUBD[UBKey] ~= nil then
               else
                 -- Check to see if the DestKey already exists in the dest table.
@@ -1627,7 +1670,7 @@ function GUB.Main:SetAnchorPoint(Anchor, x, y)
 
   if not Anchor.IsScaling then
     AnchorPointFrame:ClearAllPoints()
-    AnchorPointFrame:SetPoint(UB.Other.AnchorPoint)
+    AnchorPointFrame:SetPoint(UB.Attributes.AnchorPoint)
   end
 
   UB.x, UB.y = x, y
@@ -1676,7 +1719,7 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
 
   -- Get Unitbar data and anchor
   local UB = Anchor.UnitBar
-  local Scale = UB.Other.Scale
+  local Scale = UB.Attributes.Scale
 
   if Width then
     Anchor._Width = Width
@@ -1699,7 +1742,7 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
       if Width ~= APWidth or Height ~= APHeight then
         local DiffX = Width - APWidth
         local DiffY = Height - APHeight
-        local AnchorPoint = UB.Other.AnchorPoint
+        local AnchorPoint = UB.Attributes.AnchorPoint
 
         --If offsetting then fake TOPLEFT
         if OffsetX then
@@ -2559,8 +2602,7 @@ function GUB.Main:StatusCheck(Event)
   if UB.Enabled then
 
     -- Check if the right class is using this bar.
-    local UsedByClass = DUB[self.BarType].UsedByClass
-    Spec = UsedByClass and UsedByClass[PlayerClass]
+    Spec = DUB[self.BarType].UsedByClass[PlayerClass]
 
     -- Check to see if the bar has a HideNotUsable flag.
     local HideNotUsableRaw = Status.HideNotUsable
@@ -2569,7 +2611,7 @@ function GUB.Main:StatusCheck(Event)
       Visible = false
 
       -- Check if class found, then check spec.
-      if Spec and (Spec == '' or PlayerSpecialization and strfind(Spec, PlayerSpecialization or '0')) then
+      if Spec and (Spec == '' or strfind(Spec, PlayerSpecialization)) then
         Visible = true
       end
     end
@@ -3569,12 +3611,18 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   HasPet = PetHasActionBar() or HasPetUI()
   PlayerStance = GetShapeshiftFormID()
   PlayerPowerType = UnitPowerType('player')
-  PlayerSpecialization = GetSpecialization()
+  PlayerSpecialization = GetSpecialization() or 0
 
   Main.InCombat = InCombat
   Main.IsDead = IsDead
   Main.HasTarget = HasTarget
   Main.PlayerPowerType = PlayerPowerType
+
+  -- Call for a checktrigger change thru setattr if player specialization has changed.
+  local PlayerSpecializationChanged = Main.PlayerSpecialization ~= PlayerSpecialization
+
+  Main.PlayerSpecializationChanged = PlayerSpecializationChanged
+  Main.PlayerSpecialization = PlayerSpecialization
 
   -- Close options when in combat.
   if InCombat then
@@ -3592,12 +3640,18 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
       print(InCombatOptionsMessage)
     end
   end
+
   Main:AuraUpdate(AuraListName)
 
   for _, UBF in ipairs(UnitBarsFE) do
+    if PlayerSpecializationChanged then
+      UBF:SetAttr('Layout', 'EnableTriggers')
+    end
+
     UBF:StatusCheck()
     UBF:Update()
   end
+  Main.PlayerSpecializationChanged = false
 end
 
 -------------------------------------------------------------------------------
@@ -3700,7 +3754,7 @@ end
 -- UnitBarF    The Unitbar frame to change the type of.
 -------------------------------------------------------------------------------
 local function SetAnimationTypeUnitBar(UnitBarF)
-  local UBO = UnitBarF.UnitBar.Other
+  local UBO = UnitBarF.UnitBar.Attributes
   local BBar = UnitBarF.BBar
 
   -- Set animation type
@@ -3765,7 +3819,7 @@ end
 -------------------------------------------------------------------------------
 -- UnitBarSetAttr
 --
--- Base unitbar set attribute. Handles attributes that are shared across all bars.
+-- Base unitbar set attributes. Handles attributes that are shared across all bars.
 --
 -- Usage    UnitBarSetAttr(UnitBarF, Object, Attr)
 --
@@ -3774,7 +3828,7 @@ end
 function GUB.Main:UnitBarSetAttr(UnitBarF)
 
   -- Get the unitbar data.
-  local UBO = UnitBarF.UnitBar.Other
+  local UBO = UnitBarF.UnitBar.Attributes
   local Alpha = UBO.Alpha
   local Anchor = UnitBarF.Anchor
   local BBar = UnitBarF.BBar
@@ -4128,6 +4182,7 @@ end
 -------------------------------------------------------------------------------
 local ExcludeList = {
   ['Version'] = 1,
+  ['Reset'] = 1,
   ['*.BoxLocations'] = 1,
   ['*.BoxOrder'] = 1,
   ['*.Text.#'] = 1,
@@ -4212,7 +4267,12 @@ function GUB:ApplyProfile()
     ConvertUnitBarData(7)
   end
   if Ver == nil or Ver < 513 then
+    -- Convert profile from a version before 5.13
     ConvertUnitBarData(8)
+  end
+  if Ver == nil or Ver < 540 then
+    -- Convert profile from a version before 5.40
+    ConvertUnitBarData(9)
   end
 
   -- Make sure profile is accurate.
@@ -4249,8 +4309,8 @@ end
 -- until after OnEnable()
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
-  if OldWoWVersion then
-    message("Galvin's Unitbars 5.00 or higher will only work on Legion. Please go back to version 4.x")
+  if GetGameVersion() < 725 then
+    message("Galvin's UnitBars\nThis will work on patch 7.2.5 or higher only")
     return
   end
 
@@ -4292,8 +4352,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 13 then
-    GUBData.ShowMessage = 13
+  if GUBData.ShowMessage ~= 14 then
+    GUBData.ShowMessage = 14
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

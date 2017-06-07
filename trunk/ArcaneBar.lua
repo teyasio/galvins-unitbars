@@ -17,12 +17,12 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -48,17 +48,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- UnitBarF.BBar                     Contains an instance of bar functions for arcane bar.
 --
 -- UnitBarF.ArcaneBar                Contains the arcane bar displayed on screen.
---
--- ArcaneData                        Contains all the data for the arcane charges texture.
---   AtlasName                       Atlas for the arcane texture.
---   Width                           Width of the texture and box size in texture mode.
---   Height                          Height of the texture and box size in texture mode.
---   DarkAlpha                       Alpha for the the unlit arcane texture in texture mode.
---
--- ChangeArcane                      ChangeTexture number for ArcaneSBar and ArcaneLightTexture
--- ArcaneSBar                        Contains the lit arcane charge texture for box mode.
--- ArcaneDarkTexture                 Contains the dark arcane charge texture for texture mode.
--- ArcaneLightTexture                Contains the lit arcane charge texture for texture mode.
 -------------------------------------------------------------------------------
 local MaxArcaneCharges = 4
 local Display = false
@@ -166,6 +155,7 @@ function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerType)
     return
   end
 
+  local BBar = self.BBar
   local ArcaneCharges = UnitPower('player', PowerArcane)
   local NumCharges = UnitPowerMax('player', PowerArcane)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
@@ -173,8 +163,6 @@ function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerType)
   if Main.UnitBars.Testing then
     ArcaneCharges = self.UnitBar.TestMode.ArcaneCharges
   end
-
-  local BBar = self.BBar
 
   for ArcaneIndex = 1, MaxArcaneCharges do
     BBar:ChangeTexture(ChangeArcane, 'SetHiddenTexture', ArcaneIndex, ArcaneIndex > ArcaneCharges)
@@ -228,11 +216,10 @@ function Main.UnitBarsF.ArcaneBar:SetAttr(TableName, KeyName)
 
   if not BBar:OptionsSet() then
 
-    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
+    BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
-
-    BBar:SO('Layout', 'BoxMode',       function(v)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
         BBar:ShowRowTextureFrame(BoxMode)

@@ -17,12 +17,12 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -48,20 +48,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- UnitBarF.BBar                     Contains the ember bar displayed on screen.
 --
 -- UnitBarF.ShadowBar                Contains the shadow bar displayed on screen.
---
--- ChiData                           Contains all the data for the chi bar.
---   Texture                         Path name to the texture.
---   TextureWidth, TextureHeight     Width and Height of the orbs in texture mode.
---   [TextureType]
---     Level                         Frame level to display the texture on.
---     Width, Height                 Width and Height of the texture.
---     Left, Right, Top, Bottom      Texcoords inside the Texture that locate each texture.
---
--- ChiSBar                           Texture for orb in box mode.
--- ChiDarkTexture                    Dark texture for orb in texture mode.
--- ChiLightTexture                   Light texture for orb in texture mode.
--- ChangeChi                         Change texture for ChiSBar and ChiLightTexture
---
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 6
 local ExtraChiOrbStart = 5
@@ -132,12 +118,14 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
 
 local ChiData = {
   TextureWidth = 21 + 8, TextureHeight = 21 + 8,
-  [ChiDarkTexture] = {
+  { -- Level 1
+    TextureNumber = ChiDarkTexture,
     Level = 1,
     Width = 21, Height = 21,
     AtlasName = 'MonkUI-OrbOff',
   },
-  [ChiLightTexture] = {
+  { -- Level 2
+    TextureNumber = ChiLightTexture,
     Level = 2,
     Width = 21, Height = 21,
     AtlasName = 'MonkUI-LightOrb',
@@ -261,11 +249,10 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
 
   if not BBar:OptionsSet() then
 
-    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
+    BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
-
-    BBar:SO('Layout', 'BoxMode',       function(v)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+    BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
         BBar:ShowRowTextureFrame(BoxMode)
@@ -366,12 +353,12 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   for ChiIndex = 1, MaxChiOrbs do
     BBar:CreateTextureFrame(ChiIndex, TextureMode, 0)
 
-    for TextureNumber, CD in pairs(ChiData) do
-      if type(TextureNumber) == 'number' then
-        BBar:CreateTexture(ChiIndex, TextureMode, 'texture', CD.Level, TextureNumber)
-        BBar:SetAtlasTexture(ChiIndex, TextureNumber, CD.AtlasName)
-        BBar:SetSizeTexture(ChiIndex, TextureNumber, CD.Width, CD.Height)
-      end
+    for Level, CD in ipairs(ChiData) do
+      local TextureNumber = CD.TextureNumber
+
+      BBar:CreateTexture(ChiIndex, TextureMode, 'texture', Level, TextureNumber)
+      BBar:SetAtlasTexture(ChiIndex, TextureNumber, CD.AtlasName)
+      BBar:SetSizeTexture(ChiIndex, TextureNumber, CD.Width, CD.Height)
     end
     local Name = NamePrefix .. Groups[ChiIndex][2]
 

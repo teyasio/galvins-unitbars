@@ -15,12 +15,12 @@ local TT = GUB.DefaultUB.TriggerTypes
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -45,40 +45,21 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -- UnitBarF.BBar                     Contains the holy bar displayed on screen.
 -- UnitBarF.LastDuration             Keeps track of each runes last duration
--- UnitBarF.EnergizeTimers           Keeps track of the amount of time to show an energize frame.
---
--- Color, BorderColor                Flag used to determin if any color should be changed.
---
--- BarMode                           Used to show bars.
--- RuneMode                          Used to show runes.
--- RuneSBar                          Texture used for bars.
--- RuneEnergizeSBar                  Border used for energize for bars.
--- RuneTexture                       Texture used for runes.
--- RuneBorderTexture                 Rune border used to show above the rune texture.
--- RuneEnergizeBorder                Border to show around the rune texture for energize.
---
--- RuneData                          Contains information for runes.
---   Width, Height                   Width and Height of the runes.
---   Border                          Border texture that surrounds a rune.
---   BorderEnergize                  Same as border, except only shown during energize.
---   Background                      Texture of the rune its self.
---   CDwidth, CDheight               Multiplier to make the cooldown animation fit the rune size.
---
--- BarEnergizeBorder                 Border texture used to show an energize border for the bars.
 -------------------------------------------------------------------------------
 local MaxRunes = 6
 local Display = false
 local Update = false
-local Color = false
+local SortedRunes = {1, 2, 3, 4, 5, 6}
+local RunesMoved = false
+local RuneCooldownRuneBar = nil
+local TenHours = 36000
 
 local BarMode = 1
 local RuneMode = 2
 
 local RuneSBar = 10
-local RuneEnergizeSBar = 11
 local RuneTexture = 20
-local RuneBorderTexture = 21
-local RuneEnergizeTexture = 22
+local RuneEmptyTexture = 21
 
 local RegionGroup = 8
 
@@ -100,7 +81,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BarMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneTexture, RuneBorderTexture, RuneEnergizeTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneTexture, RuneEmptyTexture },
   { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
     GF = GF },
   { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
@@ -121,8 +102,8 @@ local TDregion = { -- Trigger data for region
 }
 
 local VTs = {'state', 'Recharging',
-             'state', 'Empowered',
              'auras', 'Auras'      }
+
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Rune 1',    VTs, TD},  -- 1
   {2,   'Rune 2',    VTs, TD},  -- 2
@@ -134,19 +115,27 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {'r', 'Region',    VTs, TDregion},  -- 8
 }
 
-local RuneData = {
-  Width = 22, Height = 22,
-
-  Border = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-Ring]],
-  BorderEnergize = [[Interface\Addons\GalvinUnitBars\Textures\GUB_DeathknightRingEnergize]],
-  BorderColor = { r = 0.6, g = 0.6, b = 0.6, a = 1 },
-  Background = [[Interface\PlayerFrame\UI-PlayerFrame-Deathknight-SingleRune]],
-  CDwidth = 0.625,
-  CDheight = 0.625,
+local RuneCooldownFillTexture = {
+  [[Interface\PlayerFrame\DK-Blood-Rune-CDFill]],    -- 1
+  [[Interface\PlayerFrame\DK-Frost-Rune-CDFill]],   -- 2
+  [[Interface\PlayerFrame\DK-Unholy-Rune-CDFill]],  -- 3
 }
 
-local BarEnergizeBorder = [[Interface\Addons\GalvinUnitBars\Textures\GUB_SquareBorder]]
-local BarEnergizeBorderSize = 12
+local RuneCooldownSparkTexture = {
+  [[Interface\PlayerFrame\DK-BloodUnholy-Rune-CDSpark]],  -- 1
+  [[Interface\PlayerFrame\DK-Frost-Rune-CDSpark]],        -- 2
+  [[Interface\PlayerFrame\DK-BloodUnholy-Rune-CDSpark]],  -- 3
+}
+
+local RuneReadyTexture = {
+  [[DK-Blood-Rune-Ready]],  -- 1
+  [[DK-Frost-Rune-Ready]],  -- 2
+  [[DK-Unholy-Rune-Ready]], -- 3
+}
+
+local RuneDataWidth = 24
+local RuneDataHeight = 24  -- Width and height used for texture mode
+local RuneDataAtlasEmptyRune = [[DK-Rune-CD]]
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -159,66 +148,6 @@ Main.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
 --
 --*****************************************************************************
 
--------------------------------------------------------------------------------
--- DoEnergize
---
--- Shows an energize border for a period of time.
---
--- RuneBar     Bar to use.
--- RuneIndex   Rune to show a border around.
--------------------------------------------------------------------------------
-local function DoEnergizeTimer(self)
-  local BBar = self.BBar
-  local RuneIndex = self.RuneIndex
-
-  BBar:SetHiddenTexture(RuneIndex, RuneEnergizeSBar, true)
-  BBar:SetHiddenTexture(RuneIndex, RuneEnergizeTexture, true)
-
-  if self.Layout.EnableTriggers then
-    BBar:SetTriggers(RuneIndex, 'off')
-    BBar:SetTriggers(RegionGroup, 'off')
-    BBar:SetTriggers(RuneIndex, 'empowered', false)
-    BBar:SetTriggers(RegionGroup, 'empowered', false)
-    BBar:DoTriggers()
-  end
-  self.Energized = false
-  Main:SetTimer(self, nil)
-end
-
-local function DoEnergize(RuneBar, RuneIndex)
-  local BBar = RuneBar.BBar
-  local UB = RuneBar.UnitBar
-  local Gen = UB.General
-  local EnergizeShow = Gen.EnergizeShow
-  local EnergizeTimers = RuneBar.EnergizeTimers
-  local EnergizeTimer = EnergizeTimers[RuneIndex]
-
-  if EnergizeTimer == nil then
-    EnergizeTimer = {}
-    EnergizeTimers[RuneIndex] = EnergizeTimer
-  end
-
-  EnergizeTimer.BBar = BBar
-  EnergizeTimer.RuneIndex = RuneIndex
-  EnergizeTimer.Layout = UB.Layout
-  EnergizeTimer.Energized = true
-
-  if strfind(EnergizeShow, 'bar') then
-    BBar:SetHiddenTexture(RuneIndex, RuneEnergizeSBar, false)
-  end
-  if strfind(EnergizeShow, 'rune') then
-    BBar:SetHiddenTexture(RuneIndex, RuneEnergizeTexture, false)
-  end
-
-  if UB.Layout.EnableTriggers then
-    BBar:SetTriggers(RuneIndex, 'empowered', true)
-    BBar:SetTriggers(RegionGroup, 'empowered', true)
-    BBar:DoTriggers()
-  end
-
-  Main:SetTimer(EnergizeTimer, nil)
-  Main:SetTimer(EnergizeTimer, DoEnergizeTimer, Gen.EnergizeTime)
-end
 
 --*****************************************************************************
 --
@@ -227,163 +156,258 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- UpdateTestMode
+-- GetRuneCooldown2
 --
--- Display the rune bar in a testmode pattern.
---
--- RuneBar      The runebar to show in test mode.
--- Testing      If true shows the test pattern, if false clears it.
+-- Roots cooldown so things like testmode are possible
 -------------------------------------------------------------------------------
-local function UpdateTestMode(RuneBar, Testing)
-  local BBar = RuneBar.BBar
+local function GetRuneCooldown2(RuneID)
+  local StartTime = 0
+  local Duration = 0
+  local RuneReady = true
 
-  if Testing then
-    local UB = RuneBar.UnitBar
-    local Layout = UB.Layout
-    local HideText = Layout.HideText
-    local EnableTriggers = Layout.EnableTriggers
-    local TestMode = UB.TestMode
-    local Time = TestMode.RuneTime
-    local Recharge = TestMode.RuneRecharge
-    local Energize = TestMode.RuneEnergize
-    local EnergizeShow = UB.General.EnergizeShow
-    local ShowEnergize = false
-
-    local TriggerRecharging = false
-    local TriggerEnergize = false
-
-    for RuneIndex = 1, MaxRunes do
-
-      if RuneIndex == Energize or Energize > MaxRunes then
-        ShowEnergize = true
-      else
-        ShowEnergize = false
-      end
-
-      BBar:SetFillTexture(RuneIndex, RuneSBar, Time, true)
-
-      if not HideText then
-        BBar:SetValueFont(RuneIndex, 'time', 10 * Time)
-      else
-        BBar:SetValueRawFont(RuneIndex, '')
-      end
-
-      BBar:SetHiddenTexture(RuneIndex, RuneEnergizeSBar, not ShowEnergize or strfind(EnergizeShow, 'bar') == nil)
-      BBar:SetHiddenTexture(RuneIndex, RuneEnergizeTexture, not ShowEnergize or strfind(EnergizeShow, 'rune') == nil)
-
-      if EnableTriggers then
-        local Recharge = RuneIndex == Recharge or Recharge > MaxRunes
-
-        if Recharge then
-          TriggerRecharging = true
-        end
-        if ShowEnergize then
-          TriggerEnergize = true
-        end
-
-        BBar:SetTriggers(RuneIndex, 'recharging', Recharge)
-        BBar:SetTriggers(RuneIndex, 'empowered', ShowEnergize)
-      end
-    end
-
-    if EnableTriggers then
-      BBar:SetTriggers(RegionGroup, 'recharging', TriggerRecharging)
-      BBar:SetTriggers(RegionGroup, 'empowered', TriggerEnergize)
-
-      BBar:DoTriggers()
+  if not Main.UnitBars.Testing then
+    if Main.PlayerClass == 'DEATHKNIGHT' then
+      StartTime, Duration, RuneReady = GetRuneCooldown(RuneID)
     end
   else
-    for RuneIndex = 1, MaxRunes do
-      BBar:SetFillTexture(RuneIndex, RuneSBar, 0, false)
-      BBar:SetTriggers(RuneIndex, 'off')
+    local UB = RuneCooldownRuneBar.UnitBar
+    local TestMode = UB.TestMode
+    local RuneTime = TestMode.RuneTime
+    local CurrentTime = GetTime()
 
-      BBar:SetHiddenTexture(RuneIndex, RuneEnergizeSBar, true)
-      BBar:SetHiddenTexture(RuneIndex, RuneEnergizeTexture, true)
+    if TestMode.RuneOnCooldown >= RuneID then
+
+      -- Use a 10 hour clock to similate a test cooldown
+      StartTime = CurrentTime - TenHours * RuneTime
+      Duration = TenHours
+
+      if RuneTime == 0 then
+        RuneReady = true
+      else
+        RuneReady = false
+      end
+    else
+      StartTime = 0
+      Duration = 0
+      RuneReady = true
     end
-    BBar:SetValueRawFont(0, '')
+  end
+
+  return StartTime, Duration, RuneReady
+end
+
+-------------------------------------------------------------------------------
+-- DoRuneCooldown
+--
+-- Start or stop a rune cooldown.
+--
+-- RuneBar        The bar containing the runes.
+-- Action         'start'    Start a new cooldown
+--                'stop'     Stop an existing cooldown
+--                'change'   changes the duration of a cooldown already in progress
+--
+-- RuneIndex      Current rune index
+--
+-- -------------  if using 'stop' the parameters below get ignored.
+-- StartTime      To in seconds when the cooldown will start. If StartTime is nil then
+--                the cooldown is stopped
+-- Duration       Amount of time in seconds the cooldown will animate for
+-------------------------------------------------------------------------------
+local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
+  local UB = RuneBar.UnitBar
+  local Layout = UB.Layout
+  local BBar = RuneBar.BBar
+  local RuneFlag = Layout.RuneMode
+  local ModeBar = strfind(RuneFlag, 'bar')
+  local RuneMode = strfind(RuneFlag, 'rune')
+
+  if Action == 'stop' then
+    if BarMode then
+      -- stop the timer then clear the bar
+      BBar:SetFillTimeTexture(RuneIndex, RuneSBar)
+      BBar:SetFillTexture(RuneIndex, RuneSBar, 0)
+    end
+    -- stop rune cooldown
+    if RuneMode then
+      BBar:SetCooldownTexture(RuneIndex, RuneEmptyTexture)
+      BBar:SetCooldownTexture(RuneIndex, RuneTexture)
+    end
+    -- stop text timer
+    if not Layout.HideText then
+      BBar:SetValueTimeFont(RuneIndex)
+    end
+  end
+
+  if Action ~= 'stop' then
+    local TestDuration = nil
+    if Main.UnitBars.Testing then
+      TestDuration = (GetTime() - StartTime) / TenHours
+    end
+
+    if Action ~= 'change' then
+      if BarMode then
+        if TestDuration then
+          BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration)
+        else
+          BBar:SetFillTimeTexture(RuneIndex, RuneSBar, StartTime, Duration, 0, 1)
+        end
+      end
+    elseif BarMode then
+      -- Change the duration of an exisiting cooldown in progress.
+      -- This gives a stutter free bar animation.
+      if TestDuration then
+        BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration)
+      else
+        BBar:SetFillTimeDurationTexture(RuneIndex, RuneSBar, Duration)
+      end
+    end
+    if RuneMode and Layout.CooldownAnimation then
+      BBar:SetCooldownTexture(RuneIndex, RuneEmptyTexture, StartTime, Duration)
+
+      -- Set the cooldown for flash
+      BBar:SetCooldownTexture(RuneIndex, RuneTexture, StartTime, Duration)
+    end
+    -- Start the text timer
+    if not Layout.HideText then
+      if Main.UnitBars.Testing then
+        BBar:SetValueFont(RuneIndex, 'time', 10 * UB.TestMode.RuneTime)
+      else
+        BBar:SetValueTimeFont(RuneIndex, StartTime, Duration, Duration, -1)
+      end
+    end
   end
 end
 
 -------------------------------------------------------------------------------
--- StartRuneCooldown
+-- OnUpdateRunes    UnitBarsF function
 --
--- Start a rune cooldown onevent timer.
---
--- RuneBar    The bar containing the runes.
--- RuneIndex  Current rune to cooldown.
--- Energize   If true then creates a colored border around the frame.
+-- Gets called by OnUpdate, see below
 -------------------------------------------------------------------------------
-local function StartRuneCooldown(RuneBar, RuneIndex, Energize)
+local function RuneSwap(RuneIDA, RuneIDB)
+  local StartTimeA, DurationA, RuneReadyA = GetRuneCooldown2(RuneIDA)
+  local StartTimeB, DurationB, RuneReadyB = GetRuneCooldown2(RuneIDB)
+
+  if (RuneReadyA ~= RuneReadyB) then
+    return RuneReadyA
+  end
+  if (StartTimeA ~= StartTimeB) then
+    return StartTimeA < StartTimeB
+  end
+
+  return RuneIDA < RuneIDB
+end
+
+local function OnUpdateRunes(self)
+  self:SetScript('OnUpdate', nil)
+
+  local RuneBar = self.RuneBar
+  local BBar = RuneBar.BBar
   local UB = RuneBar.UnitBar
   local Layout = UB.Layout
-  local Gen = UB.General
-  local BBar = RuneBar.BBar
+  local Testing = Main.UnitBars.Testing
+  local TestMode = UB.TestMode
+  local EnableTriggers = Layout.EnableTriggers
+  local RuneTime = TestMode.RuneTime
   local LastDuration = RuneBar.LastDuration
-
-  local StartTime, Duration, RuneReady = GetRuneCooldown(RuneIndex)
-
-  if StartTime == nil then
-    StartTime, Duration, RuneReady = 0, 0, true
-  end
+  local RuneOnCooldown = RuneBar.RuneOnCooldown
+  local PlayerSpecialization = Main.PlayerSpecialization
+  local CurrentTime = GetTime()
+  local AnyRecharging = false
+  local Active = false
 
   if LastDuration == nil then
     LastDuration = {}
+    RuneOnCooldown = {}
     RuneBar.LastDuration = LastDuration
+    RuneBar.RuneOnCooldown = RuneOnCooldown
+    for RuneID = 1, MaxRunes do
+      LastDuration[RuneID] = false
+      RuneOnCooldown[RuneID] = false
+    end
   end
 
-  if not RuneReady and not Energize then
-
-    -- Start bar timer.
-    if strfind(Gen.RuneMode, 'bar') then
-      local LastDuration = LastDuration[RuneIndex]
-
-      -- To prevent stutter only start the bar animation if its first time.
-      -- or change the bars animation starttime if it hasn't already started.
-      if StartTime >= GetTime() or LastDuration == nil or LastDuration == false then
-        BBar:SetFillTimeTexture(RuneIndex, RuneSBar, StartTime, Duration, 0, 1)
-
-      -- If the bar already started and the duration has changed then
-      -- change it, this gives a stutter free bar animation.
-      elseif LastDuration ~= Duration then
-        BBar:SetFillTimeDurationTexture(RuneIndex, RuneSBar, Duration)
-      end
-    end
-    if Gen.CooldownAnimation and strfind(Gen.RuneMode, 'rune') then
-      BBar:SetCooldownTexture(RuneIndex, RuneTexture, StartTime, Duration, Gen.CooldownLine, Gen.HideCooldownFlash)
-    end
-    if not Layout.HideText then
-      BBar:SetValueTimeFont(RuneIndex, StartTime, Duration, Duration, -1)
-    end
-
-    LastDuration[RuneIndex] = Duration
-  else
-    -- stop timer and text.
-    if strfind(Gen.RuneMode, 'bar') then
-      BBar:SetFillTimeTexture(RuneIndex, RuneSBar)
-      BBar:SetFillTexture(RuneIndex, RuneSBar, 0)
-    end
-    if not Layout.HideText then
-      BBar:SetValueTimeFont(RuneIndex)
-    end
-    if Energize then
-      DoEnergize(RuneBar, RuneIndex)
-      if Gen.CooldownAnimation and strfind(Gen.RuneMode, 'rune') then
-
-        -- stop the current rune cooldown.
-        BBar:SetCooldownTexture(RuneIndex, RuneTexture)
-      end
-    end
-    LastDuration[RuneIndex] = false
+  if Testing then
+    PlayerSpecialization = TestMode.BloodSpec and 1 or TestMode.FrostSpec and 2 or TestMode.UnHolySpec and 3 or 1
   end
+
+  -- Update textures/colors if player specialization has changed
+  if RuneBar.PlayerSpecialization ~= PlayerSpecialization then
+    RuneBar.PlayerSpecialization = PlayerSpecialization
+    RuneBar:SetAttr()
+    return
+  end
+
+  -- Set this so RuneCooldown2 can access the RuneBar table
+  RuneCooldownRuneBar = RuneBar
+
+  sort(SortedRunes, RuneSwap)
+
+  for RuneIndex = 1, MaxRunes do
+    local RuneID = SortedRunes[RuneIndex]
+    local StartTime, Duration, RuneReady = GetRuneCooldown2(RuneID)
+
+    if not RuneReady then
+      local LD = LastDuration[RuneID]
+      local ROC = RuneOnCooldown[RuneID]
+
+      Active = true
+      if not ROC then
+        DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
+
+      -- Refresh only if rune moved or if its a dark rune. Since dark runes
+      -- start times can change. This is done so flicker don't happen
+      -- on bar animations.
+      elseif ROC ~= RuneIndex or StartTime >= CurrentTime or Testing then
+
+        -- Clear the rune index below this one.  Then start a timer on this index.
+        if not Testing or RuneTime == 0 then
+          DoRuneCooldown(RuneBar, 'stop', ROC)
+        end
+        DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
+
+      -- Change speed of rune due to haste changing.
+      elseif LD ~= false and LD ~= Duration then
+
+        DoRuneCooldown(RuneBar, 'change', RuneIndex, StartTime, Duration)
+      end
+      RuneOnCooldown[RuneID] = RuneIndex
+      LastDuration[RuneID] = Duration
+      AnyRecharging = true
+      BBar:SetHiddenTexture(RuneIndex, RuneTexture, true)
+    else
+      DoRuneCooldown(RuneBar, 'stop', RuneIndex)
+      LastDuration[RuneID] = false
+      RuneOnCooldown[RuneID] = false
+      BBar:SetHiddenTexture(RuneIndex, RuneTexture, false)
+    end
+    if EnableTriggers then
+      BBar:SetTriggers(RuneIndex, 'recharging', not RuneReady)
+    end
+  end
+
+  if EnableTriggers then
+    BBar:SetTriggers(RegionGroup, 'recharging', AnyRecharging)
+    BBar:DoTriggers()
+  end
+
+  -- Set the IsActive flag.
+  RuneBar.IsActive = Active
+
+  -- Do a status check.
+  RuneBar:StatusCheck()
 end
 
 -------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
--- Event                    Event that called this function.  If nil then it wasn't called by an event.
---                          True bypasses visible and isactive flags.
--- ...        RuneIndex     RuneIndex from 1 to MaxRunes.
--- ...        RuneReady     True the rune is not on cooldown.  Otherwise false.
+-- Update the number of arcane charges of the player
+--
+-- Event        Event that called this function.  If nil then it wasn't called by an event.
+--              True bypasses visible and isactive flags.
+--
+-- NOTES:  The events for each rune all come in at once.  Inside of one frame.
+--         The OnUpdate script will only fire after the last event comes in within one frame.
+--         Then OnUpdate will fire on the very next frame and call UpDateRunes
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.RuneBar:Update(Event, ...)
 
@@ -391,77 +415,16 @@ function Main.UnitBarsF.RuneBar:Update(Event, ...)
   if Event ~= true and not self.Visible and self.IsActive ~= 0 then
     return
   end
+  local OnUpdateFrame = self.OnUpdateFrame
 
-  -- Check for testmode.
-  local Testing = Main.UnitBars.Testing
-  if Testing or self.Testing then
-    self.Testing = Testing
-    UpdateTestMode(self, Testing)
-    if Testing then
-      return
-    end
+  OnUpdateFrame.RuneBar = self
+
+  -- Calling the function directly for testing creates less glitches
+  if not Main.UnitBars.Testing then
+    OnUpdateFrame:SetScript('OnUpdate', OnUpdateRunes)
+  else
+    OnUpdateRunes(OnUpdateFrame)
   end
-
-  -- Update rune bar if this is the first call since reloadui or logging in.
-  if self.FirstTime then
-    self.FirstTime = false
-    for RuneIndex = 1, MaxRunes do
-      StartRuneCooldown(self, RuneIndex, false)
-    end
-  end
-
-  local RuneIndex = ...
-  local Energize = false
-
-  if RuneIndex and RuneIndex > 0 and RuneIndex <= MaxRunes then
-    Energize = select(2, ...) or false
-    StartRuneCooldown(self, RuneIndex, Energize)
-  end
-
-  -- Calculate active status.
-  local BBar = self.BBar
-  local Active = false
-  local EnergizeTimers = self.EnergizeTimers
-
-  -- Find any rune that is recharging.
-  for RuneIndex = 1, MaxRunes do
-    local Start, Duration, RuneReady = GetRuneCooldown(RuneIndex)
-
-    if not RuneReady then
-      Active = true
-      break
-    end
-  end
-
-  if self.UnitBar.Layout.EnableTriggers then
-    local TriggerRecharging = false
-
-    for RuneIndex = 1, MaxRunes do
-      local Start, Duration, RuneReady = GetRuneCooldown(RuneIndex)
-
-      if not RuneReady then
-        TriggerRecharging = true
-      end
-
-      BBar:SetTriggers(RuneIndex, 'recharging', not RuneReady)
-
-      -- Do this so empowered inverse works.
-      local EnergizeTimer = EnergizeTimers[RuneIndex]
-
-      if EnergizeTimer == nil or not EnergizeTimer.Energized then
-        BBar:SetTriggers(RuneIndex, 'empowered', false)
-      end
-    end
-    BBar:SetTriggers(RegionGroup, 'recharging', TriggerRecharging)
-
-    BBar:DoTriggers()
-  end
-
-  -- Set the IsActive flag.
-  self.IsActive = Active
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************
@@ -500,11 +463,10 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
+    BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
     BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
-
-    BBar:SO('General', 'RuneMode', function(v)
+    BBar:SO('Layout', 'RuneMode',          function(v)
       BBar:SetHidden(0, BarMode, true)
       BBar:SetHidden(0, RuneMode, true)
       if strfind(v, 'rune') then
@@ -515,26 +477,39 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       end
       Display = true
     end)
+    BBar:SO('Layout', 'CooldownFlash',  function(v) BBar:SetCooldownDrawFlash(0, RuneTexture, v) end)
+    BBar:SO('Layout', 'CooldownLine',   function(v) BBar:SetCooldownDrawEdge(0, RuneEmptyTexture, v) end)
 
-    BBar:SO('Layout', 'HideRegion',    function(v) BBar:SetHiddenRegion(v) Display = true end)
-    BBar:SO('Layout', 'Swap',          function(v) BBar:SetSwapBar(v) end)
-    BBar:SO('Layout', 'Float',         function(v) BBar:SetFloatBar(v) Display = true end)
-    BBar:SO('Layout', 'BorderPadding', function(v) BBar:SetPaddingBorder(v) Display = true end)
-    BBar:SO('Layout', 'ReverseFill',   function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) end)
-    BBar:SO('Layout', 'HideText',      function(v)
+    BBar:SO('Layout', 'HideRegion',     function(v) BBar:SetHiddenRegion(v) Display = true end)
+    BBar:SO('Layout', 'Swap',           function(v) BBar:SetSwapBar(v) end)
+    BBar:SO('Layout', 'Float',          function(v) BBar:SetFloatBar(v) Display = true end)
+    BBar:SO('Layout', 'BorderPadding',  function(v) BBar:SetPaddingBorder(v) Display = true end)
+    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) end)
+    BBar:SO('Layout', 'HideText',       function(v)
       if v then
         BBar:SetValueTimeFont(0)
       end
     end)
-    BBar:SO('Layout', 'Rotation',      function(v) BBar:SetRotationBar(v) Display = true end)
-    BBar:SO('Layout', 'Slope',         function(v) BBar:SetSlopeBar(v) Display = true end)
-    BBar:SO('Layout', 'Padding',       function(v) BBar:SetPaddingBox(0, v) Display = true end)
-    BBar:SO('Layout', 'TextureScale',  function(v) BBar:SetScaleTextureFrame(0, RuneMode, v) Display = true end)
-    BBar:SO('Layout', 'Align',         function(v) BBar:SetAlignBar(v) end)
-    BBar:SO('Layout', 'AlignPaddingX', function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
-    BBar:SO('Layout', 'AlignPaddingY', function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
-    BBar:SO('Layout', 'AlignOffsetX',  function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
-    BBar:SO('Layout', 'AlignOffsetY',  function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
+    BBar:SO('Layout', 'Rotation',       function(v) BBar:SetRotationBar(v) Display = true end)
+    BBar:SO('Layout', 'Slope',          function(v) BBar:SetSlopeBar(v) Display = true end)
+    BBar:SO('Layout', 'Padding',        function(v) BBar:SetPaddingBox(0, v) Display = true end)
+    BBar:SO('Layout', 'TextureScale',   function(v) BBar:SetScaleTextureFrame(0, RuneMode, v) Display = true end)
+    BBar:SO('Layout', 'Align',          function(v) BBar:SetAlignBar(v) end)
+    BBar:SO('Layout', 'AlignPaddingX',  function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignPaddingY',  function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetX',   function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
+    BBar:SO('Layout', 'AlignOffsetY',   function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
+    BBar:SO('Layout', 'BarSpark',       function(v) BBar:SetHiddenSpark(0, RuneSBar, not v) end)
+    BBar:SO('Layout', '_RuneLocation',  function(v) BBar:SetPointTextureFrame(0, RuneMode, 'CENTER', BarMode, v.RunePosition, v.RuneOffsetX, v.RuneOffsetY) Display = true end)
+    BBar:SO('Layout', '_Texture',       function(v)
+      local PlayerSpecialization = self.PlayerSpecialization
+
+      if PlayerSpecialization then
+        BBar:SetCooldownSwipeTexture(0, RuneEmptyTexture, RuneCooldownFillTexture[PlayerSpecialization])
+        BBar:SetCooldownEdgeTexture(0, RuneEmptyTexture, RuneCooldownSparkTexture[PlayerSpecialization])
+        BBar:SetAtlasTexture(0, RuneTexture, RuneReadyTexture[PlayerSpecialization])
+      end
+    end)
 
     BBar:SO('Region', 'BgTexture',     function(v) BBar:SetBackdropRegion(v) end)
     BBar:SO('Region', 'BorderTexture', function(v) BBar:SetBackdropBorderRegion(v) end)
@@ -551,21 +526,55 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('General', 'BarSpark',      function(v) BBar:SetHiddenSpark(0, RuneSBar, not v) end)
-    BBar:SO('General', 'ColorEnergize', function(v, UB, OD) BBar:SetBackdropBorderColorTexture(OD.Index, RuneEnergizeSBar, OD.r, OD.g, OD.b, OD.a)
-                                                            BBar:SetColorTexture(OD.Index, RuneEnergizeTexture, OD.r, OD.g, OD.b, OD.a) end)
-    BBar:SO('General', '_RuneLocation', function(v) BBar:SetPointTextureFrame(0, RuneMode, 'CENTER', BarMode, v.RunePosition, v.RuneOffsetX, v.RuneOffsetY) Display = true end)
-
-    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(0, BarMode, v) end)
-    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(0, BarMode, v) end)
-    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(0, BarMode, v) end)
-    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(0, BarMode, v) end)
-    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(0, BarMode, v) end)
-    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(0, BarMode, v.Left, v.Right, v.Top, v.Bottom) end)
-    BBar:SO('Background', 'Color',         function(v, UB, OD) BBar:SetBackdropColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a) end)
-    BBar:SO('Background', 'BorderColor',   function(v, UB, OD)
+    BBar:SO('Background', 'BgTexture',         function(v) BBar:SetBackdrop(0, BarMode, v) end)
+    BBar:SO('Background', 'BorderTexture',     function(v) BBar:SetBackdropBorder(0, BarMode, v) end)
+    BBar:SO('Background', 'BgTile',            function(v) BBar:SetBackdropTile(0, BarMode, v) end)
+    BBar:SO('Background', 'BgTileSize',        function(v) BBar:SetBackdropTileSize(0, BarMode, v) end)
+    BBar:SO('Background', 'BorderSize',        function(v) BBar:SetBackdropBorderSize(0, BarMode, v) end)
+    BBar:SO('Background', 'Padding',           function(v) BBar:SetBackdropPadding(0, BarMode, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'ColorBlood',        function(v, UB, OD)
+      if self.PlayerSpecialization == 1 then
+        BBar:SetBackdropColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+      end
+    end)
+    BBar:SO('Background', 'ColorFrost',        function(v, UB, OD)
+      if self.PlayerSpecialization == 2 then
+        BBar:SetBackdropColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+      end
+    end)
+    BBar:SO('Background', 'ColorUnholy',       function(v, UB, OD)
+      if self.PlayerSpecialization == 3 then
+        BBar:SetBackdropColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+      end
+    end)
+    BBar:SO('Background', '_BorderColor',      function()
+      BBar:DoOption('Background', 'BorderColorBlood')
+      BBar:DoOption('Background', 'BorderColorFrost')
+      BBar:DoOption('Background', 'BorderColorUnholy')
+    end)
+    BBar:SO('Background', 'BorderColorBlood',  function(v, UB, OD)
       if UB.Background.EnableBorderColor then
-        BBar:SetBackdropBorderColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+        if self.PlayerSpecialization == 1 then
+          BBar:SetBackdropBorderColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+        end
+      else
+        BBar:SetBackdropBorderColor(OD.Index, BarMode, nil)
+      end
+    end)
+    BBar:SO('Background', 'BorderColorFrost',  function(v, UB, OD)
+      if UB.Background.EnableBorderColor then
+        if self.PlayerSpecialization == 2 then
+          BBar:SetBackdropBorderColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+        end
+      else
+        BBar:SetBackdropBorderColor(OD.Index, BarMode, nil)
+      end
+    end)
+    BBar:SO('Background', 'BorderColorUnholy', function(v, UB, OD)
+      if UB.Background.EnableBorderColor then
+        if self.PlayerSpecialization == 3 then
+          BBar:SetBackdropBorderColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
+        end
       else
         BBar:SetBackdropBorderColor(OD.Index, BarMode, nil)
       end
@@ -574,7 +583,21 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, RuneSBar, v) end)
     BBar:SO('Bar', 'FillDirection',    function(v) BBar:SetFillDirectionTexture(0, RuneSBar, v) end)
     BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, RuneSBar, v) end)
-    BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Bar', 'ColorBlood',       function(v, UB, OD)
+      if self.PlayerSpecialization == 1 then
+        BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a)
+      end
+    end)
+    BBar:SO('Bar', 'ColorFrost',       function(v, UB, OD)
+      if self.PlayerSpecialization == 2 then
+        BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a)
+      end
+    end)
+    BBar:SO('Bar', 'ColorUnholy',      function(v, UB, OD)
+      if self.PlayerSpecialization == 3 then
+        BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a)
+      end
+    end)
     BBar:SO('Bar', '_Size',            function(v, UB) BBar:SetSizeTextureFrame(0, BarMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, RuneSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
@@ -611,58 +634,57 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:CreateTextureFrame(0, BarMode, 0)
     BBar:CreateTexture(0, BarMode, 'statusbar', 1, RuneSBar)
-    BBar:CreateTexture(0, BarMode, 'statusbar', 2, RuneEnergizeSBar)
-
-    BBar:SetBackdropBorderTexture(0, RuneEnergizeSBar, BarEnergizeBorder, true)
-    BBar:SetBackdropBorderSizeTexture(0, RuneEnergizeSBar, BarEnergizeBorderSize)
-
-  local Color = RuneData.BorderColor
 
   for RuneIndex = 1, MaxRunes do
     BBar:SetFillTexture(RuneIndex, RuneSBar, 0)
 
-    BBar:CreateTextureFrame(RuneIndex, RuneMode, 3)
+    BBar:CreateTextureFrame(RuneIndex, RuneMode, 2)
+      BBar:CreateTexture(RuneIndex, RuneMode, 'cooldown', 3, RuneEmptyTexture)
+        BBar:SetAtlasTexture(RuneIndex, RuneEmptyTexture, RuneDataAtlasEmptyRune)
+        BBar:SetCooldownReverse(RuneIndex, RuneEmptyTexture, true)
+        BBar:SetCooldownSwipeTexture(RuneIndex, RuneEmptyTexture, RuneCooldownFillTexture[1])
+        BBar:SetCooldownEdgeTexture(RuneIndex, RuneEmptyTexture, RuneCooldownSparkTexture[1])
+        BBar:SetSizeTexture(RuneIndex, RuneEmptyTexture, RuneDataWidth, RuneDataHeight)
+        BBar:SetSizeCooldownTexture(RuneIndex, RuneEmptyTexture, RuneDataWidth, RuneDataHeight, 0, 1.5)
+
+        -- Hide flash animation and make the cooldown a circle
+        BBar:SetCooldownDrawFlash(RuneIndex, RuneEmptyTexture, false)
+        BBar:SetCooldownCircular(RuneIndex, RuneEmptyTexture, true)
+
       BBar:CreateTexture(RuneIndex, RuneMode, 'cooldown', 4, RuneTexture)
-      BBar:SetTexture(RuneIndex, RuneTexture, RuneData.Background)
-      BBar:SetSizeTexture(RuneIndex, RuneTexture, RuneData.Width, RuneData.Height)
-      BBar:SetSizeCooldownTexture(RuneIndex, RuneTexture, RuneData.Width * RuneData.CDwidth,
-                                                          RuneData.Height * RuneData.CDheight, 0, 1)
+        BBar:SetAtlasTexture(RuneIndex, RuneTexture, RuneReadyTexture[1])
+        BBar:SetSizeTexture(RuneIndex, RuneTexture, RuneDataWidth, RuneDataHeight)
+        BBar:SetSizeCooldownTexture(RuneIndex, RuneTexture, RuneDataWidth, RuneDataHeight)
 
-      BBar:CreateTexture(RuneIndex, RuneMode, 'texture', 5, RuneBorderTexture)
-      BBar:SetTexture(RuneIndex, RuneBorderTexture, RuneData.Border)
-      BBar:SetColorTexture(RuneIndex, RuneBorderTexture, Color.r, Color.g, Color.b, Color.a)
-      BBar:SetSizeTexture(RuneIndex, RuneBorderTexture, RuneData.Width, RuneData.Height)
+        -- Create an invisible cooldown, this is for flash animation only.
+        -- Also hide the edge texture
+        BBar:SetCooldownSwipeColorTexture(RuneIndex, RuneTexture, 0, 0, 0, 0)
+        BBar:SetCooldownDrawEdge(RuneIndex, RuneTexture, false)
 
-      BBar:CreateTexture(RuneIndex, RuneMode, 'texture', 6, RuneEnergizeTexture)
-      BBar:SetTexture(RuneIndex, RuneEnergizeTexture, RuneData.BorderEnergize)
-      BBar:SetSizeTexture(RuneIndex, RuneEnergizeTexture, RuneData.Width, RuneData.Height)
-
-      local Name = Groups[RuneIndex][2]
-      Names[RuneIndex] = Name
-      BBar:SetTooltip(RuneIndex, nil, Name)
+    local Name = Groups[RuneIndex][2]
+    Names[RuneIndex] = Name
+    BBar:SetTooltip(RuneIndex, nil, Name)
   end
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
   BBar:SetSizeTextureFrame(0, BarMode, UB.Bar.Width, UB.Bar.Height)
-  BBar:SetSizeTextureFrame(0, RuneMode, RuneData.Width, RuneData.Height)
+  BBar:SetSizeTextureFrame(0, RuneMode, RuneDataWidth, RuneDataHeight)
 
   -- Set the texture scale for Texture Size triggers.
+  BBar:SetScaleTexture(0, RuneEmptyTexture, 1)
   BBar:SetScaleTexture(0, RuneTexture, 1)
-  BBar:SetScaleTexture(0, RuneBorderTexture, 1)
-  BBar:SetScaleTexture(0, RuneEnergizeTexture, 1)
 
   BBar:SetHiddenTexture(0, RuneSBar, false)
+  BBar:SetHiddenTexture(0, RuneEmptyTexture, false)
   BBar:SetHiddenTexture(0, RuneTexture, false)
-  BBar:SetHiddenTexture(0, RuneBorderTexture, false)
 
   BBar:CreateFont(0)
 
   -- set offset for trigger bar offset.
   BBar:SetOffsetTextureFrame(0, BarMode, 0, 0, 0, 0)
 
-  UnitBarF.FirstTime = true
-  UnitBarF.EnergizeTimers = {}
+  UnitBarF.OnUpdateFrame = CreateFrame('Frame')
   UnitBarF.Names = Names
   UnitBarF.BBar = BBar
 end

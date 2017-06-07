@@ -20,12 +20,12 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -47,12 +47,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- Locals
 --
 -- UnitBarF = UnitBarsF[]
---
--- UnitBarF.BBar         Contains the Health and power bar displayed on screen.
--- StatusBar             TextureNumber for Status Bar
--- PredictedBar          TextureNumber for Predicted health and power Bar
--- PredictedCostBar      TextureNumber for Predicted Cost Bar
--- StatusBars            Change Texture for Status Bar and Predicted and Cost Bars.
 --
 -- UnitBarF.PredictedSpellID   The current spell whos predicted power is being shown.
 -- UnitBarF.PredictedPower     Current predicted power in progress
@@ -182,7 +176,7 @@ local function Casting(UnitBarF, SpellID, Message)
       UnitBarF.PredictedPower = PredictedPower
 
     -- Get predicted cost
-    elseif UnitBarF.UnitBar.General.PredictedCost then
+    elseif UnitBarF.UnitBar.Layout.PredictedCost then
       local CostTable = GetSpellPowerCost(SpellID)
 
       for _, CostInfo in pairs(CostTable) do
@@ -231,7 +225,7 @@ local function SetPredictedCost(UnitBarF, Action)
     Main:SetCastTracker(UnitBarF, 'fn', Casting)
 
   else
-    local PredictedPower = UnitBarF.UnitBar.General.PredictedPower or false
+    local PredictedPower = UnitBarF.UnitBar.Layout.PredictedPower or false
 
     if not PredictedPower then
       Main:SetCastTracker(UnitBarF, 'off')
@@ -256,7 +250,7 @@ local function SetPredictedPower(UnitBarF, Action)
     Main:SetCastTracker(UnitBarF, 'fn', Casting)
   else
     Main:SetPredictedSpells(UnitBarF, 'off')
-    local PredictedCost = UnitBarF.UnitBar.General.PredictedCost or false
+    local PredictedCost = UnitBarF.UnitBar.Layout.PredictedCost or false
 
     if not PredictedCost then
       Main:SetCastTracker(UnitBarF, 'off')
@@ -325,14 +319,14 @@ local function UpdateHealthBar(self, Event, Unit)
 
   local BBar = self.BBar
   local UB = self.UnitBar
-  local Gen = UB.General
+  local Layout = UB.Layout
   local Bar = UB.Bar
 
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
   local Level = UnitLevel(Unit)
   local ScaledLevel = UnitEffectiveLevel(Unit)
-  local PredictedHealing = Gen.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
+  local PredictedHealing = Layout.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
@@ -357,9 +351,9 @@ local function UpdateHealthBar(self, Event, Unit)
     end
   end
 
-  local ClassColor = Gen.ClassColor or false
-  local CombatColor = Gen.CombatColor or false
-  local TaggedColor = Gen.TaggedColor or false
+  local ClassColor = Layout.ClassColor or false
+  local CombatColor = Layout.CombatColor or false
+  local TaggedColor = Layout.TaggedColor or false
   local BarColor = Bar.Color
   local r, g, b, a = BarColor.r, BarColor.g, BarColor.b, BarColor.a
 
@@ -498,8 +492,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local BBar = self.BBar
   local UB = self.UnitBar
   local Bar = UB.Bar
-  local Gen = UB.General
-  local DGen = DUB[BarType].General
+  local Layout = UB.Layout
+  local DLayout = DUB[BarType].Layout
 
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
@@ -509,7 +503,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local PredictedPower = self.PredictedPower or 0
   local PredictedCost = self.PredictedCost or 0
 
-  local UseBarColor = Gen.UseBarColor or false
+  local UseBarColor = Layout.UseBarColor or false
   local r, g, b, a = 1, 1, 1, 1
 
   if UseBarColor then
@@ -691,8 +685,8 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
   local BarType = self.BarType
   local UB = self.UnitBar
   local UBD = DUB[BarType]
-  local Gen = UB.General
-  local DGen = UBD.General
+  local Layout = UB.Layout
+  local DLayout = UBD.Layout
   local DBar = UBD.Bar
 
   if not BBar:OptionsSet() then
@@ -700,7 +694,8 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SetTexture(1, PredictedCostBar, 'GUB EMPTY')
 
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) Update = true end)
-    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
+
+    BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
     BBar:SO('Layout', 'EnableTriggers', function(v)
       if strfind(BarType, 'Power') then
@@ -710,7 +705,6 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       end
       Update = true
     end)
-
     BBar:SO('Layout', 'ReverseFill',     function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', 1, v) end)
     BBar:SO('Layout', 'HideText',        function(v)
       if v then
@@ -720,38 +714,39 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       end
     end)
     BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(StatusBar, 'SetSmoothFillMaxTime', 1, v) end)
-    BBar:SO('Layout', 'SmoothFillSpeed',      function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
-    if DGen then
-      if DGen.UseBarColor ~= nil then
-        BBar:SO('General', 'UseBarColor', function(v) Update = true end)
+    BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
+
+    if DLayout then
+      if DLayout.UseBarColor ~= nil then
+        BBar:SO('Layout', 'UseBarColor', function(v) Update = true end)
       end
 
-      if DGen.PredictedHealth ~= nil then
-        BBar:SO('General', 'PredictedHealth', function(v) Update = true end)
+      if DLayout.PredictedHealth ~= nil then
+        BBar:SO('Layout', 'PredictedHealth', function(v) Update = true end)
       end
 
-      if DGen.ClassColor ~= nil then
-        BBar:SO('General', 'ClassColor', function(v) Update = true end)
+      if DLayout.ClassColor ~= nil then
+        BBar:SO('Layout', 'ClassColor', function(v) Update = true end)
       end
 
-      if DGen.CombatColor ~= nil then
-        BBar:SO('General', 'CombatColor', function(v) Update = true end)
+      if DLayout.CombatColor ~= nil then
+        BBar:SO('Layout', 'CombatColor', function(v) Update = true end)
       end
 
-      if DGen.TaggedColor ~= nil then
-        BBar:SO('General', 'TaggedColor', function(v) Update = true end)
+      if DLayout.TaggedColor ~= nil then
+        BBar:SO('Layout', 'TaggedColor', function(v) Update = true end)
       end
     end
 
-    if DGen.PredictedPower ~= nil then
-      BBar:SO('General', 'PredictedPower', function(v)
+    if DLayout.PredictedPower ~= nil then
+      BBar:SO('Layout', 'PredictedPower', function(v)
         SetPredictedPower(self, v)
         Update = true
       end)
     end
 
-    if DGen.PredictedCost ~= nil then
-      BBar:SO('General', 'PredictedCost', function(v)
+    if DLayout.PredictedCost ~= nil then
+      BBar:SO('Layout', 'PredictedCost', function(v)
         SetPredictedCost(self, v)
         Update = true
       end)
