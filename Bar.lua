@@ -11,6 +11,7 @@ local MyAddon, GUB = ...
 
 local DUB = GUB.DefaultUB.Default.profile
 local Main = GUB.Main
+local Options = GUB.Options
 local TT = GUB.DefaultUB.TriggerTypes
 local TexturePath = GUB.DefaultUB.TexturePath
 
@@ -23,8 +24,8 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -127,7 +128,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --     AGroup                        Animation used when scaling the texture thru SetScaleTexture()
 --   PaddingFrame                    Child of ScaleFrame. Allows padding to be added to a texture, without it effecting the real size of the Texture.
 --   SubFrame                        Child of PadddingFrame. Holds the StatusBar or Frame containing the actual texture.
---   Width, Height                   Width and height of the texture.
+--   _Width, _Height                 Width and height of the texture.
 --   CurrentTexture                  Contains the current texture name.  This is to prevent the texture from getting
 --                                   set to the same texture.  Which would cause a graphical glitch.  Used by SetTexture()
 --   Hidden                          If true then the statusbar/texture is hidden.
@@ -160,6 +161,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   TexBottom                       Text coords for a texture.  Used by SetFill() and SetTexCoord()
 --
 --   CooldownFrame                   Frame used to do a cooldown on the texture.
+--     _Width
+--     _Height                       Used by SetSizeCooldownTexture() and SetScaleTextureFrame()
 --
 --   Backdrop                        Table containing the backdrop.  Created by GetBackdrop()
 --   AGroup                          Contains the animation to play when showing or hiding a texture.  Created by GetAnimation() in SetAnimationTexture()
@@ -198,6 +201,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --                PaddingFrame            Used by SetPaddingTexture()
 --                  SubFrame              A frame that holds the texture or statusbar
 --                    SubTexture          Statusbar texture or texture.
+--                    CooldownFrame       Optional, only exists if the 'cooldown' option was specified in CreateTexture()
 --
 -- NOTES:   When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
 --          Will cause GetLeft() etc to return a bad value.  But if you pass the frame
@@ -278,7 +282,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --             Index       The current element in the color all table.
 --             r, g, b, a  The red, green, blue, and alpha colors KeyName[Index]
 --
---           p1..pN.   Paramater data passed from SetOptionData.  See below for details.
+--           p1..pN   Paramater data passed from SetOptionData.  See below for details.
 --
 -- If there was a SetOptionData() and the TableName found in SO data, default unitbar data, and unitbardata.
 -- If the tablename matches exactly to what was passed from SetOptionData.  Then p1..pN get added to OD.
@@ -316,7 +320,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Text               Reference to the current Text data found in UnitBars[BarType].Text
 --
 -- TextData[TextLine]   Array used to store the fontstring for each textline
---   LastSize           For animation. Contains the last size set by an text font size trigger.  SetSizeFont()
+--   LastSize           For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
 --   AGroup             Animation for changing text size.
 --
 --
@@ -412,6 +416,13 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- Triggers[]                      Non sequencial array containing the triggers.
 --   Enabled                       true or false.  If enabled then trigger works.
 --   Static                        true or false.  If true trigger is always on, otherwise false.
+--   SpecEnabled                   true or false.  If true then specializations are used by this trigger.
+--   DisabledBySpec                true or false.  If true then this trigger was disabled based on the specialization settings.
+--   ClassName                     Current class selected in the Class Specialization options pull down.
+--   ClassSpecs                    A list of classes in uppercase.  Each class has an array where the index is the specialization
+--                                 and the value is true or false.
+--                                 Example: ClassSpecs.WARRIOR[3] = true, warrior protection spec
+--
 --   GroupNumber                   Number to assign 1 or more triggers under. Group numbers must be contiguous.
 --
 --   HideAuras                     True or false.  if true auras are hidden in options.
@@ -1236,7 +1247,7 @@ local function BoxInfo(Frame)
   if not Main.UnitBars.HideLocationInfo then
     local BarDB = Frame.BarDB
     local UB = BarDB.Anchor.UnitBar
-    local AnchorPoint = AnchorPointWord[UB.Other.AnchorPoint]
+    local AnchorPoint = AnchorPointWord[UB.Attributes.AnchorPoint]
     local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
     local BoxX, BoxY = 0, 0
 
@@ -3088,8 +3099,6 @@ function BarDB:SetSizeTextureFrame(BoxNumber, TextureFrameNumber, Width, Height)
 
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
-    local Width = Width or TextureFrame:GetWidth()
-    local Height = Height or TextureFrame:GetHeight()
 
     TextureFrame:SetSize(Width, Height)
   until LastBox
@@ -3155,7 +3164,6 @@ function BarDB:SetOffsetTextureFrame(BoxNumber, TextureFrameNumber, Left, Right,
         BorderFrame.LastTop = Top
         BorderFrame.LastBottom = Bottom
       end
-
       SetOffsetFrame(BorderFrame, Left, Right, Top, Bottom)
     end
   until LastBox
@@ -3175,12 +3183,29 @@ function BarDB:SetScaleTextureFrame(BoxNumber, TextureFrameNumber, Scale)
 
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
+    local Textures = TextureFrame.Textures
 
     local Point, RelativeFrame, RelativePoint, OffsetX, OffsetY = TextureFrame:GetPoint()
     local OldScale = TextureFrame:GetScale()
 
     TextureFrame:SetScale(Scale)
     TextureFrame:SetPoint(Point, RelativeFrame, RelativePoint, OffsetX * OldScale / Scale, OffsetY * OldScale / Scale)
+
+    --[[
+    if Textures then
+      for TextureNumber, Texture in pairs(Textures) do
+        if Texture.Type == 'texture' then
+          local CooldownFrame = Texture.CooldownFrame
+
+          -- descale cooldown frame
+          -- Needs to be done this way, since cooldown edge texture doesn't play nice with normal scaling.
+          if CooldownFrame then
+            CooldownFrame:SetScale(1 / Scale)
+            CooldownFrame:SetSize(CooldownFrame._Width * Scale, CooldownFrame._Height * Scale)
+          end
+        end
+      end
+    end ]]
   until LastBox
 end
 
@@ -3461,10 +3486,10 @@ end
 -- BoxNumber            BoxNumber containing the texture.
 -- ...                  1 or more values passed to Function
 --
--- Example:       BarDB:SetChange(2, MyTextureFrameNumber)
---                BarDB:Change(2, 'SetFillTexture', Value)
+-- Example:       BarDB:SetChangeTexture(2, TextureNumber)
+--                BarDB:ChangeTexture(2, 'SetFillTexture', 0, Value)
 --                This would be the same as:
---                BarDB:SetFillTexture(2, MyTextureFrameNumber, Value)
+--                BarDB:SetFillTexture(0, TextureNumber, Value)
 -------------------------------------------------------------------------------
 function BarDB:ChangeTexture(ChangeNumber, BarFn, BoxNumber, ...)
   local Fn = self[BarFn]
@@ -3479,7 +3504,7 @@ function BarDB:ChangeTexture(ChangeNumber, BarFn, BoxNumber, ...)
 
     for BoxIndex = 1, self.NumBoxes do
       for Index = 1, NumTextures do
-        Fn(self, BoxNumber, TextureNumbers[Index], ...)
+        Fn(self, BoxIndex, TextureNumbers[Index], ...)
       end
     end
   end
@@ -3987,20 +4012,157 @@ end
 -- BoxNumber        Box containing the texture to cooldown.
 -- TextureNumber    Texture to cooldown.
 -- StartTime        Starting time. if nill then starts instantly
--- Duration         Time it will take to cooldown the texture. I duration is 0 timer is stopped.
--- Line             If true a line will be added to the cooldown.
--- HideFlash        If true hides the flash animation.
+-- Duration         Time it will take to cooldown the texture. If duration is 0 timer is stopped.
 --
 -- NOTES:  To stop timer just set duration to 0
 -------------------------------------------------------------------------------
-function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration, Line, HideFlash)
-  local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
-  local CooldownFrame = Texture.CooldownFrame
+function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local CooldownFrame = Texture.CooldownFrame
 
-  CooldownFrame:SetDrawEdge(Line or false)
-  CooldownFrame:SetDrawBling(not HideFlash)
+    CooldownFrame:SetCooldown(StartTime or 0, Duration or 0)
+  until LastBox
+end
 
-  CooldownFrame:SetCooldown(StartTime or 0, Duration or 0)
+-------------------------------------------------------------------------------
+-- SetCooldownReverse
+--
+-- Inverts the bright and dark portions of the cooldown animation
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- Reverse          If true then invert.
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownReverse(BoxNumber, TextureNumber, Reverse)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetReverse(Reverse)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownCircular
+--
+-- Changes a cooldown to use a round border instead of a square
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- Circular         If true then use a circular border
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownCircular(BoxNumber, TextureNumber, Circular)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetUseCircularEdge(Circular)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownDrawEdge
+--
+-- Hides or shows the edge texture thats drawn during a cooldown animation
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- Edge             If true then show the edge texture
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownDrawEdge(BoxNumber, TextureNumber, Edge)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetDrawEdge(Edge)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownDrawFlash
+--
+-- Hides or shows the flash animation at the end of a cooldown
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- Flash            If true then show then show the flash animation
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownDrawFlash(BoxNumber, TextureNumber, Flash)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetDrawBling(Flash)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownSwipeColorTexture
+--
+-- Set the color of the swipe texture.
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- r, g, b, a       red, green, blue, alpha
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownSwipeColorTexture(BoxNumber, TextureNumber, r, g, b, a)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetSwipeColor(r, g, b, a)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownSwipeTexture
+--
+-- Changes the texture that is used in the cooldown clock animation
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- SwipeTexture     New texture used for the cooldown animation.
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownSwipeTexture(BoxNumber, TextureNumber, SwipeTexture)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetSwipeTexture(SwipeTexture)
+
+    -- Set color so colored textures have color.
+    Texture.CooldownFrame:SetSwipeColor(1, 1, 1, 1)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownEdgeTexture
+--
+-- Replaces the default bright line that is on the moving edge of the cooldown
+-- animation
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- EdgeTexture      New bright line texture to use.
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownEdgeTexture(BoxNumber, TextureNumber, EdgeTexture)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetEdgeTexture(EdgeTexture)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownBlingTexture
+--
+-- Replaces the default bling texture animation
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- BlingTexture     New texture to replace the old bling one
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownBlingTexture(BoxNumber, TextureNumber, BlingTexture)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetBlingTexture(BlingTexture)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
@@ -4017,11 +4179,13 @@ end
 -------------------------------------------------------------------------------
 function BarDB:SetSizeCooldownTexture(BoxNumber, TextureNumber, Width, Height, OffsetX, OffsetY)
   repeat
-    local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
     local CooldownFrame = Texture.CooldownFrame
     local SubTexture = Texture.SubTexture
 
-    CooldownFrame:SetSize(Width or SubTexture:GetWidth(), Height or SubTexture:GetHeight())
+    CooldownFrame:SetSize(Width, Height)
+    CooldownFrame._Width = Width
+    CooldownFrame._Height = Height
 
     if OffsetX or OffsetY then
       CooldownFrame:SetPoint('CENTER', SubTexture, 'CENTER', OffsetX or 0, OffsetY or 0)
@@ -4190,7 +4354,8 @@ end
 -- BoxNumber      BoxNumber to change the texture in.
 -- TextureNumber  Texture to change.
 -- AtlasName      Name of the atlas you want to set.  Must be a string.
--- UseSize        Assuming if false then it uses the whole atlas. If nil defaults to true.
+-- UseSize        Assuming if true then it uses the actual atlas texture size
+--                overwriting the original texture size. If nil defaults to false.
 --
 -- NOTES: Only works on textures.
 -------------------------------------------------------------------------------
@@ -4201,7 +4366,9 @@ function BarDB:SetAtlasTexture(BoxNumber, TextureNumber, AtlasName, UseSize)
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     if Texture.Type ~= 'statusbar' then
-      Texture.SubTexture:SetAtlas(AtlasName, UseSize or true)
+      local SubTexture = Texture.SubTexture
+
+      Texture.SubTexture:SetAtlas(AtlasName, UseSize or false)
     end
 
   until LastBox
@@ -4286,7 +4453,7 @@ function BarDB:SetSizeTexture(BoxNumber, TextureNumber, Width, Height)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture:SetSize(Width or Texture:GetWidth(), Height or Texture:GetHeight())
+    Texture:SetSize(Width, Height)
   until LastBox
 end
 
@@ -4498,7 +4665,9 @@ end
 -- TextureFrameNumber   A number assigned to the TextureFrame
 -- Level                Current virtual level for the texture frame.
 --
--- NOTES:   TextureFrames are alwasy the same size as BoxFrame, unless you do a SetPoint on it.
+-- NOTES:   TextureFrames are always the same size as BoxFrame, unless you do a SetPoint on it.
+--          TextureFrameNumber must be linier.  So you can't do a TextureFrameNumber of 1 then 2, and 5.
+--          Must be 1,2,3
 -------------------------------------------------------------------------------
 function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, Level)
   repeat
@@ -4561,6 +4730,7 @@ local function OnSizeChangedTexture(PaddingFrame, Width, Height)
     end
     SetFill(Texture, Value)
     Texture:SetSize(Width, Height)
+
   elseif Texture.Type == 'texture' then
 
     -- Update the texture to be the same size as the SubFrame
@@ -4572,7 +4742,7 @@ end
 -- CreateTexture
 --
 -- BoxNumber              Box you're creating a texture in.
--- TextureFrameNumber     Texture frame that you're creating a texture in.
+-- TextureFrameNumber     Texture frame that you're creating a texture in. Used in CreateTextureFrame()
 -- TextureType            either 'statusbar' or 'texture'
 --                        'cooldown' is the same as texture.  Except it can use SetCooldownTexture()
 -- Level                  Current virtual level for the texture.
@@ -4679,11 +4849,11 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     Texture:Hide()
     Texture.Hidden = true
 
-    if TextureFrame.Texture == nil then
-      TextureFrame.Texture = {}
+    if TextureFrame.Textures == nil then
+      TextureFrame.Textures = {}
     end
 
-    TextureFrame.Texture[TextureNumber] = Texture
+    TextureFrame.Textures[TextureNumber] = Texture
     BoxFrame.TFTextures[TextureNumber] = Texture
   until LastBox
 end
@@ -5004,7 +5174,7 @@ function BarDB:SetValueFont(BoxNumber, ...)
 
     if not ReturnOK then
       FontString:SetFormattedText('Err (%d)', Index)
-      print(Msg)
+      Options:AddDebugLine(format('%s - Err (%d) :%s', self.BarType, Index, Msg))
     end
   end
 end
@@ -5055,6 +5225,7 @@ local function SetValueTimer(FontTime)
 
         if not ReturnOK then
           FontString:SetFormattedText('Err (%d)', Index)
+          Options:AddDebugLine(format('%s - Err (%d) :%s', TextData.BarType, Index, Msg))
         end
       end
     else
@@ -5066,6 +5237,7 @@ local function SetValueTimer(FontTime)
 
       if not ReturnOK then
         TextData[1]:SetFormattedText('Err (%d)', 1)
+        Options:AddDebugLine(format('%s - Err (%d) :%s', TextData.BarType, 1, Msg))
       end
     end
     Counter = Counter + FontTime.Step
@@ -5863,6 +6035,7 @@ end
 
 function BarDB:CheckTriggers()
   local Groups = self.Groups
+  local BarType = self.BarType
   local VirtualGroupList = Groups.VirtualGroupList
   local Triggers = Groups.Triggers
   local LastValues = {}
@@ -5873,6 +6046,9 @@ function BarDB:CheckTriggers()
   local Units = {}
   local AllDeleted = true
   local TriggerIndex = 1
+  local PlayerClass = Main.PlayerClass
+  local UsedByClass = DUB[self.BarType].UsedByClass
+  local PlayerSpecialization = Main.PlayerSpecialization
 
   -- Check for text multiline.
   local Text = DUB[self.BarType].Text
@@ -5959,7 +6135,6 @@ function BarDB:CheckTriggers()
           end
         end
         Trigger.GetFnTypeID = GetFnTypeID
-
         Trigger.Index = TriggerIndex
 
         -- Set virtual tag
@@ -5986,8 +6161,6 @@ function BarDB:CheckTriggers()
         end
 
         -- Filter triggers into static, sorted, and auras.
-        Object.StaticTrigger = nil
-
         local GroupNumbers = nil
 
         -- Check for all
@@ -6009,7 +6182,39 @@ function BarDB:CheckTriggers()
           Trigger.GroupNumbers = nil
         end
 
-        if Trigger.Enabled then
+        -- Check specializations
+        local DisabledBySpec = true
+        local SpecEnabled = Trigger.SpecEnabled
+
+        if not SpecEnabled then
+          DisabledBySpec = false
+        else
+          local ClassSpecs = Trigger.ClassSpecs
+
+          -- Delete specs that don't belong
+          for ClassName, ClassSpec in pairs(ClassSpecs) do
+            local Spec = UsedByClass[ClassName]
+
+            if Spec == nil then
+              ClassSpecs[ClassName] = nil
+            else
+              for CS, Active in pairs(ClassSpec) do
+
+                -- Remove any specs not supported by this bar
+                if Spec ~= '' and strfind(Spec, CS) == nil then
+                  ClassSpec[CS] = nil
+
+                -- don't disable if player spec matches
+                elseif Active and PlayerClass == ClassName and PlayerSpecialization == CS then
+                  DisabledBySpec = false
+                end
+              end
+            end
+          end
+        end
+        Trigger.DisabledBySpec = DisabledBySpec
+
+        if Trigger.Enabled and not DisabledBySpec then
           if Trigger.Static then
             if GroupNumbers then
 
@@ -6073,6 +6278,7 @@ function BarDB:CheckTriggers()
         end
       end
     end
+
     if DeleteTrigger then
       tremove(Triggers, TriggerIndex)
     else
@@ -6140,7 +6346,7 @@ end
 --                                                This is used to determin what get function to call.
 --       GF[2]                   GetFnType        Name that appears in the menus. (used for color)
 --     FN                        String. Optional, when you need to use a different function than what the Type uses.
---                               EclipseBar.lua uses this.
+--                               EclipseBar.lua uses this. Old EclipseBar code needs to be looked up for an example.
 --   [5][]                       Array containing the groups being used by the virtual group.  Only
 --                               if TriggerGroups[1] = 'v'
 --
@@ -6355,7 +6561,7 @@ function BarDB:EnableTriggers(Enable, TriggerGroups)
       end
     end
     -- Reference and check triggers if something changed.
-    if self.Groups == nil or Main.ProfileChanged or Main.CopyPasted then
+    if self.Groups == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerSpecializationChanged then
       self.Groups = Groups
       Groups.Triggers = Triggers
       self:CheckTriggers()
@@ -6792,7 +6998,6 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
     local LastValues = Groups.LastValues
     local VirtualGroupList = Groups.VirtualGroupList
     local Objects = Group.Objects
-    local Index = 0
 
     for Index = 1, #SortedTriggers do
       local Trigger = SortedTriggers[Index]
@@ -6913,6 +7118,9 @@ function BarDB:DoTriggers()
 
   local Groups = self.Groups
   local LastValues = Groups.LastValues
+
+  local DebugCount = 0
+  local LastCount = 0
 
   for Object in pairs(LastValues) do
     local Group = Object.Group

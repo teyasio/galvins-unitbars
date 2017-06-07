@@ -17,12 +17,12 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -48,18 +48,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- UnitBarF.BBar                     Contains an instance of bar functions for shard bar.
 --
 -- UnitBarF.ShardBar                 Contains the shard bar displayed on screen.
---
--- ShardData                         Contains all the data for the soul shards texture.
---   Texture                         Path name to the texture file.
---   Width                           Width of the texture and box size in texture mode.
---   Height                          Height of the texture and box size in texture mode.
---   Left, Right, Top, Bottom        Coordinates inside the main texture for the texture we need.
--- SoulShardDarkColor                Used to make the light colored soulshard texture dark.
---
--- ChangeShards                      ChangeTexture number for ShardBar and ShardLightTexture
--- ShardSBar                         Contains the lit shard texture for box mode.
--- ShardDarkTexture                  Contains the dark shard texture for texture mode.
--- ShardLightTexture                 Contains the lit shard textuire for texture mode.
 -------------------------------------------------------------------------------
 local MaxSoulShards = 5
 local Display = false
@@ -115,6 +103,7 @@ local TDregion = { -- Trigger data for region
 
 local VTs = {'whole', 'Soul Shards',
              'auras', 'Auras'       }
+
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Shard 1',    VTs, TD}, -- 1
   {2,   'Shard 2',    VTs, TD}, -- 2
@@ -128,12 +117,27 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
 }
 
 local ShardData = {
+  TextureWidth = 17 + 10, TextureHeight = 22 + 10,
+  { -- Level 1
+    TextureNumber = ShardDarkTexture,
+    Width = 17 + 4, Height = 22 + 4,
+    AtlasName = 'Warlock-ReadyShard',
+  },
+  { -- Level 2
+    TextureNumber = ShardLightTexture,
+    Width = 17 + 4, Height = 22 + 4,
+    AtlasName = 'Warlock-ReadyShard',
+  },
+}
+local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
+
+
+local ShardDataOLD = {
   Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
-  BoxWidth = 17 + 15, BoxHeight = 16 + 15,
+  BoxWidth = 17 + 15, BoxHeight = 16 + 15,  -- extra space around the texture.
   Width = 17 + 15 - 7, Height = 16 + 15 - 7,
   Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
 }
-local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -170,15 +174,13 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerType)
     return
   end
 
+  local BBar = self.BBar
   local SoulShards = UnitPower('player', PowerShard)
-  local NumShards = UnitPowerMax('player', PowerShard)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   if Main.UnitBars.Testing then
     SoulShards = self.UnitBar.TestMode.SoulShards
   end
-
-  local BBar = self.BBar
 
   for ShardIndex = 1, MaxSoulShards do
     BBar:ChangeTexture(ChangeShards, 'SetHiddenTexture', ShardIndex, ShardIndex > SoulShards)
@@ -232,11 +234,10 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
 
   if not BBar:OptionsSet() then
 
-    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
+    BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
-
-    BBar:SO('Layout', 'BoxMode',       function(v)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
         BBar:ShowRowTextureFrame(BoxMode)
@@ -296,11 +297,11 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture',  function(v) BBar:SetTexture(0, ShardSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',     function(v) BBar:SetRotateTexture(0, ShardSBar, v) end)
-    BBar:SO('Bar', 'Color',             function(v, UB, OD) BBar:SetColorTexture(OD.Index, ShardSBar, OD.r, OD.g, OD.b, OD.a) end)
-    BBar:SO('Bar', '_Size',             function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',           function(v) BBar:SetPaddingTexture(0, ShardSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, ShardSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, ShardSBar, v) end)
+    BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ShardSBar, OD.r, OD.g, OD.b, OD.a) end)
+    BBar:SO('Bar', '_Size',            function(v, UB) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, ShardSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -335,34 +336,31 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ShardSBar)
 
   -- Create texture mode.
-  BBar:CreateTextureFrame(0, TextureMode, 0)
-
-  BBar:CreateTexture(0, TextureMode, 'texture', 1, ShardDarkTexture)
-  BBar:CreateTexture(0, TextureMode, 'texture', 2, ShardLightTexture)
-
-  BBar:SetTexture(0, ShardDarkTexture, ShardData.Texture)
-  BBar:SetTexture(0, ShardLightTexture, ShardData.Texture)
-
-  BBar:SetCoordTexture(0, ShardDarkTexture, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
-  BBar:SetCoordTexture(0, ShardLightTexture, ShardData.Left, ShardData.Right, ShardData.Top, ShardData.Bottom)
-
-  BBar:SetGreyscaleTexture(0, ShardDarkTexture, true)
-  BBar:SetColorTexture(0, ShardDarkTexture, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
-
-  BBar:SetSizeTexture(0, ShardDarkTexture, ShardData.Width, ShardData.Height)
-  BBar:SetSizeTexture(0, ShardLightTexture, ShardData.Width, ShardData.Height)
-
-  BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)
-  BBar:SetSizeTextureFrame(0, TextureMode, ShardData.BoxWidth, ShardData.BoxHeight)
-
-  BBar:SetHiddenTexture(0, ShardDarkTexture, false)
-
   for ShardIndex = 1, MaxSoulShards do
+    BBar:CreateTextureFrame(ShardIndex, TextureMode, 0)
+
+    for Level, SD in ipairs(ShardData) do
+      local TextureNumber = SD.TextureNumber
+
+      BBar:CreateTexture(ShardIndex, TextureMode, 'texture', Level, TextureNumber)
+      BBar:SetAtlasTexture(ShardIndex, TextureNumber, SD.AtlasName)
+      BBar:SetSizeTexture(ShardIndex, TextureNumber, SD.Width, SD.Height)
+
+      if TextureNumber == ShardDarkTexture then
+        BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
+        BBar:SetColorTexture(ShardIndex, TextureNumber, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
+      end
+    end
     local Name = NamePrefix .. Groups[ShardIndex][2]
 
     BBar:SetTooltip(ShardIndex, nil, Name)
     Names[ShardIndex] = Name
   end
+
+  BBar:SetSizeTextureFrame(0, BoxMode, UB.Bar.Width, UB.Bar.Height)
+  BBar:SetSizeTextureFrame(0, TextureMode, ShardData.TextureWidth, ShardData.TextureHeight)
+
+  BBar:SetHiddenTexture(0, ShardDarkTexture, false)
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 

@@ -4,7 +4,7 @@
 --
 -- Spell predictor    Modified from AceGUI-3.0-Spell-EditBox
 -- Menu Button        Button thats part menu and part button. Used by triggers
--- Flex Button        Button that can be flexible in side.  Also can be left/center/right justified.
+-- Flex Button        Button that can be flexible in size.  Also can be left/center/right justified.
 -- Editbox Selected   An edit box that automatically selects what's in it.
 -- Spell Info         Shows a tooltip when moused over.  Also shows an icon with text next to it.
 
@@ -67,12 +67,14 @@ local FlexButtonWidgetVersion = 1
 local EditBoxSelectedWidgetVersion = 1
 local SpellInfoWidgetVersion = 1
 local TextButtonWidgetVersion = 1
+local MultiLineEditBoxWidgetVersion = 1
 
 local EditBoxWidgetType = 'GUB_Predictor_Base'
 local AuraEditBoxWidgetType = 'GUB_Aura_EditBox'
 local MenuButtonWidgetType = 'GUB_Menu_Button'
 local FlexButtonWidgetType = 'GUB_Flex_Button'
 local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
+local MultiLineEditBoxWidgetType = 'GUB_MultiLine_EditBox'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
 local TextButtonWidgetType = 'GUB_Text_Button'
 
@@ -1481,6 +1483,30 @@ local function EditBoxSelectedConstructor()
 end
 
 AceGUI:RegisterWidgetType(EditBoxSelectedWidgetType, EditBoxSelectedConstructor, EditBoxSelectedWidgetVersion)
+
+--*****************************************************************************
+--
+-- MultiLine_Edit_Box dialog control
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxConstructor
+--
+-- Creates an editbox without the 'accept' button
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxConstructor()
+  local Widget = AceGUI:Create('MultiLineEditBox')
+
+  Widget.type = MultiLineEditBoxWidgetType
+  Widget.button:SetPoint('BOTTOMLEFT', 0, -197)
+  Widget.DisableButton = function() end
+  Widget.button:Hide()
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(MultiLineEditBoxWidgetType, MultiLineEditBoxConstructor, MultiLineEditBoxWidgetVersion)
 
 --*****************************************************************************
 --

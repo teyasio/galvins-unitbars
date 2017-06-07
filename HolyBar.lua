@@ -17,12 +17,12 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt
+local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
+      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, tremove, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
@@ -46,24 +46,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- UnitBarF = UnitBarsF[]
 --
 -- UnitBarF.BBar                     Contains the holy bar displayed on screen.
---
--- HolySBar                          Holy rune for box mode.
--- HolyDarkTexture                   Dark holy rune texture for texture mode.
--- HolyLightTexture                  Lit holy rune texture for texture mode.
--- TextureMode                       TextureFrame number for texture mode.
--- BoxMode                           TextureFrame number for box mode.
--- ChangeHoly                        ChangeTexture number for HolyLightTexture and HolySBar.
---
--- HolyData                          Contains the data to create the holy bar.
---   Texture                         Texture that contains the holy runes.
---   BoxWidth, BoxHeight             Size of the boxes in texture mode.
---   Runes[Rune].Width               Width of the rune texture.
---   [Rune Number]
---     Point                         Texture point inside the texture frame.
---     OffsetX, OffsetY              Offset the texture inside the texture frame.
---     Width, Height                 Width and Height of the rune texture and the texture frame.
---     Left, Right, Top, Bottom      Texture coordinates inside of the HolyPowerTexture
---                                   containing the holy rune.
 -------------------------------------------------------------------------------
 local MaxHolyRunes = 5
 local Display = false
@@ -134,30 +116,25 @@ local HolyData = {
   Texture = [[Interface\PlayerFrame\PaladinPowerTextures]],
 
   -- TextureFrame size.
-  BoxWidth = 42 + 8, BoxHeight = 31,
+  BoxWidth = 42 + 8, BoxHeight = 31,  -- width and height of the texture frame in texture mode.
   DarkColor = {r = 0.15, g = 0.15, b = 0.15, a = 1},
   { -- 1
-    OffsetX = 1, OffsetY = 0,
     Width = 36 + 5, Height = 22 + 5,
     Left = 0.00390625, Right = 0.14453125, Top = 0.78906250, Bottom = 0.96093750
   },
   { -- 2
-    OffsetX = 1, OffsetY = 0,
     Width = 31 + 14, Height = 17 + 14,
     Left = 0.15234375, Right = 0.27343750, Top = 0.78906250, Bottom = 0.92187500
   },
   { -- 3
-    OffsetX = 0, OffsetY = 0,
     Width = 27 + 10 , Height = 21 + 10,
     Left = 0.28125000, Right = 0.38671875, Top = 0.64843750, Bottom = 0.81250000
   },
   { -- 4 Rune1 texture that's rotated.
-    OffsetX = -1, OffsetY = 0,
     Width = 36 + 5, Height = 17 + 12,
     Left = 0.14453125, Right = 0.00390625, Top = 0.78906250, Bottom = 0.96093750
   },
   { -- 5 Rune2 texture that's rotated.
-    OffsetX = -1, OffsetY = 0,
     Width = 31 + 14, Height = 17 + 14,
     Left = 0.27343750, Right = 0.15234375, Top = 0.78906250, Bottom = 0.92187500
   },
@@ -257,12 +234,10 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
   local BBar = self.BBar
 
   if not BBar:OptionsSet() then
+    BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Other', '_', function() Main:UnitBarSetAttr(self) end)
-
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Display = true end)
-
-    BBar:SO('Layout', 'BoxMode',        function(v)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+    BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
 
         -- Box mode
