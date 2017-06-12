@@ -43,14 +43,17 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -- UnitBarF = UnitBarsF[]
 --
--- UnitBarF.BBar                     Contains the holy bar displayed on screen.
+-- UnitBarF.BBar                     Contains the holy bar displayed on screen
 -- UnitBarF.LastDuration             Keeps track of each runes last duration
+-- UnitBarF.RuneOnCooldown           Keeps track of which rune is recharging
+-- UnitBarF.OnUpdateFrame            Used to batch up events that happen on the same
+--                                   frame.  So if 6 events come in on the same frame
+--                                   only one call will be made instead of 6
 -------------------------------------------------------------------------------
 local MaxRunes = 6
 local Display = false
 local Update = false
 local SortedRunes = {1, 2, 3, 4, 5, 6}
-local RunesMoved = false
 local RuneCooldownRuneBar = nil
 local TenHours = 36000
 
@@ -116,7 +119,7 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
 }
 
 local RuneCooldownFillTexture = {
-  [[Interface\PlayerFrame\DK-Blood-Rune-CDFill]],    -- 1
+  [[Interface\PlayerFrame\DK-Blood-Rune-CDFill]],   -- 1
   [[Interface\PlayerFrame\DK-Frost-Rune-CDFill]],   -- 2
   [[Interface\PlayerFrame\DK-Unholy-Rune-CDFill]],  -- 3
 }
@@ -128,26 +131,19 @@ local RuneCooldownSparkTexture = {
 }
 
 local RuneReadyTexture = {
-  [[DK-Blood-Rune-Ready]],  -- 1
-  [[DK-Frost-Rune-Ready]],  -- 2
-  [[DK-Unholy-Rune-Ready]], -- 3
+  'DK-Blood-Rune-Ready',  -- 1
+  'DK-Frost-Rune-Ready',  -- 2
+  'DK-Unholy-Rune-Ready', -- 3
 }
 
 local RuneDataWidth = 24
 local RuneDataHeight = 24  -- Width and height used for texture mode
-local RuneDataAtlasEmptyRune = [[DK-Rune-CD]]
+local RuneDataAtlasEmptyRune = 'DK-Rune-CD'
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
 Main.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
-
---*****************************************************************************
---
--- Runebar utility
---
---*****************************************************************************
-
 
 --*****************************************************************************
 --
@@ -177,15 +173,10 @@ local function GetRuneCooldown2(RuneID)
 
     if TestMode.RuneOnCooldown >= RuneID then
 
-      -- Use a 10 hour clock to similate a test cooldown
+      -- Use a 10 hour clock to simulate a test cooldown
       StartTime = CurrentTime - TenHours * RuneTime
       Duration = TenHours
-
-      if RuneTime == 0 then
-        RuneReady = true
-      else
-        RuneReady = false
-      end
+      RuneReady = RuneTime == 0
     else
       StartTime = 0
       Duration = 0
@@ -209,7 +200,7 @@ end
 -- RuneIndex      Current rune index
 --
 -- -------------  if using 'stop' the parameters below get ignored.
--- StartTime      To in seconds when the cooldown will start. If StartTime is nil then
+-- StartTime      Time in seconds when the cooldown will start. If StartTime is nil then
 --                the cooldown is stopped
 -- Duration       Amount of time in seconds the cooldown will animate for
 -------------------------------------------------------------------------------
@@ -287,10 +278,10 @@ local function RuneSwap(RuneIDA, RuneIDB)
   local StartTimeA, DurationA, RuneReadyA = GetRuneCooldown2(RuneIDA)
   local StartTimeB, DurationB, RuneReadyB = GetRuneCooldown2(RuneIDB)
 
-  if (RuneReadyA ~= RuneReadyB) then
+  if RuneReadyA ~= RuneReadyB then
     return RuneReadyA
   end
-  if (StartTimeA ~= StartTimeB) then
+  if StartTimeA ~= StartTimeB then
     return StartTimeA < StartTimeB
   end
 
@@ -313,7 +304,6 @@ local function OnUpdateRunes(self)
   local PlayerSpecialization = Main.PlayerSpecialization
   local CurrentTime = GetTime()
   local AnyRecharging = false
-  local Active = false
 
   if LastDuration == nil then
     LastDuration = {}
@@ -337,7 +327,7 @@ local function OnUpdateRunes(self)
     return
   end
 
-  -- Set this so RuneCooldown2 can access the RuneBar table
+  -- Set this so RuneCooldown2 can access the RuneBar table in testmode
   RuneCooldownRuneBar = RuneBar
 
   sort(SortedRunes, RuneSwap)
@@ -350,7 +340,6 @@ local function OnUpdateRunes(self)
       local LD = LastDuration[RuneID]
       local ROC = RuneOnCooldown[RuneID]
 
-      Active = true
       if not ROC then
         DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
 
@@ -391,7 +380,7 @@ local function OnUpdateRunes(self)
   end
 
   -- Set the IsActive flag.
-  RuneBar.IsActive = Active
+  RuneBar.IsActive = AnyRecharging
 
   -- Do a status check.
   RuneBar:StatusCheck()
@@ -501,6 +490,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetY',   function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
     BBar:SO('Layout', 'BarSpark',       function(v) BBar:SetHiddenSpark(0, RuneSBar, not v) end)
     BBar:SO('Layout', '_RuneLocation',  function(v) BBar:SetPointTextureFrame(0, RuneMode, 'CENTER', BarMode, v.RunePosition, v.RuneOffsetX, v.RuneOffsetY) Display = true end)
+    -- This is needed for when SetAttr() is called from Update()
     BBar:SO('Layout', '_Texture',       function(v)
       local PlayerSpecialization = self.PlayerSpecialization
 
@@ -546,11 +536,6 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       if self.PlayerSpecialization == 3 then
         BBar:SetBackdropColor(OD.Index, BarMode, OD.r, OD.g, OD.b, OD.a)
       end
-    end)
-    BBar:SO('Background', '_BorderColor',      function()
-      BBar:DoOption('Background', 'BorderColorBlood')
-      BBar:DoOption('Background', 'BorderColorFrost')
-      BBar:DoOption('Background', 'BorderColorUnholy')
     end)
     BBar:SO('Background', 'BorderColorBlood',  function(v, UB, OD)
       if UB.Background.EnableBorderColor then

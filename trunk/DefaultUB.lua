@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 540
+GUB.DefaultUB.Version = 541
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -2273,7 +2273,7 @@ GUB.DefaultUB.Default = {
         Swap = false,
         Float = false,
         ReverseFill = false,
-        FillDirection = 'HORIZONTAL',
+        FillDirection = 'VERTICAL',
         BorderPadding = 6,
         Rotation = 90,
         Slope = 0,

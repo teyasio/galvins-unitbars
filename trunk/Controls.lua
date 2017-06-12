@@ -1214,7 +1214,7 @@ end
 -- Gets called when mousing over the flex button
 -------------------------------------------------------------------------------
 local function FlexButtonOnEnter(self)
-  self.Widget:Fire('OnEnter', 'test')
+  self.Widget:Fire('OnEnter')
 end
 
 -------------------------------------------------------------------------------
