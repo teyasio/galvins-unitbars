@@ -1190,8 +1190,18 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
 
                     if KeyName == 'EnableBorderColor' then
                       UBF.UnitBar[TableName][KeyName] = Value
-                      UBF:SetAttr(TableName, 'BorderColor')
-                      UBF:SetAttr(TableName, '_BorderColor')
+                      if BarType == 'FragmentBar' then
+
+                        UBF:SetAttr(TableName, 'BorderColor')
+                        UBF:SetAttr(TableName, 'BorderColorGreen')
+                      elseif BarType == 'RuneBar' then
+
+                        UBF:SetAttr(TableName, 'BorderColorBlood')
+                        UBF:SetAttr(TableName, 'BorderColorFrost')
+                        UBF:SetAttr(TableName, 'BorderColorUnholy')
+                      else
+                        UBF:SetAttr(TableName, 'BorderColor')
+                      end
 
                     elseif strfind(KeyName, 'Color') then
                       local c = UBF.UnitBar[TableName][KeyName]

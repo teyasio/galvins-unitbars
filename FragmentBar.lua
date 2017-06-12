@@ -48,13 +48,15 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- UnitBarF.BBar                     Contains an instance of bar functions for shard bar.
 --
 -- UnitBarF.FragmentBar              Contains the shard bar displayed on screen.
+-- UnitBarF.FillTexture              Current texture being used as fill
+-- UnitBarF.FullTexture              Current texture being used as for when the shard is ready.
 -------------------------------------------------------------------------------
 local MaxSoulShards = 5
+local MaxFragmentsPerShard = 10
 local Display = false
 local Update = false
 local NamePrefix = 'Soul '
 
-local MaxFragmentsPerShard = 10
 local WarlockGreenFire = WARLOCK_GREEN_FIRE
 
 -- Powertype constants
@@ -182,16 +184,17 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {'r', 'Region',     VTs, TDregion},  -- 7
 }
 
+  --local EmberTexture = [[Interface\PlayerFrame\Warlock-DestructionUI]],
+  --local EmberTextureGreen = [[Interface\PlayerFrame\Warlock-DestructionUI-Green]],
+
+local ShardTextureGreen = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_WarlockSoulShardGreen]]
+local EmberTexture      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_WarlockDestructionUI]]
+local EmberTextureGreen = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_WarlockDestructionUIGreen]]
+
 local ShardData = {
   TextureWidth = 17 + 10, TextureHeight = 22 + 10,         -- extra space around the shard texture
   EmberTextureWidth = 36 - 5, EmberTextureHeight = 39 - 7, -- extra space around the ember texture
   EmberScale = 0.92,                                       -- makes the ember larger or smaller
-
-  --EmberTexture = [[Interface\PlayerFrame\Warlock-DestructionUI]],
-  --EmberTextureGreen = [[Interface\PlayerFrame\Warlock-DestructionUI-Green]],
-
-  EmberTexture = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_WarlockDestructionUI]],
-  EmberTextureGreen = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_WarlockDestructionUIGreen]],
 
   [TextureMode] = {
     { -- Level 1
@@ -214,17 +217,20 @@ local ShardData = {
     { -- Level 1
       TextureNumber = GreenShardBgTexture,
       Width = 17 + 4, Height = 22 + 4,
-      AtlasName = 'Warlock-ReadyShard',
+      Texture = ShardTextureGreen,
+      Left = 0.0898438, Right = 0.15625, Top = 0.390625, Bottom = 0.734375,
     },
     { -- Level 2
       TextureNumber = GreenShardFillTexture,
       Width = 17 + 4, Height = 22 + 4,
-      AtlasName = 'Warlock-FillShard',
+      Texture = ShardTextureGreen,
+      Left = 0.0898438, Right = 0.15625, Top = 0.015625, Bottom = 0.359375,
     },
     { -- Level 3
       TextureNumber = GreenShardFullTexture,
       Width = 17 + 4, Height = 22 + 4,
-      AtlasName = 'Warlock-ReadyShard',
+      Texture = ShardTextureGreen,
+      Left = 0.0898438, Right = 0.15625, Top = 0.390625, Bottom = 0.734375,
     },
   },
   [TextureModeEmber] = {
@@ -233,6 +239,7 @@ local ShardData = {
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height= 39,
+      Texture = EmberTexture,
       Left = 0.15234375, Right = 0.29296875, Top = 0.32812500, Bottom = 0.93750000,
     },
     { -- Level 2
@@ -240,6 +247,7 @@ local ShardData = {
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY - 1.5, -- position within the texture frame
       Width = 20, Height = 22,
+      Texture = EmberTexture,
       Left = 0.30078125, Right = 0.37890625, Top = 0.32812500, Bottom = 0.67187500,
     },
     { -- Level 3
@@ -247,6 +255,7 @@ local ShardData = {
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height = 39,
+      Texture = EmberTexture,
       Left = 0.00390625, Right = 0.14453125, Top = 0.32812500, Bottom = 0.93750000,
     },
   },
@@ -256,6 +265,7 @@ local ShardData = {
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height= 39,
+      Texture = EmberTextureGreen,
       Left = 0.15234375, Right = 0.29296875, Top = 0.32812500, Bottom = 0.93750000,
     },
     { -- Level 2
@@ -263,6 +273,7 @@ local ShardData = {
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY - 1.5, -- position within the texture frame
       Width = 20, Height = 22,
+      Texture = EmberTextureGreen,
       Left = 0.30078125, Right = 0.37890625, Top = 0.32812500, Bottom = 0.67187500,
     },
     { -- Level 3
@@ -270,19 +281,12 @@ local ShardData = {
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height = 39,
+      Texture = EmberTextureGreen,
       Left = 0.00390625, Right = 0.14453125, Top = 0.32812500, Bottom = 0.93750000,
     },
   },
 }
 local ShardBgColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
-
-
-local ShardDataOLD = {
-  Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
-  BoxWidth = 17 + 15, BoxHeight = 16 + 15,
-  Width = 17 + 15 - 7, Height = 16 + 15 - 7,
-  Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
-}
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -393,7 +397,7 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerType)
   end
 
   -- Set the IsActive flag.
-  self.IsActive = ShardFragments ~= MaxFragmentsPerShard * 3
+  self.IsActive = SoulShards ~= 3 --ShardFragments ~= MaxFragmentsPerShard * 3
 
   -- Do a status check.
   self:StatusCheck()
@@ -416,7 +420,7 @@ function Main.UnitBarsF.FragmentBar:EnableMouseClicks(Enable)
   -- Enable/disable for border.
   BBar:EnableMouseClicksRegion(Enable)
 
-  -- ENable/disable for box mode
+  -- Enable/disable for box mode
   BBar:EnableMouseClicks(0, nil, Enable)
 end
 
@@ -640,35 +644,22 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
         for Level, SSD in ipairs(SD) do
           local TextureNumber = SSD.TextureNumber
 
-          if ModeType == TextureModeEmber or ModeType == TextureModeEmberGreen then
-            BBar:CreateTexture(ShardIndex, ModeType, 'texture', Level, TextureNumber)
-
-            if ModeType == TextureModeEmber then
-              BBar:SetTexture(ShardIndex, TextureNumber, ShardData.EmberTexture)
-            else
-              BBar:SetTexture(ShardIndex, TextureNumber, ShardData.EmberTextureGreen)
-            end
-            BBar:SetCoordTexture(ShardIndex, TextureNumber, SSD.Left, SSD.Right, SSD.Top, SSD.Bottom)
-            BBar:SetSizeTexture(ShardIndex, TextureNumber, SSD.Width * ShardData.EmberScale, SSD.Height * ShardData.EmberScale)
-            BBar:SetPointTexture(ShardIndex, TextureNumber, SSD.Point, SSD.OffsetX, SSD.OffsetY)
+          BBar:CreateTexture(ShardIndex, ModeType, 'texture', Level, TextureNumber)
+          if SSD.Texture then
+            BBar:SetTexture(ShardIndex, TextureNumber, SSD.Texture)
           else
-            BBar:CreateTexture(ShardIndex, ModeType, 'texture', Level, TextureNumber)
             BBar:SetAtlasTexture(ShardIndex, TextureNumber, SSD.AtlasName)
-            BBar:SetSizeTexture(ShardIndex, TextureNumber, SSD.Width, SSD.Height)
-
-            -- Create green fire
-            if ModeType == TextureModeGreen then
-              BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
-
-              if TextureNumber ~= ShardBgTexture and TextureNumber ~= GreenShardBgTexture then
-                BBar:SetColorTexture(ShardIndex, TextureNumber, 0.350, 1, 0, 1)
-              end
-            end
-
-            if TextureNumber == ShardBgTexture or TextureNumber == GreenShardBgTexture then
-              BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
-              BBar:SetColorTexture(ShardIndex, TextureNumber, ShardBgColor.r, ShardBgColor.g, ShardBgColor.b, ShardBgColor.a)
-            end
+          end
+          if SSD.Left then
+            BBar:SetCoordTexture(ShardIndex, TextureNumber, SSD.Left, SSD.Right, SSD.Top, SSD.Bottom)
+          end
+          BBar:SetSizeTexture(ShardIndex, TextureNumber, SSD.Width, SSD.Height)
+          if SSD.Point then
+            BBar:SetPointTexture(ShardIndex, TextureNumber, SSD.Point, SSD.OffsetX, SSD.OffsetY)
+          end
+          if TextureNumber == ShardBgTexture or TextureNumber == GreenShardBgTexture then
+            BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
+            BBar:SetColorTexture(ShardIndex, TextureNumber, ShardBgColor.r, ShardBgColor.g, ShardBgColor.b, ShardBgColor.a)
           end
         end
       end
@@ -723,8 +714,8 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
 
   -- Set bar offsets for triggers
-  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0, 0)
-  BBar:SetOffsetTextureFrame(0, BoxModeEmber, 0, 0, 0, 0, 0)
+  BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
+  BBar:SetOffsetTextureFrame(0, BoxModeEmber, 0, 0, 0, 0)
 
   UnitBarF.FillTexture = ShardFillTexture
   UnitBarF.FullTexture = ShardFullTexture
