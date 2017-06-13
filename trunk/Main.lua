@@ -4270,8 +4270,8 @@ function GUB:ApplyProfile()
     -- Convert profile from a version before 5.13
     ConvertUnitBarData(8)
   end
-  if Ver == nil or Ver < 540 then
-    -- Convert profile from a version before 5.40
+  if Ver == nil or Ver < 541 then
+    -- Convert profile from a version before 5.41
     ConvertUnitBarData(9)
   end
 
