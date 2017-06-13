@@ -2990,7 +2990,7 @@ local ChangesText = {}
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 
-Version 5.40
+Version 5.41
 
 |cff00ff00Rune Bar|r changed to reflect UI changes
 |cff00ff00Fragment bar|r replaces shard bar for destruction warlocks
