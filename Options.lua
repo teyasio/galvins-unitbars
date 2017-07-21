@@ -119,6 +119,10 @@ local o = {
   TestModePointsMax = 10,
   TestModeArcaneChargesMin = 0,
   TestModeArcaneChargesMax = 4,
+  TestModeStaggerMin = 0,
+  TestModeStaggerMax = 4,
+  TestModeStaggerPauseMin = 0,
+  TestModeStaggerPauseMax = 3,
 
   -- Animation for all unitbars.
   AnimationOutTime = 1,
@@ -213,7 +217,7 @@ local o = {
   AlignSwapAdvancedMinMax = 25,
 
   -- Main options window size
-  MainOptionsWidth = 760,
+  MainOptionsWidth = 770,
   MainOptionsHeight = 500,
 
   -- Attribute options
@@ -221,6 +225,10 @@ local o = {
   UnitBarScaleMax = 4,
   UnitBarAlphaMin = 0.10,
   UnitBarAlphaMax = 1,
+
+  -- Max Percent options
+  UnitBarMaxPercentMin = .5,
+  UnitBarMaxPercentMax = 2,
 
   -- Bar size options
   UnitBarSizeMin = 15,
@@ -325,13 +333,22 @@ local ValueName_RuneDropdown = {
   [99] = 'None',
 }
 
+local ValueName_StaggerDropdown = {
+  [1]  = 'Current Value',
+  [2]  = 'Maximum Value',
+  [8]  = 'Time',
+  [99] = 'None',
+}
+
 local ValueNameMenuDropdown = {
-  all    = ValueName_AllDropdown,
-  health = ValueName_HealthDropdown,
-  power  = ValueName_PowerDropdown,
-  mana   = ValueName_ManaDropdown,
-  hap    = ValueName_HapDropdown,
-  rune   = ValueName_RuneDropdown,
+  all          = ValueName_AllDropdown,
+  health       = ValueName_HealthDropdown,
+  power        = ValueName_PowerDropdown,
+  mana         = ValueName_ManaDropdown,
+  hap          = ValueName_HapDropdown,
+  rune         = ValueName_RuneDropdown,
+  stagger      = ValueName_StaggerDropdown,
+  staggerpause = ValueName_RuneDropdown,
 }
 
 local ValueType_ValueDropdown = {
@@ -515,6 +532,7 @@ local Operator_AurasDropdown = {
 local TriggerOperatorDropdown = {
   whole   = Operator_WholePercentDropdown,
   percent = Operator_WholePercentDropdown,
+  float   = Operator_WholePercentDropdown,
   auras   = Operator_AurasDropdown,
 }
 
@@ -1629,7 +1647,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       values = LSMStatusBarDropdown,
     }
 
-    GeneralArgs.Spacer2Half = CreateSpacer(1.5, 'half')
+    GeneralArgs.Spacer2 = CreateSpacer(2, 'half')
 
     -- Regular color
     local Color = UBD[TableName].Color
@@ -1638,7 +1656,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         type = 'color',
         name = 'Color',
         hasAlpha = true,
-        order = 2,
+        order = 3,
       }
       -- Only for power bars
       if UBD.Layout.UseBarColor ~= nil then
@@ -1655,35 +1673,20 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     end
   end
 
-  -- For fragment bar
-  -- Can use the same order numbers as predictedbartexture
-  -- since both of these never happen at the same time.
-  if UBD[TableName].FullBarTexture ~= nil then
-    GeneralArgs.Spacer3 = CreateSpacer(3)
-
-    GeneralArgs.FullBarTexture = {
-      type = 'select',
-      name = 'Bar Texture (full)',
-      order = 4,
-      dialogControl = 'LSM30_Statusbar',
-      values = LSMStatusBarDropdown,
-    }
-  end
-
   -- Predicted Health and Power bar.
   if UBD[TableName].PredictedBarTexture ~= nil then
-    GeneralArgs.Spacer3 = CreateSpacer(3)
+    GeneralArgs.Spacer10 = CreateSpacer(10)
 
     GeneralArgs.PredictedBarTexture = {
       type = 'select',
       name = strfind(BarType, 'Health') and 'Bar Texture (predicted health)' or
                                             'Bar Texture (predicted power)' ,
-      order = 4,
+      order = 11,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
     }
 
-    GeneralArgs.Spacer4Half = CreateSpacer(4.5, 'half')
+    GeneralArgs.Spacer12 = CreateSpacer(12, 'half')
 
     -- Predicted color
     if UBD[TableName].PredictedColor ~= nil then
@@ -1692,24 +1695,24 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         name = strfind(BarType, 'Health') and 'Color (predicted health)' or
                                               'Color (predicted power)' ,
         hasAlpha = true,
-        order = 5,
+        order = 13,
       }
     end
   end
 
   -- Predicted cost bar
   if UBD[TableName].PredictedCostBarTexture ~= nil then
-    GeneralArgs.Spacer6 = CreateSpacer(6)
+    GeneralArgs.Spacer20 = CreateSpacer(20)
 
     GeneralArgs.PredictedCostBarTexture = {
       type = 'select',
       name = 'Bar Texture (predicted cost)',
-      order = 7,
+      order = 21,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
     }
 
-    GeneralArgs.Spacer7Half = CreateSpacer(7.5, 'half')
+    GeneralArgs.Spacer22 = CreateSpacer(22, 'half')
 
     -- Predicted cost color
     if UBD[TableName].PredictedCostColor ~= nil then
@@ -1717,30 +1720,135 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         type = 'color',
         name = 'Color (predicted cost)',
         hasAlpha = true,
-        order = 8,
+        order = 23,
       }
     end
   end
 
-  GeneralArgs.Spacer10 = CreateSpacer(10)
+  -- For fragment bar
+  -- Can use the same order numbers as predictedbartexture
+  -- since both of these never happen at the same time.
+  if BarType == 'FragmentBar' then
+    GeneralArgs.Spacer20 = CreateSpacer(20)
+
+    GeneralArgs.FullBarTexture = {
+      type = 'select',
+      name = 'Bar Texture (full)',
+      order = 21,
+      dialogControl = 'LSM30_Statusbar',
+      values = LSMStatusBarDropdown,
+    }
+  end
+
+  -- Stagger bar
+  if BarType == 'StaggerBar' and TableName == 'BarStagger' then
+    -- Stagger group
+    GeneralArgs.StaggerGroup = {
+      type = 'group',
+      order = 9,
+      dialogInline = true,
+      hidden = function()
+                 return not UBF.UnitBar.Layout.Layered and not UBF.UnitBar.Layout.SideBySide
+               end,
+      args = {}
+    }
+    local StaggerGeneralArgs = GeneralArgs.StaggerGroup.args
+
+    GeneralArgs.StaggerGroup.name = function()
+                                      return format('|cffffff00Continued (%s%% to %s%%)|r', StaggerGeneralArgs.MaxPercentBStagger.min * 100,
+                                                                                            UBF.UnitBar[TableName].MaxPercentBStagger * 100)
+                                    end
+    -- This section cant be part of the group
+    GeneralArgs.MaxPercent = {
+      type = 'range',
+      name = 'Max Percent',
+      desc = 'Changes how much percentage it takes to fill the bar',
+      order = 5,
+      step = .01,
+      width = 'full',
+      isPercent = true,
+      get = function()
+              local Value = UBF.UnitBar[TableName].MaxPercent
+
+              -- Set the min/max percents for second bar
+              local Min = Value + .01
+              local Max = Value + o.UnitBarMaxPercentMax
+
+              StaggerGeneralArgs.MaxPercentBStagger.min = Min
+              StaggerGeneralArgs.MaxPercentBStagger.max = Max
+              local Value2 = UBF.UnitBar[TableName].MaxPercentBStagger
+              UBF.UnitBar[TableName].MaxPercentBStagger = Value2 < Min and Min or Value2 > Max and Max or Value2
+
+              return Value
+            end,
+      set = function(Info, Value)
+              UBF.UnitBar[TableName].MaxPercent = Value
+              UBF:SetAttr(TableName, 'MaxPercent')
+
+              -- Set the min/max percents for second bar
+              local Min = Value + .01
+              local Max = Value + o.UnitBarMaxPercentMax
+
+              StaggerGeneralArgs.MaxPercentBStagger.min = Min
+              StaggerGeneralArgs.MaxPercentBStagger.max = Max
+              local Value2 = UBF.UnitBar[TableName].MaxPercentBStagger
+              UBF.UnitBar[TableName].MaxPercentBStagger = Value2 < Min and Min or Value2 > Max and Max or Value2
+            end,
+      min = o.UnitBarMaxPercentMin,
+      max = o.UnitBarMaxPercentMax,
+    }
+
+    StaggerGeneralArgs.Spacer20 = CreateSpacer(20)
+    StaggerGeneralArgs.BStaggerBarTexture = {
+      type = 'select',
+      name = function()
+               return format('Bar Texture', UBF.UnitBar[TableName].MaxPercent * 100)
+             end,
+      order = 21,
+      dialogControl = 'LSM30_Statusbar',
+      values = LSMStatusBarDropdown,
+    }
+
+    StaggerGeneralArgs.Spacer22 = CreateSpacer(22, 'half')
+    StaggerGeneralArgs.BStaggerColor = {
+      type = 'color',
+      name = 'Color',
+      hasAlpha = true,
+      order = 23,
+    }
+    StaggerGeneralArgs.Spacer24 = CreateSpacer(24)
+    StaggerGeneralArgs.MaxPercentBStagger = {
+      type = 'range',
+      name = 'Max Percent',
+      desc = 'This continues the percentage from Max Percent above',
+      order = 25,
+      step = .01,
+      width = 'full',
+      isPercent = true,
+      min = o.UnitBarMaxPercentMin,
+      max = o.UnitBarMaxPercentMax,
+    }
+  end
+
+  GeneralArgs.Spacer30 = CreateSpacer(30)
 
   if UBD[TableName].FillDirection ~= nil then
     GeneralArgs.FillDirection = {
       type = 'select',
       name = 'Fill Direction',
-      order = 11,
+      order = 31,
       values = DirectionDropdown,
       style = 'dropdown',
     }
 
-    GeneralArgs.Spacer11Half = CreateSpacer(11.5, 'half')
+    GeneralArgs.Spacer32 = CreateSpacer(32, 'half')
   end
 
   if UBD[TableName].RotateTexture ~= nil then
     GeneralArgs.RotateTexture = {
       type = 'toggle',
       name = 'Rotate Texture',
-      order = 12,
+      order = 33,
     }
   end
 
@@ -1763,7 +1871,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     end
   end
 
-  BarArgs.BoxSize = CreateBarSizeOptions(BarType, TableName, 8, 'Bar Size')
+  BarArgs.BoxSize = CreateBarSizeOptions(BarType, TableName, 9, 'Bar Size')
 
   BarArgs.Padding = {
     type = 'group',
@@ -1877,13 +1985,14 @@ end
 -- Subfunction of CreateTextOptions()
 --
 -- BarType       Bar the text options belongs to
+-- TableName     Name of the table containing the text.
 -- TextOptions   Font options will be inserted into this table.
 -- TxtLine       Used to convert TextOptions.name to number.
 -- Order         Positions on the options panel.
 -------------------------------------------------------------------------------
-local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
+local function CreateTextFontOptions(BarType, TableName, TextOptions, TxtLine, Order)
   local UBF = UnitBarsF[BarType]
-  local TS = UBF.UnitBar.Text[TxtLine[TextOptions.name]]
+  local TS = UBF.UnitBar[TableName][TxtLine[TextOptions.name]]
 
   TextOptions.args.Font = {
     type = 'group',
@@ -1988,7 +2097,7 @@ local function CreateTextFontOptions(BarType, TextOptions, TxtLine, Order)
 
   -- Add color all text option for the runebar only.
   if BarType == 'RuneBar' then
-    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'Text', 'Text.1.Color', '_Font', Order, 'Color')
+    TextOptions.args.TextColors = CreateColorAllOptions(BarType, 'Text', TableName .. '.1.Color', '_Font', Order, 'Color')
   else
     TextOptions.args.Font.args.TextColor = {
       type = 'color',
@@ -2058,12 +2167,13 @@ end
 -- Subfunction of CreateTextOptions()
 --
 -- BarType        Options will be added for this bar.
+-- TableName      Name of the table containing the text.
 -- TL             Current Text Line options being used.
 -- TxtLine        Used to retrieve what text line number is being used.
 -- Order          Order number in the options frame.
 -------------------------------------------------------------------------------
-local function ModifyTextValueOptions(BarType, VOA, Action, ValueNames, ValueIndex)
-  local ValueNameMenu = DUB[BarType].Text._ValueNameMenu
+local function ModifyTextValueOptions(BarType, TableName, VOA, Action, ValueNames, ValueIndex)
+  local ValueNameMenu = DUB[BarType][TableName]._ValueNameMenu
   local ValueNameDropdown = ValueNameMenuDropdown[ValueNameMenu]
 
   local ValueNameKey = format('ValueName%s', ValueIndex)
@@ -2107,12 +2217,12 @@ local function ModifyTextValueOptions(BarType, VOA, Action, ValueNames, ValueInd
   end
 end
 
-local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
+local function CreateTextValueOptions(BarType, TableName, TL, TxtLine, Order)
   local UBF = UnitBarsF[BarType]
   local UB = UBF.UnitBar
-  local ValueNameMenu = DUB[BarType].Text._ValueNameMenu
+  local ValueNameMenu = DUB[BarType][TableName]._ValueNameMenu
 
-  local TS = UB.Text[TxtLine[TL.name]]
+  local TS = UB[TableName][TxtLine[TL.name]]
   local ValueNames = TS.ValueNames
   local ValueTypes = TS.ValueTypes
   local NumValues = 0
@@ -2203,7 +2313,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
                      return HideTooltip(NumValues == 1)
                    end,
         func = function()
-                 ModifyTextValueOptions(BarType, VOA, 'remove', ValueNames, NumValues)
+                 ModifyTextValueOptions(BarType, TableName, VOA, 'remove', ValueNames, NumValues)
 
                  -- remove last value type.
                  tremove(ValueNames, NumValues)
@@ -2228,11 +2338,11 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
                    end,
         func = function()
                  NumValues = NumValues + 1
-                 ModifyTextValueOptions(BarType, VOA, 'add', ValueNames, NumValues)
+                 ModifyTextValueOptions(BarType, TableName, VOA, 'add', ValueNames, NumValues)
 
                  -- Add a new value setting.
-                 ValueNames[NumValues] = DUB[BarType].Text[1].ValueNames[1]
-                 ValueTypes[NumValues] = DUB[BarType].Text[1].ValueTypes[1]
+                 ValueNames[NumValues] = DUB[BarType][TableName][1].ValueNames[1]
+                 ValueTypes[NumValues] = DUB[BarType][TableName][1].ValueTypes[1]
 
                  -- Update the font to reflect changes
                  UBF:SetAttr('Text', '_Font')
@@ -2263,7 +2373,7 @@ local function CreateTextValueOptions(BarType, TL, TxtLine, Order)
 
   -- Add additional value options if needed
   for Index, Value in ipairs(ValueNames) do
-    ModifyTextValueOptions(BarType, VOA, 'add', ValueNames, Index)
+    ModifyTextValueOptions(BarType, TableName, VOA, 'add', ValueNames, Index)
     NumValues = Index
   end
 end
@@ -2276,14 +2386,15 @@ end
 -- Subfunction of CreateTextOptions()
 --
 -- BarType           Bar the options will be added for.
+-- TableName         Name of the table containing the text.
 -- TextLineOptions   Used for recursive calls. On recursive calls more
 --                   options are inserted into this table.
 -- TxtLine           Used to convert TextLineOptions.name into a number.
 -------------------------------------------------------------------------------
-local function CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+local function CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLine)
   local UBF = UnitBarsF[BarType]
   local UB = UBF.UnitBar
-  local Text = UB.Text
+  local Text = UB[TableName]
 
   local TL = nil
   local TextLine = 0
@@ -2324,8 +2435,8 @@ local function CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
   end
 
   -- Check to see if another text line needs to be created.
-  if UB.Text[TextLine + 1] ~= nil then
-    CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+  if UB[TableName][TextLine + 1] ~= nil then
+    CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLine)
   end
 
   TL.args = {
@@ -2402,11 +2513,11 @@ local function CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
                -- Deep Copy first text setting from defaults into text table.
                local TextTable = {}
 
-               Main:CopyTableValues(DUB[BarType].Text[1], TextTable, true)
+               Main:CopyTableValues(DUB[BarType][TableName][1], TextTable, true)
                Text[#Text + 1] = TextTable
 
                -- Add options for new text line.
-               CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
+               CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLine)
 
                -- Update the the bar to reflect changes
                UBF:SetAttr('Text', '_Font')
@@ -2420,10 +2531,10 @@ local function CreateTextLineOptions(BarType, TextLineOptions, TxtLine)
   }
 
   -- Add text value options to TextLineOptions
-  CreateTextValueOptions(BarType, TL, TxtLine, 4)
+  CreateTextValueOptions(BarType, TableName, TL, TxtLine, 4)
 
   -- Add text font options.
-  CreateTextFontOptions(BarType, TL, TxtLine, 5)
+  CreateTextFontOptions(BarType, TableName, TL, TxtLine, 5)
 
   return TextLineOptions
 end
@@ -2436,6 +2547,7 @@ end
 -- Subfunction of CreateUnitBarOptions()
 --
 -- BarType               Type options being created.
+-- TableName             Name of the table containing the text.
 -- Order                 Order number.
 -- Name                  Name text
 --
@@ -2445,7 +2557,7 @@ end
 --         is not upto date at that time.  So Main.UnitBars[BarType] must be used
 --         instead.
 -------------------------------------------------------------------------------
-local function CreateTextOptions(BarType, Order, Name)
+local function CreateTextOptions(BarType, TableName, Order, Name)
   local TextOptions = {
     type = 'group',
     name = Name,
@@ -2455,23 +2567,25 @@ local function CreateTextOptions(BarType, Order, Name)
     [Name] = 1,
   }
 
+  local DoFunctionTextName = 'CreateTextOptions' .. TableName
+
   -- This will modify text options table if the profile changed.
   -- Basically rebuild the text options when ever the profile changes.
-  Options:DoFunction(BarType, 'CreateTextOptions', function()
-    if DUB[BarType].Text._Multi then
+  Options:DoFunction(BarType, DoFunctionTextName, function()
+    if DUB[BarType][TableName]._Multi then
       TextOptions.childGroups = 'tab'
-      TextOptions.args = CreateTextLineOptions(BarType)
+      TextOptions.args = CreateTextLineOptions(BarType, TableName)
     else
       TextOptions.args = {}
 
       -- Add text value and font options.
-      CreateTextValueOptions(BarType, TextOptions, TxtLine, 1)
-      CreateTextFontOptions(BarType, TextOptions, TxtLine, 2)
+      CreateTextValueOptions(BarType, TableName, TextOptions, TxtLine, 1)
+      CreateTextFontOptions(BarType, TableName, TextOptions, TxtLine, 2)
     end
   end)
 
   -- Set up the options
-  Options:DoFunction(BarType, 'CreateTextOptions')
+  Options:DoFunction(BarType, DoFunctionTextName)
 
   return TextOptions
 end
@@ -2539,7 +2653,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
             end,
     desc = function()
              if Trigger.ValueTypeID == 'percent' then
-               return 'Enter a number between 0 and 100'
+               return 'Enter a percentage as a whole number'
              else
                return 'Enter any number'
              end
@@ -2550,7 +2664,11 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
           end,
     set = function(Info, Value)
             -- Change to number
-            Condition.Value = floor(tonumber(Value) or 0)
+            if Trigger.ValueTypeID ~= 'float' then
+              Condition.Value = floor(tonumber(Value) or 0)
+            else
+              Condition.Value = tonumber(Value) or 0
+            end
 
             -- Update bar to reflect trigger changes
             BBar:CheckTriggers()
@@ -4852,6 +4970,29 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = o.TestModeArcaneChargesMax,
     }
   end
+  if UBD.TestMode.StaggerPercent ~= nil then
+    TestModeArgs.StaggerPercent = {
+      type = 'range',
+      name = 'Stagger',
+      order = 800,
+      step = .01,
+      width = 'full',
+      isPercent = true,
+      min = o.TestModeStaggerMin,
+      max = o.TestModeStaggerMax,
+    }
+  end
+  if UBD.TestMode.StaggerPause ~= nil then
+    TestModeArgs.StaggerPause = {
+      type = 'range',
+      name = 'Pause (seconds)',
+      order = 801,
+      step = .1,
+      width = 'full',
+      min = o.TestModeStaggerPauseMin,
+      max = o.TestModeStaggerPauseMax,
+    }
+  end
 
   return TestModeOptions
 end
@@ -4982,6 +5123,83 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
     },
   }
   return MoreLayoutRuneBarOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateMoreLayoutStaggerBarOptions
+--
+-- Creates additional options that appear under layout for the stagger bar.
+--
+-- Subfunction of CreateLayoutOptions
+--
+-- BarType   Type of options being created.
+-- Order     Position in the options list.
+-------------------------------------------------------------------------------
+local function CreateMoreLayoutStaggerBarOptions(BarType, Order)
+  local UBF = UnitBarsF[BarType]
+
+  local MoreLayoutStaggerBarOptions = {
+    type = 'group',
+    name = '',
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.Layout[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+            UBF.UnitBar.Layout[KeyName] = Value
+
+            -- Update the layout to show changes.
+            UBF:SetAttr('Layout', KeyName)
+          end,
+    args = {
+      Layered = {
+        type = 'toggle',
+        name = 'Layered',
+        order = 1,
+        desc = 'When the main stagger bar is full, it will be hidden while the second bar fills. Bar will have new options when this is active',
+        disabled = function()
+                     return UBF.UnitBar.Layout.SideBySide
+                   end,
+      },
+      Overlay = {
+        type = 'toggle',
+        name = 'Overlay',
+        order = 2,
+        desc = 'When the main stagger bar is full it will remain visible while the second bar fills',
+        disabled = function()
+                     return UBF.UnitBar.Layout.SideBySide or not UBF.UnitBar.Layout.Layered
+                   end,
+      },
+      SideBySide = {
+        type = 'toggle',
+        name = 'Side by Side',
+        order = 3,
+        desc = 'Main stagger and second bar is merged as one. Bar will have new options when this is active',
+        disabled = function()
+                     return UBF.UnitBar.Layout.Layered
+                   end,
+      },
+      Spacer10 = CreateSpacer(10),
+      PauseTimer = {
+        type = 'toggle',
+        name = 'Pause Timer',
+        order = 11,
+        desc = 'Displays a bar for when stagger gets paused',
+      },
+      PauseTimerAutoHide = {
+        type = 'toggle',
+        name = 'Pause Timer Autohide',
+        order = 12,
+        desc = "Hides the Pause Timer after it's finished",
+        disabled = function()
+                     return not UBF.UnitBar.Layout.PauseTimer
+                   end
+      },
+    },
+  }
+  return MoreLayoutStaggerBarOptions
 end
 
 -------------------------------------------------------------------------------
@@ -5226,6 +5444,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
   if UBD.Layout._More then
     if BarType == 'RuneBar' then
       GeneralArgs.MoreLayout = CreateMoreLayoutRuneBarOptions(BarType, 1)
+    elseif BarType == 'StaggerBar' then
+      GeneralArgs.MoreLayout = CreateMoreLayoutStaggerBarOptions(BarType, 1)
     else
       GeneralArgs.MoreLayout = CreateMoreLayoutOptions(BarType, 1)
     end
@@ -5253,9 +5473,10 @@ local function CreateLayoutOptions(BarType, Order, Name)
     }
   end
   if Spacer then
-    GeneralArgs.Spacer10 = CreateSpacer(11)
+    GeneralArgs.Spacer11 = CreateSpacer(11)
     Spacer = false
   end
+
   if UBD.Layout.EnableTriggers ~= nil then
     Spacer = true
     GeneralArgs.EnableTriggers = {
@@ -5279,35 +5500,12 @@ local function CreateLayoutOptions(BarType, Order, Name)
     Spacer = false
   end
 
-  if UBD.Layout.Swap ~= nil then
-    Spacer = true
-    GeneralArgs.Swap = {
-      type = 'toggle',
-      name = 'Swap',
-      order = 21,
-      desc = 'Allows you to swap one bar object with another by dragging it',
-    }
-  end
-  if UBD.Layout.Float ~= nil then
-    Spacer = true
-    GeneralArgs.Float = {
-      type = 'toggle',
-      name = 'Float',
-      order = 22,
-      desc = 'Switches to floating mode.  Bar objects can be placed anywhere. Float options will be open below',
-    }
-  end
-  if Spacer then
-    GeneralArgs.Spacer30 = CreateSpacer(30)
-    Spacer = false
-  end
-
   if UBD.Layout.ReverseFill ~= nil then
     Spacer = true
     GeneralArgs.ReverseFill = {
       type = 'toggle',
       name = 'Reverse fill',
-      order = 31,
+      order = 21,
       desc = 'Fill in reverse',
     }
   end
@@ -5316,23 +5514,27 @@ local function CreateLayoutOptions(BarType, Order, Name)
     GeneralArgs.HideText = {
       type = 'toggle',
       name = 'Hide Text',
-      order = 32,
+      order = 22,
       desc = 'Hides all text',
     }
   end
 
-  if UBD.Layout.AnimationType ~= nil then
+  if BarType == 'StaggerBar' then
     Spacer = true
-    GeneralArgs.Spacer34 = CreateSpacer(34)
-
-    GeneralArgs.AnimationType = {
-      type = 'select',
-      name = BarType ~= 'FragmentBar' and 'Animation Type' or 'Animation Type (full)',
-      order = 34,
-      style = 'dropdown',
-      desc = 'Changes the type of animation played when showing or hiding bar objects',
-      values = AnimationTypeDropdown,
+    GeneralArgs.HideTextPause = {
+      type = 'toggle',
+      name = 'Hide Text (pause)',
+      order = 23,
+      desc = 'Hides all text on the pause timer',
+      disabled = function()
+                   return not UBF.UnitBar.Layout.PauseTimer
+                 end,
     }
+  end
+
+  if Spacer then
+    GeneralArgs.Spacer30 = CreateSpacer(30)
+    Spacer = false
   end
 
   if UBD.Layout.FillDirection ~= nil then
@@ -5340,7 +5542,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
     GeneralArgs.FillDirection = {
       type = 'select',
       name = 'Fill Direction',
-      order = 36,
+      order = 31,
       values = DirectionDropdown,
       style = 'dropdown',
     }
@@ -5352,130 +5554,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
                                end
     end
   end
-
   if Spacer then
     GeneralArgs.Spacer40 = CreateSpacer(40)
-    Spacer = false
-  end
-
-  if UBD.Layout.BorderPadding ~= nil then
-    Spacer = true
-    GeneralArgs.BorderPadding = {
-      type = 'range',
-      name = 'Border Padding',
-      order = 41,
-      desc = "Changes the distance between the region's border and the bar objects",
-      step = 1,
-      disabled = function()
-                   return UBF.UnitBar.Layout.HideRegion
-                 end,
-      min = o.LayoutBorderPaddingMin,
-      max = o.LayoutBorderPaddingMax,
-    }
-  end
-  if UBD.Layout.Rotation ~= nil then
-    Spacer = true
-    GeneralArgs.Rotation = {
-      type = 'range',
-      name = 'Rotation',
-      order = 42,
-      desc = 'Changes the orientation of the bar objects',
-      step = 45,
-      disabled = function()
-                   return Flag(false, UBF.UnitBar.Layout.Float)
-                 end,
-      min = o.LayoutRotationMin,
-      max = o.LayoutRotationMax,
-    }
-  end
-  if Spacer then
-    GeneralArgs.Spacer50 = CreateSpacer(50)
-    Spacer = false
-  end
-
-  if UBD.Layout.Slope ~= nil then
-    Spacer = true
-    GeneralArgs.Slope = {
-      type = 'range',
-      name = 'Slope',
-      order = 51,
-      desc = 'Makes the bar objects slope up or down when the rotation is horizontal or vertical',
-      step = 1,
-      disabled = function()
-                   return Flag(false, UBF.UnitBar.Layout.Float) or UBF.UnitBar.Layout.Rotation % 90 ~= 0
-                 end,
-      min = o.LayoutSlopeMin,
-      max = o.LayoutSlopeMax,
-    }
-  end
-  if UBD.Layout.Padding ~= nil then
-    Spacer = true
-    GeneralArgs.Padding = {
-      type = 'range',
-      name = 'Padding',
-      order = 52,
-      desc = 'Changes the space between each bar object',
-      step = 1,
-      disabled = function()
-                   return Flag(false, UBF.UnitBar.Layout.Float)
-                 end,
-      min = o.LayoutPaddingMin,
-      max = o.LayoutPaddingMax,
-    }
-  end
-  if Spacer then
-    GeneralArgs.Spacer60 = CreateSpacer(60)
-    Spacer = false
-  end
-
-  if UBD.Layout.TextureScale ~= nil then
-    Spacer = true
-    GeneralArgs.TextureScale = {
-      type = 'range',
-      name = 'Texture Scale',
-      order = 61,
-      desc = 'Changes the texture size of the bar objects',
-      step = 0.01,
-      isPercent = true,
-      disabled = function()
-                   return BarType ~= 'RuneBar' and Flag(true, UBF.UnitBar.Layout.BoxMode) or
-                          BarType == 'RuneBar' and strsub(UBF.UnitBar.Layout.RuneMode, 1, 4) ~= 'rune'
-                 end,
-      min = o.LayoutTextureScaleMin,
-      max = o.LayoutTextureScaleMax,
-    }
-  end
-  if Spacer then
-    GeneralArgs.Spacer70 = CreateSpacer(70)
-    Spacer = false
-  end
-
-  if UBD.Layout.AnimationInTime ~= nil then
-    Spacer = true
-    GeneralArgs.AnimationInTime = {
-      type = 'range',
-      name = BarType ~= 'FragmentBar' and 'Animation-in' or 'Animation-in (full)',
-      order = 71,
-      desc = 'The amount of time in seconds to play animation after showing a bar object',
-      step = 0.1,
-      min = o.LayoutAnimationInTimeMin,
-      max = o.LayoutAnimationInTimeMax,
-    }
-  end
-  if UBD.Layout.AnimationOutTime ~= nil then
-    Spacer = true
-    GeneralArgs.AnimationOutTime = {
-      type = 'range',
-      name = BarType ~= 'FragmentBar' and 'Animation-out' or 'Animation-out (full)',
-      order = 72,
-      desc = 'The amount of time in seconds to play animation after showing a bar object',
-      step = 0.1,
-      min = o.LayoutAnimationOutTimeMin,
-      max = o.LayoutAnimationOutTimeMax,
-    }
-  end
-  if Spacer then
-    GeneralArgs.Spacer80 = CreateSpacer(80)
     Spacer = false
   end
 
@@ -5484,8 +5564,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
     GeneralArgs.SmoothFillMaxTime = {
       type = 'range',
       name = 'Smooth Fill Max Time',
-      order = 81,
-      desc = 'Sets the maximum amount of time a smooth fill can take',
+      order = 41,
+      desc = 'Sets the maximum amount of time in seconds a smooth fill can take',
       step = 0.01,
       min = o.LayoutSmoothFillMaxTimeMin,
       max = o.LayoutSmoothFillMaxTimeMax,
@@ -5493,7 +5573,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
     GeneralArgs.SmoothFillSpeed = {
       type = 'range',
       name = 'Smooth Fill Speed',
-      order = 82,
+      order = 42,
       desc = 'Changes the fill animaton speed',
       step = 0.01,
       isPercent = true,
@@ -5506,13 +5586,210 @@ local function CreateLayoutOptions(BarType, Order, Name)
   end
 
   if Spacer then
-    GeneralArgs.Spacer100 = CreateSpacer(100)
+    GeneralArgs.Spacer80 = CreateSpacer(80)
+    Spacer = false
+  end
+
+  -------------------------
+  -- Create objects options
+  -------------------------
+  GeneralArgs.Objects = {
+    type = 'group',
+    name = '',
+    dialogInline = true,
+    order = 81,
+    hidden = function()
+               if BarType == 'StaggerBar' then
+                 return not UBF.UnitBar.Layout.PauseTimer
+               else
+                 return false
+               end
+             end,
+    args = {},
+  }
+  local ObjectsArgs = GeneralArgs.Objects.args
+  local ObjectsFlag = false
+
+  -- Create seperator line
+  ObjectsArgs.Seperator = {
+    type = 'header',
+    name = '',
+    order = 0,
+  }
+
+  if UBD.Layout.Swap ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.Swap = {
+      type = 'toggle',
+      name = 'Swap',
+      order = 1,
+      desc = 'Allows you to swap one bar object with another by dragging it',
+    }
+  end
+  if UBD.Layout.Float ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.Float = {
+      type = 'toggle',
+      name = 'Float',
+      order = 2,
+      desc = 'Switches to floating mode.  Bar objects can be placed anywhere. Float options will be open below',
+    }
+  end
+
+  if UBD.Layout.AnimationType ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.Spacer10 = CreateSpacer(10)
+
+    ObjectsArgs.AnimationType = {
+      type = 'select',
+      name = BarType ~= 'FragmentBar' and 'Animation Type' or 'Animation Type (full)',
+      order = 11,
+      style = 'dropdown',
+      desc = 'Changes the type of animation played when showing or hiding bar objects',
+      values = AnimationTypeDropdown,
+    }
+  end
+  if Spacer then
+    ObjectsArgs.Spacer20 = CreateSpacer(20)
+    Spacer = false
+  end
+
+  if UBD.Layout.BorderPadding ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.BorderPadding = {
+      type = 'range',
+      name = 'Border Padding',
+      order = 21,
+      desc = "Changes the distance between the region's border and the bar objects",
+      step = 1,
+      disabled = function()
+                   return UBF.UnitBar.Layout.HideRegion
+                 end,
+      min = o.LayoutBorderPaddingMin,
+      max = o.LayoutBorderPaddingMax,
+    }
+  end
+
+  if UBD.Layout.Rotation ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.Rotation = {
+      type = 'range',
+      name = 'Rotation',
+      order = 22,
+      desc = 'Changes the orientation of the bar objects',
+      step = 45,
+      disabled = function()
+                   return Flag(false, UBF.UnitBar.Layout.Float)
+                 end,
+      min = o.LayoutRotationMin,
+      max = o.LayoutRotationMax,
+    }
+  end
+  if Spacer then
+    ObjectsArgs.Spacer30 = CreateSpacer(30)
+    Spacer = false
+  end
+
+  if UBD.Layout.Slope ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.Slope = {
+      type = 'range',
+      name = 'Slope',
+      order = 31,
+      desc = 'Makes the bar objects slope up or down when the rotation is horizontal or vertical',
+      step = 1,
+      disabled = function()
+                   return Flag(false, UBF.UnitBar.Layout.Float) or UBF.UnitBar.Layout.Rotation % 90 ~= 0
+                 end,
+      min = o.LayoutSlopeMin,
+      max = o.LayoutSlopeMax,
+    }
+  end
+  if UBD.Layout.Padding ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.Padding = {
+      type = 'range',
+      name = 'Padding',
+      order = 32,
+      desc = 'Changes the space between each bar object',
+      step = 1,
+      disabled = function()
+                   return Flag(false, UBF.UnitBar.Layout.Float)
+                 end,
+      min = o.LayoutPaddingMin,
+      max = o.LayoutPaddingMax,
+    }
+  end
+  if Spacer then
+    ObjectsArgs.Spacer40 = CreateSpacer(40)
+    Spacer = false
+  end
+
+  if UBD.Layout.TextureScale ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.TextureScale = {
+      type = 'range',
+      name = 'Texture Scale',
+      order = 41,
+      desc = 'Changes the texture size of the bar objects',
+      step = 0.01,
+      isPercent = true,
+      disabled = function()
+                   return BarType ~= 'RuneBar' and Flag(true, UBF.UnitBar.Layout.BoxMode) or
+                          BarType == 'RuneBar' and strsub(UBF.UnitBar.Layout.RuneMode, 1, 4) ~= 'rune'
+                 end,
+      min = o.LayoutTextureScaleMin,
+      max = o.LayoutTextureScaleMax,
+    }
+  end
+  if Spacer then
+    ObjectsArgs.Spacer50 = CreateSpacer(50)
+    Spacer = false
+  end
+
+  if UBD.Layout.AnimationInTime ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.AnimationInTime = {
+      type = 'range',
+      name = BarType ~= 'FragmentBar' and 'Animation-in' or 'Animation-in (full)',
+      order = 51,
+      desc = 'The amount of time in seconds to play animation after showing a bar object',
+      step = 0.1,
+      min = o.LayoutAnimationInTimeMin,
+      max = o.LayoutAnimationInTimeMax,
+    }
+  end
+  if UBD.Layout.AnimationOutTime ~= nil then
+    Spacer = true
+    ObjectsFlag = true
+    ObjectsArgs.AnimationOutTime = {
+      type = 'range',
+      name = BarType ~= 'FragmentBar' and 'Animation-out' or 'Animation-out (full)',
+      order = 52,
+      desc = 'The amount of time in seconds to play animation after showing a bar object',
+      step = 0.1,
+      min = o.LayoutAnimationOutTimeMin,
+      max = o.LayoutAnimationOutTimeMax,
+    }
+  end
+  if Spacer then
+    ObjectsArgs.Spacer60 = CreateSpacer(60)
     Spacer = false
   end
 
   -- Float options
   if UBD.Layout.Float ~= nil then
-    GeneralArgs.FloatOptions = {
+    ObjectsFlag = true
+    ObjectsArgs.FloatOptions = {
       type = 'group',
       name = 'Float Options',
       dialogInline = true,
@@ -5579,8 +5856,9 @@ local function CreateLayoutOptions(BarType, Order, Name)
       },
     }
     if UBF.UnitBar.Layout.Float ~= nil then
-      local FloatArgs = GeneralArgs.FloatOptions.args
+      local FloatArgs = ObjectsArgs.FloatOptions.args
 
+      ObjectsFlag = true
       FloatArgs.Spacer30 = CreateSpacer(30)
       FloatArgs.ResetFloat = {
         type = 'execute',
@@ -5597,6 +5875,9 @@ local function CreateLayoutOptions(BarType, Order, Name)
                end
       }
     end
+  end
+  if not ObjectsFlag then
+    GeneralArgs.Objects = nil
   end
 
   return LayoutOptions
@@ -5636,16 +5917,24 @@ local function CreateResetOptions(BarType, Order, Name)
     BG                        = { Name = 'Background',           Order = 101, Width = 'wide',   TablePaths = {'Background'} },
     BGCombo                   = { Name = 'Combo',                Order = 102, Width = 'wide',   TablePaths = {'BackgroundCombo'} },
     BGAnticipation            = { Name = 'Anticipation',         Order = 103, Width = 'wide',   TablePaths = {'BackgroundAnticipation'} },
+
     BGShard                   = { Name = 'Shard',                Order = 104, Width = 'wide',   TablePaths = {'BackgroundShard'} },
     BGEmber                   = { Name = 'Ember',                Order = 105, Width = 'wide',   TablePaths = {'BackgroundEmber'} },
+
+    BGStagger                 = { Name = 'Stagger',              Order = 106, Width = 'wide',   TablePaths = {'BackgroundStagger'} },
+    BGPause                   = { Name = 'Pause',                Order = 107, Width = 'wide',   TablePaths = {'BackgroundPause'} },
     --------------------------
     HEADER3 = { Order = 200, Name = 'Bar' },
 
     Bar                       = { Name = 'Bar',                  Order = 201, Width = 'wide',   TablePaths = {'Bar'} },
     BarCombo                  = { Name = 'Combo',                Order = 202, Width = 'wide',   TablePaths = {'BarCombo'} },
     BarAnticipation           = { Name = 'Anticipation',         Order = 203, Width = 'wide',   TablePaths = {'BarAnticipation'} },
+
     BarShard                  = { Name = 'Shard',                Order = 204, Width = 'wide',   TablePaths = {'BarShard'} },
     BarEmber                  = { Name = 'Ember',                Order = 205, Width = 'wide',   TablePaths = {'BarEmber'} },
+
+    BarStagger                = { Name = 'Stagger',              Order = 206, Width = 'wide',   TablePaths = {'BarStagger'} },
+    BarPause                  = { Name = 'Pause',                Order = 207, Width = 'wide',   TablePaths = {'BarPause'} },
     --------------------------
     HEADER1 = { Order = 300, Name = 'Region Color', CheckTable = 'Region.Color' },
 
@@ -5677,6 +5966,11 @@ local function CreateResetOptions(BarType, Order, Name)
     BGBorderColorBlood        = { Name = 'Blood Border',         Order = 417, Width = 'wide',   TablePaths = {'Background.BorderColorBlood'} },
     BGBorderColorFrost        = { Name = 'Frost Border',         Order = 418, Width = 'wide',   TablePaths = {'Background.BorderColorFrost'} },
     BGBorderColorUnholy       = { Name = 'Unholy Border',        Order = 419, Width = 'wide',   TablePaths = {'Background.BorderColorUnholy'} },
+
+    BGColorStagger            = { Name = 'Stagger',              Order = 420, Width = 'wide',   TablePaths = {'BackgroundStagger.Color'} },
+    BGColorPause              = { Name = 'Pause',                Order = 421, Width = 'wide',   TablePaths = {'BackgroundPause.Color'} },
+    BGBorderColorStagger      = { Name = 'Stagger Border',       Order = 422, Width = 'wide',   TablePaths = {'BackgroundStagger.BorderColor'} },
+    BGBorderColorPause        = { Name = 'Pause Border',         Order = 423, Width = 'wide',   TablePaths = {'BackgroundPause.BorderColor'} },
     --------------------------
     HEADER4 = { Order = 500, Name = 'Bar Color' },
 
@@ -5699,6 +5993,10 @@ local function CreateResetOptions(BarType, Order, Name)
     BarColorBlood             = { Name = 'Blood',                Order = 514, Width = 'wide',   TablePaths = {'Bar.ColorBlood'} },
     BarColorFrost             = { Name = 'Frost',                Order = 515, Width = 'wide',   TablePaths = {'Bar.ColorFrost'} },
     BarColorUnholy            = { Name = 'Unholy',               Order = 516, Width = 'wide',   TablePaths = {'Bar.ColorUnholy'} },
+
+    BarColorStagger           = { Name = 'Stagger',              Order = 517, Width = 'wide',   TablePaths = {'BarStagger.Color'} },
+    BarColorStaggerCont       = { Name = 'Stagger (Continued)',  Order = 518, Width = 'wide',   TablePaths = {'BarStagger.BStaggerColor'} },
+    BarColorPause             = { Name = 'Pause',                Order = 519, Width = 'wide',   TablePaths = {'BarPause.Color'} },
   }
 
   Options:DoFunction(BarType, 'ResetOptions', function()
@@ -5708,8 +6006,7 @@ local function CreateResetOptions(BarType, Order, Name)
     for Name in pairs(TableData) do
       if strfind(Name, 'HEADER') == nil and Reset[Name] == nil then
         Reset[Name] = false
-      end
-    end
+      end    end
     -- Delete entries that don't exist
     for Name in pairs(Reset) do
       if strfind(Name, 'HEADER') ~= nil or Name ~= 'Minimize' and TableData[Name] == nil then
@@ -5997,161 +6294,108 @@ end
 local function CreateCopyPasteOptions(BarType, Order, Name)
   local UBF = UnitBarsF[BarType]
   local BBar = UBF.BBar
+  local IsText = { ['Text']  = 1, ['Text.1']  = 1, ['Text.2']  = 1, ['Text.3']  = 1, ['Text.4']  = 1,
+                   ['Text2'] = 1, ['Text2.1'] = 1, ['Text2.2'] = 1, ['Text2.3'] = 1, ['Text2.4'] = 1 } -- Stagger Pause Timer Text
 
-  local TP = { -- Table Path
-    Status                  = 'Status',
-    Layout                  = 'Layout',
-    Region                  = 'Region',
-    Attr                    = 'Attributes',
+  MenuButtons = MenuButtons or { -- Include means that these menu items will be usable during copy paste.
+    ['Main'] = { Order = 1, Width = 'half',
+      { Name = 'All',                  Width = 'half',   All = false, TablePath = '',                                   },                                                          -- 1
+      { Name = 'Status',               Width = 'half',   All = true,  TablePath = 'Status',                             },  -- 2
+      { Name = 'Layout',               Width = 'half',   All = true,  TablePath = 'Layout',                             },  -- 3
+      { Name = 'Region',               Width = 'half',   All = true,  TablePath = 'Region',                             },  -- 4
+      { Name = 'Attributes',           Width = 'normal', All = true,  TablePath = 'Attributes',                         }}, -- 5
 
-    RegionColorBG           = 'Region.Color',
-    RegionBorderColor       = 'Region.BorderColor',
+    ['Background'] = { Order = 2, Width = 'normal',
+      { Name = 'Background',           Width = 'normal', All = true,  TablePath = 'Background',                         },  -- 1
+      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BackgroundCombo',                    },  -- 2
+      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BackgroundAnticipation',             },  -- 3
+      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BackgroundShard',                    },  -- 4
+      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BackgroundEmber',                    },  -- 5
+      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BackgroundStagger',                  },  -- 6
+      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BackgroundPause',                    }}, -- 7
 
-    BG                      = 'Background',
-    BGCombo                 = 'BackgroundCombo',
-    BGAntic                 = 'BackgroundAnticipation',
-    BGShard                 = 'BackgroundShard',
-    BGEmber                 = 'BackgroundEmber',
+    ['Bar'] = { Order = 3, Width = 'half',
+      { Name = 'Bar',                  Width = 'half',   All = true,  TablePath = 'Bar',                                },  -- 1
+      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BarCombo',                           },  -- 2
+      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BarAnticipation',                    },  -- 3
+      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BarShard',                           },  -- 4
+      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BarEmber',                           },  -- 5
+      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BarStagger',                         },  -- 6
+      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BarPause',                           }}, -- 7
 
-    Bar                     = 'Bar',
-    BarCombo                = 'BarCombo',
-    BarAntic                = 'BarAnticipation',
-    BarShard                = 'BarShard',
-    BarEmber                = 'BarEmber',
+    ['Region Color'] = { Order = 4, Width = 'normal', Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
+      { Name = 'Background',           Width = 'normal', All = true,  TablePath = 'Region.Color',                       },  -- 1
+      { Name = 'Border',               Width = 'half',   All = true,  TablePath = 'Region.BorderColor',                 }}, -- 2
 
-    BGColor                 = 'Background.Color',
-    BGBorderColor           = 'Background.BorderColor',
-    BGColorCombo            = 'BackgroundCombo.Color',
-    BGColorAntic            = 'BackgroundAnticipation.Color',
-    BGBorderColorCombo      = 'BackgroundCombo.BorderColor',
-    BGBorderColorAntic      = 'BackgroundAnticipation.BorderColor',
-    BGColorShard            = 'BackgroundShard.Color',
-    BGColorEmber            = 'BackgroundEmber.Color',
-    BGColorShardGreen       = 'BackgroundShard.ColorGreen',
-    BGColorEmberGreen       = 'BackgroundEmber.ColorGreen',
-    BGBorderColorShard      = 'BackgroundShard.BorderColor',
-    BGBorderColorEmber      = 'BackgroundEmber.BorderColor',
-    BGBorderColorShardGreen = 'BackgroundShard.BorderColorGreen',
-    BGBorderColorEmberGreen = 'BackgroundEmber.BorderColorGreen',
-    BGColorBlood            = 'Background.ColorBlood',
-    BGColorFrost            = 'Background.ColorFrost',
-    BGColorUnholy           = 'Background.ColorUnholy',
-    BGBorderColorBlood      = 'Background.BorderColorBlood',
-    BGBorderColorFrost      = 'Background.BorderColorFrost',
-    BGBorderColorUnholy     = 'Background.BorderColorUnholy',
+    ['Background Color'] = { Order = 5, Width = 'normal', Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
+      { Name = 'Background Color',     Width = 'normal', All = true,  TablePath = 'Background.Color',                   },  -- 1
+      { Name = 'Border Color',         Width = 'normal', All = true,  TablePath = 'Background.BorderColor',             },  -- 2
+      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BackgroundCombo.Color',              },  -- 3
+      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BackgroundAnticipation.Color',       },  -- 4
+      { Name = 'Combo Border',         Width = 'normal', All = false, TablePath = 'BackgroundCombo.BorderColor',        },  -- 5
+      { Name = 'Anticipation Border',  Width = 'normal', All = false, TablePath = 'BackgroundAnticipation.BorderColor', },  -- 6
+      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BackgroundShard.Color',              },  -- 7
+      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BackgroundEmber.Color',              },  -- 8
+      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = 'BackgroundShard.ColorGreen',         },  -- 9
+      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = 'BackgroundEmber.ColorGreen',         },  -- 10
+      { Name = 'Shard Border',         Width = 'normal', All = false, TablePath = 'BackgroundShard.BorderColor',        },  -- 11
+      { Name = 'Ember Border',         Width = 'normal', All = false, TablePath = 'BackgroundEmber.BorderColor',        },  -- 12
+      { Name = 'Shard Border [Green]', Width = 'normal', All = false, TablePath = 'BackgroundShard.BorderColorGreen',   },  -- 13
+      { Name = 'Ember Border [Green]', Width = 'normal', All = false, TablePath = 'BackgroundEmber.BorderColorGreen',   },  -- 14
+      { Name = 'Blood',                Width = 'half',   All = false, TablePath = 'Background.ColorBlood',              },  -- 15
+      { Name = 'Frost',                Width = 'half',   All = false, TablePath = 'Background.ColorFrost',              },  -- 16
+      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = 'Background.ColorUnholy',             },  -- 17
+      { Name = 'Blood Border',         Width = 'normal', All = false, TablePath = 'Background.BorderColorBlood',        },  -- 18
+      { Name = 'Frost Border',         Width = 'normal', All = false, TablePath = 'Background.BorderColorFrost',        },  -- 19
+      { Name = 'Unholy Border',        Width = 'normal', All = false, TablePath = 'Background.BorderColorUnholy',       },  -- 20
+      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BackgroundStagger',                  },  -- 21
+      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BackgroundPause',                    },  -- 22
+      { Name = 'Stagger Border',       Width = 'normal', All = false, TablePath = 'BackgroundStagger.BorderColor',      },  -- 23
+      { Name = 'Pause Border',         Width = 'normal', All = false, TablePath = 'BackgroundPause.BorderColor',        }}, -- 24
 
+    ['Bar Color'] = { Order = 6, Width = 'normal', Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
+      { Name = 'Bar Color',            Width = 'normal', All = true,  TablePath = 'Bar.Color',                          },  -- 1
+      { Name = 'Predicted',            Width = 'normal', All = true,  TablePath = 'Bar.PredictedColor',                 },  -- 2
+      { Name = 'Predicted Cost',       Width = 'normal', All = true,  TablePath = 'Bar.PredictedCostColor',             },  -- 3
+      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BarCombo.Color',                     },  -- 4
+      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BarAnticipation.Color',              },  -- 5
+      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BarShard.Color',                     },  -- 6
+      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BarEmber.Color',                     },  -- 7
+      { Name = 'Shard (full)',         Width = 'normal', All = false, TablePath = 'BarShard.ColorFull',                 },  -- 8
+      { Name = 'Ember (full)',         Width = 'normal', All = false, TablePath = 'BarEmber.ColorFull',                 },  -- 9
+      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = 'BarShard.ColorGreen',                },  -- 10
+      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = 'BarEmber.ColorGreen',                },  -- 11
+      { Name = 'Shard (full) [Green]', Width = 'normal', All = false, TablePath = 'BarShard.ColorFullGreen',            },  -- 12
+      { Name = 'Ember (full) [Green]', Width = 'normal', All = false, TablePath = 'BarEmber.ColorFullGreen',            },  -- 13
+      { Name = 'Blood',                Width = 'half',   All = false, TablePath = 'Bar.ColorBlood',                     },  -- 14
+      { Name = 'Frost',                Width = 'half',   All = false, TablePath = 'Bar.ColorFrost',                     },  -- 15
+      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = 'Bar.ColorUnholy',                    },  -- 16
+      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BarStagger.Color',                   },  -- 17
+      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BarPause.Color',                     }}, -- 18
 
-    BarColor                = 'Bar.Color',
-    BarColorP               = 'Bar.PredictedColor',
-    BarColorPCost           = 'Bar.PredictedCostColor',
-    BarColorCombo           = 'BarCombo.Color',
-    BarColorAntic           = 'BarAnticipation.Color',
-    BarColorShard           = 'BarShard.Color',
-    BarColorEmber           = 'BarEmber.Color',
-    BarColorShardFull       = 'BarShard.ColorFull',
-    BarColorEmberFull       = 'BarEmber.ColorFull',
-    BarColorShardGreen      = 'BarShard.ColorGreen',
-    BarColorEmberGreen      = 'BarEmber.ColorGreen',
-    BarColorShardFullGreen  = 'BarShard.ColorFullGreen',
-    BarColorEmberFullGreen  = 'BarEmber.ColorFullGreen',
-    BarColorBlood           = 'Bar.ColorBlood',
-    BarColorFrost           = 'Bar.ColorFrost',
-    BarColorUnholy          = 'Bar.ColorUnholy',
+    ['Text'] = { Order = 7, Width = 'half', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
+      { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = 'Text',                               },  -- 1
+      { Name  = 'Text 1',              Width = 'half',   All = false, TablePath = 'Text.1',                             },  -- 2
+      { Name  = 'Text 2',              Width = 'half',   All = false, TablePath = 'Text.2',                             },  -- 3
+      { Name  = 'Text 3',              Width = 'half',   All = false, TablePath = 'Text.3',                             },  -- 4
+      { Name  = 'Text 4',              Width = 'half',   All = false, TablePath = 'Text.4',                             }}, -- 5
 
-    Text                    = 'Text',
-    Text1                   = 'Text.1',
-    Text2                   = 'Text.2',
-    Text3                   = 'Text.3',
-    Text4                   = 'Text.4',
-    Triggers                = 'Triggers',
-  }
+    ['Text (pause)'] = { Order = 8, Width = 'normal', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
+      { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = 'Text2',                              },  -- 1
+      { Name  = 'Text 1',              Width = 'half',   All = false, TablePath = 'Text2.1',                            },  -- 2
+      { Name  = 'Text 2',              Width = 'half',   All = false, TablePath = 'Text2.2',                            },  -- 3
+      { Name  = 'Text 3',              Width = 'half',   All = false, TablePath = 'Text2.3',                            },  -- 4
+      { Name  = 'Text 4',              Width = 'half',   All = false, TablePath = 'Text2.4',                            }}, -- 5
 
-  local IsText = { [TP.Text] = 1, [TP.Text1] = 1, [TP.Text2] = 1, [TP.Text3] = 1, [TP.Text4] = 1 }
-
-  MenuButtons = MenuButtons or {  -- Hide means hide the other buttons with the same table path. {} means don't hide anything.
-                                  -- Buttons not hidden can be copy pasted to eachother on the same bar.
-    Main = { Order = 1, Width = 'half',
-      { Name = 'All',                  Width = 'half',   All = false, TablePath = '',                           Hide = {} },                                                     -- 1
-      { Name = 'Status',               Width = 'half',   All = true,  TablePath = TP.Status,                    Hide = { [TP.Attr]   = 1, [TP.Region] = 1, [TP.Layout] = 1 } },  -- 2
-      { Name = 'Layout',               Width = 'half',   All = true,  TablePath = TP.Layout,                    Hide = { [TP.Status] = 1, [TP.Attr]   = 1, [TP.Region] = 1 } },  -- 3
-      { Name = 'Region',               Width = 'half',   All = true,  TablePath = TP.Region,                    Hide = { [TP.Status] = 1, [TP.Attr]   = 1, [TP.Layout] = 1 } },  -- 4
-      { Name = 'Attributes',           Width = 'normal', All = true,  TablePath = TP.Attr,                      Hide = { [TP.Status] = 1, [TP.Region] = 1, [TP.Layout] = 1 } }}, -- 5
-
-    Background = { Order = 2, Width = 'normal',
-      { Name = 'Background',           Width = 'normal', All = true,  TablePath = TP.BG,                        Hide = {} },  -- 1
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = TP.BGCombo,                   Hide = {} },  -- 2
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = TP.BGAntic,                   Hide = {} },  -- 3
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = TP.BGShard,                   Hide = {} },  -- 4
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = TP.BGEmber,                   Hide = {} }}, -- 5
-
-    Bar = { Order = 3, Width = 'half',
-      { Name = 'Bar',                  Width = 'half',   All = true,  TablePath = TP.Bar,                       Hide = {} },  -- 1
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = TP.BarCombo,                  Hide = {} },  -- 2
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = TP.BarAntic,                  Hide = {} },  -- 3
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = TP.BarShard,                  Hide = {} },  -- 4
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = TP.BarEmber,                  Hide = {} }}, -- 5
-
-    ['Region Color'] = { Order = 4, Width = 'normal',
-      { Name = 'Background',           Width = 'normal', All = true,  TablePath = TP.RegionColorBG,             Hide = {} },  -- 1
-      { Name = 'Border',               Width = 'half',   All = true,  TablePath = TP.RegionBorderColor,         Hide = {} }}, -- 2
-
-    ['Background Color'] = { Order = 5, Width = 'normal',
-      { Name = 'Background Color',     Width = 'normal', All = true,  TablePath = TP.BGColor,                   Hide = {} },  -- 1
-      { Name = 'Border Color',         Width = 'normal', All = true,  TablePath = TP.BGBorderColor,             Hide = {} },  -- 2
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = TP.BGColorCombo,              Hide = {} },  -- 3
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = TP.BGColorAntic,              Hide = {} },  -- 4
-      { Name = 'Combo Border',         Width = 'normal', All = false, TablePath = TP.BGBorderColorCombo,        Hide = {} },  -- 5
-      { Name = 'Anticipation Border',  Width = 'normal', All = false, TablePath = TP.BGBorderColorAntic,        Hide = {} },  -- 6
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = TP.BGColorShard,              Hide = {} },  -- 7
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = TP.BGColorEmber,              Hide = {} },  -- 8
-      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = TP.BGColorShardGreen,         Hide = {} },  -- 9
-      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = TP.BGColorEmberGreen,         Hide = {} },  -- 10
-      { Name = 'Shard Border',         Width = 'normal', All = false, TablePath = TP.BGBorderColorShard,        Hide = {} },  -- 11
-      { Name = 'Ember Border',         Width = 'normal', All = false, TablePath = TP.BGBorderColorEmber,        Hide = {} },  -- 12
-      { Name = 'Shard Border [Green]', Width = 'normal', All = false, TablePath = TP.BGBorderColorShardGreen,   Hide = {} },  -- 13
-      { Name = 'Ember Border [Green]', Width = 'normal', All = false, TablePath = TP.BGBorderColorEmberGreen,   Hide = {} },  -- 14
-      { Name = 'Blood',                Width = 'half',   All = false, TablePath = TP.BGColorBlood,              Hide = {} },  -- 15
-      { Name = 'Frost',                Width = 'half',   All = false, TablePath = TP.BGColorFrost,              Hide = {} },  -- 16
-      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = TP.BGColorUnholy,             Hide = {} },  -- 17
-      { Name = 'Blood Border',         Width = 'normal', All = false, TablePath = TP.BGBorderColorBlood,        Hide = {} },  -- 18
-      { Name = 'Frost Border',         Width = 'normal', All = false, TablePath = TP.BGBorderColorFrost,        Hide = {} },  -- 19
-      { Name = 'Unholy Border',        Width = 'normal', All = false, TablePath = TP.BGBorderColorUnholy,       Hide = {} }}, -- 20
-
-    ['Bar Color'] = { Order = 6, Width = 'normal',
-      { Name = 'Bar Color',            Width = 'normal', All = true,  TablePath = TP.BarColor,                  Hide = {} },  -- 1
-      { Name = 'Predicted',            Width = 'normal', All = true,  TablePath = TP.BarColorP,                 Hide = {} },  -- 2
-      { Name = 'Predicted Cost',       Width = 'normal', All = true,  TablePath = TP.BarColorPCost,             Hide = {} },  -- 3
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = TP.BarColorCombo,             Hide = {} },  -- 4
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = TP.BarColorAntic,             Hide = {} },  -- 5
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = TP.BarColorShard,             Hide = {} },  -- 6
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = TP.BarColorEmber,             Hide = {} },  -- 7
-      { Name = 'Shard (full)',         Width = 'normal', All = false, TablePath = TP.BarColorShardFull,         Hide = {} },  -- 8
-      { Name = 'Ember (full)',         Width = 'normal', All = false, TablePath = TP.BarColorEmberFull,         Hide = {} },  -- 9
-      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = TP.BarColorShardGreen,        Hide = {} },  -- 10
-      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = TP.BarColorEmberGreen,        Hide = {} },  -- 11
-      { Name = 'Shard (full) [Green]', Width = 'normal', All = false, TablePath = TP.BarColorShardFullGreen,    Hide = {} },  -- 12
-      { Name = 'Ember (full) [Green]', Width = 'normal', All = false, TablePath = TP.BarColorEmberFullGreen,    Hide = {} },  -- 13
-      { Name = 'Blood',                Width = 'half',   All = false, TablePath = TP.BarColorBlood,             Hide = {} },  -- 14
-      { Name = 'Frost',                Width = 'half',   All = false, TablePath = TP.BGColorFrost,              Hide = {} },  -- 15
-      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = TP.BGColorUnholy,             Hide = {} }}, -- 16
-
-    Text = { Order = 7, Width = 'half',
-      { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = TP.Text,                      Hide = { [TP.Text1] = 1, [TP.Text2] = 1,    -- 1
-                                                                                                                         [TP.Text3] = 1, [TP.Text4] = 1 } },
-      { Name  = 'Text 1',              Width = 'half',   All = false, TablePath = TP.Text1,                     Hide = { [TP.Text] = 1 } },                 -- 2
-      { Name  = 'Text 2',              Width = 'half',   All = false, TablePath = TP.Text2,                     Hide = { [TP.Text] = 1 } },                 -- 3
-      { Name  = 'Text 3',              Width = 'half',   All = false, TablePath = TP.Text3,                     Hide = { [TP.Text] = 1 } },                 -- 4
-      { Name  = 'Text 4',              Width = 'half',   All = false, TablePath = TP.Text4,                     Hide = { [TP.Text] = 1 } }},                -- 5
-
-    Triggers = { Order = 8, Width = 'half',
-      { Name = 'Triggers',             Width = 'half',   All = true,  TablePath = TP.Triggers,                  Hide = {} }}, -- 1
+    ['Triggers'] = { Order = 9, Width = 'half',
+      { Name = 'Triggers',             Width = 'half',   All = true,  TablePath = 'Triggers',                           }}, -- 1
   }
 
   local CopyPasteOptions = {
     type = 'group',
     name = function()
              if ClipBoard then
-               return format('%s: |cffffff00%s [ %s ]|r', Name, ClipBoard.BarName or '', ClipBoard.SelectButtonName)
+               return format('%s: |cffffff00%s - %s [ %s ]|r', Name, ClipBoard.BarName or '', ClipBoard.MenuButtonName, ClipBoard.SelectButtonName)
              else
                return Name
              end
@@ -6160,14 +6404,16 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
     order = Order,
     confirm = function(Info)
                 local Name = Info[#Info]
+                local Arg = Info.arg
 
-                if ClipBoard then
-                  if Name == 'AppendTriggers' then
-                    return format('Append Triggers from %s to\n%s', DUB[BarType].Name, DUB[ClipBoard.BarType].Name)
-                  elseif Name ~= 'Clear' then
-                    local Arg = Info.arg
-
-                    return format('Copy %s [ %s ] to \n%s [ %s ]', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name, Arg.PasteName)
+                -- Make sure a select button was clicked
+                if Arg then
+                  if ClipBoard then
+                    if Name == 'AppendTriggers' then
+                      return format('Append Triggers from %s to\n%s', DUB[BarType].Name, DUB[ClipBoard.BarType].Name)
+                    elseif Name ~= 'Clear' then
+                      return format('Copy %s [ %s ] to \n%s [ %s ]', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name, Arg.PasteName)
+                    end
                   end
                 end
               end,
@@ -6185,6 +6431,8 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                ClipBoard.MenuButtonName = Arg.MenuButtonName
                ClipBoard.SelectButtonName = Arg.SelectButtonName
                ClipBoard.AllButton = Arg.AllButton
+               ClipBoard.AllButtonText = Arg.AllButtonText
+               ClipBoard.Include = Arg.Include
              else
                -- Save name and locaton.
                local UB = UBF.UnitBar
@@ -6242,7 +6490,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
   Args.MenuLine = {
     type = 'header',
     name = '',
-    order = 10,
+    order = 20,
     width = 'full',
   }
 
@@ -6250,7 +6498,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
   Args.Clear = {
     type = 'execute',
     name = 'Clear',
-    order = 9,
+    order = 10,
     width = 'half',
     func = function()
              ClipBoard = nil
@@ -6280,6 +6528,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
     end
 
     if Found then
+
       -- Create the menu button
       Args[MenuButtonName] = {
         type = 'input',
@@ -6294,7 +6543,17 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
         width = MenuButton.Width,
         dialogControl = 'GUB_Menu_Button',
         disabled = function()
-                     return ClipBoard ~= nil and ClipBoard.MenuButtonName ~= MenuButtonName
+                     if ClipBoard ~= nil then
+                       if ClipBoard.MenuButtonName ~= MenuButtonName then
+                         local Include = ClipBoard.Include
+
+                         -- Check for inclusion
+                         if Include == nil or Include[MenuButtonName] == nil then
+                           return true
+                         end
+                       end
+                     end
+                     return false
                    end,
         set = function()
                 SelectedMenuButtonName = MenuButtonName
@@ -6308,7 +6567,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
       Args[MenuButtonName .. '_Group'] = {
         type = 'group',
         name = '',
-        order = 11,
+        order = 21,
         hidden = function()
                    return SelectedMenuButtonName ~= MenuButtonName
                  end,
@@ -6320,14 +6579,15 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
         local TablePath = SelectButton.TablePath
         local SelectButtonName = SelectButton.Name
         local AllButton = SelectButtonName == 'All'
+        local AllButtonText = SelectButtonName == 'All Text'
         local Text = IsText[TablePath] ~= nil
 
         if AllButton or Text or Main:GetUB(BarType, TablePath) ~= nil then
-          GA[SelectButtonName] = {
+          GA[MenuButtonName .. SelectButtonName] = {
             type = 'execute',
             name =  SelectButtonName,
             width = SelectButton.Width,
-            order = SelectIndex + 20,
+            order = SelectIndex,
             hidden = function()
                        return Text and Main:GetUB(BarType, TablePath) == nil or ClipBoard ~= nil
                      end,
@@ -6335,36 +6595,48 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                    TablePath            = TablePath,
                    MenuButtonName       = MenuButtonName,
                    SelectButtonName     = SelectButtonName,
-                   AllButton            = AllButton        }
+                   AllButton            = AllButton,
+                   AllButtonText        = AllButtonText,
+                   Include              = MenuButton.Include },
           }
 
           -- Create paste button
-          GA['Paste' .. SelectButtonName] = {
+          GA['Paste' .. MenuButtonName .. SelectButtonName] = {
             type = 'execute',
             name = format('Paste %s', SelectButtonName),
             width = 'normal',
-            order = SelectIndex + 20,
+            order = SelectIndex,
             hidden = function()
                        if ClipBoard then
-                         -- Check to see if text actually exists
-                         if Text and Main:GetUB(BarType, TablePath) == nil then
-                           return true
-
-                         -- Hide any button if all button was clicked
-                         elseif ClipBoard.AllButton then
+                         -- Hide all buttons if All was picked except for paste all on other bars
+                         if ClipBoard.AllButton then
                            return ClipBoard.BarType == BarType or not AllButton
-
-                         -- Hide the all button if any button was clicked
                          elseif AllButton then
                            return true
 
-                         -- Hide buttons based on the hide table
-                         elseif ClipBoard.SelectButtonName ~= SelectButtonName then
-                           return ClipBoard.Hide[TablePath] ~= nil
-
+                         -- Hide text buttons that are not needed (this is dynamic)
+                         elseif Text and Main:GetUB(BarType, TablePath) == nil then
+                           return true
                          else
-                           -- Hide the button that was clicked
-                           return ClipBoard.BarType == BarType
+                           -- Check if this is the source menu
+                           if ClipBoard.MenuButtonName == MenuButtonName and ClipBoard.BarType == BarType then
+
+                             -- Check for all text
+                             if ClipBoard.AllButtonText or AllButtonText then
+                               return true
+                             else
+                               -- Check for same button pressed
+                               return ClipBoard.SelectButtonName == SelectButtonName
+                             end
+                           -- Destination menu or same menu on a different bar
+                           else
+                             -- Hide all text buttons if all text was clicked
+                             if ClipBoard.AllButtonText then
+                               return not AllButtonText
+                             else
+                               return AllButtonText
+                             end
+                           end
                          end
                        else
                          return true
@@ -6453,7 +6725,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- Add tab background options
-  if BarType == 'FragmentBar' or BarType == 'ComboBar' then
+  if BarType == 'FragmentBar' or BarType == 'ComboBar' or BarType == 'StaggerBar' then
     if BarType == 'FragmentBar' then
       OptionArgs.Background = {
         type = 'group',
@@ -6466,7 +6738,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Ember = CreateBackdropOptions(BarType, 'BackgroundEmber', 2, 'Ember'),
       }
     -- Combo bar
-    else
+    elseif BarType == 'ComboBar' then
       OptionArgs.Background = {
         type = 'group',
         name = 'Background',
@@ -6476,6 +6748,18 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
       OptionArgs.Background.args = {
         Combo = CreateBackdropOptions(BarType, 'BackgroundCombo', 1, 'Combo'),
         Anticipation = CreateBackdropOptions(BarType, 'BackgroundAnticipation', 2, 'Anticipation'),
+      }
+    -- Stagger bar
+    else
+      OptionArgs.Background = {
+        type = 'group',
+        name = 'Background',
+        order = 1002,
+        childGroups = 'tab',
+      }
+      OptionArgs.Background.args = {
+        Stagger = CreateBackdropOptions(BarType, 'BackgroundStagger', 1, 'Stagger'),
+        Pause = CreateBackdropOptions(BarType, 'BackgroundPause', 2, 'Pause'),
       }
     end
     OptionArgs.Background.hidden = function()
@@ -6496,7 +6780,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
   end
 
   -- add tab bar options
-  if BarType == 'FragmentBar' or BarType == 'ComboBar' then
+  if BarType == 'FragmentBar' or BarType == 'ComboBar' or BarType == 'StaggerBar' then
     if BarType == 'FragmentBar' then
       OptionArgs.Bar = {
         type = 'group',
@@ -6509,7 +6793,7 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
         Ember = CreateBarOptions(BarType, 'BarEmber', 2, 'Ember'),
       }
     -- Combo bar
-    else
+    elseif BarType == 'ComboBar' then
       OptionArgs.Bar = {
         type = 'group',
         name = 'Bar',
@@ -6519,6 +6803,18 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
       OptionArgs.Bar.args = {
         Combo = CreateBarOptions(BarType, 'BarCombo', 1, 'Combo'),
         Anticipation = CreateBarOptions(BarType, 'BarAnticipation', 2, 'Anticipation'),
+      }
+    -- Stagger bar
+    else
+      OptionArgs.Bar = {
+        type = 'group',
+        name = 'Bar',
+        order = 1003,
+        childGroups = 'tab',
+      }
+      OptionArgs.Bar.args = {
+        Stagger = CreateBarOptions(BarType, 'BarStagger', 1, 'Stagger'),
+        Pause = CreateBarOptions(BarType, 'BarPause', 2, 'Pause'),
       }
     end
     OptionArgs.Bar.hidden = function()
@@ -6540,10 +6836,23 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   -- Add text options
   if UBD.Text ~= nil then
-    OptionArgs.Text = CreateTextOptions(BarType, 1004, 'Text')
-    OptionArgs.Text.hidden = function()
-                               return UBF.UnitBar.Layout.HideText
-                             end
+    if BarType == 'StaggerBar' then
+      OptionArgs.Text = {
+        type = 'group',
+        name = 'Text',
+        order = 1004,
+        childGroups = 'tab',
+      }
+      OptionArgs.Text.args = {
+        Stagger = CreateTextOptions(BarType, 'Text', 1, 'Stagger'),
+        Pause = CreateTextOptions(BarType, 'Text2', 2, 'Pause'),
+      }
+    else
+      OptionArgs.Text = CreateTextOptions(BarType, 'Text', 1004, 'Text')
+      OptionArgs.Text.hidden = function()
+                                 return UBF.UnitBar.Layout.HideText
+                               end
+    end
   end
 
   -- Add trigger options
@@ -6881,10 +7190,11 @@ end
 
 function GUB.Options:AddDebugLine(Text)
   if Main.UnitBars.DebugOn then
-    -- Filter our errors that are not really errors
-    if strfind(Text, 'invalid option in `format') == nil then
-      local Text, _, ErrorText = strsplit(':', Text, 3)
-      DebugText = DebugText .. Text .. ErrorText .. '\n'
+    local Text, _, ErrorText = strsplit(':', Text, 3)
+
+    ErrorText = Text .. ErrorText
+    if strfind(DebugText, ErrorText, 1, true) == nil then
+      DebugText = DebugText .. ErrorText .. '\n'
     end
   end
 end

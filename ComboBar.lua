@@ -21,14 +21,14 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
 local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
@@ -46,8 +46,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- UnitBarF = UnitBarsF[]
 --
 -- UnitBarF.BBar                     Contains an instance of bar functions for combo bar.
---
--- UnitBarF.ComboBar                 Contains the combo bar displayed on screen.
 --
 -- NOTES:  For anticipation alpha to work correctly.  SetAttr() gets called after
 --         The whole bar is faded in.  Then I use SetShowHideFnTexture() during creation.
@@ -114,6 +112,7 @@ local VTs = {'whole', 'Total Points',
              'whole', 'Combo Points',
              'whole', 'Anticipation Points',
              'auras', 'Auras'               }
+
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Point 1',  VTs, TD}, -- 1
   {2,   'Point 2',  VTs, TD}, -- 2
@@ -166,7 +165,6 @@ Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 --
 --*****************************************************************************
 
-
 -------------------------------------------------------------------------------
 -- SetAnticipationAlpha
 --
@@ -178,9 +176,9 @@ Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
 -- TextureNumber  Texture that got hidden or shown
 -- Action         'hide' or 'show'
 -------------------------------------------------------------------------------
-local function SetAnticipationAlpha(BBar, BoxNumber, TextureNumber, Action)
+local function SetAnticipationAlpha(UnitBarF, BBar, BoxNumber, TextureNumber, Action)
   if Action == 'hide' then
-    BBar:SetAlpha(BoxNumber, nil, BBar.UnitBarF.UnitBar.Layout.InactiveAnticipationAlpha)
+    BBar:SetAlpha(BoxNumber, nil, UnitBarF.UnitBar.Layout.InactiveAnticipationAlpha)
   end
 end
 
@@ -367,6 +365,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',     function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',     function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
+    -- More layout
     BBar:SO('Layout', 'TextureScaleCombo',         function(v) BBar:ChangeBox(ChangeComboPoints, 'SetScaleTextureFrame', TextureMode, v) Display = true end)
     BBar:SO('Layout', 'TextureScaleAnticipation',  function(v) BBar:ChangeBox(ChangeAnticipationPoints, 'SetScaleTextureFrame', TextureMode, v) Display = true end)
     BBar:SO('Layout', 'InactiveAnticipationAlpha', function(v) BBar:ChangeBox(ChangeAnticipationPoints, 'SetAlpha', nil, v) Display = true end)
@@ -405,7 +404,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
     BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetRotateTexture', ComboSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ComboSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetSizeTextureFrame', BoxMode, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetPaddingTexture', ComboSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetPaddingTextureFrame', BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.

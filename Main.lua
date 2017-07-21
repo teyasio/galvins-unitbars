@@ -23,6 +23,7 @@ local Options = {}
 GUB.Main = Main
 GUB.Bar = Bar
 GUB.HapBar = HapBar
+GUB.StaggerBar = {}
 GUB.RuneBar = {}
 GUB.ComboBar = {}
 GUB.HolyBar = {}
@@ -43,14 +44,14 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
 local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
@@ -61,6 +62,9 @@ local CreateFrame, UnitGUID, getmetatable, setmetatable =
       CreateFrame, UnitGUID, getmetatable, setmetatable
 local C_PetBattles, C_TimerAfter, UIParent =
       C_PetBattles, C_Timer.After, UIParent
+
+--- temporary fix to transition to 7.3.0
+local PlaySoundKitID = PlaySoundKitID
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -73,10 +77,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 ------------------------------------------------------------------------------
 -- To fix some problems with elvui.  I had to change Width and Height
 -- to _Width and _Height in some code through out the addon.
---
--- To the elvui guys.  Next time try to use something that won't conflict.
--- like _elvuiWidth() and _elvuiHeight().  Its not fair I have to change my code
--- cause of yours.  The users are the ones that suffer.  Think of the users :P
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -174,6 +174,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.IsDead            - set by UnitBarsUpdateStatus()
 -- Main.HasTarget         - set by UnitBarsUpdateStatus()
 -- Main.TrackedAurasList  - Set by SetAuraTracker()
+-- Main.PlayerGUID        - Set by ShareData()
+-- Main.GameVersion       - Current version of the game
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
@@ -223,6 +225,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- MoveOldMFCenterY       - For alingment, used to calculate the linedistance between the oldselectframe and new one.
 --
 -- AuraListName           - Name used to keep track of the aura list.
+--
+-- ScanTooltip            - Used by CheckPredictedSpells(), CreateScanTooltip(), GetTooltip()
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -451,7 +455,6 @@ local AnchorOffset = {
   BOTTOMRIGHT  = {x = -1,   y =  1  },
   CENTER       = {x = -0.5, y =  0.5},
 }
-
 
 local ConvertPowerType = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, COMBO_POINTS = 4, RUNIC_POWER = 6,
@@ -724,6 +727,44 @@ local function RegUnitEvent(Reg, Event, Fn, ...)
 end
 
 -------------------------------------------------------------------------------
+-- CreateScanTooltip
+--
+-- Creates the ScanTooltip upvalue
+-------------------------------------------------------------------------------
+local function CreateScanTooltip()
+  if ScanTooltip == nil then
+    ScanTooltip = CreateFrame('GameTooltip')
+
+    ScanTooltip:SetOwner(UIParent, 'ANCHOR_NONE')
+    for Index = 1, 8 do
+       local Left = ScanTooltip:CreateFontString()
+       local Right = ScanTooltip:CreateFontString()
+       ScanTooltip['L' .. Index] = Left
+       ScanTooltip['R' .. Index] = Right
+
+       ScanTooltip:AddFontStrings(Left, Right)
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetTooltip
+--
+-- Returns the tooltip for a given spellID
+--
+-- SpellID    Tooltip returned for this spell
+--
+-- Returns
+--    Reference to ScanTooltip
+-------------------------------------------------------------------------------
+function GUB.Main:GetTooltip(SpellID)
+  CreateScanTooltip()
+  ScanTooltip:SetHyperlink(format('spell:%s', SpellID))
+
+  return ScanTooltip
+end
+
+-------------------------------------------------------------------------------
 -- GetTaggedColor (also used by triggers)
 --
 -- Returns the tagged color of a unit
@@ -889,7 +930,7 @@ end
 -------------------------------------------------------------------------------
 -- GetGameVersion
 --
--- Returns the current version of the game as an interger
+-- Returns the current version of the game as an integer
 --
 -- Example: 725 would be 7.2.5
 -------------------------------------------------------------------------------
@@ -965,7 +1006,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     OkButton:ClearAllPoints()
     OkButton:SetPoint('BOTTOMLEFT', 10, 10)
     OkButton:SetScript('OnClick', function()
-                                    PlaySound('igMainMenuOptionCheckBoxOn')
+                                    PlaySound(PlaySoundKitID and 'igMainMenuOptionCheckBoxOn' or 856)
                                     MessageBox:Hide()
                                   end)
     OkButton:SetText('Okay')
@@ -980,7 +1021,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     -- esc key to close
     MessageBox:SetScript('OnKeyDown', function(self, Key)
                                         if Key == 'ESCAPE' then
-                                          PlaySound('igMainMenuOptionCheckBoxOn')
+                                          PlaySound(PlaySoundKitID and 'igMainMenuOptionCheckBoxOn' or 856)
                                           MessageBox:Hide()
                                         end
                                       end)
@@ -1793,12 +1834,8 @@ end
 --
 --
 -- NOTE:  TimerFn will be called as TimerFn(Table) from AnimationGroup in StartTimer()
---        See CheckSpellTrackerTimeout() on how this is used.
 --
 --        To reduce garbage.  Only a new StartTimer() will get created when a new table is passed.
---
---        I decided to do it this way because the overhead of using indexed
---        arrays for multiple timers ended up using more cpu.
 --
 --        The function that gets called has the following passed to it:
 --          Table      Table that was created with the timer.
@@ -1852,6 +1889,9 @@ function GUB.Main:SetTimer(Table, TimerFn, Delay, Wait)
           AnimationGroup:SetScript('OnLoop', WaitTimer)
           AnimationGroup:Play()
         else
+          if Wait and Wait == 0 then
+            TimerFn(Table)
+          end
           Animation:SetDuration(Delay2)
           AnimationGroup:SetScript('OnLoop', Table._OnLoop)
           AnimationGroup:Play()
@@ -1978,7 +2018,7 @@ function GUB.Main:SetCastTracker(UnitBarF, Action, Fn)
       end
 
       if CastTracking == nil then
-        CastTracking = {}
+        CastTracking = {SpellID =0, CastID = ''}
       end
 
       CastTracker.Fn = Fn
@@ -3310,7 +3350,7 @@ local function TrackCastSendMessage(Message)
   end
 end
 
-function GUB:TrackCast(Event, Unit, Name, Rank, CastID)
+function GUB:TrackCast(Event, Unit, Name, Rank, CastID, SpellID)
   local CastEvent = CastTrackerEvent[Event]
 
   if CastEvent then
@@ -3330,22 +3370,31 @@ function GUB:TrackCast(Event, Unit, Name, Rank, CastID)
       Main:SetTimer(CastTracking, nil)
       Main:SetTimer(CastTracking, TrackCastSendMessage, Duration + 1)
 
-    elseif CastTracking.CastID == CastID then
+    else
+      local CastTrackingCastID = CastTracking.CastID
 
-      -- Stop timeout
-      Main:SetTimer(CastTracking, nil)
+      if CastTrackingCastID == CastID or CastTrackingCastID == '' then
 
-      if CastEvent == EventCastSucceeded then
-        TrackCastSendMessage('done')
+        -- Check for instant cast
+        if CastTrackingCastID == '' then
+          CastTracking.SpellID = SpellID
+        end
 
-      elseif CastEvent == EventCastStop then
-        TrackCastSendMessage('stop')
+        -- Stop timeout
+        Main:SetTimer(CastTracking, nil)
 
-      elseif CastEvent == EventCastFailed then
-        TrackCastSendMessage('failed')
+        if CastEvent == EventCastSucceeded then
+          TrackCastSendMessage('done')
+
+        elseif CastEvent == EventCastStop then
+          TrackCastSendMessage('stop')
+
+        elseif CastEvent == EventCastFailed then
+          TrackCastSendMessage('failed')
+        end
+        CastTracking.SpellID = 0
+        CastTracking.CastID = ''
       end
-      CastTracking.SpellID = 0
-      CastTracking.CastID = ''
     end
   end
 end
@@ -3469,19 +3518,7 @@ end
 function GUB:CheckPredictedSpells(Event)
 
   -- Create a tooltip scanner if one doesn't exist.
-  if ScanTooltip == nil then
-    ScanTooltip = CreateFrame('GameTooltip')
-
-    ScanTooltip:SetOwner(UIParent, 'ANCHOR_NONE')
-    for Index = 1, 8 do
-       local Left = ScanTooltip:CreateFontString()
-       local Right = ScanTooltip:CreateFontString()
-       ScanTooltip['L' .. Index] = Left
-       ScanTooltip['R' .. Index] = Right
-
-       ScanTooltip:AddFontStrings(Left, Right)
-    end
-  end
+  CreateScanTooltip()
 
   if PredictedSpells.SpellBook == nil then
     PredictedSpells.SpellBook = 1
@@ -4071,6 +4108,7 @@ local function ShareData()
   Main.UnitBars = UnitBars
   Main.PlayerClass = PlayerClass
   Main.PlayerPowerType = PlayerPowerType
+  Main.PlayerGUID = PlayerGUID
 
   -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
@@ -4105,8 +4143,9 @@ end
 -- Adds keys that are in the defaults but not in the profile
 -- Removes keys that are in the profile but not in the default
 -------------------------------------------------------------------------------
-local function FixText(BarType, UBD, Text)
-  local DefaultText = UBD.Text
+local function FixText(BarType, UBD, UnitBar, TextTableName)
+  local DefaultText = UBD[TextTableName]
+  local Text = UnitBar[TextTableName]
 
   if Text and DefaultText then
     -- First text line is the default
@@ -4120,7 +4159,7 @@ local function FixText(BarType, UBD, Text)
 
         for Key in pairs(Txt) do
           if DefaultText[Key] == nil then
-            --print('ERASED:', format('%s.Text.%s.%s', BarType, TextLine, Key))
+            --print('ERASED:', format('%s.%s.%s.%s', BarType, TextTableName, TextLine, Key))
             Txt[Key] = nil
           end
         end
@@ -4186,6 +4225,7 @@ local ExcludeList = {
   ['*.BoxLocations'] = 1,
   ['*.BoxOrder'] = 1,
   ['*.Text.#'] = 1,
+  ['*.Text2.#'] = 1,
   ['*.Triggers.#'] = 1,
   ['*.Triggers.ActionSync'] = 1,
 }
@@ -4207,7 +4247,8 @@ local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
       PathKey = '*'
       RPathKey = Key
 
-      FixText(Key, DefaultValue, Value.Text)
+      FixText(Key, DefaultValue, Value, 'Text')
+      FixText(Key, DefaultValue, Value, 'Text2') -- Stagger Pause Timer Text
       FixTriggers(Key, DefaultValue, Value.Triggers)
 
     elseif type(Key) == 'number' then
@@ -4352,8 +4393,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 15 then
-    GUBData.ShowMessage = 15
+  if GUBData.ShowMessage ~= 16 then
+    GUBData.ShowMessage = 16
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

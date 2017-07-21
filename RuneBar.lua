@@ -19,14 +19,14 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
 local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
@@ -105,7 +105,10 @@ local TDregion = { -- Trigger data for region
 }
 
 local VTs = {'state', 'Recharging',
+             'float', 'Time',
              'auras', 'Auras'      }
+local VTsNoTime = {'state', 'Recharging',
+                  'auras', 'Auras'      }
 
 local Groups = { -- BoxNumber, Name, ValueTypes,
   {1,   'Rune 1',    VTs, TD},  -- 1
@@ -115,7 +118,7 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
   {5,   'Rune 5',    VTs, TD},  -- 5
   {6,   'Rune 6',    VTs, TD},  -- 6
   {'a', 'All',       VTs, TD},  -- 7
-  {'r', 'Region',    VTs, TDregion},  -- 8
+  {'r', 'Region',    VTsNoTime, TDregion},  -- 8
 }
 
 local RuneCooldownFillTexture = {
@@ -188,6 +191,32 @@ local function GetRuneCooldown2(RuneID)
 end
 
 -------------------------------------------------------------------------------
+-- DoRuneTime
+--
+-- Gets called during rune cooldown
+--
+-- BBar           Current bar being used.
+-- BoxNumber      Current box the call back happened on (RuneIndex)
+-- Time           Current time
+-- Done           If true then the timer is finished
+-------------------------------------------------------------------------------
+local function DoRuneTime(UnitBarF, BBar, BoxNumber, Time, Done)
+  if not Done then
+    local Layout = UnitBarF.UnitBar.Layout
+
+    if not Layout.HideText then
+      BBar:SetValueFont(BoxNumber, 'time', Time)
+    end
+    if Layout.EnableTriggers then
+      BBar:SetTriggers(BoxNumber, 'time', Time)
+      BBar:DoTriggers()
+    end
+  else
+    BBar:SetValueRawFont(BoxNumber, '')
+  end
+end
+
+-------------------------------------------------------------------------------
 -- DoRuneCooldown
 --
 -- Start or stop a rune cooldown.
@@ -211,6 +240,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
   local RuneFlag = Layout.RuneMode
   local ModeBar = strfind(RuneFlag, 'bar')
   local RuneMode = strfind(RuneFlag, 'rune')
+  local BarSpark = Layout.BarSpark
 
   if Action == 'stop' then
     if BarMode then
@@ -225,7 +255,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
     end
     -- stop text timer
     if not Layout.HideText then
-      BBar:SetValueTimeFont(RuneIndex)
+      BBar:SetValueTime(RuneIndex, DoRuneTime)
     end
   end
 
@@ -238,7 +268,12 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
     if Action ~= 'change' then
       if BarMode then
         if TestDuration then
-          BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration)
+          BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration, BarSpark)
+
+          if Layout.EnableTriggers then
+            BBar:SetTriggers(RuneIndex, 'time', TestDuration * 10)
+            BBar:DoTriggers()
+           end
         else
           BBar:SetFillTimeTexture(RuneIndex, RuneSBar, StartTime, Duration, 0, 1)
         end
@@ -247,7 +282,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
       -- Change the duration of an exisiting cooldown in progress.
       -- This gives a stutter free bar animation.
       if TestDuration then
-        BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration)
+        BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration, BarSpark)
       else
         BBar:SetFillTimeDurationTexture(RuneIndex, RuneSBar, Duration)
       end
@@ -259,12 +294,12 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
       BBar:SetCooldownTexture(RuneIndex, RuneTexture, StartTime, Duration)
     end
     -- Start the text timer
-    if not Layout.HideText then
-      if Main.UnitBars.Testing then
+    if Main.UnitBars.Testing then
+      if not Layout.HideText then
         BBar:SetValueFont(RuneIndex, 'time', 10 * UB.TestMode.RuneTime)
-      else
-        BBar:SetValueTimeFont(RuneIndex, StartTime, Duration, Duration, -1)
       end
+    else
+      BBar:SetValueTime(RuneIndex, StartTime, Duration, -1, DoRuneTime)
     end
   end
 end
@@ -473,10 +508,10 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'Swap',           function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',          function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'BorderPadding',  function(v) BBar:SetPaddingBorder(v) Display = true end)
-    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) end)
+    BBar:SO('Layout', 'ReverseFill',    function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) Update = true end)
     BBar:SO('Layout', 'HideText',       function(v)
       if v then
-        BBar:SetValueTimeFont(0)
+        BBar:SetValueTimeFont(0, DoRuneTime)
       end
     end)
     BBar:SO('Layout', 'Rotation',       function(v) BBar:SetRotationBar(v) Display = true end)
@@ -488,6 +523,8 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignPaddingY',  function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
     BBar:SO('Layout', 'AlignOffsetX',   function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',   function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
+
+    -- More layout
     BBar:SO('Layout', 'BarSpark',       function(v) BBar:SetHiddenSpark(0, RuneSBar, not v) end)
     BBar:SO('Layout', '_RuneLocation',  function(v) BBar:SetPointTextureFrame(0, RuneMode, 'CENTER', BarMode, v.RunePosition, v.RuneOffsetX, v.RuneOffsetY) Display = true end)
     -- This is needed for when SetAttr() is called from Update()
@@ -566,7 +603,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, RuneSBar, v) end)
-    BBar:SO('Bar', 'FillDirection',    function(v) BBar:SetFillDirectionTexture(0, RuneSBar, v) end)
+    BBar:SO('Bar', 'FillDirection',    function(v) BBar:SetFillDirectionTexture(0, RuneSBar, v) Update = true end)
     BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, RuneSBar, v) end)
     BBar:SO('Bar', 'ColorBlood',       function(v, UB, OD)
       if self.PlayerSpecialization == 1 then
@@ -583,8 +620,8 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
         BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a)
       end
     end)
-    BBar:SO('Bar', '_Size',            function(v, UB) BBar:SetSizeTextureFrame(0, BarMode, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTexture(0, RuneSBar, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', '_Size',            function(v) BBar:SetSizeTextureFrame(0, BarMode, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTextureFrame(0, BarMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -664,7 +701,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(0, RuneEmptyTexture, false)
   BBar:SetHiddenTexture(0, RuneTexture, false)
 
-  BBar:CreateFont(0)
+  BBar:CreateFont('Text', 0)
 
   -- set offset for trigger bar offset.
   BBar:SetOffsetTextureFrame(0, BarMode, 0, 0, 0, 0)

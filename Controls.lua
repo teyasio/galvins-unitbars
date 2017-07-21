@@ -28,6 +28,9 @@ local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, Gam
 local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime  =
       C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime
 
+--- temporary fix to transition to 7.3.0
+local PlaySoundKitID = PlaySoundKitID
+
 -------------------------------------------------------------------------------
 -- Locals
 --
@@ -998,7 +1001,7 @@ end
 -------------------------------------------------------------------------------
 local function MenuButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound('igMainMenuOption')
+  PlaySound(PlaySoundKitID and 'igMainMenuOption' or 852)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
@@ -1204,7 +1207,7 @@ end
 -------------------------------------------------------------------------------
 local function FlexButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound('igMainMenuOption')
+  PlaySound(PlaySoundKitID and 'igMainMenuOption' or 852)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
@@ -1323,7 +1326,7 @@ end
 -------------------------------------------------------------------------------
 local function TextButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound('igMainMenuOption')
+  PlaySound(PlaySoundKitID and 'igMainMenuOption' or 852)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 

@@ -21,14 +21,14 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
 local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
@@ -106,32 +106,32 @@ local GF = { -- Get function data
 
 local TD = { -- Trigger data
   -- BACKGROUND border
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder .. '  [ Shard ]',            BoxMode },
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder .. '  [ Ember ]',            BoxModeEmber },
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder .. '  [ Shard ]',      BoxMode },
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder .. '  [ Ember ]',      BoxModeEmber },
 
   -- BACKGROUND border color
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor .. '  [ Shard ]',              BoxMode,
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor .. '  [ Shard ]', BoxMode,
     GF = GF },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor .. '  [ Ember ]',              BoxModeEmber,
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor .. '  [ Ember ]', BoxModeEmber,
     GF = GF },
 
   -- BG BACKGROUND
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground .. '  [ Shard ]',              BoxMode },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground .. '  [ Ember ]',              BoxModeEmber },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground .. '  [ Shard ]',  BoxMode },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground .. '  [ Ember ]',  BoxModeEmber },
 
   -- BACKGROUND color
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor .. '  [ Shard ]',              BoxMode,
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor .. '  [ Shard ]',       BoxMode,
     GF = GF },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor .. '  [ Ember ]',              BoxModeEmber,
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor .. '  [ Ember ]',       BoxModeEmber,
     GF = GF },
 
   -- BAR texture
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. '  [ Shard ]',              ShardFillSBar },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. '  [ Ember ]',              EmberFillSBar },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. '  [ Shard ]',            ShardFillSBar },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. '  [ Ember ]',            EmberFillSBar },
 
   -- BAR texture full
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (full)  [ Shard ]',              ShardFullSBar },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (full)  [ Ember ]',              EmberFullSBar },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (full)  [ Shard ]',     ShardFullSBar },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (full)  [ Ember ]',     EmberFullSBar },
 
   -- BAR color
   { TT.TypeID_BarColor,              TT.Type_BarColor .. '  [ Shard ]',              ShardFillSBar,
@@ -141,9 +141,9 @@ local TD = { -- Trigger data
 
   -- BAR color full
   -- Shard
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Shard ]',              ShardFullSBar,
+  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Shard ]',       ShardFullSBar,
     GF = GF },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Ember ]',              EmberFullSBar,
+  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Ember ]',       EmberFullSBar,
     GF = GF },
 
   { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Shard ]',              BoxMode },
@@ -494,9 +494,9 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'HideRegion',        function(v) BBar:SetHiddenRegion(v) Display = true end)
     BBar:SO('Layout', 'Swap',              function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',             function(v) BBar:SetFloatBar(v) Display = true end)
-    BBar:SO('Layout', 'ReverseFill',       function(v) BBar:ChangeTexture(ShardFill, 'SetFillReverseTexture', 0, v) end)
+    BBar:SO('Layout', 'ReverseFill',       function(v) BBar:ChangeTexture(ShardFill, 'SetFillReverseTexture', 0, v) Update = true end)
     BBar:SO('Layout', 'AnimationType',     function(v) BBar:ChangeTexture(ShardFull, 'SetAnimationTexture', 0, v) end)
-    BBar:SO('Layout', 'FillDirection',     function(v) BBar:ChangeTexture(ShardFillTexture, 'SetFillDirectionTexture', 0, v) end)
+    BBar:SO('Layout', 'FillDirection',     function(v) BBar:ChangeTexture(ShardFillTexture, 'SetFillDirectionTexture', 0, v) Update = true end)
     BBar:SO('Layout', 'BorderPadding',     function(v) BBar:SetPaddingBorder(v) Display = true end)
     BBar:SO('Layout', 'Rotation',          function(v) BBar:SetRotationBar(v) Display = true end)
     BBar:SO('Layout', 'Slope',             function(v) BBar:SetSlopeBar(v) Display = true end)
@@ -516,6 +516,7 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignOffsetX',      function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',      function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
 
+    -- More layout
     BBar:SO('Layout', 'BurningEmbers',     function(v) BBar:DoOption('Layout', 'BoxMode') end)
     BBar:SO('Layout', 'GreenFire',         function(v) BBar:DoOption('Layout', 'BoxMode') end)
     BBar:SO('Layout', 'GreenFireAuto',     function(v) Update = true end)
@@ -596,8 +597,7 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
       end
     end)
     BBar:SO('Bar', '_Size',            function(v, UB, OD) BBar:SetSizeTextureFrame(0, OD.p1, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:SetPaddingTexture(0, OD.p2, v.Left, v.Right, v.Top, v.Bottom)
-                                                           BBar:SetPaddingTexture(0, OD.p3, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:SetPaddingTextureFrame(0, OD.p1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.

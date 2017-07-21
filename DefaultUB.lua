@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 541
+GUB.DefaultUB.Version = 550
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -1499,10 +1499,202 @@ GUB.DefaultUB.Default = {
         },
       },
     },
+-- StaggerBar
+    StaggerBar = {
+      Name = 'Stagger Bar',
+      OptionOrder = 10,
+      UnitType = 'player',
+      Enabled = true,
+      UsedByClass = {MONK = '1'},
+      x = -200,
+      y = -40,
+      Status = {
+        HideNotUsable   = true,
+        ShowAlways      = false,
+        HideWhenDead    = true,
+        HideNoTarget    = false,
+        HideInVehicle   = true,
+        HideInPetBattle = true,
+        HideNotActive   = false,
+        HideNoCombat    = false
+      },
+      TestMode = {
+        StaggerPercent = .01,
+        StaggerPause = 0,
+      },
+      Layout = {
+        EnableTriggers = false,
+        ReverseFill = false,
+        HideText = false,
+        HideTextPause = false,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
+        Swap = false,
+        Float = false,
+        Rotation = 360,
+        Padding = 0,
+        Align = false,
+        AlignPaddingX = 0,
+        AlignPaddingY = 0,
+        AlignOffsetX = 0,
+        AlignOffsetY = 0,
+
+        _More = 1,
+
+        Layered = true,
+        Overlay = false,
+        SideBySide = false,
+        PauseTimer = false,
+        PauseTimerAutoHide = false,
+      },
+      Attributes = {
+        Scale = 1,
+        Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
+        FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
+      },
+      BackgroundStagger = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
+      },
+      BackgroundPause = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = DefaultBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
+      },
+      BarStagger = {
+        Advanced = false,
+        Width = 170,
+        Height = 25,
+        MaxPercent = 1,
+        MaxPercentBStagger = 2,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = DefaultStatusBarTexture,
+        BStaggerBarTexture = DefaultStatusBarTexture,
+        Color = {r = 0.52, g = 1, b = 0.52, a = 1},
+        BStaggerColor = {r = 1, g = 0.42, b = 0.42, a = 1},
+      },
+      BarPause = {
+        Advanced = false,
+        Width = 170,
+        Height = 20,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = DefaultStatusBarTexture,
+        Color = {r = 1, g = 1, b = 1, a = 1},
+      },
+      Text = {
+        _DC = 0,
+        _ValueNameMenu = 'stagger',
+        _Multi = 1,
+
+        { -- 1
+          Custom    = false,
+          Layout    = '',
+          ValueNames = {'current'},
+          ValueTypes = {'percent'},
+
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
+          Position = 'CENTER',
+          FontPosition = 'CENTER',
+          Width = 200,
+          Height = 18,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Text2 = { -- Pause Timer
+        _ValueNameMenu = 'staggerpause',
+
+        { -- 1
+          Custom    = false,
+          Layout    = '',
+          ValueNames = {'time'},
+          ValueTypes = {'timeSS'},
+
+          FontType = UBFontType,
+          FontSize = 14,
+          FontStyle = 'NONE',
+          FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
+          Position = 'CENTER',
+          FontPosition = 'CENTER',
+          Width = 200,
+          Height = 18,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MenuSync = false,
+        HideTabs = false,
+        Action = {},
+        ActionSync = {},
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Static = false,
+          SpecEnabled = false,
+          DisabledBySpec = false,
+          ClassName = '',
+          ClassSpecs = {},
+          HideAuras = false,
+          OffsetAll = true,
+          Action = {Type = 1},
+          Name = '',
+          GroupNumber = 1,
+          OrderNumber = 0,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateSpeed = 0.01,
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
+          GetFnTypeID = 'none',
+          GetPars = {},
+        },
+      },
+    },
 -- RuneBar
     RuneBar = {
       Name = 'Rune Bar',
-      OptionOrder = 10,
+      OptionOrder = 11,
       Enabled = true,
       UsedByClass = {DEATHKNIGHT = ''},
       x = 0,
@@ -1527,11 +1719,11 @@ GUB.DefaultUB.Default = {
       Layout = {
         EnableTriggers = false,
         HideRegion = false,
+        ReverseFill = false,
+        HideText = false,
         Swap = false,
         Float = false,
         BorderPadding = 6,
-        ReverseFill = false,
-        HideText = false,
         Rotation = 90,
         Slope = 0,
         Padding = 0,
@@ -1758,7 +1950,7 @@ GUB.DefaultUB.Default = {
 -- ComboBar
     ComboBar = {
       Name = 'Combo Bar',
-      OptionOrder = 11,
+      OptionOrder = 12,
       Enabled = true,
       UsedByClass = {ROGUE = '', DRUID = ''},
       x = 0,
@@ -1960,7 +2152,7 @@ GUB.DefaultUB.Default = {
 -- HolyBar
     HolyBar = {
       Name = 'Holy Bar',
-      OptionOrder = 12,
+      OptionOrder = 13,
       Enabled = true,
       UsedByClass = {PALADIN = '3'},
       x = 0,
@@ -2103,7 +2295,7 @@ GUB.DefaultUB.Default = {
 -- ShardBar
     ShardBar = {
       Name = 'Shard Bar',
-      OptionOrder = 13,
+      OptionOrder = 14,
       Enabled = true,
       UsedByClass = {WARLOCK = '12'},
       x = 0,
@@ -2246,7 +2438,7 @@ GUB.DefaultUB.Default = {
 -- FragmentBar
     FragmentBar = {
       Name = 'Fragment Bar',
-      OptionOrder = 14,
+      OptionOrder = 15,
       OptionText = 'Destruction Warlocks only',
       Enabled = true,
       UsedByClass = {WARLOCK = '3'},
@@ -2270,10 +2462,10 @@ GUB.DefaultUB.Default = {
         BoxMode = false,
         EnableTriggers = false,
         HideRegion = false,
-        Swap = false,
-        Float = false,
         ReverseFill = false,
         FillDirection = 'VERTICAL',
+        Swap = false,
+        Float = false,
         BorderPadding = 6,
         Rotation = 90,
         Slope = 0,
@@ -2546,7 +2738,7 @@ GUB.DefaultUB.Default = {
 -- ChiBar
     ChiBar = {
       Name = 'Chi Bar',
-      OptionOrder = 15,
+      OptionOrder = 16,
       Enabled = true,
       UsedByClass = {MONK = '3'},
       x = 0,
@@ -2693,7 +2885,7 @@ GUB.DefaultUB.Default = {
 -- ArcaneBar
     ArcaneBar = {
       Name = 'Arcane Bar',
-      OptionOrder = 16,
+      OptionOrder = 17,
       Enabled = true,
       UsedByClass = {MAGE = '1'},
       x = 0,
@@ -2898,7 +3090,7 @@ HelpText[#HelpText + 1] = [[http://wow.gamepedia.com/UI_escape_sequences]]
 HelpText[#HelpText + 1] = [[
 
 |cff00ff00Copy and Paste|r
-Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar and click "paste" to do the copy.  For text lines you can copy and paste within the same bar or to another bar.
+Go to the copy and paste options.  Click on a button from the button menu on the top row.  This selects a bottom row of buttons. Click on the bottom button you want to copy then pick another bar and click "paste" to do the copy.  Can also copy and paste on the same bar if permitted.
 
 
 |cff00ff00Align and Swap|r
@@ -2977,7 +3169,7 @@ HelpText[#HelpText + 1] = [[https://youtu.be/bey_dQBZlmA]]
 HelpText[#HelpText + 1] = [[
 
 |cff00ff00Aura List|r
-Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
+Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box seperated by a space.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
 
 
 |cff00ff00Profiles|r
@@ -2990,6 +3182,13 @@ local ChangesText = {}
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 
+Version 5.50
+
+|cff00ff00Stagger bar|r added for brewmaster monks
+|cff00ff00Copy and Paste|r can now copy between all color types
+|cff00ff00Triggers|r can now take time as an option for the Rune Bar and Stagger Bar
+
+
 Version 5.41
 
 |cff00ff00Rune Bar|r changed to reflect UI changes
@@ -3001,6 +3200,7 @@ Version 5.41
 |cff00ff00Other|r options renamed to Attributes
 |cff00ff00Test mode|r has been moved to Layout
 |cff00ff00Debug|r added to help the author track bugs from text. Can be found under General options
+
 
 Version 5.13
 
