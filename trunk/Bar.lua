@@ -24,14 +24,14 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
 local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
@@ -101,33 +101,40 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Colors                          Saved color used by SetColor() and GetColor()
 --   TextureFrames[]                 Table of textureframes used by boxframe.
 --   TFTextures[]                    Used by texture function, contains the texture.
---   FontTime                        Used by FontSetValueTime()
+--   ValueTime                       Used by SetValueTime()
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
 --   Backdrop                        Table containing the backdrop.
+--   TextData                        This gets added by CreateFont()
 --
 -- TextureFrame data structure
 --
 --   Hidden                          If true then the textureframe is hidden.
 --   Textures[]                      Textures contained in TextureFrame.
 --   Colors                          Saved color used by SetColor() and GetColor()
---   FontTime                        Used by FontSetValueTime()
+--   ValueTime                       Used by SetValueTime()
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
+--   MaxValue                        Specifies the maximum value that can reached. Used by SetFill functions.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
 --   BorderFrame                     Contains the backdrop and allows the textureframe to be sized without effecting box size.
 --     Backdrop                      Table containing the backdrop.
 --     AGroup                        Contains the animation group for offsetting.
+--   PaddingFrame                    Child of BorderFrame. Allows padding to be added to a texture frame, without it effecting the real size of the Texture frame.
 --
 -- Texture data structure            A texture is actually a frame.  I call it Texture so its not confused with
 --                                   TextureFrame.
 --
 --   Type                            Either 'statusbar' or 'texture'
 --   ScaleFrame                      Child of Texture. To avoid conflicts with animation on textures.  Just this frame is now used for SetScaleTexture()
---     AGroup                        Animation used when scaling the texture thru SetScaleTexture()
---   PaddingFrame                    Child of ScaleFrame. Allows padding to be added to a texture, without it effecting the real size of the Texture.
---   SubFrame                        Child of PadddingFrame. Holds the StatusBar or Frame containing the actual texture.
+--     AGroup                          Animation used when scaling the texture thru SetScaleTexture()
+--   TextureFrame                    Reference to owner of this Texture.  Used by SetFill()
+--   PaddingFrame                    Reference to TextureFrame.PaddingFrame
+--   SubFrame                        Child of Texture. Holds the StatusBar or Frame containing the actual texture.
+--   FillClip[]                      This table only exists if SetFillClipTexture() was used. See FillClip documented section below
+--   FillClipTextures[]              Contains the textures that is using this textures value otherwise nil  This is used by SetFill() and SetFillClipTexture()
+--   ValueClipped                    Unlike Value this never goes outside the minmax range of the statusbar.  Used by SetFill()
 --   _Width, _Height                 Width and height of the texture.
 --   CurrentTexture                  Contains the current texture name.  This is to prevent the texture from getting
 --                                   set to the same texture.  Which would cause a graphical glitch.  Used by SetTexture()
@@ -139,7 +146,8 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   FillDirection                   Can be 'HORIZONTAL' or 'VERTICAL'.
 --   Value                           Current value, work around for padding function dealing with statusbars.
 --                                   Also used by SetFill functions.
---   SliderSize                      If not nill then the texture is being used as a slider.
+--   Min                             Minimum value used by SetFill()
+--   Max                             Maximum value used by SetFill()
 --   SmoothFillMaxTime               Max time in seconds for a smooth fill to complete.
 --   Speed                           How fast animation draws. Between 0.01 and 1.
 --                                   or 5secs from 0 to 0.5 or 0.25 to 0.75.
@@ -166,6 +174,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --   Backdrop                        Table containing the backdrop.  Created by GetBackdrop()
 --   AGroup                          Contains the animation to play when showing or hiding a texture.  Created by GetAnimation() in SetAnimationTexture()
+--
 --
 --  Spark data structure
 --    ParentFrame                    Contains a reference to Texture.
@@ -196,9 +205,9 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --      BoxFrame                          border and BoxFrame
 --        TextureFrame                    TextureFrame.
 --          BorderFrame                   Border and also allows the textureFrame to be larger without effecting Boxsize.
---            Texture (frame)             Container for SubFrame and SubTexture.
---              ScaleFrame                For scaling textures.  This is needed so we dont have conflicts scaling in two places.
---                PaddingFrame            Used by SetPaddingTexture()
+--            ScaleFrame                  For scaling textures.  This is needed so we dont have conflicts scaling in two places.
+--              PaddingFrame              Used by SetPaddingTextureFrame()
+--                Texture (frame)         Container for SubFrame and SubTexture.
 --                  SubFrame              A frame that holds the texture or statusbar
 --                    SubTexture          Statusbar texture or texture.
 --                    CooldownFrame       Optional, only exists if the 'cooldown' option was specified in CreateTexture()
@@ -230,6 +239,45 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- The floating code uses the x, y locations created by SetFrames.
 --
 -- The floating layout and boxorder for swapping is stored in the root of the unitbar.
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- SetFillClip
+--
+-- If using SetFIll() you can also change the way filling works.  With
+-- SetFillClipTexture() you're able to change the positions of more than
+-- texture in a texture frame.  Have multiple statusbars act as one bar
+-- Seeemlessly filling from one into another.
+--
+-- Once one or more textures are set to fill clip.  They'll automatically
+-- reposition them selves depending on the width or height or the texture frame
+-- or if reverse fill gets used.  Best to look at health and power and stagger bars
+-- on how its used.  SetFillClip clips off of MaxValue set on the TextureFrame.
+--
+-- Texture.FillClip                 Is a table that gets added to a texture whos fill you
+--                                  to change.  This is an indexed array in pairs of 2.
+--
+-- Texture.FillClipTextures[]       This keeps track of all the textures SetFill'ing off of this one.
+--                                  This array is saved to the Texture that is being used.
+--
+-- SetFill data structure
+--    Start
+--    End               Contains the start or end values.
+--                      This sets the starting or ending point from 0 to maxvalue
+--                      If 'nil' then 0 is used for 'start' and MaxValue for 'end'
+--
+--    Tstart
+--    Tend              Contains the start or end values based off a relative textures value.
+--                      This sets the relative texture whos value will be used.
+--                      This can only be set once per TextureNumber
+--
+--    Length            This is only works with 'tstart' or 'tend', this sets the size of the texture instead
+--                      of an ending or starting position.
+--    Reverse           If true the texture will be repositioned if needed when a texture has been set to reverse
+--                      fill.
+--    Enabled           If true the fillclip will work, other its still active but just will stop working.
+--    RelativeTexture   Used by SetFillClipRemoveTexture() and SetFillClip(). Also prevents SetFillClipTexture() from using the same texture more
+--                      than once with 'tstart' and 'tend'
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -303,7 +351,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -------------------------------------------------------------------------------
 -- Fonts
 --
--- A BoxFrame or TextureFrame can have a font.
+-- A BoxFrame can have a font.
 --
 -- BarTextData[BarType] An array that keeps track of all the TextData tables.
 --                      This is used to help display the text frame boxes when options is opened.
@@ -318,13 +366,14 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --     AGroup           Animation for offsetting text.
 --   PercentFn          Function used to calculate percentages from CurrentValue and MaximumValue.
 --   Text               Reference to the current Text data found in UnitBars[BarType].Text
+--   TextTableName      Contains the name of the table being used for text. UnitBars[BarType][TextTableName]
 --
 -- TextData[TextLine]   Array used to store the fontstring for each textline
 --   LastSize           For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
 --   AGroup             Animation for changing text size.
 --
 --
--- Lowercase hash names are used for SetValueTimeFont and SetValueFont.
+-- Lowercase hash names are used for SetValueFont.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -1155,7 +1204,7 @@ local function GetBoundsRect(ParentFrame, Frames)
   for Index = 1, #Frames do
     local Frame = Frames[Index]
 
-    if not Frame.Hidden then
+    if not Frame.Hidden and not Frame.IgnoreBorder then
       local Scale = Frame:GetScale()
 
       Left = Frame:GetLeft() * Scale
@@ -1474,9 +1523,109 @@ end
 
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 --
--- Animation functions
+-- Animation and timing functions
 --
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-------------------------------------------------------------------------------
+-- SetValueTimer
+--
+-- Timer function for SetValueTime
+-------------------------------------------------------------------------------
+local function SetValueTimer(ValueTime)
+  local TimeElapsed = GetTime() - ValueTime.StartTime
+  local Time = 0
+
+  -- Wait until the start time is reached
+  if TimeElapsed < ValueTime.Duration then
+    if ValueTime.Direction == -1 then
+      Time = ValueTime.Duration - TimeElapsed
+    else
+      Time = TimeElapsed
+    end
+
+    -- Truncate to 1 decimal place
+    Time = Time - Time % 0.1
+    if Time ~= ValueTime.LastTime then
+      ValueTime.LastTime = Time
+      ValueTime.Fn(ValueTime.UnitBarF, ValueTime.BarDB, ValueTime.BoxNumber, Time, false)
+    end
+  else
+    -- stop timer
+    Main:SetTimer(ValueTime, nil)
+    ValueTime.Fn(ValueTime.UnitBarF, ValueTime.BarDB, ValueTime.BoxNumber, 0, true)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetValueTime
+--
+-- Sets a timer that returns a value within the timing range.  The call back function
+-- then uses this value.
+--
+-- Usage: SetValueTime(BoxNumber, StartTime, Duration, Direction, Fn)
+--        SetValueTime(BoxNumber, Fn) -- This turns off the timer
+--
+-- BoxNumber            The timer will use this box number.
+-- StartTime            Starting time if nil then the current time will be used.
+-- Duration             Duration in seconds.  Duration of 0 or less will stop the current timer.
+-- Direction            Direction to go in +1 or -1
+--                      if Direction is -1 then the timer will start counting dwom from StartTime
+--                      otherwise starts counting from 0 to StartTime
+-- Fn                   Call back function
+--
+-- Parms passed back to Fn:
+--   UnitBarF      Bar that the timer was started in.
+--   self(BarDB)   Bar object the bar was created in.
+--   BN            Current box number.
+--   Time          Current time progress.
+--   Done          If true then the timer has finished.  Any values at this point are not valid.
+--                 This can also be true if SetValueTime was called to stop the current timer.
+-------------------------------------------------------------------------------
+function BarDB:SetValueTime(BoxNumber, StartTime, Duration, Direction, Fn)
+  repeat
+    local Frame, BN = NextBox(self, BoxNumber)
+
+    local ValueTime = Frame.ValueTime
+    if ValueTime == nil then
+      ValueTime = {}
+      Frame.ValueTime = ValueTime
+    end
+
+    Main:SetTimer(ValueTime, nil)
+    Duration = Duration or 0
+
+    if Duration > 0 then
+      local CurrentTime = GetTime()
+      local WaitTime = 0
+      local TimeElapsed = 0
+
+      StartTime = StartTime and StartTime or CurrentTime
+
+      if StartTime > CurrentTime then
+        WaitTime = StartTime - CurrentTime
+      else
+        TimeElapsed = CurrentTime - StartTime
+      end
+
+      -- Set up the paramaters.
+      ValueTime.StartTime = StartTime
+      ValueTime.Duration = Duration
+      ValueTime.Direction = Direction
+      ValueTime.LastTime = false
+
+      ValueTime.UnitBarF = self.UnitBarF
+      ValueTime.BarDB = self
+      ValueTime.BoxNumber = BN
+      ValueTime.Fn = Fn
+
+      Main:SetTimer(ValueTime, SetValueTimer, 0.01, WaitTime)
+    else
+      -- StartTime = Fn
+      StartTime(self.UnitBarF, self, BN, 0, true)
+    end
+  until LastBox
+end
 
 -------------------------------------------------------------------------------
 -- GetAnimation
@@ -2463,10 +2612,11 @@ end
 --
 -- BoxNumber        BoxNumber containing the texture.
 -- TextureNumber    Texture that will call Fn
--- Fn               function to call.
+-- Fn               Function to call. If nil then function gets removed.
 --
 -- Parms passed to Fn
---   self           BarDB
+--   UnitBarF
+--   self(BarDB)
 --   BN             BoxNumber
 --   TextureNumber
 --   Action         'hide' or 'show'
@@ -2475,11 +2625,15 @@ function BarDB:SetShowHideFnTexture(BoxNumber, TextureNumber, Fn)
   repeat
     local BoxFrame, BN = NextBox(self, BoxNumber)
     local Texture = BoxFrame.TFTextures[TextureNumber]
-    local ShowHideFn = nil
 
-    Texture.ShowHideFn = function(Direction)
-                           Fn(self, BN, TextureNumber, Direction == 'in' and 'show' or 'hide')
-                         end
+    if Fn == nil then
+      Texture.ShowHideFn = nil
+
+    elseif Texture.ShowHideFn ~= Fn then
+      Texture.ShowHideFn = function(Direction)
+                             Fn(self.UnitBarF, self, BN, TextureNumber, Direction == 'in' and 'show' or 'hide')
+                           end
+    end
   until LastBox
 end
 
@@ -2776,6 +2930,22 @@ end
 -- Setting Box Frame functions
 --
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-------------------------------------------------------------------------------
+-- SetIgnoreBorderBox
+--
+-- The box frame will not reposition to stay within the border.
+--
+-- BoxNumber     Box to set the distance bewteen the next boxframe.
+-- IgnoreBorder  If true the boxframe will ignore the border.
+-------------------------------------------------------------------------------
+function BarDB:SetIgnoreBorderBox(BoxNumber, IgnoreBorder)
+  repeat
+    local BoxFrame = NextBox(self, BoxNumber)
+
+    BoxFrame.IgnoreBorder = IgnoreBorder
+  until LastBox
+end
 
 -------------------------------------------------------------------------------
 -- SetPaddingBox
@@ -3210,6 +3380,24 @@ function BarDB:SetScaleTextureFrame(BoxNumber, TextureFrameNumber, Scale)
 end
 
 -------------------------------------------------------------------------------
+-- SetPaddingTextureFrame
+--
+-- BoxNumber                  Box containing the texture.
+-- TextureFrameNumber         Texture frame to apply padding.
+-- Left, Right, Top, Bottom   Paddding values.
+-------------------------------------------------------------------------------
+function BarDB:SetPaddingTextureFrame(BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
+  repeat
+    local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
+    local PaddingFrame = TextureFrame.PaddingFrame
+
+    PaddingFrame:ClearAllPoints()
+    PaddingFrame:SetPoint('TOPLEFT', Left, Top)
+    PaddingFrame:SetPoint('BOTTOMRIGHT', Right, Bottom)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
 -- SetPointTextureFrame
 --
 -- Allows you to set a textureframe point to another textureframe or to the boxframe.
@@ -3242,6 +3430,26 @@ function BarDB:SetPointTextureFrame(BoxNumber, TextureFrameNumber, Point, Relati
       TextureFrame.OffsetY = OffsetY
       TextureFrame:SetPoint(Point, RelativeTextureFrame, RelativePoint, (OffsetX / Scale) or 0, (OffsetY / Scale) or 0)
     end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillMaxValueTextureFrame
+--
+-- Sets the max value setfill can use on any texture that's created in the
+-- texture frame.
+--
+-- BoxNumber           Box containing the fill texture
+-- TextureFrameNumber  Texture frame that contains the textures
+-- Value               New maximum for the fill part of all textures
+--
+-- NOTES:  Should redraw all the bars after calling this function
+-------------------------------------------------------------------------------
+function BarDB:SetFillMaxValueTextureFrame(BoxNumber, TextureFrameNumber, Value)
+  repeat
+    local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
+
+    TextureFrame.MaxValue = Value
   until LastBox
 end
 
@@ -3468,6 +3676,7 @@ function BarDB:SetChangeTexture(ChangeNumber, ...)
     ChangeTexture = {}
     ChangeTextures[ChangeNumber] = ChangeTexture
   end
+
   for Index = 1, select('#', ...) do
     ChangeTexture[Index] = select(Index, ...)
   end
@@ -3511,33 +3720,6 @@ function BarDB:ChangeTexture(ChangeNumber, BarFn, BoxNumber, ...)
 end
 
 -------------------------------------------------------------------------------
--- SetPaddingTexture
---
--- BoxNumber                  Box containing the texture.
--- TextureNumber              Texture to apply padding.
--- Left, Right, Top, Bottom   Paddding values.
--------------------------------------------------------------------------------
-function BarDB:SetPaddingTexture(BoxNumber, TextureNumber, Left, Right, Top, Bottom)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local PaddingFrame = Texture.PaddingFrame
-
-    PaddingFrame:ClearAllPoints()
-    PaddingFrame:SetPoint('TOPLEFT', Left, Top)
-    PaddingFrame:SetPoint('BOTTOMRIGHT', Right, Bottom)
-
-    local Value = Texture.Value
-
-    -- Force the statusbar to reflect the changes.
-    if Texture.Type == 'statusbar' then
-      local SubFrame = Texture.SubFrame
-      SubFrame:SetValue(Value - 1)
-      SubFrame:SetValue(Value)
-    end
-  until LastBox
-end
-
--------------------------------------------------------------------------------
 -- SetRotateTexture
 --
 -- Rotates a status bar texture 90 degrees.
@@ -3568,154 +3750,242 @@ function BarDB:SetRotateTexture(BoxNumber, TextureNumber, Action)
 end
 
 -------------------------------------------------------------------------------
+-- SetFillClip
+--
+-- Subfunction of SetFill()
+--
+-- Positions and/or sets the clipping range for SetFill()
+-- This can also be used to position textures in different parts of the
+-- texture frame or use multiple statusbars as one, etc
+--
+-- Texture        Texture to be changed
+--
+-- Returns
+--   Min, Max     Clipping range
+-------------------------------------------------------------------------------
+local function SetFillClip(Texture, MaxValue, FillDirection, ReverseFill)
+  local FillClip = Texture.FillClip
+  local PaddingFrame = Texture.PaddingFrame
+  local Min = 0
+  local Max = MaxValue
+  local StartPos = nil
+  local EndPos = nil
+  local Size = nil
+
+  local Position = FillClip.Position
+  local RelativeTexture = FillClip.RelativeTexture
+  local Start = FillClip.Start
+  local End = FillClip.End
+
+  if RelativeTexture then
+    local Length = FillClip.Length
+    local ValueClipped = RelativeTexture.ValueClipped
+
+    if FillClip.Tstart then
+      StartPos = ValueClipped
+      if Length then
+        EndPos = StartPos + Length
+      end
+    else
+      EndPos = ValueClipped
+      if Length then
+        StartPos = EndPos - Length
+      end
+    end
+  end
+
+  if Start then
+    StartPos = Start == 'nil' and 0 or Start
+  end
+  if End then
+    EndPos = EndPos == 'nil' and 0 or End
+    if End == 'nil' then
+      EndPos = MaxValue
+    else
+      EndPos = End
+    end
+  end
+
+  StartPos = StartPos < 0 and 0 or StartPos > MaxValue and MaxValue or StartPos
+  EndPos   = EndPos   < 0 and 0 or EndPos   > MaxValue and MaxValue or EndPos
+
+  -- Flip values so start is lowest
+  if StartPos > EndPos then
+    StartPos, EndPos = EndPos, StartPos
+  end
+
+  Min, Max = StartPos, EndPos
+
+  -- Set start and end graphically
+  if FillClip.Reverse and ReverseFill then
+    StartPos, EndPos = MaxValue - EndPos, MaxValue - StartPos
+  end
+
+  -- use paddingframe for size since this is the workspace
+  if FillDirection == 'HORIZONTAL' then
+    Size = PaddingFrame:GetWidth()
+  else
+    Size = PaddingFrame:GetHeight()
+  end
+
+  StartPos = StartPos / MaxValue * Size
+  EndPos = (Size - EndPos / MaxValue * Size) * -1
+  Texture:ClearAllPoints()
+
+  if FillDirection == 'HORIZONTAL' then
+    Texture:SetPoint('TOP', PaddingFrame, 'TOP')
+    Texture:SetPoint('BOTTOM', PaddingFrame, 'BOTTOM')
+
+    Texture:SetPoint('LEFT', PaddingFrame, 'LEFT', StartPos, 0)
+    Texture:SetPoint('RIGHT', PaddingFrame, 'RIGHT', EndPos, 0)
+  else
+    Texture:SetPoint('LEFT', PaddingFrame, 'LEFT')
+    Texture:SetPoint('RIGHT', PaddingFrame, 'RIGHT')
+
+    Texture:SetPoint('BOTTOM', PaddingFrame, 'BOTTOM', 0, StartPos)
+    Texture:SetPoint('TOP', PaddingFrame, 'TOP', 0, EndPos)
+  end
+
+  if Texture.Type == 'statusbar' then
+    local SubFrame = Texture.SubFrame
+    SubFrame:SetMinMaxValues(Min, Max)
+
+    -- Value may get clipped from SetMinMaxValues(), so reset it here
+    SubFrame:SetValue(Texture.Value)
+  end
+
+  return Min, Max
+end
+
+-------------------------------------------------------------------------------
 -- SetFill
 --
 -- Subfunction of SetFillTexture, SetFillTimeTexture
 --
 -- Texture        Texture to setfill to.
--- Value          Between 0 and 1
+-- Value          Between 0 and MaxValue
 -- Spark          Internal use only. If not nil then a spark is shown on the
 --                texture edge.
 --
 -- NOTE: SetFillDirectionTexture() will control the fill that this function will use.
 --       Cant set texture width to 0 so use 0.001 this will make the texture not be
 --       visible.  Setting texture size to 0 doesn't hide the texture.
+--       Virtical fill starts from the BOTTOM and horizontal fill starts from the LEFT
 -------------------------------------------------------------------------------
 local function SetFill(Texture, Value, Spark)
   local ReverseFill = Texture.ReverseFill
   local FillDirection = Texture.FillDirection
-  local Width, Height = Texture._Width, Texture._Height
-  local SliderSize = Texture.SliderSize
+  local Width = Texture._Width
+  local Height = Texture._Height
+  local MaxValue = Texture.TextureFrame.MaxValue
+  local FillClipTextures = Texture.FillClipTextures
+  local FillClip = Texture.FillClip
+  local SetFillFn = Texture.SetFillFn
+  local Min = Texture.Min
+  local Max = Texture.Max
 
-  -- Flag setfill for onsizechanged.
+  -- Flag setfill for onsizechangedtexture.
   Texture.SetFill = 1
 
-  -- if this is a slider bypass filling
-  if SliderSize == nil then
-    if Texture.Type == 'texture' then
-      local SubTexture = Texture.SubTexture
-      local TexLeft, TexRight, TexTop, TexBottom = Texture.TexLeft, Texture.TexRight, Texture.TexTop, Texture.TexBottom
-      local TextureWidth = Width
-      local TextureHeight = Height
+  -- Set value here since it'll be scaled
+  Texture.Value = Value
+  Value = Value < 0 and 0 or Value > MaxValue and MaxValue or Value
 
-      -- Clip the amount if out of range.
-      Value = Value > 1 and 1 or Value < 0 and 0 or Value
-
-      -- Calculate the texture width
-      if FillDirection == 'HORIZONTAL' then
-        TextureWidth = Width * Value
-
-        -- Check for reverse fill.
-        if ReverseFill then
-          TexLeft = TexRight - (TexRight - TexLeft) * Value
-          SubTexture:SetPoint('TOPLEFT', Width - TextureWidth, 0)
-        else
-          TexRight = TexLeft + (TexRight - TexLeft) * Value
-          SubTexture:SetPoint('TOPLEFT')
-        end
-      else
-
-        -- Calculate the texture height.
-        TextureHeight = Height * Value
-
-        -- Check for reverse fill
-        if ReverseFill then
-          TexBottom = TexTop + (TexBottom - TexTop) * Value
-          SubTexture:SetPoint('TOPLEFT')
-        else
-          TexTop = TexBottom - (TexBottom - TexTop) * Value
-          SubTexture:SetPoint('TOPLEFT', 0, (Height - TextureHeight) * -1)
-        end
-      end
-      SubTexture:SetSize(TextureWidth > 0 and TextureWidth or 0.001, TextureHeight > 0 and TextureHeight or 0.001)
-      SubTexture:SetTexCoord(TexLeft, TexRight, TexTop, TexBottom)
-    else
-
-      -- Set statusbar value.
-      Texture.SubFrame:SetValue(Value)
-    end
-    -- Display spark if not nil
-    if Spark then
-      local x = nil
-      local y = nil
-
-      if FillDirection == 'HORIZONTAL' then
-        y = Height * 0.5 * -1
-        if ReverseFill then
-          x = Width - Width * Value + 1 -- Offset spark by 1
-        else
-          x = Width * Value
-        end
-
-        -- Set spark size.
-        Spark:SetSize(TextureSparkSize, Height * 2.3)
-      else
-        x = Width * 0.5
-        if ReverseFill then
-          y = Height * Value * -1 + 1 -- Offset spark by 1
-        else
-          y = (Height - Height * Value) * -1
-        end
-
-        -- Set spark size.
-        Spark:SetSize(Width * 2.3, TextureSparkSize)
-      end
-      Spark:Show()
-      Spark:SetPoint('CENTER', Spark.ParentFrame, 'TOPLEFT', x, y)
-    end
-  else
-    -- This is a slider
-    local SubFrame = Texture.SubFrame
-    local SliderValue = Value
-
-    -- Clip slider if outside.
-    if Value + SliderSize > 1 then
-      SliderSize = 1 - Value
-
-    elseif SliderValue < 0 then
-      SliderSize = SliderSize + SliderValue
-      SliderValue = 0
-    end
-
-    if SliderSize > 0 then
-      SubFrame:Show()
-    else
-      SubFrame:Hide()
-    end
-
-    if FillDirection == 'HORIZONTAL' then
-      local x = nil
-
-      -- Turn slidersize into pixels
-      SliderSize = Width * SliderSize
-
-      if ReverseFill then
-        x = Width - Width * SliderValue - SliderSize
-      else
-        x = Width * SliderValue
-      end
-
-      SubFrame:SetWidth(SliderSize)
-      SubFrame:SetPoint('LEFT', x, 0)
-    else
-      local y = nil
-
-      -- Turn slidersize into pixels
-      SliderSize = Height * SliderSize
-
-      if ReverseFill then
-        y = Height - Height * SliderValue - SliderSize
-      else
-        y = Height * SliderValue
-      end
-
-      SubFrame:SetHeight(SliderSize)
-      SubFrame:SetPoint('BOTTOM', 0, y)
-    end
-    SubFrame:SetValue(1)
+  if FillClip and FillClip.Enabled then
+    Min, Max = SetFillClip(Texture, MaxValue, FillDirection, ReverseFill)
   end
 
-  Texture.Value = Value
+  Texture.ValueClipped = Value < Min and Min or Value > Max and Max or Value
+
+  -- Update any fillclips attached to this texture
+  if FillClipTextures then
+    for Index = 1, #FillClipTextures do
+      local FillClipTexture = FillClipTextures[Index]
+
+      if FillClipTexture.FillClip.Enabled then
+        SetFillClip(FillClipTexture, MaxValue, FillDirection, ReverseFill)
+      end
+    end
+  end
+
+  if Texture.Type == 'texture' then
+    local SubTexture = Texture.SubTexture
+    local TexLeft, TexRight, TexTop, TexBottom = Texture.TexLeft, Texture.TexRight, Texture.TexTop, Texture.TexBottom
+    local TextureWidth = Width
+    local TextureHeight = Height
+
+    -- Scale value
+    Value = Value / MaxValue
+
+    -- Calculate the texture width
+    if FillDirection == 'HORIZONTAL' then
+      TextureWidth = Width * Value
+
+      -- Check for reverse fill.
+      if ReverseFill then
+        TexLeft = TexRight - (TexRight - TexLeft) * Value
+        SubTexture:SetPoint('TOPLEFT', Width - TextureWidth, 0)
+      else
+        TexRight = TexLeft + (TexRight - TexLeft) * Value
+        SubTexture:SetPoint('TOPLEFT')
+      end
+    else
+
+      -- Calculate the texture height.
+      TextureHeight = Height * Value
+
+      -- Check for reverse fill
+      if ReverseFill then
+        TexBottom = TexTop + (TexBottom - TexTop) * Value
+        SubTexture:SetPoint('TOPLEFT')
+      else
+        TexTop = TexBottom - (TexBottom - TexTop) * Value
+        SubTexture:SetPoint('TOPLEFT', 0, (Height - TextureHeight) * -1)
+      end
+    end
+    SubTexture:SetSize(TextureWidth > 0 and TextureWidth or 0.001, TextureHeight > 0 and TextureHeight or 0.001)
+    SubTexture:SetTexCoord(TexLeft, TexRight, TexTop, TexBottom)
+  else
+
+    -- Set statusbar value.
+    Texture.SubFrame:SetValue(Value)
+  end
+  -- Display spark if not nil
+  if Spark then
+    local x = nil
+    local y = nil
+
+    -- Scale value
+    Value = Value / MaxValue
+
+    if FillDirection == 'HORIZONTAL' then
+      y = Height * 0.5 * -1
+      if ReverseFill then
+        x = Width - Width * Value + 1 -- Offset spark by 1
+      else
+        x = Width * Value
+      end
+
+      -- Set spark size.
+      Spark:SetSize(TextureSparkSize, Height * 2.3)
+    else
+      x = Width * 0.5
+      if ReverseFill then
+        y = Height * Value * -1 + 1 -- Offset spark by 1
+      else
+        y = (Height - Height * Value) * -1
+      end
+
+      -- Set spark size.
+      Spark:SetSize(Width * 2.3, TextureSparkSize)
+    end
+    Spark:Show()
+    Spark:SetPoint('CENTER', Spark.ParentFrame, 'TOPLEFT', x, y)
+  end
+  -- Do callback
+  if SetFillFn then
+    SetFillFn()
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -3762,17 +4032,19 @@ end
 --                   the animation but also the more cpu is consumed.
 -- StartTime         Starting time if nil then starts instantly.
 -- Duration          Time it will take to go from StartValue to EndValue.
--- StartValue        Starting value between 0 and 1.  If nill the current value
+-- StartValue        Starting value between 0 and MaxValue.  If nill the current value
 --                   is used instead.
--- EndValue          Ending value between 0 and 1. If nill 1 is used.
+-- EndValue          Ending value between 0 and MaxValue. If nill then MaxValue is used.
 -- Constant          If true then the bar fills at a constant speed
 --                   Duration becomes Speed. Must be between 0 and 1
 -------------------------------------------------------------------------------
 local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndValue, Constant)
   Main:SetTimer(Texture, nil)
+  local MaxValue = Texture.TextureFrame.MaxValue
+
   Duration = Duration or 0
   StartValue = StartValue and StartValue or Texture.Value
-  EndValue = EndValue and EndValue or 1
+  EndValue = EndValue and EndValue or MaxValue
 
   -- Only start a timer if startvalue and endvalues are not equal.
   if StartValue ~= EndValue and Duration > 0 then
@@ -3847,9 +4119,9 @@ end
 -- TextureNumber     Texture being used in fill.
 -- StartTime         Starting time if nil then starts instantly.
 -- Duration          Time it will take to reach from StartValue to EndValue.
--- StartValue        Starting value between 0 and 1.  If nill the current value
+-- StartValue        Starting value between 0 and MaxValue.  If nill the current value
 --                   is used instead.
--- EndValue          Ending value between 0 and 1. If nill 1 is used.
+-- EndValue          Ending value between 0 and MaxValue. If nill MaxValue is used.
 --
 -- NOTES:  To stop a timer just call this function with just the BoxNumber and TextureNumber
 -------------------------------------------------------------------------------
@@ -3867,7 +4139,7 @@ end
 --
 -- BoxNumber        Box containing texture to fill
 -- TextureNumber    Texture to apply fill to
--- Value            A number between 0 and 1
+-- Value            A number between 0 and MaxValue
 -- ShowSpark        If true spark will be shown, else hidden.  If nil nothing.
 --
 -- NOTE: See SetFill().
@@ -3908,8 +4180,6 @@ function BarDB:SetFillReverseTexture(BoxNumber, TextureNumber, Action)
     Texture.ReverseFill = Action
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetReverseFill(Action)
-    else
-      SetFill(Texture, Texture.Value)
     end
   until LastBox
 end
@@ -3963,44 +4233,6 @@ function BarDB:SetSmoothFillMaxTime(BoxNumber, TextureNumber, SmoothFillMaxTime)
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     Texture.SmoothFillMaxTime = SmoothFillMaxTime
-  until LastBox
-end
--------------------------------------------------------------------------------
--- SetSliderTexture
---
--- Makes a status bar or texture act as a slider.
---
--- Usage:  SetSliderTexture(Texture)  <-- local function call
---         SetSliderTexture(Texture, SliderSizer)
---
--- BoxNumber       Box containing the texture or statusbar
--- TextureNumber   The number refering to the texture or statusbar
--- SliderSize      Size between 0 to 1.
---
--- NOTES: The slider gets drawn from the value specified in SetFill calls.
--------------------------------------------------------------------------------
-local function SetSliderTexture(Texture)
-  local FillDirection = Texture.FillDirection
-  local SubFrame = Texture.SubFrame
-
-  SubFrame:ClearAllPoints()
-  if FillDirection == 'HORIZONTAL' then
-    SubFrame:SetPoint('TOP')
-    SubFrame:SetPoint('BOTTOM')
-  else
-    SubFrame:SetPoint('LEFT')
-    SubFrame:SetPoint('RIGHT')
-  end
-end
-
-function BarDB:SetSliderTexture(BoxNumber, TextureNumber, SliderSize)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-
-    if Texture.SliderSize == nil then
-      SetSliderTexture(Texture)
-    end
-    Texture.SliderSize = SliderSize
   until LastBox
 end
 
@@ -4251,12 +4483,6 @@ function BarDB:SetFillDirectionTexture(BoxNumber, TextureNumber, Direction)
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetOrientation(Direction)
     end
-
-    -- need to set filldirection on sliders
-    if Texture.SliderSize then
-      SetSliderTexture(Texture)
-    end
-
     RotateSpark(Texture)
   until LastBox
 end
@@ -4375,20 +4601,242 @@ function BarDB:SetAtlasTexture(BoxNumber, TextureNumber, AtlasName, UseSize)
 end
 
 -------------------------------------------------------------------------------
--- ClearAllPointsTexture
+-- SetFillClipRemoveTexture
 --
--- Clears all the points of a texture
+-- Removes all clipping for setfil from the texture
 --
--- BoxNumber      Box containing the texture
--- TextureNumber  Texture to clear points of.
---
--- NOTES: Works on statusbars only.
+-- BoxNumber              Box containing texture.
+-- TextureNumber          Texture that is being cleared
 -------------------------------------------------------------------------------
-function BarDB:ClearAllPointsTexture(BoxNumber, TextureNumber)
+function BarDB:SetFillClipRemoveTexture(BoxNumber, TextureNumber)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local FillClip = Texture.FillClip
+
+    if FillClip then
+      local RelativeTexture = FillClip.RelativeTexture
+
+      Texture.FillClip = nil
+
+      if Texture.Type == 'statusbar' then
+        Texture:ClearAllPoints()
+        Texture:SetAllPoints(Texture.PaddingFrame)
+        Texture.SubFrame:SetMinMaxValues(Texture.Min, Texture.Max)
+      else
+        Texture:SetPoint('CENTER')
+      end
+
+      -- Remove relative texture
+      if RelativeTexture then
+        local FillClipTextures = RelativeTexture.FillClipTextures
+
+        if FillClipTextures then
+          for Index = 1, #FillClipTextures do
+            if Texture == FillClipTextures[Index] then
+              tremove(FillClipTextures, Index)
+
+              -- Remove is table is empty
+              if #FillClipTextures == 0 then
+                RelativeTexture.FillClipTextures = nil
+                break
+              end
+            end
+          end
+        end
+      end
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillClipFlagsTexture
+--
+-- Changes the way fill clip works
+--
+-- Usage: SetFillClipFlagsTexture(BoxNumber, TextureNumber, Flags)
+--
+-- BoxNumber                Box containing texture.
+-- TextureNumber            Texture that is being modified.
+-- Flags                      'reverse'   - Texture will be repositioned to fit reverse fill
+--                            'noreverse' - Turns off reverse fill
+--                            'enable'    - Makes fill clip working again
+--                            'disable'   - Makes fill clip stop working
+--                          These flags can appear in any order seperated by a comma
+--
+-- Example:  SetFillClip(BoxNumber, TextureNumber, 'reverse')
+--             The textures will reverse when reverse fill is set
+--           This must be called before SetFillClipTexture
+-------------------------------------------------------------------------------
+function BarDB:SetFillClipFlagsTexture(BoxNumber, TextureNumber, ...)
+  local Reverse = nil
+  local Enabled = nil
+
+  for Index = 1, select('#', ...) do
+    local Flag = select(Index, ...)
+
+    if Flag == 'reverse' then
+      Reverse = true
+    elseif Flag == 'noreverse' then
+      Reverse = false
+    elseif Flag == 'enable' then
+      Enabled = true
+    elseif Flag == 'disable' then
+      Enabled = false
+    else
+      assert(false, format('Invalid flag: %s', Flag))
+    end
+  end
+
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local FillClip = Texture.FillClip
+
+    if FillClip == nil then
+      FillClip = {}
+      Texture.FillClip = FillClip
+    end
+
+    if Reverse ~= nil then
+      FillClip.Reverse = Reverse
+    end
+    if Enabled ~= nil then
+      FillClip.Enabled = Enabled
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillClipTexture
+--
+-- Makes it so SetFillTexture will only fill part of the texture that is set in
+-- this function.  Can use it to use multiple statusbars as one, etc.
+--
+-- Usage: SetFillClipTexture(BoxNumber, TextureNumber, Reverse, 'start' or 'end', [Value])
+--        SetFillClipTexture(BoxNumber, TextureNumber, Reverse, 'tstart' or 'tend', Value)
+--        SetFillClipTexture(BoxNumber, TextureNumber, Reverse, 'length', Value)
+--
+-- BoxNumber                Box containing texture.
+-- TextureNumber            Texture that is being modified.
+-- Length                   Optional. Sets the maximum length of the texture.  This only works with tstart or tend
+-- Value                     'start' or 'end'   : This sets the starting or ending point from 0 to maxvalue
+--                                                If nil then 0 is used for 'start' and MaxValue for 'end'
+--                           'tstart' or 'tend' : This sets the relative texture whos value will be used.
+--                                                This can only be set once per TextureNumber
+--                           'length'           : This sets the length, takes the place of a starting or ending position.
+
+-- NOTES: Look at StaggerBar and HealthPowerBar for how this is used.
+--        So if you set the Start to 0.25 and End to 0.75, then the statusbar
+--        would have a range from 25% to 75% on horizontal or vertical
+--
+--        'start' is where fill starts from doesn't matter if its reverse fill or not
+-------------------------------------------------------------------------------
+function BarDB:SetFillClipTexture(BoxNumber, TextureNumber, Position, Value)
+  local RelativeTexture = false
+
+  repeat
+    local TFTextures = NextBox(self, BoxNumber).TFTextures
+    local Texture = TFTextures[TextureNumber]
+    local FillClip = Texture.FillClip
+    local Index = #FillClip
+
+    if Value == nil then
+      Value = 'nil'
+    end
+    -- Relative clip
+    if Position == 'tstart' or Position == 'tend' then
+
+      -- Check if this was done before
+      if FillClip.RelativeTexture then
+        assert(false, 'Same texture already used')
+      else
+        Value = TFTextures[Value]
+        FillClip.RelativeTexture = Value
+
+        -- Make sure SetFill() will update this texture based on
+        -- the value of the relative texture.
+        local FillClipTextures = Value.FillClipTextures
+        if FillClipTextures == nil then
+          FillClipTextures = {}
+          Value.FillClipTextures = FillClipTextures
+        end
+        FillClipTextures[#FillClipTextures + 1] = Texture
+
+        if Position == 'tstart' then
+          FillClip.Tstart = Value
+        else
+          FillClip.Tend = Value
+        end
+      end
+    elseif Position == 'start' or Position == 'end' then
+      if Position == 'start' then
+        FillClip.Start = Value
+      else
+        FillClip.End = Value
+      end
+    -- Save length for fillclip texture
+    elseif Position == 'length' then
+      FillClip.Length = Value
+    else
+      assert(false, 'Invalid position')
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillMinMaxValuesTexture
+--
+-- Sets the values that SetFill() will accept
+-- Values beyond the range of the TextureFrame will get ignored
+--
+-- BoxNumber              Box containing texture.
+-- TextureNumber          Texture to modify.
+-- Min, Max               If nil then value doesn't get changed.
+--
+-- NOTES: SetFillClipTexture will override the values set here, but wont change
+--        them if you remove them SetFillClipRemoveTexture texture.
+-------------------------------------------------------------------------------
+function BarDB:SetFillMinMaxValuesTexture(BoxNumber, TextureNumber, Min, Max)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture:ClearAllPoints()
+    Texture.Min = Min or Texture.Min
+    Texture.Max = Max or Texture.Max
+
+    if Texture.Type == 'statusbar' then
+      Texture.SubFrame:SetMinMaxValues(Min, Max)
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillFnTexture
+--
+-- Sets a function to be called each time SetFill() is called
+--
+-- BoxNumber              Box containing texture.
+-- TextureNumber          Texture being watched
+-- Fn                     Function to call. If nil function gets removed.
+--
+-- Parms passed to Fn
+--   UnitBarF       Bar that the timer was started in.
+--   self(BarDB)    Bar object the bar was created in.
+--   BN             Current box number.
+--   TextureNumber
+--   Value          Current value of the fill.
+-------------------------------------------------------------------------------
+function BarDB:SetFillFnTexture(BoxNumber, TextureNumber, Fn)
+  repeat
+    local BoxFrame, BN = NextBox(self, BoxNumber)
+    local Texture = BoxFrame.TFTextures[TextureNumber]
+
+    if Fn == nil then
+      Texture.SetFillFn = nil
+
+    elseif Texture.SetFillFn ~= Fn then
+      Texture.SetFillFn = function()
+                            Fn(self.UnitBarF, self, BN, TextureNumber, Texture.Value)
+                          end
+    end
   until LastBox
 end
 
@@ -4397,42 +4845,43 @@ end
 --
 -- Sets the texture location inside of the texture frame.
 --
+-- Usage:  SetPointTexture(BoxNumber, TextureNumber, Point, RelativePoint, [OffsetX, OffsetY])
+--         SetPointTexture(BoxNumber, TextureNumber, Point, [OffsetX, OffsetY])
+--
 -- BoxNumber              Box containing texture.
 -- TextureNumber          Texture to modify.
 -- Point                  String. Point to set.
--- RelativeTextureNumber  If specified then the texture point is set relative to this texture.
---                        If nil then the parent TextureFrame is used instead.
 -- RelativePoint          If specified then the texture point is set to the relative texture point.
 -- OffsetX, OffsetY       X, Y offset in pixels from Point.
 -------------------------------------------------------------------------------
 function BarDB:SetPointTexture(BoxNumber, TextureNumber, Point, ...)
-  local RelativeTextureNumber, RelativePoint = select(1, ...)
-  local OffsetX = select(3, ...) or 0
-  local OffsetY = select(4, ...) or 0
-  local Relative = true
+  local RelativePoint = select(1, ...)
+  local Par5, Par6 = 5, 6
 
   if RelativePoint == nil or type(RelativePoint) == 'number' then
-    OffsetX = RelativeTextureNumber or 0
-    OffsetY = RelativePoint or 0
-    Relative = false
+    Par5 = 4
+    Par6 = 5
+    RelativePoint = Point
   end
+
+  local OffsetX = select(Par5, ...) or 0
+  local OffsetY = select(Par6, ...) or 0
+  local RelativeTexture = nil
+
   repeat
-    local TFTextures = NextBox(self, BoxNumber).TFTextures
-    local Texture = TFTextures[TextureNumber]
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local BorderFrame = Texture.BorderFrame
     local Scale = Texture:GetScale()
 
     OffsetX = OffsetX / Scale
     OffsetY = OffsetY / Scale
 
-    if Relative then
-      if RelativeTextureNumber then
-        Texture:SetPoint(Point, TFTextures[RelativeTextureNumber], RelativePoint, OffsetX, OffsetY)
-      else
-        Texture:SetPoint(Point, Texture:GetParent(), RelativePoint, OffsetX, OffsetY)
-      end
+    if Texture.Type == 'statusbar' then
+      RelativeTexture = Texture.BorderFrame
     else
-      Texture:SetPoint(Point, OffsetX, OffsetY)
+      RelativeTexture = Texture:GetParent()
     end
+    Texture:SetPoint(Point, RelativeTexture, RelativePoint, OffsetX, OffsetY)
   until LastBox
 end
 
@@ -4551,15 +5000,12 @@ end
 --
 -- SoundName    Name of the sound to play.
 -- Channel      Sound channel.
--- PathName     If true then the SoundName becomes a path to the sound to play.
---              Otherwise nil.
 -------------------------------------------------------------------------------
-function BarDB:PlaySound(SoundName, Channel, PathName)
+function BarDB:PlaySound(SoundName, Channel)
   -- No SaveSettings for sound. Since there is nothing visual to restore.
 
   if not Main.ProfileChanged and not Main.IsDead then
-    SoundName = PathName and SoundName or LSM:Fetch('sound', SoundName)
-    PlaySoundFile(SoundName, Channel)
+    PlaySoundFile(LSM:Fetch('sound', SoundName), Channel)
   end
 end
 
@@ -4659,6 +5105,38 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
 end
 
 -------------------------------------------------------------------------------
+-- OnSizeChangedTexture (called by setscript)
+--
+-- Updates the width and height of a statusbar or texture.
+--
+-- Texture         Texure whos size has changed
+-- Width, Height   Width and Height of the StatusBar
+--
+-- NOTES:  This function makes sure a texture always stretches to the size of
+--         the textures subframe.  It also makes sure that statusbar gets updated
+--         if its size was changed and it was setfilled.
+-------------------------------------------------------------------------------
+local function OnSizeChangedTexture(Texture, Width, Height)
+  local Value = Texture.Value
+
+  Texture._Width = Width
+  Texture._Height = Height
+
+  if Texture.Type == 'texture' then
+
+    -- Update the texture to be the same size as the SubFrame
+    Texture.SubTexture:SetSize(Width, Height)
+  end
+  if Texture.SetFill then
+    if Texture.Type == 'statusbar' then
+      -- Work around, statusbar size dont update properly unless this is done.
+      Texture.SubFrame:SetValue(Value - 1)
+    end
+    SetFill(Texture, Value, Texture.Spark)
+  end
+end
+
+-------------------------------------------------------------------------------
 -- CreateTextureFrame
 --
 -- BoxNumber            Which box you're creating a TexureFrame in.
@@ -4667,7 +5145,7 @@ end
 --
 -- NOTES:   TextureFrames are always the same size as BoxFrame, unless you do a SetPoint on it.
 --          TextureFrameNumber must be linier.  So you can't do a TextureFrameNumber of 1 then 2, and 5.
---          Must be 1,2,3
+--          Must be 1,2,3.  You can create them out of order so long as there's no holes.
 -------------------------------------------------------------------------------
 function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, Level)
   repeat
@@ -4683,59 +5161,31 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, Level)
     -- Create texture frame border for border, but also allow the texture frame to change size
     -- without effecting the box size.
     local BorderFrame = CreateFrame('Frame', nil, TF)
+    local PaddingFrame = CreateFrame('Frame', nil, BorderFrame)
+
     BorderFrame:SetPoint('LEFT')
     BorderFrame:SetPoint('RIGHT')
     BorderFrame:SetPoint('TOP')
     BorderFrame:SetPoint('BOTTOM')
+    PaddingFrame:SetAllPoints(BorderFrame)
 
     -- Add the framelevel passed to the current framelevel.
     local FrameLevel = GetVirtualFrameLevel(Level)
     SetVirtualFrameLevel(Level, FrameLevel)
 
     BorderFrame:SetFrameLevel(FrameLevel)
+
     TF:Hide()
     TF.Hidden = true
     TF.BorderFrame = BorderFrame
+    TF.PaddingFrame = PaddingFrame
+    TF.MaxValue = 1
 
     TextureFrames[TextureFrameNumber] = TF
 
     -- Update TopFrameLevel counter
     SetTopFrame(self, TF)
   until LastBox
-end
-
--------------------------------------------------------------------------------
--- OnSizeChangedTexture (called by setscript)
---
--- Updates the width and height of a statusbar or texture.
---
--- self            PaddingFrame
--- Width, Height   Width and Height of the StatusBar
---
--- NOTES:  This function makes sure a texture always stretches to the size of
---         the textures subframe.  It also makes sure that statusbar gets updated
---         if its size was changed and it was setfilled.
--------------------------------------------------------------------------------
-local function OnSizeChangedTexture(PaddingFrame, Width, Height)
-  local Texture = PaddingFrame:GetParent()
-
-  Texture._Width = Width
-  Texture._Height = Height
-
-  if Texture.SetFill then
-    local Value = Texture.Value
-
-    if Texture.Type == 'statusbar' then
-      Texture.SubFrame:SetValue(Value - 1)
-    end
-    SetFill(Texture, Value)
-    Texture:SetSize(Width, Height)
-
-  elseif Texture.Type == 'texture' then
-
-    -- Update the texture to be the same size as the SubFrame
-    Texture.SubTexture:SetSize(Width, Height)
-  end
 end
 
 -------------------------------------------------------------------------------
@@ -4750,21 +5200,27 @@ end
 --                        can be the same is if the same texture used in two or more
 --                        different boxes.
 --
--- NOTES:  Textures are always the same size as the texture frame, unless changed with setpointtexture.
+-- NOTES:  Textures are always the same size as the texture frame, unless changed with SetFillClipTexture().
+--         Points Map
+--           BorderFrame
+--             PaddingFrame       (workspace for texture frame)
+--               Texture          ALL - StatusBar
+--                                TOPLEFT -- Texture
+--                 SubFrame       ALL
+--                   SubTexture   TOPLEFT
 -------------------------------------------------------------------------------
 function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, TextureNumber)
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrame = BoxFrame.TextureFrames[TextureFrameNumber]
-    local BorderFrame = TextureFrame.BorderFrame
+    local PaddingFrame = TextureFrame.PaddingFrame
     local SubFrame = nil
-    local ScaleFrame = CreateFrame('Frame', nil, BorderFrame)
+    local ScaleFrame = CreateFrame('Frame', nil, PaddingFrame)
     local Texture = CreateFrame('Frame', nil, ScaleFrame)
-    local PaddingFrame = CreateFrame('Frame', nil, Texture)
 
-    -- Scaleframe is always same size as borderframe.
+    -- Scaleframe is always same size as padding frame.
     -- This frame is used for scaling other frames only.
-    ScaleFrame:SetAllPoints(BorderFrame)
+    ScaleFrame:SetAllPoints(PaddingFrame)
 
     -- Set base frame level.
     local FrameLevel = GetVirtualFrameLevel(Level)
@@ -4773,21 +5229,22 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
 
     -- Create a statusbar or texture.
     if TextureType == 'statusbar' then
-      SubFrame = CreateFrame('StatusBar', nil, PaddingFrame)
+      SubFrame = CreateFrame('StatusBar', nil, Texture)
       SubFrame:SetMinMaxValues(0, 1)
       SubFrame:SetValue(1)
       SubFrame:SetOrientation('HORIZONTAL')
 
-      -- Status bar is always the same size of the texture frame's borderframe.
+      -- Status bar is always the same size of the texture frame's padding frame.
+      -- If changing SetAllPoints to different point, SetFillClipClearTexture() needs to be changed.
       Texture:ClearAllPoints()
-      Texture:SetAllPoints(BorderFrame)
+      Texture:SetAllPoints(PaddingFrame)
 
       -- Set defaults for statusbar.
       Texture.Type = 'statusbar'
 
       FrameLevel = FrameLevel + 1
     else
-      SubFrame = CreateFrame('Frame', nil, PaddingFrame)
+      SubFrame = CreateFrame('Frame', nil, Texture)
       local SubTexture = SubFrame:CreateTexture()
 
       Texture.SubTexture = SubTexture
@@ -4822,8 +5279,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     end
 
     -- Make sure subframe is always the same size as texture.
-    PaddingFrame:SetAllPoints(Texture)
-    SubFrame:SetAllPoints(PaddingFrame)
+    SubFrame:SetAllPoints(Texture)
 
     -- Set highest frame level.
     SetVirtualFrameLevel(Level, FrameLevel)
@@ -4832,15 +5288,18 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureType, Level, 
     SetTopFrame(self, SubFrame)
 
     -- Set onsize changed to update texture size.
-    PaddingFrame:SetScript('OnSizeChanged', OnSizeChangedTexture)
+    Texture:SetScript('OnSizeChanged', OnSizeChangedTexture)
 
     -- Set defaults.
+    Texture.TextureFrame = TextureFrame
     Texture.ScaleFrame = ScaleFrame
-    Texture.SubFrame = SubFrame
     Texture.PaddingFrame = PaddingFrame
+    Texture.SubFrame = SubFrame
     Texture._Width = 1
     Texture._Height = 1
     Texture.Value = 1
+    Texture.Min = 0
+    Texture.Max = 1
     Texture.RotateTexture = false
     Texture.FillDirection = 'HORIZONTAL'
     Texture.ReverseFill = false
@@ -5200,147 +5659,6 @@ function BarDB:SetValueRawFont(BoxNumber, Text)
 end
 
 -------------------------------------------------------------------------------
--- SetValueTimer
---
--- Timer function for FontSetValueTime
--------------------------------------------------------------------------------
-local function SetValueTimer(FontTime)
-  local TimeElapsed = GetTime() - FontTime.StartTime
-
-  if TimeElapsed < FontTime.Duration then
-    local Counter = FontTime.Counter
-    local TextData = FontTime.TextData
-    local Text = TextData.Text
-
-    TextData.time = Counter
-
-    if TextData.Multi then
-      for Index = 1, TextData.NumStrings do
-        local FontString = TextData[Index]
-        local Txt = Text[Index]
-        local ValueNames = Txt.ValueNames
-
-        -- Display the font string
-        local ReturnOK, Msg = pcall(SetValue, TextData, FontString, Txt.Layout, #ValueNames, ValueNames, Txt.ValueTypes)
-
-        if not ReturnOK then
-          FontString:SetFormattedText('Err (%d)', Index)
-          Options:AddDebugLine(format('%s - Err (%d) :%s', TextData.BarType, Index, Msg))
-        end
-      end
-    else
-      local Txt = TextData.Text[1]
-      local ValueNames = Txt.ValueNames
-
-      -- Display the font string
-      local ReturnOK, Msg = pcall(SetValue, TextData, TextData[1], Txt.Layout, #ValueNames, ValueNames, Txt.ValueTypes)
-
-      if not ReturnOK then
-        TextData[1]:SetFormattedText('Err (%d)', 1)
-        Options:AddDebugLine(format('%s - Err (%d) :%s', TextData.BarType, 1, Msg))
-      end
-    end
-    Counter = Counter + FontTime.Step
-    Counter = Counter > 0 and Counter or 0
-    FontTime.Counter = Counter
-  else
-
-    -- stop timer
-    Main:SetTimer(FontTime, nil)
-    local TextData = FontTime.TextData
-    for Index = 1, TextData.NumStrings do
-      TextData[Index]:SetText('')
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- FontSetValueTime
---
--- Displays time in seconds over time.
---
--- BoxNumber            BoxNumber to display time on.
--- StartTime            Starting time if nil then the current time will be used.
--- Duration             Duration in seconds.  Duration of 0 or less will stop the current timer.
--- StartValue           Starting value in seconds.  This will start dipslaying seconds from this value.
--- Direction            Direction to go in +1 or -1
--- ...                  Additional Type, Value pairs. Optional.  Example:
---                        'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'name', Unit)
--------------------------------------------------------------------------------
-function BarDB:SetValueTimeFont(BoxNumber, StartTime, Duration, StartValue, Direction, ...)
-  local Step = Direction == 1 and 0.1 or Direction == -1 and -0.1 or 0.1
-
-  repeat
-    local Frame = NextBox(self, BoxNumber)
-
-    local FontTime = Frame.FontTime
-    if FontTime == nil then
-      FontTime = {}
-      Frame.FontTime = FontTime
-    end
-
-    Main:SetTimer(FontTime, nil)
-
-    Duration = Duration or 0
-    local TextData = Frame.TextData
-
-    if Duration > 0 then
-      local CurrentTime = GetTime()
-      local WaitTime = 0
-      local TimeElapsed = 0
-
-      StartTime = StartTime and StartTime or CurrentTime
-
-      if StartTime > CurrentTime then
-        WaitTime = StartTime - CurrentTime
-      else
-        TimeElapsed = CurrentTime - StartTime
-      end
-
-      if Step < 0 then
-        StartValue = Duration - TimeElapsed
-      else
-        StartValue = StartValue + TimeElapsed
-      end
-
-      -- Truncate down to 1 decimal place.
-      StartValue = abs(StartValue - (StartValue % 0.1))
-
-      -- Set up the paramaters.
-      FontTime.StartTime = StartTime
-      FontTime.Duration = Duration
-      FontTime.StartValue = StartValue
-      FontTime.Counter = StartValue
-      FontTime.Step = Step
-      FontTime.TextData = TextData
-      FontTime.Frame = Frame
-
-      local MaxPar = select('#', ...)
-      if MaxPar > 0 then
-        local Index = 1
-
-        repeat
-          local ParType, ParValue = select(Index, ...)
-          local ParSize = SetValueParSize[ParType] or 2
-
-          TextData[ParType] = ParValue
-          if ParSize == 3 then
-            TextData[ParType .. '2'] = select(Index + 2, ...)
-          end
-          Index = Index + ParSize
-        until Index > MaxPar
-      end
-
-      Main:SetTimer(FontTime, SetValueTimer, 0.1, WaitTime)
-    else
-      for Index = 1, TextData.NumStrings do
-        TextData[Index]:SetText('')
-      end
-    end
-  until LastBox
-end
-
--------------------------------------------------------------------------------
 -- GetLayoutFont
 --
 -- ValueNames      Array containing the names.
@@ -5420,11 +5738,10 @@ end
 function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
   SaveSettings(self, 'SetOffsetFont', BoxNumber, TextLine, OffsetX, OffsetY)
 
-  local Text = self.UnitBarF.UnitBar.Text
-
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
+    local Text = TextData.Text
 
     -- Check for fontstrings
     if TextData then
@@ -5525,11 +5842,10 @@ end
 function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
   SaveSettings(self, 'SetSizeFont', BoxNumber, TextLine, Size)
 
-  local Text = self.UnitBarF.UnitBar.Text
-
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
+    local Text = TextData.Text
 
     -- Check for fontstrings
     if TextData then
@@ -5596,11 +5912,10 @@ end
 function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
   SaveSettings(self, 'SetTypeFont', BoxNumber, TextLine, Type)
 
-  local Text = self.UnitBarF.UnitBar.Text
-
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
+    local Text = TextData.Text
 
     -- Check for fontstrings
     if TextData then
@@ -5634,11 +5949,10 @@ end
 function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
   SaveSettings(self, 'SetStyleFont', BoxNumber, TextLine, Style)
 
-  local Text = self.UnitBarF.UnitBar.Text
-
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
+    local Text = TextData.Text
 
     -- Check for fontstrings
     if TextData then
@@ -5663,95 +5977,98 @@ end
 --
 -- Updates a font based on the text settings in UnitBar.Text
 --
--- BoxNumber            BoxFrame that contains the font.
+-- BoxNumber            BoxFrame that contains the font. Cant use 0.
 -- ColorIndex           Sets color[ColorIndex] bypassing Color.All setting.
 -------------------------------------------------------------------------------
 function BarDB:UpdateFont(BoxNumber, ColorIndex)
-  local Text = self.UnitBarF.UnitBar.Text
   local TopFrame = self.TopFrame
   local UBD = DUB[self.BarType]
-  local DefaultTextSettings = UBD.Text[1]
-  local Multi = UBD.Text._Multi
 
-  repeat
-    local Frame, BoxIndex = NextBox(self, BoxNumber)
+  local Frame = self.BoxFrames[BoxNumber]
 
-    local TextData = Frame.TextData
-    local TextFrames = TextData.TextFrames
-    local NumStrings = nil
+  local TextData = Frame.TextData
+  local TextTableName = TextData.TextTableName
+  local Text = self.UnitBarF.UnitBar[TextTableName]
 
-    -- Adjust the fontstring array based on the text settings.
-    for Index = 1, #Text do
-      local FontString = TextData[Index]
-      local Txt = Text[Index]
-      local TextFrame = TextFrames[Index]
-      local Color = Txt.Color
-      local c = nil
-      local ColorAll = Color.All
+  local DefaultTextSettings = UBD[TextTableName][1]
+  local Multi = UBD[TextTableName]._Multi
 
-      -- Colorall dont exist then fake colorall.
-      if ColorAll == nil then
-        ColorAll = true
-      end
-      NumStrings = Index
+  TextData.Text = Text
 
-      -- Update the layout if not in custom mode.
-      if not Txt.Custom then
-        Txt.Layout = GetLayoutFont(Txt.ValueNames, Txt.ValueTypes)
-      end
+  local TextFrames = TextData.TextFrames
+  local NumStrings = nil
 
-      -- Create a new fontstring if one doesn't exist.
-      if FontString == nil then
-        TextFrame = CreateFrame('Frame', nil, Frame)
-        TextFrame:SetBackdrop(FrameBorder)
-        TextFrame:SetBackdropBorderColor(1, 1, 1, 0)
+  -- Adjust the fontstring array based on the text settings.
+  for Index = 1, #Text do
+    local FontString = TextData[Index]
+    local Txt = Text[Index]
+    local TextFrame = TextFrames[Index]
+    local Color = Txt.Color
+    local c = nil
+    local ColorAll = Color.All
 
-        TextFrames[Index] = TextFrame
-        FontString = TextFrame:CreateFontString()
+    -- Colorall dont exist then fake colorall.
+    if ColorAll == nil then
+      ColorAll = true
+    end
+    NumStrings = Index
 
-        FontString:SetAllPoints(TextFrame)
-        TextData[Index] = FontString
-      end
-
-      -- Set font size, type, and style
-      self:SetTypeFont(BoxNumber, Index)
-      self:SetSizeFont(BoxNumber, Index)
-      self:SetStyleFont(BoxNumber, Index)
-
-      -- Set font location
-      FontString:SetJustifyH(Txt.FontHAlign)
-      FontString:SetJustifyV(Txt.FontVAlign)
-      FontString:SetShadowOffset(Txt.ShadowOffset, -Txt.ShadowOffset)
-
-      -- Position the font by moving textframe.
-      self:SetOffsetFont(BoxNumber, Index)
-      TextFrame:SetSize(Txt.Width, Txt.Height)
-
-      -- Set the text frame to be on top.
-      TextFrame:SetFrameLevel(TopFrame:GetFrameLevel() + 1)
-
-      if FontString:GetText() == nil then
-        FontString:SetText('')
-      end
-
-      if ColorAll then
-        c = Color
-      elseif ColorIndex then
-        c = Color[ColorIndex]
-      else
-        c = Color[BoxIndex]
-      end
-      self:SetColorFont(BoxNumber, Index, c.r, c.g, c.b, c.a)
+    -- Update the layout if not in custom mode.
+    if not Txt.Custom then
+      Txt.Layout = GetLayoutFont(Txt.ValueNames, Txt.ValueTypes)
     end
 
-    -- Erase font string data no longer used.
-    for Index = NumStrings + 1, TextData.NumStrings do
-      TextData[Index]:SetText('')
+    -- Create a new fontstring if one doesn't exist.
+    if FontString == nil then
+      TextFrame = CreateFrame('Frame', nil, Frame)
+      TextFrame:SetBackdrop(FrameBorder)
+      TextFrame:SetBackdropBorderColor(1, 1, 1, 0)
+
+      TextFrames[Index] = TextFrame
+      FontString = TextFrame:CreateFontString()
+
+      FontString:SetAllPoints(TextFrame)
+      TextData[Index] = FontString
     end
-    TextData.Multi = Multi
-    TextData.NumStrings = NumStrings
-    TextData.Text = Text
-  until LastBox
+
+    -- Set font size, type, and style
+    self:SetTypeFont(BoxNumber, Index)
+    self:SetSizeFont(BoxNumber, Index)
+    self:SetStyleFont(BoxNumber, Index)
+
+    -- Set font location
+    FontString:SetJustifyH(Txt.FontHAlign)
+    FontString:SetJustifyV(Txt.FontVAlign)
+    FontString:SetShadowOffset(Txt.ShadowOffset, -Txt.ShadowOffset)
+
+    -- Position the font by moving textframe.
+    self:SetOffsetFont(BoxNumber, Index)
+    TextFrame:SetSize(Txt.Width, Txt.Height)
+
+    -- Set the text frame to be on top.
+    TextFrame:SetFrameLevel(TopFrame:GetFrameLevel() + 1)
+
+    if FontString:GetText() == nil then
+      FontString:SetText('')
+    end
+
+    if ColorAll then
+      c = Color
+    elseif ColorIndex then
+      c = Color[ColorIndex]
+    else
+      c = Color[BoxNumber]
+    end
+    self:SetColorFont(BoxNumber, Index, c.r, c.g, c.b, c.a)
+  end
+
+  -- Erase font string data no longer used.
+  for Index = NumStrings + 1, TextData.NumStrings do
+    TextData[Index]:SetText('')
+  end
+  TextData.Multi = Multi
+  TextData.NumStrings = NumStrings
+  TextData.Text = Text
 end
 
 -------------------------------------------------------------------------------
@@ -5759,13 +6076,15 @@ end
 --
 -- Creates a font object to display text on the bar.
 --
+-- TextTableName        Name of the table that contains the text in the unitbar
 -- BoxNumber            Boxframe you want the font to be displayed on.
 -- PercentFn            Function to calculate percents in FontSetValue()
 --                      Not all percent calculations are the same. So this
 --                      adds that flexibility. If nil uses its own math.
 -------------------------------------------------------------------------------
-function BarDB:CreateFont(BoxNumber, PercentFn)
+function BarDB:CreateFont(TextTableName, BoxNumber, PercentFn)
   local BarType = self.BarType
+  local Text = self.UnitBarF.UnitBar[TextTableName]
 
   repeat
     local Frame = NextBox(self, BoxNumber)
@@ -5784,6 +6103,9 @@ function BarDB:CreateFont(BoxNumber, PercentFn)
     TextData.NumStrings = 0
     TextData.TextFrames = {}
     TextData.PercentFn = PercentFn
+    TextData.Text = Text
+    TextData.TextTableName = TextTableName
+
     Frame.TextData = TextData
   until LastBox
 end
@@ -6980,7 +7302,7 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
           CompValue = ceil(p3 / p4 * 100)
         end
       else
-        -- Whole number.
+        -- Whole number or float.
         CompValue = p3
       end
     end
@@ -6988,9 +7310,9 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
     local GroupType = Group.GroupType
 
     if GroupType == 'v' then
-      assert(false, 'BarDB:SetTriggers(): Group can not be type: virtual')
+      assert(false, 'Group can not be type: virtual')
     elseif GroupType == 'a' then
-      assert(false, 'BarDB:SetTriggers(): Group can not be type: all')
+      assert(false, 'Group can not be type: all')
     end
 
     local VirtualGroupNumber = Group.VirtualGroupNumber
@@ -7082,7 +7404,7 @@ function BarDB:HideVirtualGroupTriggers(VirtualGroupNumber, Hidden, GroupNumber)
   local Group = Groups[GroupNumber]
 
   if Groups[VirtualGroupNumber].GroupType ~= 'v' then
-    assert(false, format('BarDB:HideGroupTriggers(): Group "%s" must be virtual', Group.Name))
+    assert(false, format('Group "%s" must be virtual', Group.Name))
   end
   local BoxNumber = Group.BoxNumber
 

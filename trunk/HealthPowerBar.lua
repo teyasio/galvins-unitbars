@@ -24,14 +24,14 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
       strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, sort, unpack, wipe, tremove, tinsert
+local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
+      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
 local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
       GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
 local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
       UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied
+local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
+      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
 local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
       UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
 local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
@@ -53,13 +53,14 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -------------------------------------------------------------------------------
 local Display = false
 local Update = false
-local ScanTooltip = nil
-local MaxSpells = 1024
 
-local StatusBar = 1
-local PredictedBar = 2
-local PredictedCostBar = 3
-local ChangeStatusBars = 1
+local HapBox = 1
+local HapTFrame = 1
+
+local StatusBar = 10
+local PredictedBar = 20
+local PredictedCostBar = 30
+local ChangeStatusBars = 5
 
 -- Powertype constants
 local PowerMana = ConvertPowerType['MANA']
@@ -74,11 +75,11 @@ local GF = { -- Get function data
 }
 
 local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             1 },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        1,
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             HapTFrame },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        HapTFrame,
     GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         1 },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              1,
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         HapTFrame },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              HapTFrame,
     GF = GF },
   { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
@@ -89,7 +90,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (cost)', PredictedCostBar },
   { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (cost)',   PredictedCostBar,
     GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    1 },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    HapTFrame },
   { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
     GF = GF },
   { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
@@ -262,40 +263,6 @@ end
 
 --*****************************************************************************
 --
--- Health and Power bar script functions (script/event)
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- HapBarStartMoving
---
--- If UnitBars.IsGrouped is true then the unitbar parent frame will be moved.
--- Otherwise just the runes will be moved.
--------------------------------------------------------------------------------
-local function HapBarStartMoving(self, Button)
-
-  -- Call the base moving function for group or anchor movement.
-  if Main.UnitBarStartMoving(self.Anchor, Button) then
-    self.UnitBarMoving = true
-  end
-end
-
--------------------------------------------------------------------------------
--- HapBarStopMoving
---
--- Same as above except it stops moving and saves the new coordinates.
--------------------------------------------------------------------------------
-local function HapBarStopMoving(self, Button)
-
-  -- Call the stop moving base function if there was a group move or anchor move.
-  if self.UnitBarMoving then
-    self.UnitBarMoving = false
-    Main.UnitBarStopMoving(self.Anchor, Button)
-  end
-end
-
---*****************************************************************************
---
 -- Health and Power bar display
 --
 --*****************************************************************************
@@ -330,7 +297,7 @@ local function UpdateHealthBar(self, Event, Unit)
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
-    local PredictedHealth = TestMode.PredictedHealth or 0
+    local PredictedHealth = Layout.PredictedHealth and TestMode.PredictedHealth or 0
 
     self.Testing = true
 
@@ -346,8 +313,7 @@ local function UpdateHealthBar(self, Event, Unit)
     self.Testing = false
 
     if MaxValue == 0 then
-      BBar:SetSliderTexture(1, PredictedBar, 0)
-      BBar:SetFillTexture(1, PredictedBar, 0)
+      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
     end
   end
 
@@ -380,38 +346,20 @@ local function UpdateHealthBar(self, Event, Unit)
   if MaxValue > 0 then
 
     -- Do predicted healing
-    local Change = self.LastPredictedHealing ~= PredictedHealing
-
-    if Change or PredictedHealing > 0 then
+    if self.LastPredictedHealing ~= PredictedHealing then
       local Color = Bar.PredictedColor
 
-      if PredictedHealing > 0 then
-        BBar:SetSliderTexture(1, PredictedBar, PredictedHealing / MaxValue)
-      else
-        BBar:SetSliderTexture(1, PredictedBar, 0)
-      end
-
-      -- Stop smooth animation, so slider can be positioned instantly.
-      -- Only during change.  Want slider to smooth slide when cost doesn't change.
-      if Change then
-        BBar:SetFillSpeedTexture(1, PredictedBar, 0)
-      end
-
-      BBar:SetFillTexture(1, PredictedBar, Value)
-
-      if Change then
-        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFillSpeed)
-      end
+      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', PredictedHealing / MaxValue)
       self.LastPredictedHealing = PredictedHealing
     end
   end
 
   -- Set the color and display the value.
-  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
+  BBar:SetColorTexture(HapBox, StatusBar, r, g, b, a)
 
-  BBar:SetFillTexture(1, StatusBar, Value)
+  BBar:SetFillTexture(HapBox, StatusBar, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Unit)
+    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Unit)
   end
 
   -- Check triggers
@@ -515,8 +463,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
-    local TestPredictedPower = TestMode.PredictedPower or 0
-    local TestPredictedCost = TestMode.PredictedCost or 0
+    local TestPredictedPower = Layout.PredictedPower and TestMode.PredictedPower or 0
+    local TestPredictedCost = Layout.PredictedCost and TestMode.PredictedCost or 0
 
     self.Testing = true
 
@@ -538,10 +486,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     PredictedCost = 0
 
     if MaxValue == 0 then
-      BBar:SetSliderTexture(1, PredictedBar, 0)
-      BBar:SetSliderTexture(1, PredictedCostBar, 0)
-      BBar:SetFillTexture(1, PredictedBar, 0)
-      BBar:SetFillTexture(1, PredictedCostBar, 0)
+      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
+      BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'length', 0)
     end
   end
 
@@ -554,61 +500,23 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   if MaxValue > 0 then
 
     -- Do predicted power
-    local Change = self.LastPredictedPower ~= PredictedPower
-
-    if Change or PredictedPower > 0 then
-      local Color = Bar.PredictedColor
-
-      if PredictedPower > 0 then
-        BBar:SetSliderTexture(1, PredictedBar, PredictedPower / MaxValue)
-      else
-        BBar:SetSliderTexture(1, PredictedBar, 0)
-      end
-
-      -- Stop smooth animation, so slider can be positioned instantly.
-      -- Only during change.  Want slider to smooth slide when cost doesn't change.
-      if Change then
-        BBar:SetFillSpeedTexture(1, PredictedBar, 0)
-      end
-
-      BBar:SetFillTexture(1, PredictedBar, Value)
-
-      if Change then
-        BBar:SetFillSpeedTexture(1, PredictedBar, UB.Layout.SmoothFillSpeed)
-      end
+    if self.LastPredictedPower ~= PredictedPower then
+      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', PredictedPower / MaxValue)
       self.LastPredictedPower = PredictedPower
     end
 
     -- Do predicted cost
-    Change = self.LastPredictedCost ~= PredictedCost
-
-    if Change or PredictedCost > 0 then
-      local Cost = PredictedCost / MaxValue
-
-      if PredictedCost > 0 then
-        BBar:SetSliderTexture(1, PredictedCostBar, Cost)
-      else
-        BBar:SetSliderTexture(1, PredictedCostBar, 0)
-      end
-
-      if Change then
-        BBar:SetFillSpeedTexture(1, PredictedCostBar, 0)
-      end
-
-      BBar:SetFillTexture(1, PredictedCostBar, Value - Cost)
-
-      if Change then
-        BBar:SetFillSpeedTexture(1, PredictedCostBar, UB.Layout.SmoothFillSpeed)
-      end
+    if self.LastPredictedCost ~= PredictedCost then
+      BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'length', PredictedCost / MaxValue)
       self.LastPredictedCost = PredictedCost
     end
   end
 
-  BBar:SetColorTexture(1, StatusBar, r, g, b, a)
-  BBar:SetFillTexture(1, StatusBar, Value)
+  BBar:SetColorTexture(HapBox, StatusBar, r, g, b, a)
+  BBar:SetFillTexture(HapBox, StatusBar, Value)
 
   if not UB.Layout.HideText then
-    BBar:SetValueFont(1, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Unit)
+    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Unit)
   end
 
   -- Check triggers
@@ -672,7 +580,7 @@ end
 -- This will enable or disbale mouse clicks for the rune icons.
 -------------------------------------------------------------------------------
 HapFunction('EnableMouseClicks', function(self, Enable)
-  self.BBar:EnableMouseClicks(1, nil, Enable)
+  self.BBar:EnableMouseClicks(HapBox, nil, Enable)
 end)
 
 -------------------------------------------------------------------------------
@@ -705,7 +613,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       end
       Update = true
     end)
-    BBar:SO('Layout', 'ReverseFill',     function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', 1, v) end)
+    BBar:SO('Layout', 'ReverseFill',     function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', HapBox, v) Update = true end)
     BBar:SO('Layout', 'HideText',        function(v)
       if v then
         BBar:SetValueRawFont(1, '')
@@ -713,16 +621,20 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(StatusBar, 'SetSmoothFillMaxTime', 1, v) end)
-    BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:ChangeTexture(StatusBar, 'SetFillSpeedTexture', 1, v) end)
+    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetSmoothFillMaxTime', HapBox, v) end)
+    BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillSpeedTexture', HapBox, v) end)
 
     if DLayout then
+      -- More layout
       if DLayout.UseBarColor ~= nil then
         BBar:SO('Layout', 'UseBarColor', function(v) Update = true end)
       end
-
       if DLayout.PredictedHealth ~= nil then
-        BBar:SO('Layout', 'PredictedHealth', function(v) Update = true end)
+        BBar:SO('Layout', 'PredictedHealth', function(v)
+          BBar:SetHiddenTexture(HapBox, PredictedBar, not v)
+          BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, v and 'enable' or 'disable')
+          Update = true
+        end)
       end
 
       if DLayout.ClassColor ~= nil then
@@ -738,8 +650,11 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       end
     end
 
+    -- More layout
     if DLayout.PredictedPower ~= nil then
       BBar:SO('Layout', 'PredictedPower', function(v)
+        BBar:SetHiddenTexture(HapBox, PredictedBar, not v)
+        BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, v and 'enable' or 'disable')
         SetPredictedPower(self, v)
         Update = true
       end)
@@ -747,38 +662,40 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     if DLayout.PredictedCost ~= nil then
       BBar:SO('Layout', 'PredictedCost', function(v)
+        BBar:SetHiddenTexture(HapBox, PredictedCostBar, not v)
+        BBar:SetFillClipFlagsTexture(HapBox, PredictedCostBar, v and 'enable' or 'disable')
         SetPredictedCost(self, v)
         Update = true
       end)
     end
 
-    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(1, 1, v) end)
-    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(1, 1, v) end)
-    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(1, 1, v) end)
-    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(1, 1, v) end)
-    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(1, 1, v) end)
-    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(1, 1, v.Left, v.Right, v.Top, v.Bottom) end)
-    BBar:SO('Background', 'Color',         function(v) BBar:SetBackdropColor(1, 1, v.r, v.g, v.b, v.a) end)
+    BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(HapBox, HapTFrame, v) end)
+    BBar:SO('Background', 'BorderTexture', function(v) BBar:SetBackdropBorder(HapBox, HapTFrame, v) end)
+    BBar:SO('Background', 'BgTile',        function(v) BBar:SetBackdropTile(HapBox, HapTFrame, v) end)
+    BBar:SO('Background', 'BgTileSize',    function(v) BBar:SetBackdropTileSize(HapBox, HapTFrame, v) end)
+    BBar:SO('Background', 'BorderSize',    function(v) BBar:SetBackdropBorderSize(HapBox, HapTFrame, v) end)
+    BBar:SO('Background', 'Padding',       function(v) BBar:SetBackdropPadding(HapBox, HapTFrame, v.Left, v.Right, v.Top, v.Bottom) end)
+    BBar:SO('Background', 'Color',         function(v) BBar:SetBackdropColor(HapBox, HapTFrame, v.r, v.g, v.b, v.a) end)
     BBar:SO('Background', 'BorderColor',   function(v, UB)
       if UB.Background.EnableBorderColor then
-        BBar:SetBackdropBorderColor(1, 1, v.r, v.g, v.b, v.a)
+        BBar:SetBackdropBorderColor(HapBox, HapTFrame, v.r, v.g, v.b, v.a)
       else
-        BBar:SetBackdropBorderColor(1, 1, nil)
+        BBar:SetBackdropBorderColor(HapBox, HapTFrame, nil)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(1, StatusBar, v) end)
-    BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillDirectionTexture', 1, v) end)
-    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetRotateTexture', 1, v) end)
+    BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(HapBox, StatusBar, v) end)
+    BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillDirectionTexture', HapBox, v) Update = true end)
+    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetRotateTexture', HapBox, v) end)
 
     if DBar.PredictedColor ~= nil then
-      BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(1, PredictedBar, v) end)
-      BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(1, PredictedBar, v.r, v.g, v.b, v.a) end)
+      BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(HapBox, PredictedBar, v) end)
+      BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(HapBox, PredictedBar, v.r, v.g, v.b, v.a) end)
     end
 
     if DBar.PredictedCostColor ~= nil then
-      BBar:SO('Bar', 'PredictedCostBarTexture', function(v) BBar:SetTexture(1, PredictedCostBar, v) end)
-      BBar:SO('Bar', 'PredictedCostColor',      function(v) BBar:SetColorTexture(1, PredictedCostBar, v.r, v.g, v.b, v.a) end)
+      BBar:SO('Bar', 'PredictedCostBarTexture', function(v) BBar:SetTexture(HapBox, PredictedCostBar, v) end)
+      BBar:SO('Bar', 'PredictedCostColor',      function(v) BBar:SetColorTexture(HapBox, PredictedCostBar, v.r, v.g, v.b, v.a) end)
     end
 
     if DBar.Color ~= nil then
@@ -786,8 +703,8 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end
     BBar:SO('Bar', 'TaggedColor',           function(v, UB) Update = true end)
 
-    BBar:SO('Bar', '_Size',                 function(v, UB) BBar:SetSizeTextureFrame(1, 1, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',               function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetPaddingTexture', 1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', '_Size',                 function(v) BBar:SetSizeTextureFrame(HapBox, HapTFrame, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',               function(v) BBar:SetPaddingTextureFrame(HapBox, HapTFrame, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -817,27 +734,37 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
   -- Create the health and predicted bar
-  BBar:CreateTextureFrame(1, 1, 0)
-    BBar:CreateTexture(1, 1, 'statusbar', 1, StatusBar)
-    BBar:CreateTexture(1, 1, 'statusbar', 2, PredictedBar)
-    BBar:CreateTexture(1, 1, 'statusbar', 3, PredictedCostBar)
+  BBar:CreateTextureFrame(HapBox, HapTFrame, 0)
+    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 1, StatusBar)
+    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 2, PredictedBar)
+    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 3, PredictedCostBar)
 
   -- Create font text for the box frame.
-  BBar:CreateFont(1)
+  BBar:CreateFont('Text', HapBox)
 
   -- Enable tooltip
-  BBar:SetTooltip(1, nil, UB.Name)
+  BBar:SetTooltip(HapBox, nil, UB.Name)
 
   -- Use setchange for all statusbars.
   BBar:SetChangeTexture(ChangeStatusBars, StatusBar, PredictedBar, PredictedCostBar)
 
-  -- Show the bars.
-  BBar:SetHidden(1, 1, false)
-  BBar:ChangeTexture(ChangeStatusBars, 'SetHiddenTexture', 1, false)
-  BBar:ChangeTexture(ChangeStatusBars, 'SetFillTexture', 1, 0)
+  -- Show the bar.
+  BBar:SetHidden(HapBox, HapTFrame, false)
+  BBar:SetHiddenTexture(HapBox, StatusBar, false)
+  BBar:SetFillTexture(HapBox, StatusBar, 0)
 
   -- Set this for trigger bar offsets
-  BBar:SetOffsetTextureFrame(1, 1, 0, 0, 0, 0)
+  BBar:SetOffsetTextureFrame(HapBox, HapTFrame, 0, 0, 0, 0)
+
+  -- Set the predicted bar
+  BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, 'reverse')
+  BBar:SetFillClipTexture(HapBox, PredictedBar, 'tstart', StatusBar)
+  BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
+
+  -- Set the predicted cost bar
+  BBar:SetFillClipFlagsTexture(HapBox, PredictedCostBar, 'reverse')
+  BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'tend', StatusBar)
+  BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'length', 0)
 
   UnitBarF.BBar = BBar
 end
