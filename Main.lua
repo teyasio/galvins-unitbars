@@ -4355,6 +4355,22 @@ function GUB:OnEnable()
     return
   end
 
+  -- Check for a bar not loaded
+  local Exit = false
+  for BarType in pairs(UnitBarsF) do
+    if strfind(BarType, 'Health') == nil and strfind(BarType, 'Power') == nil then
+      if GUB[BarType].CreateBar == nil then
+        Exit = true
+      end
+    elseif GUB.HapBar.CreateBar == nil then
+      Exit = true
+    end
+    if Exit then
+      message("Galvin's UnitBars\nGame needs to be restarted since a new lua file was added since the last update")
+      return
+    end
+  end
+
   if not InitOnce then
     return
   end
