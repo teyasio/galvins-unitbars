@@ -255,12 +255,12 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
   local UB = self.UnitBar
   local PauseTime = self.PauseTime
   local Layout = UB.Layout
-  local BarStagger = UB.BarStagger
+  local Testing = Main.UnitBars.Testing
 
   local Stagger = UnitStagger('player')
   local MaxValue = UnitHealthMax('player')
 
-  if Main.UnitBars.Testing then
+  if Testing then
     local TestMode = UB.TestMode
     local StaggerPause = TestMode.StaggerPause
 
@@ -301,6 +301,10 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
 
   -- Check triggers
   if UB.Layout.EnableTriggers then
+    if Testing and Layout.PauseTimer then
+      BBar:SetTriggers(StaggerPauseBox, 'time', PauseTime)
+    end
+
     BBar:SetTriggers(StaggerBarBox, 'stagger', Stagger)
     BBar:SetTriggers(StaggerBarBox, 'stagger (percent)', Stagger, MaxValue)
     BBar:SetTriggers(StaggerBarBox, 'time', PauseTime)

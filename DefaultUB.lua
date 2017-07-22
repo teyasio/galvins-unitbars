@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 551
+GUB.DefaultUB.Version = 552
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -1519,7 +1519,7 @@ GUB.DefaultUB.Default = {
         HideNoCombat    = false
       },
       TestMode = {
-        StaggerPercent = .01,
+        StaggerPercent = 0,
         StaggerPause = 0,
       },
       Layout = {
