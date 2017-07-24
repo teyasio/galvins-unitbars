@@ -569,7 +569,7 @@ end
 
 function Main.UnitBarsF.StaggerBar:Enable(Enable)
   if Enable then
-    Main:SetTimer(self, StaggerUpdate, 0.05)
+    Main:SetTimer(self, StaggerUpdate, 0.02)
   else
     Main:SetTimer(self, nil)
   end
