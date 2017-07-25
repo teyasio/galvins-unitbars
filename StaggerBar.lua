@@ -257,7 +257,7 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
   local Layout = UB.Layout
   local Testing = Main.UnitBars.Testing
 
-  local Stagger = UnitStagger('player')
+  local Stagger = UnitStagger('player') or 0
   local MaxValue = UnitHealthMax('player')
 
   if Testing then
