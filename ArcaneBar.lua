@@ -65,7 +65,7 @@ local ArcaneSBar = 10
 local ArcaneDarkTexture = 11
 local ArcaneLightTexture = 12
 
-local RegionGroup = 7
+local RegionGroup = 6
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
