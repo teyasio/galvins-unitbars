@@ -5621,15 +5621,15 @@ function BarDB:SetValueFont(BoxNumber, ...)
     Index = Index + ParSize
   until Index > MaxPar
 
-  local Text = TextData.Text
+  local Texts = TextData.Texts
 
   for Index = 1, TextData.NumStrings do
     local FontString = TextData[Index]
-    local Txt = Text[Index]
-    local ValueNames = Txt.ValueNames
+    local Text = Texts[Index]
+    local ValueNames = Text.ValueNames
 
     -- Display the font string
-    local ReturnOK, Msg = pcall(SetValue, TextData, FontString, Txt.Layout, #ValueNames, ValueNames, Txt.ValueTypes)
+    local ReturnOK, Msg = pcall(SetValue, TextData, FontString, Text.Layout, #ValueNames, ValueNames, Text.ValueTypes)
 
     if not ReturnOK then
       FontString:SetFormattedText('Err (%d)', Index)
@@ -5741,18 +5741,18 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
-    local Text = TextData.Text
+    local Texts = TextData.Texts
 
     -- Check for fontstrings
     if TextData then
-      local Txt = Text[TextLine]
+      local Text = Texts[TextLine]
       local TF = TextData.TextFrames[TextLine]
 
-      if TF and Txt then
+      if TF and Text then
         local AGroup = TF.AGroup
         local IsPlaying = AGroup and AGroup:IsPlaying() or false
-        local Ox = Txt.OffsetX
-        local Oy = Txt.OffsetY
+        local Ox = Text.OffsetX
+        local Oy = Text.OffsetY
 
         if AnimateSpeedTrigger then
           local LastX = TF.LastX or 0
@@ -5784,12 +5784,12 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
             local Distance = sqrt(DistanceX * DistanceX + DistanceY * DistanceY)
 
             local Duration = GetSpeedDuration(Distance, AnimateSpeedTrigger)
-            PlayAnimation(AGroup, Duration, Txt.FontPosition, Frame, Txt.Position, FromX, FromY, ToX, ToY)
+            PlayAnimation(AGroup, Duration, Text.FontPosition, Frame, Text.Position, FromX, FromY, ToX, ToY)
 
           -- offset hasn't changed
           elseif not IsPlaying then
             TF:ClearAllPoints()
-            TF:SetPoint(Txt.FontPosition, Frame, Txt.Position, Ox + OffsetX, Oy + OffsetY)
+            TF:SetPoint(Text.FontPosition, Frame, Text.Position, Ox + OffsetX, Oy + OffsetY)
           end
         else
           -- Non animated trigger call or called outside of triggers or trigger disabled.
@@ -5803,7 +5803,7 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
           end
 
           TF:ClearAllPoints()
-          TF:SetPoint(Txt.FontPosition, Frame, Txt.Position, Ox + (OffsetX or 0), Oy + (OffsetY or 0))
+          TF:SetPoint(Text.FontPosition, Frame, Text.Position, Ox + (OffsetX or 0), Oy + (OffsetY or 0))
         end
       end
     end
@@ -5831,11 +5831,11 @@ local function ClipFont(Size)
   end
 end
 
-local function SetFont(FontString, Txt, Type, Size, Style)
+local function SetFont(FontString, Text, Type, Size, Style)
   Size = ClipFont(Size)
   local ReturnOK = pcall(FontString.SetFont, FontString, Type, Size, Style)
   if not ReturnOK then
-    FontString:SetFont(LSM:Fetch('font', Txt.FontType), Size, 'NONE')
+    FontString:SetFont(LSM:Fetch('font', Text.FontType), Size, 'NONE')
   end
 end
 
@@ -5845,17 +5845,17 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
-    local Text = TextData.Text
+    local Texts = TextData.Texts
 
     -- Check for fontstrings
     if TextData then
       local FontString = TextData[TextLine]
-      local Txt = Text[TextLine]
+      local Text = Texts[TextLine]
 
-      if FontString and Txt then
+      if FontString and Text then
         local AGroup = FontString.AGroup
         local IsPlaying = AGroup and AGroup:IsPlaying() or false
-        local OSize = Txt.FontSize
+        local OSize = Text.FontSize
 
         if AnimateSpeedTrigger then
           local LastSize = FontString.LastSize or 0
@@ -5881,7 +5881,7 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
 
           -- size hasn't changed
           elseif not IsPlaying then
-            SetFont(FontString, Txt, LSM:Fetch('font', Txt.FontType), ClipFont(OSize + Size), Txt.FontStyle)
+            SetFont(FontString, Text, LSM:Fetch('font', Text.FontType), ClipFont(OSize + Size), Text.FontStyle)
           end
         else
           -- Non animated trigger call or called outside of triggers or trigger disabled.
@@ -5893,7 +5893,7 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
             FontString.LastSize = Size or 0
           end
 
-          SetFont(FontString, Txt, LSM:Fetch('font', Txt.FontType), ClipFont(OSize + (Size or 0)), Txt.FontStyle)
+          SetFont(FontString, Text, LSM:Fetch('font', Text.FontType), ClipFont(OSize + (Size or 0)), Text.FontStyle)
         end
       end
     end
@@ -5915,21 +5915,21 @@ function BarDB:SetTypeFont(BoxNumber, TextLine, Type)
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
-    local Text = TextData.Text
+    local Texts = TextData.Texts
 
     -- Check for fontstrings
     if TextData then
       local FontString = TextData[TextLine]
-      local Txt = Text[TextLine]
+      local Text = Texts[TextLine]
 
-      if FontString and Txt then
-        Type = Type or Txt.FontType
+      if FontString and Text then
+        Type = Type or Text.FontType
 
         -- Set font size
-        local ReturnOK, Message = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), Txt.FontSize, Txt.FontStyle)
+        local ReturnOK, Message = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Type), Text.FontSize, Text.FontStyle)
 
         if not ReturnOK then
-          FontString:SetFont(LSM:Fetch('font', Type), Txt.FontSize, 'NONE')
+          FontString:SetFont(LSM:Fetch('font', Type), Text.FontSize, 'NONE')
         end
       end
     end
@@ -5952,20 +5952,20 @@ function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
   repeat
     local Frame = NextBox(self, BoxNumber)
     local TextData = Frame.TextData
-    local Text = TextData.Text
+    local Texts = TextData.Texts
 
     -- Check for fontstrings
     if TextData then
       local FontString = TextData[TextLine]
-      local Txt = Text[TextLine]
+      local Text = Texts[TextLine]
 
-      if FontString and Txt then
+      if FontString and Text then
 
         -- Set font size
-        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Txt.FontType), Txt.FontSize, Style or Txt.FontStyle)
+        local ReturnOK = pcall(FontString.SetFont, FontString, LSM:Fetch('font', Text.FontType), Text.FontSize, Style or Text.FontStyle)
 
         if not ReturnOK then
-          FontString:SetFont(LSM:Fetch('font', Txt.FontType), Txt.FontSize, 'NONE')
+          FontString:SetFont(LSM:Fetch('font', Text.FontType), Text.FontSize, 'NONE')
         end
       end
     end
@@ -5988,22 +5988,22 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
 
   local TextData = Frame.TextData
   local TextTableName = TextData.TextTableName
-  local Text = self.UnitBarF.UnitBar[TextTableName]
+  local Texts = self.UnitBarF.UnitBar[TextTableName]
 
   local DefaultTextSettings = UBD[TextTableName][1]
   local Multi = UBD[TextTableName]._Multi
 
-  TextData.Text = Text
+  TextData.Texts = Texts
 
   local TextFrames = TextData.TextFrames
   local NumStrings = nil
 
   -- Adjust the fontstring array based on the text settings.
-  for Index = 1, #Text do
+  for Index = 1, #Texts do
     local FontString = TextData[Index]
-    local Txt = Text[Index]
+    local Text = Texts[Index]
     local TextFrame = TextFrames[Index]
-    local Color = Txt.Color
+    local Color = Text.Color
     local c = nil
     local ColorAll = Color.All
 
@@ -6014,8 +6014,8 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
     NumStrings = Index
 
     -- Update the layout if not in custom mode.
-    if not Txt.Custom then
-      Txt.Layout = GetLayoutFont(Txt.ValueNames, Txt.ValueTypes)
+    if not Text.Custom then
+      Text.Layout = GetLayoutFont(Text.ValueNames, Text.ValueTypes)
     end
 
     -- Create a new fontstring if one doesn't exist.
@@ -6037,13 +6037,13 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
     self:SetStyleFont(BoxNumber, Index)
 
     -- Set font location
-    FontString:SetJustifyH(Txt.FontHAlign)
-    FontString:SetJustifyV(Txt.FontVAlign)
-    FontString:SetShadowOffset(Txt.ShadowOffset, -Txt.ShadowOffset)
+    FontString:SetJustifyH(Text.FontHAlign)
+    FontString:SetJustifyV(Text.FontVAlign)
+    FontString:SetShadowOffset(Text.ShadowOffset, -Text.ShadowOffset)
 
     -- Position the font by moving textframe.
     self:SetOffsetFont(BoxNumber, Index)
-    TextFrame:SetSize(Txt.Width, Txt.Height)
+    TextFrame:SetSize(Text.Width, Text.Height)
 
     -- Set the text frame to be on top.
     TextFrame:SetFrameLevel(TopFrame:GetFrameLevel() + 1)
@@ -6068,7 +6068,7 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
   end
   TextData.Multi = Multi
   TextData.NumStrings = NumStrings
-  TextData.Text = Text
+  TextData.Texts = Texts
 end
 
 -------------------------------------------------------------------------------
@@ -6084,7 +6084,7 @@ end
 -------------------------------------------------------------------------------
 function BarDB:CreateFont(TextTableName, BoxNumber, PercentFn)
   local BarType = self.BarType
-  local Text = self.UnitBarF.UnitBar[TextTableName]
+  local Texts = self.UnitBarF.UnitBar[TextTableName]
 
   repeat
     local Frame = NextBox(self, BoxNumber)
@@ -6103,7 +6103,7 @@ function BarDB:CreateFont(TextTableName, BoxNumber, PercentFn)
     TextData.NumStrings = 0
     TextData.TextFrames = {}
     TextData.PercentFn = PercentFn
-    TextData.Text = Text
+    TextData.Texts = Texts
     TextData.TextTableName = TextTableName
 
     Frame.TextData = TextData

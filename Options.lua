@@ -2394,7 +2394,7 @@ end
 local function CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLine)
   local UBF = UnitBarsF[BarType]
   local UB = UBF.UnitBar
-  local Text = UB[TableName]
+  local Texts = UB[TableName]
 
   local TL = nil
   local TextLine = 0
@@ -2464,7 +2464,7 @@ local function CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLin
                local Index = TxtLine[TL.name]
 
                -- Delete the text setting.
-               tremove(Text, Index)
+               tremove(Texts, Index)
 
                -- Delete the curent text line options and move all others down one.
                local TL = ''
@@ -2514,7 +2514,7 @@ local function CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLin
                local TextTable = {}
 
                Main:CopyTableValues(DUB[BarType][TableName][1], TextTable, true)
-               Text[#Text + 1] = TextTable
+               Texts[#Texts + 1] = TextTable
 
                -- Add options for new text line.
                CreateTextLineOptions(BarType, TableName, TextLineOptions, TxtLine)
