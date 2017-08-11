@@ -208,7 +208,7 @@ local function LoadSpells()
 
         -- Filter out all trade skill spells.
         -- Passive can't really be used, so filter out those too.
-        if Name and Name ~= '' and SubName ~= SPELL_PASSIVE and C_TradeSkillUIGetTradeSkillLineForRecipe(SpellID) == nil then
+        if Icon and Name and Name ~= '' and SubName ~= SPELL_PASSIVE and C_TradeSkillUIGetTradeSkillLineForRecipe(SpellID) == nil then
           NumSpells = NumSpells + 1
           SpellList[SpellID] = strlower(Name)
 

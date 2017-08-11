@@ -22,26 +22,13 @@ local _, _G =
       _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
-      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
-local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
-      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
-      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
-local CreateFrame, UnitGUID, getmetatable, setmetatable =
-      CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter, UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
+      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
+local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
+      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
+
+local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
+      IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -56,7 +43,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   ParentFrame                     The whole bar will be a child of this frame.
 --
 --   Region                          Visible region around the bar. Child of ParentFrame.
---     Colors                        Saved color used by SetColor() and GetColor()
 --     Hidden                        If true the region is hidden.
 --     Anchor                        Reference to the UnitBarF.Anchor.  Used for Mouse interaction.
 --     BarDB                         BarDB.  Reference to the Bar database.  Used for mouse interaction
@@ -67,7 +53,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   TopFrame                        Contains a reference to the frame that has the highest frame level.
 --   Rotation                        Rotation in degrees for the bar.
 --   Slope                           Adjusts the horizontal or vertical slope of a bar.
---   Swap                            Boxes can be swapped with eachother by dragging one on top of the other.
+--   Swap                            Boxes can be swapped with each other by dragging one on top of the other.
 --   Float                           Boxes can be dragged and dropped anywhere on the screen.
 --   Align                           If false then alignment is disabled.
 --   AlignOffsetX                    Horizontal offset for the aligned group of boxes.
@@ -98,7 +84,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   BoxNumber                       Current box number.  Needed for swapping.
 --   Padding                         Amount of distance in pixels between the current box and the next one.
 --   Hidden                          If true then the boxframe will not get shown in Display()
---   Colors                          Saved color used by SetColor() and GetColor()
 --   TextureFrames[]                 Table of textureframes used by boxframe.
 --   TFTextures[]                    Used by texture function, contains the texture.
 --   ValueTime                       Used by SetValueTime()
@@ -112,7 +97,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --   Hidden                          If true then the textureframe is hidden.
 --   Textures[]                      Textures contained in TextureFrame.
---   Colors                          Saved color used by SetColor() and GetColor()
 --   ValueTime                       Used by SetValueTime()
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   MaxValue                        Specifies the maximum value that can reached. Used by SetFill functions.
@@ -183,19 +167,24 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --    RotationPoint                  Used by Display() to rotate the bar.
 --    BoxFrames                      Used by NextBox() for iteration.
---    DoOptionData                   Resusable table for passing back information. Used by DoOption().
+--    DoOptionData                   Reusable table for passing back information. Used by DoOption().
+--    ParValues                      Contains the parameter data passed to SetValueFont()
+--    ParValuesTest                  Contains test data to create sample text used by ParseLayoutFont()
+--    ValueLayout                    Converts value types into format strings.
+--    ValueLayoutTest                Used to test each formatted string. Used by ParseLayoutFont()
+--    ValueLayoutTag                 Converts value names into shorter names.  Used by ParseLayoutFont()
 --
 --  RotationPoint data structure
 --
---  [Rotation]                       from 45 to 360.  Determins which direction to go in.
---    x, y                           Determins direction by using negative or positive values.
+--  [Rotation]                       from 45 to 360.  Determines which direction to go in.
+--    x, y                           Determines direction by using negative or positive values.
 --                                   x or y will be 0 if there is no direction to go in.
 --                                   For example x = 1 y = 0 means that there is no up/down just
 --                                   horizontal.
 --  SIDE or CORNER                   Is the alignment for the boxes.  Either they're attached by their
 --                                   corner or side.  Side would be the middle part of the box edge.
 --    Point                          The anchor point for the boxframe to attach another boxframe.
---    ParentPoint                    Is the previos boxframe's anchor point that is attached.
+--    ParentPoint                    Is the previous boxframe's anchor point that is attached.
 --                                   So boxframe 2 Point would be attached to boxframe 1 ParentPoint.
 --
 --  Frame structure
@@ -205,7 +194,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --      BoxFrame                          border and BoxFrame
 --        TextureFrame                    TextureFrame.
 --          BorderFrame                   Border and also allows the textureFrame to be larger without effecting Boxsize.
---            ScaleFrame                  For scaling textures.  This is needed so we dont have conflicts scaling in two places.
+--            ScaleFrame                  For scaling textures.  This is needed so we don't have conflicts scaling in two places.
 --              PaddingFrame              Used by SetPaddingTextureFrame()
 --                Texture (frame)         Container for SubFrame and SubTexture.
 --                  SubFrame              A frame that holds the texture or statusbar
@@ -235,7 +224,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- inside of a boxframe.
 --
 -- When floating mode is activated a snap shot of the bar is taken then copied.  Then the boxframes
--- can be placed anywhere on the screen.  The floating layout is always kept seperate from the bar layout.
+-- can be placed anywhere on the screen.  The floating layout is always kept separate from the bar layout.
 -- The floating code uses the x, y locations created by SetFrames.
 --
 -- The floating layout and boxorder for swapping is stored in the root of the unitbar.
@@ -247,14 +236,14 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- If using SetFIll() you can also change the way filling works.  With
 -- SetFillClipTexture() you're able to change the positions of more than
 -- texture in a texture frame.  Have multiple statusbars act as one bar
--- Seeemlessly filling from one into another.
+-- Seamlessly filling from one into another.
 --
 -- Once one or more textures are set to fill clip.  They'll automatically
 -- reposition them selves depending on the width or height or the texture frame
 -- or if reverse fill gets used.  Best to look at health and power and stagger bars
 -- on how its used.  SetFillClip clips off of MaxValue set on the TextureFrame.
 --
--- Texture.FillClip                 Is a table that gets added to a texture whos fill you
+-- Texture.FillClip                 Is a table that gets added to a texture who's fill you
 --                                  to change.  This is an indexed array in pairs of 2.
 --
 -- Texture.FillClipTextures[]       This keeps track of all the textures SetFill'ing off of this one.
@@ -268,7 +257,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --    Tstart
 --    Tend              Contains the start or end values based off a relative textures value.
---                      This sets the relative texture whos value will be used.
+--                      This sets the relative texture whose value will be used.
 --                      This can only be set once per TextureNumber
 --
 --    Length            This is only works with 'tstart' or 'tend', this sets the size of the texture instead
@@ -290,7 +279,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- SO()             Sets a function to an option.
 -- SetOptionData()  Sets extra data to be passed back to the function set in SO()
 --
--- SO short for SetOption lets you specifiy a table name and key name.
+-- SO short for SetOption lets you specify a table name and key name.
 -- When you call DoOption() with a table name and key name the following can happen:
 --
 -- TableName is nil   - Then will match any SO TableName.
@@ -304,7 +293,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- TableName is not nil - Then can partially match SO TableName.
 -- KeyName is not nil   - Then has to exact match SO KeyName.
 --                        If its '_' then its a empty virtual key name and will match any SO KeyName.
---                        Empty virtual key names dont get searched in the unitbar data.
+--                        Empty virtual key names don't get searched in the unitbar data.
 --
 -- After TableName and KeyName are found in the SO data.  Then the TableName is searched in the default UnitBarData
 -- for the current BarType.  This can partially match.  After that it takes the full name of the table
@@ -315,7 +304,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   A virtual key starts with an underscore.  It still follows the matching rules of a normal
 --   key except it doesn't get searched in the UnitBar data.
 --
--- Each time DoOption matches data from SO(). The following parametrs are passed back.
+-- Each time DoOption matches data from SO(). The following parameters are passed back.
 --
 --   v:   This equals UnitBars[BarType][TableName][KeyName].
 --        If the KeyName is virtual then this will equal UnitBars[BarType][TableName].
@@ -325,12 +314,12 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --           KeyName     Name of the key passed to SO()
 --
 --           If the KeyName is a table that contains 'All'.  Then its considered
---           a color all table.  The following is returned in interation till
+--           a color all table.  The following is returned in iteration till
 --           the end of table is reached.
 --             Index       The current element in the color all table.
 --             r, g, b, a  The red, green, blue, and alpha colors KeyName[Index]
 --
---           p1..pN   Paramater data passed from SetOptionData.  See below for details.
+--           p1..pN   Parameter data passed from SetOptionData.  See below for details.
 --
 -- If there was a SetOptionData() and the TableName found in SO data, default unitbar data, and unitbardata.
 -- If the tablename matches exactly to what was passed from SetOptionData.  Then p1..pN get added to OD.
@@ -345,7 +334,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 -- OptionsData[TableName]      Table containing additional data that can be used with DoOption()
 --   p1..pN                    Series of keys that go in p1, p2, p3, etc.  These contain
---                             the paramaters passed from SetOptionData()
+--                             the parameters passed from SetOptionData()
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -359,19 +348,30 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- TextData
 --   Multi              Can support more than one text line.
 --   BarType            Type of bar that created the fontstring.
---   NumStrings         Number of font strings or text lines.
 --   TextFrames         Contains one or more frames used by the fontstrings.
 --     LastX
 --     LastY            For animation. Contains the last position set by an offset trigger.  SetOffsetFont()
 --     AGroup           Animation for offsetting text.
 --   PercentFn          Function used to calculate percentages from CurrentValue and MaximumValue.
---   Text               Reference to the current Text data found in UnitBars[BarType].Text
+--   Texts[]            Reference to the current Text data found in UnitBars[BarType].Text
+--     ErrorMessage     Used to pass back format error message in custom mode to the options UI. Created by ParseLayoutFont()
+--     SampleText       Same as above except for valid formatted text.  Shows a sample of what it'll look like. Created by ParseLayoutFont()
 --   TextTableName      Contains the name of the table being used for text. UnitBars[BarType][TextTableName]
+--   ValueLayouts[]     Array containing parsed layouts.  This sets the order the layouts are shown. Created by ParseLayoutFont()
 --
 -- TextData[TextLine]   Array used to store the fontstring for each textline
 --   LastSize           For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
 --   AGroup             Animation for changing text size.
 --
+--
+-- Parsed Layouts data structure
+--   ValueLayouts[TextIndex]
+--     ValueOrder[Index]         -- Contains the real Value Index.  This sets the order that the
+--                                  values will appear in.
+--     FormatStrings[ValueIndex] -- Contains the formatted string for each value.
+--     Layout                    -- Compiled formatted string created by SetValueFont()
+--                                  The string is stored here so its not garbage collected. Since
+--                                  SetValueFont can be called a lot.
 --
 -- Lowercase hash names are used for SetValueFont.
 -------------------------------------------------------------------------------
@@ -391,9 +391,9 @@ local C_PetBattles, C_TimerAfter, UIParent =
 -- Settings data structure.
 -- Settings[Bar function name]     Hash table using the function name that it was called by to store.
 --                                 Used by SaveSettings() and RestoreSettings().
---   Setting[ID]                   Array using an ID to store the paramaters under.
+--   Setting[ID]                   Array using an ID to store the parameters under.
 --                                 ID is two numbers combined into one.
---     Par[]                       Array containing the paramaters for the settings.
+--     Par[]                       Array containing the parameters for the settings.
 --
 -- Groups structure.
 
@@ -453,7 +453,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --     ------------------------    Values below here are added/modified after.
 --     Trigger                     = false no trigger using this object.  Otherwise contains a reference to the trigger.
 --     AuraTrigger                 = false no aura trigger using this object. Otherwise contains a reference to the aura trigger.
---     StaticTrigger               Triger is static. Otherwise nil.  Reference to trigger using this as static.
+--     StaticTrigger               Trigger is static. Otherwise nil.  Reference to trigger using this as static.
 --
 --
 -- Trigger structure.
@@ -462,7 +462,7 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   MenuSync                      true or false.  If true all triggers use ActionSync instead of Action
 --   ActionSync                    Same table as Action.  Except this is used when MenuSync is true
 --
--- Triggers[]                      Non sequencial array containing the triggers.
+-- Triggers[]                      Non sequential array containing the triggers.
 --   Enabled                       true or false.  If enabled then trigger works.
 --   Static                        true or false.  If true trigger is always on, otherwise false.
 --   SpecEnabled                   true or false.  If true then specializations are used by this trigger.
@@ -479,16 +479,18 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --
 --   ValueTypeID                   'state'     Trigger can support state
 --                                 'whole'     Trigger can support whole numbers (integers).
+--                                 'float'     Trigger can support floating point numbers.
 --                                 'percent'   Trigger can support percentages.
+--                                 'text'      Trigger can support strings.
 --                                 'auras'     Trigger can support a buff or debuff.
 --
---   ValueType                     Discribes what the value type is in english.
+--   ValueType                     Describes what the value type is in english.
 --
 --   TypeID                        Defines what type of barfunction. See DefaultUB.lua
 --
---   Type                          Name that discribes the type that will appear in option menus
+--   Type                          Name that describes the type that will appear in option menus
 --
---   GetFnTypeID                   Indentifier for the type of GetFunction. 'none' if no function is specified.
+--   GetFnTypeID                   Identifier for the type of GetFunction. 'none' if no function is specified.
 --
 --   Pars[1 to 4]                  Array containing elements passed to the SetFunction.
 --   GetPars[1 to 4]               Array containing elements passed to the GetFunction.
@@ -505,8 +507,9 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   Conditions.All                True or False.  If true then all conditions have to be true, otherwise just one.
 --   Conditions[]                  Contains one or more conditions. Not used by Aura or Static.
 --     OrderNumber                 Used by options. This is updated in CheckTriggers()
+--                                 This is used to keep track of where the conditions are displayed in the options.
 --     Operator                    can be '<', '>', '<=', '>=', '==', '<>'
---     Value                       Value to trigger off of. Default to 1 if using auras.
+--     Value                       Value to trigger off of.
 --
 --   Auras[SpellID]
 --     Unit                        Unit that the aura is being searched.
@@ -524,7 +527,6 @@ local C_PetBattles, C_TimerAfter, UIParent =
 --   TypeIndex                     Based on TypeID and Type.
 --   GroupNumbers                  Array of group numbers that box number of zero would match. Otherwise nil
 --   Virtual                       true or false.  If true trigger belongs to a virtual group, otherwise normal.
---   TextMultiLine                 true or false. If boolean then trigger has multi line or not.  If nil then the trigger is not using text.
 --   TextLine                      0 for all text lines or contains the current text line. If nil then the trigger is not using text.
 --   Select                        true or false. Only one trigger per group can be selected.
 --   OffsetAll                     true or false. Used for bar offset size.  By options.
@@ -584,8 +586,9 @@ local LastBox = true
 local TextureSpark = [[Interface\CastingBar\UI-CastingBar-Spark]]
 local TextureSparkSize = 32
 
-local SettingID = '%s:%s'
-local RegionTrigger = -1
+-- Used by ParseLayoutFont() for validating formatted text.
+local TestFontString = CreateFrame('Frame'):CreateFontString()
+      TestFontString:SetFont(LSM:Fetch('font', Type), 10, 'NONE')
 
 -- Constants used in NumberToDigitGroups
 local Thousands = strmatch(format('%.1f', 1/5), '([^0-9])') == '.' and ',' or '.'
@@ -661,8 +664,69 @@ local AnimationType = {
   offset       = 'Alpha', -- Custom animation
 }
 
-local ValueLayout = {
-  whole = '%d',
+-- Convert ValueName to a Tag name
+local ValueLayoutTag = {
+  current         = 'value',
+  maximum         = 'max',
+  predictedhealth = 'phealth',
+  predictedpower  = 'ppower',
+  predictedcost   = 'pcost',
+  name            = 'name',
+  level           = 'level',
+  time            = 'time',
+  powername       = 'ptext',
+  counter         = 'count',
+  countermin      = 'minc',
+  countermax      = 'maxc',
+}
+
+-- To generate sample text
+local ParValuesTest = {
+  current         = 100000,
+  maximum         = 200000,
+  predictedhealth = 50000,
+  predictedpower  = 5000,
+  predictedcost   = 5000,
+  name            = 'Testname',
+  name2           = 'Testrealm',
+  level           = 100,
+  level2          = 99,
+  time            = 1.00,
+  powername       = 'Test text',
+  counter         = 100,
+  countermin      = 1,
+  countermax      = 99,
+}
+
+-- Used to validate each formatted string
+local ValueLayoutTest = {
+  whole = 1,
+  whole_dgroups = 'string',
+  thousands_dgroups = 'string',
+  millions_dgroups = 'string',
+  short_dgroups = 'string',
+  percent = 1,
+  thousands = 1,
+  millions = 1,
+  short = 'string',
+  unitname = 'string',
+  realmname = 'string',
+  unitnamerealm = 'string',
+  unitlevel = 'string',
+  scaledlevel = 'string',
+  unitlevelscaled = 'string',
+  timeSS = 1,
+  timeSS_H = 1,
+  timeSS_HH = 1,
+  text = 'string',
+  counter = 1,
+  countermin = 1,
+  countermax = 1,
+}
+
+-- Convert ValueType to a format string
+local GetValueLayout = {
+  whole = '%.f',
   whole_dgroups = '%s',
   thousands_dgroups = '%sk',
   millions_dgroups = '%sm',
@@ -680,11 +744,11 @@ local ValueLayout = {
   timeSS = '%d',
   timeSS_H = '%.1f',
   timeSS_HH = '%.2f',
+  text = '%s',
 }
 
-local SetValueParSize = {
-  level = 3
-}
+-- Used to hold parameter values passed to SetValueFont()
+local ParValues = {}
 
 local DefaultBackdrop = {
   bgFile   = '' ,
@@ -765,6 +829,62 @@ local function NextBox(BarDB, BoxNumber)
     LastBox = true
   end
   return BoxFrames[NextBoxFrame], NextBoxFrame
+end
+
+-------------------------------------------------------------------------------
+-- RestoreBackdrops
+--
+-- Goes thru every child frame and child of that frame and so on.  And resets
+-- the backdrop.
+--
+-- Frame            Starting frame
+--
+-- NOTES: The perpose of this function is when you scale a frame thats hidden
+--        the backdrop border gets corrupted.  So this will go thru each frame
+--        and reset the backdrop on the next frame update.
+--        You'll see a quick flicker of the corrupted border, best I can do.
+--        Maybe once blizzard gets rid of backdrops and makes it part of the frame
+--        its self these types of bugs won't happen.
+-------------------------------------------------------------------------------
+local function RestoreFrameOnUpdate(RestoreFrame)
+  RestoreFrame:SetScript('OnUpdate', nil)
+
+  local r, g, b, a = RestoreFrame:GetBackdropColor()
+  local r1, g1, b1, a1 = RestoreFrame:GetBackdropBorderColor()
+
+  RestoreFrame:SetBackdrop(RestoreFrame.Backdrop)
+  RestoreFrame:SetBackdropColor(r, g, b, a)
+  RestoreFrame:SetBackdropBorderColor(r1, g1, b1, a1)
+end
+
+local function RestoreBackdrops(Frame)
+  local function RestoreBackdrop(...)
+    local Found = false
+
+    for Index = 1, select('#', ...) do
+      local Frame = select(Index, ...)
+      local Found = true
+
+      if not RestoreBackdrop(Frame:GetChildren()) then
+
+        -- No children found so use this frame.
+        local Backdrop = Frame:GetBackdrop()
+
+        if Backdrop then
+          local RestoreFrame = Frame.RestoreFrame
+
+          if RestoreFrame == nil then
+            RestoreFrame = {}
+            Frame.RestoreFrame = RestoreFrame
+          end
+          RestoreFrame.Backdrop = Backdrop
+          Frame:SetScript('OnUpdate', RestoreFrameOnUpdate)
+        end
+      end
+    end
+    return Found
+  end
+  RestoreBackdrop(Frame)
 end
 
 -------------------------------------------------------------------------------
@@ -904,59 +1024,6 @@ local function GetVirtualFrameLevel(VirtualLevel)
 end
 
 -------------------------------------------------------------------------------
--- SetColor
---
--- Saves color to be retrived with GetColor
---
--- Object       Object to save the color to.
--- Name         Name that the color was saved under.
--- r, g, b, a   red, green, blue, alpha
---
--- NOTES: All zeros and alpha 1 gets returned if SetColor wasn't called first.
--------------------------------------------------------------------------------
-local function SetColor(Object, Name, r, g, b, a)
-  local Colors = Object.Colors
-
-  if Colors == nil then
-    Colors = {}
-    Object.Colors = Colors
-  end
-  local Color = Colors[Name]
-
-  if Color == nil then
-    Color = {}
-    Colors[Name] = Color
-  end
-  Color.r, Color.g, Color.b, Color.a = r, g, b, a
-end
-
--------------------------------------------------------------------------------
--- GetColor
---
--- Returns color set from SetColor()
---
--- Object        Object that color was saved to with SetColor()
--- Name          Name that the color was saved under.
---
--- Returns:
---   r, g, b, a
---
--- NOTES: All zeros and alpha 1 gets returned if SetColor wasn't called first.
--------------------------------------------------------------------------------
-local function GetColor(Object, Name)
-  local Colors = Object.Colors
-
-  if Colors then
-    local Color = Colors[Name]
-
-    if Color then
-      return Color.r, Color.g, Color.b, Color.a
-    end
-  end
-  return 1, 1, 1, 1
-end
-
--------------------------------------------------------------------------------
 -- SaveSettings
 --
 -- Saves parameters from set a set function. Used for triggers.
@@ -1091,6 +1158,25 @@ local function GetBackdrop(Object)
   end
 
   return Backdrop
+end
+
+-------------------------------------------------------------------------------
+-- SetBackdrop
+--
+-- Sets a backdrop while preserving the backdrop color and border color.
+-- These colors will get reset each time backdrop is set. My hope is one
+-- day they make it so a backdrop table isn't needed anymore.
+--
+-- Frame       Frame that backdrop is being set to
+-- Backdrop    Backdrop to set
+-------------------------------------------------------------------------------
+local function SetBackdrop(Frame, Backdrop)
+  local r, g, b, a = Frame:GetBackdropColor()
+  local r1, g1, b1, a1 = Frame:GetBackdropBorderColor()
+
+  Frame:SetBackdrop(Backdrop)
+  Frame:SetBackdropColor(r, g, b, a)
+  Frame:SetBackdropBorderColor(r1, g1, b1, a1)
 end
 
 -------------------------------------------------------------------------------
@@ -2519,6 +2605,7 @@ function BarDB:SetHidden(BoxNumber, TextureFrameNumber, Hide)
       Frame:Hide()
     else
       Frame:Show()
+      RestoreBackdrops(Frame)
     end
     Frame.Hidden = Hide
   until LastBox
@@ -2658,11 +2745,7 @@ function BarDB:SetBackdropRegion(TextureName, PathName)
   local Backdrop = GetBackdrop(Region)
 
   Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
-  Region:SetBackdrop(Backdrop)
-
-  -- Need to set color since it gets lost when setting backdrop.
-  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
-  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+  SetBackdrop(Region, Backdrop)
 end
 
 -------------------------------------------------------------------------------
@@ -2680,11 +2763,7 @@ function BarDB:SetBackdropBorderRegion(TextureName, PathName)
   local Backdrop = GetBackdrop(Region)
 
   Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
-  Region:SetBackdrop(Backdrop)
-
-  -- Need to set color since it gets lost when setting backdrop.
-  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
-  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+  SetBackdrop(Region, Backdrop)
 end
 
 -------------------------------------------------------------------------------
@@ -2699,11 +2778,7 @@ function BarDB:SetBackdropTileRegion(Tile)
   local Backdrop = GetBackdrop(Region)
 
   Backdrop.tile = Tile
-  Region:SetBackdrop(Backdrop)
-
-  -- Need to set color since it gets lost when setting backdrop.
-  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
-  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+  SetBackdrop(Region, Backdrop)
 end
 
 -------------------------------------------------------------------------------
@@ -2718,11 +2793,7 @@ function BarDB:SetBackdropTileSizeRegion(TileSize)
   local Backdrop = GetBackdrop(Region)
 
   Backdrop.tileSize = TileSize
-  Region:SetBackdrop(Backdrop)
-
-  -- Need to set color since it gets lost when setting backdrop.
-  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
-  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+  SetBackdrop(Region, Backdrop)
 end
 
 -------------------------------------------------------------------------------
@@ -2737,11 +2808,7 @@ function BarDB:SetBackdropBorderSizeRegion(BorderSize)
   local Backdrop = GetBackdrop(Region)
 
   Backdrop.edgeSize = BorderSize
-  Region:SetBackdrop(Backdrop)
-
-  -- Need to set color since it gets lost when setting backdrop.
-  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
-  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+  SetBackdrop(Region, Backdrop)
 end
 
 -------------------------------------------------------------------------------
@@ -2760,11 +2827,7 @@ function BarDB:SetBackdropPaddingRegion(Left, Right, Top, Bottom)
   Insets.right = Right
   Insets.top = Top
   Insets.bottom = Bottom
-  Region:SetBackdrop(Backdrop)
-
-  -- Need to set color since it gets lost when setting backdrop.
-  Region:SetBackdropColor(GetColor(Region, 'backdrop'))
-  Region:SetBackdropBorderColor(GetColor(Region, 'backdrop border'))
+  SetBackdrop(Region, Backdrop)
 end
 
 -------------------------------------------------------------------------------
@@ -2779,7 +2842,6 @@ function BarDB:SetBackdropColorRegion(r, g, b, a)
 
   local Region = self.Region
   Region:SetBackdropColor(r, g, b, a)
-  SetColor(Region, 'backdrop', r, g, b, a)
 end
 
 -------------------------------------------------------------------------------
@@ -2800,7 +2862,6 @@ function BarDB:SetBackdropBorderColorRegion(r, g, b, a)
   if r == nil then
     r, g, b, a = 1, 1, 1, 1
   end
-  SetColor(Region, 'backdrop border', r, g, b, a)
   Region:SetBackdropBorderColor(r, g, b, a)
 end
 
@@ -3041,13 +3102,10 @@ function BarDB:SetBackdrop(BoxNumber, TextureFrameNumber, TextureName, PathName)
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
     local Backdrop = GetBackdrop(Frame)
+    SetBackdrop(Frame, Backdrop)
 
     Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
-    Frame:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    SetBackdrop(Frame, Backdrop)
   until LastBox
 end
 
@@ -3073,11 +3131,7 @@ function BarDB:SetBackdropBorder(BoxNumber, TextureFrameNumber, TextureName, Pat
     local Backdrop = GetBackdrop(Frame)
 
     Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
-    Frame:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    SetBackdrop(Frame, Backdrop)
   until LastBox
 end
 
@@ -3100,11 +3154,7 @@ function BarDB:SetBackdropTile(BoxNumber, TextureFrameNumber, Tile)
     local Backdrop = GetBackdrop(Frame)
 
     Backdrop.tile = Tile
-    Frame:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    SetBackdrop(Frame, Backdrop)
   until LastBox
 end
 
@@ -3127,11 +3177,7 @@ function BarDB:SetBackdropTileSize(BoxNumber, TextureFrameNumber, TileSize)
     local Backdrop = GetBackdrop(Frame)
 
     Backdrop.tileSize = TileSize
-    Frame:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    SetBackdrop(Frame, Backdrop)
   until LastBox
 end
 
@@ -3154,11 +3200,7 @@ function BarDB:SetBackdropBorderSize(BoxNumber, TextureFrameNumber, BorderSize)
     local Backdrop = GetBackdrop(Frame)
 
     Backdrop.edgeSize = BorderSize
-    Frame:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    SetBackdrop(Frame, Backdrop)
   until LastBox
 end
 
@@ -3186,11 +3228,7 @@ function BarDB:SetBackdropPadding(BoxNumber, TextureFrameNumber, Left, Right, To
     Insets.top = Top
     Insets.bottom = Bottom
 
-    Frame:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Frame:SetBackdropColor(GetColor(Frame, 'backdrop'))
-    Frame:SetBackdropBorderColor(GetColor(Frame, 'backdrop border'))
+    SetBackdrop(Frame, Backdrop)
   until LastBox
 end
 
@@ -3212,8 +3250,8 @@ function BarDB:SetBackdropColor(BoxNumber, TextureFrameNumber, r, g, b, a)
     if TextureFrameNumber then
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
+
     Frame:SetBackdropColor(r, g, b, a)
-    SetColor(Frame, 'backdrop', r, g, b, a)
   until LastBox
 end
 
@@ -3243,7 +3281,6 @@ function BarDB:SetBackdropBorderColor(BoxNumber, TextureFrameNumber, r, g, b, a)
       r, g, b, a = 1, 1, 1, 1
     end
     Frame:SetBackdropBorderColor(r, g, b, a)
-    SetColor(Frame, 'backdrop border', r, g, b, a)
   until LastBox
 end
 
@@ -3479,9 +3516,7 @@ function BarDB:SetBackdropTexture(BoxNumber, TextureNumber, TextureName, PathNam
     Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
     Texture:SetBackdrop(Backdrop)
 
-    -- Need to set color since it gets lost when setting backdrop.
-    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
-    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+    SetBackdrop(Texture, Backdrop)
   until LastBox
 end
 
@@ -3503,11 +3538,7 @@ function BarDB:SetBackdropBorderTexture(BoxNumber, TextureNumber, TextureName, P
     local Backdrop = GetBackdrop(Texture)
 
     Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
-    Texture:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
-    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+    SetBackdrop(Texture, Backdrop)
   until LastBox
 end
 
@@ -3526,11 +3557,7 @@ function BarDB:SetBackdropTileTexture(BoxNumber, TextureNumber, Tile)
     local Backdrop = GetBackdrop(Texture)
 
     Backdrop.tile = Tile
-    Texture:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
-    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+    SetBackdrop(Texture, Backdrop)
   until LastBox
 end
 
@@ -3549,11 +3576,7 @@ function BarDB:SetBackdropTileSizeTexture(BoxNumber, TextureNumber, TileSize)
     local Backdrop = GetBackdrop(Texture)
 
     Backdrop.tileSize = TileSize
-    Texture:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
-    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+    SetBackdrop(Texture, Backdrop)
   until LastBox
 end
 
@@ -3572,11 +3595,7 @@ function BarDB:SetBackdropBorderSizeTexture(BoxNumber, TextureNumber, BorderSize
     local Backdrop = GetBackdrop(Texture)
 
     Backdrop.edgeSize = BorderSize
-    Texture:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
-    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+    SetBackdrop(Texture, Backdrop)
   until LastBox
 end
 
@@ -3599,11 +3618,7 @@ function BarDB:SetBackdropPaddingTexture(BoxNumber, TextureNumber, Left, Right, 
     Insets.right = Right
     Insets.top = Top
     Insets.bottom = Bottom
-    Texture:SetBackdrop(Backdrop)
-
-    -- Need to set color since it gets lost when setting backdrop.
-    Texture:SetBackdropColor(GetColor(Texture, 'backdrop'))
-    Texture:SetBackdropBorderColor(GetColor(Texture, 'backdrop border'))
+    SetBackdrop(Texture, Backdrop)
   until LastBox
 end
 
@@ -3623,7 +3638,6 @@ function BarDB:SetBackdropColorTexture(BoxNumber, TextureNumber, r, g, b, a)
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     Texture:SetBackdropColor(r, g, b, a)
-    SetColor(Texture, 'backdrop', r, g, b, a)
   until LastBox
 end
 
@@ -3651,7 +3665,6 @@ function BarDB:SetBackdropBorderColorTexture(BoxNumber, TextureNumber, r, g, b, 
       r, g, b, a = 1, 1, 1, 1
     end
     Texture:SetBackdropBorderColor(r, g, b, a)
-    SetColor(Texture, 'backdrop border', r, g, b, a)
   until LastBox
 end
 
@@ -4502,7 +4515,6 @@ function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
 
     if Texture.Type == 'statusbar' then
       Texture.SubFrame:SetStatusBarColor(r, g, b, a)
-      SetColor(Texture, 'statusbar', r, g, b, a)
     else
       Texture.SubTexture:SetVertexColor(r, g, b, a)
     end
@@ -4549,6 +4561,7 @@ function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
         Texture.CurrentTexture = TextureName
 
         local SubTexture = SubFrame:GetStatusBarTexture()
+        local r, g, b, a = SubFrame:GetStatusBarColor()
 
         SubTexture:SetHorizTile(false)
         SubTexture:SetVertTile(false)
@@ -4563,7 +4576,7 @@ function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
           SubFrame:SetRotatesTexture(RotateTexture)
         end
         Texture.SubTexture = SubTexture
-        SubFrame:SetStatusBarColor(GetColor(Texture, 'statusbar'))
+        SubFrame:SetStatusBarColor(r, g, b, a)
       end
     else
       Texture.SubTexture:SetTexture(TextureName)
@@ -5345,10 +5358,10 @@ function GUB.Bar:SetHighlightFont(BarType, HideTextHighlight, TextIndex)
 
     -- Iterate thru the fontstring array.
     for _, TD in ipairs(TextData) do
-      local Text = TD.Text
+      local Texts = TD.Texts
 
-      if Text then
-        local NumStrings = #Text
+      if Texts then
+        local NumStrings = #Texts
 
         for Index, TF in ipairs(TD.TextFrames) do
           local r, g, b, a = 1, 1, 1, 0
@@ -5446,7 +5459,7 @@ end
 -------------------------------------------------------------------------------
 local FontGetValue = {}
 
-  local function FontGetValue_Short(TextData, Value, ValueType)
+  local function FontGetValue_Short(ParValues, Value, ValueType)
     if Value >= 10000000 then
       if ValueType == 'short_dgroups' then
         return format('%sm', NumberToDigitGroups(Round(Value / 1000000, 1)))
@@ -5473,17 +5486,17 @@ local FontGetValue = {}
 
   -- whole (no function needed)
 
-  FontGetValue['whole_dgroups'] = function(TextData, Value, ValueType)
+  FontGetValue['whole_dgroups'] = function(ParValues, Value, ValueType)
     return NumberToDigitGroups(Value)
   end
 
-  FontGetValue['percent'] = function(TextData, Value, ValueType)
-    local MaxValue = TextData.maximum
+  FontGetValue['percent'] = function(ParValues, Value, ValueType)
+    local MaxValue = ParValues.maximum
 
     if MaxValue == 0 then
       return 0
     else
-      local PercentFn = TextData.PercentFn
+      local PercentFn = ParValues.PercentFn
 
       if PercentFn then
         return PercentFn(Value, MaxValue)
@@ -5493,31 +5506,30 @@ local FontGetValue = {}
     end
   end
 
-  FontGetValue['thousands'] = function(TextData, Value, ValueType)
+  FontGetValue['thousands'] = function(ParValues, Value, ValueType)
     return Value / 1000
   end
 
-  FontGetValue['thousands_dgroups'] = function(TextData, Value, ValueType)
+  FontGetValue['thousands_dgroups'] = function(ParValues, Value, ValueType)
     return NumberToDigitGroups(Round(Value / 1000))
   end
 
-  FontGetValue['millions'] = function(TextData, Value, ValueType)
+  FontGetValue['millions'] = function(ParValues, Value, ValueType)
     return Value / 1000000
   end
 
-  FontGetValue['millions_dgroups'] = function(TextData, Value, ValueType)
+  FontGetValue['millions_dgroups'] = function(ParValues, Value, ValueType)
     return NumberToDigitGroups(Round(Value / 1000000, 1))
   end
 
-  local function SetNameData(TextData, Value, ValueType)
-    local Name, Realm = UnitName(TextData.name)
-
-    Name = Name or ''
+  local function SetNameData(ParValues, Value, ValueType)
+    local Name = ParValues.name or ''
 
     if ValueType == 'unitname' then
       return Name
     else
-      Realm = Realm or ''
+      local Realm = ParValues.name2 or ''
+
       if ValueType == 'realmname' then
         return Realm
       else
@@ -5533,10 +5545,10 @@ local FontGetValue = {}
   FontGetValue['realmname'] = SetNameData
   FontGetValue['unitnamerealm'] = SetNameData
 
-  local function SetLevelData(TextData, Value, ValueType)
+  local function SetLevelData(ParValues, Value, ValueType)
     local UnitLevelScaled = nil
-    local Level = TextData.level
-    local ScaledLevel = TextData.level2
+    local Level = ParValues.level
+    local ScaledLevel = ParValues.level2
 
     if Level == -1 or ScaledLevel == -1 then
       Level = [[|TInterface\TargetingFrame\UI-TargetingFrame-Skull:0:0|t]]
@@ -5550,7 +5562,7 @@ local FontGetValue = {}
       return Level
     elseif ValueType == 'scaledlevel' then
       return ScaledLevel
-    else
+    else -- unitlevelscaled
       if Level ~= ScaledLevel then
         return format('%s (%s)', ScaledLevel, Level)
       else
@@ -5563,7 +5575,7 @@ local FontGetValue = {}
   FontGetValue['scaledlevel'] = SetLevelData
   FontGetValue['unitlevelscaled'] = SetLevelData
 
-  -- timeSS, timeSS_H, timeSS_HH (no function needed)
+  -- timeSS, timeSS_H, timeSS_HH, powername, counter, countermin, countermax (no function needed)
 
 -------------------------------------------------------------------------------
 -- SetValue (method for Font)
@@ -5571,33 +5583,32 @@ local FontGetValue = {}
 -- BoxNumber          Boxnumber that contains the font string.
 -- ...                Type, Value pairs.  Example:
 --                      'current', CurrValue, 'maximum', MaxValue, 'predicted', PredictedPower, 'name', Unit)
---
--- NOTES: SetValue() is optimized for speed since this function gets called a lot.
 -------------------------------------------------------------------------------
-local function SetValue(TextData, FontString, Layout, NumValues, ValueNames, ValueTypes, ...)
+local function SetValue(FontString, Layout, ParValues, ValueOrder, FormatStrings, NumValues, ValueNames, ValueTypes, ...)
+  if NumValues > 0 then
 
-  -- if we have paramters left then get them.
-  local Name = ValueNames[NumValues]
+    -- ParValue will be nil if Name is 'none'
+    local ValueIndex = ValueOrder[NumValues]
+    local Name = ValueNames[ValueIndex]
+    local ParValue = ParValues[Name]
 
-  if NumValues > 1 then
-    if Name ~= 'none' then
-      local ValueType = ValueTypes[NumValues]
-      local Value = TextData[Name]
+    if ValueIndex and ParValue ~= nil then
+      Layout = FormatStrings[ValueIndex] .. Layout
+    end
+
+    if ParValue ~= nil then
+      local ValueType = ValueTypes[ValueIndex]
       local GetValue = FontGetValue[ValueType]
 
-      SetValue(TextData, FontString, Layout, NumValues - 1, ValueNames, ValueTypes, Value ~= '' and GetValue and GetValue(TextData, Value, ValueType) or Value, ...)
+      return SetValue(FontString, Layout, ParValues, ValueOrder, FormatStrings, NumValues - 1, ValueNames, ValueTypes,
+                      ParValue ~= '' and GetValue and GetValue(ParValues, ParValue, ValueType) or ParValue, ...)
     else
-      SetValue(TextData, FontString, Layout, NumValues - 1, ValueNames, ValueTypes, ...)
+      return SetValue(FontString, Layout, ParValues, ValueOrder, FormatStrings, NumValues - 1, ValueNames, ValueTypes, ...)
     end
-  elseif Name ~= 'none' then
-    local ValueType = ValueTypes[NumValues]
-    local Value = TextData[Name]
-    local GetValue = FontGetValue[ValueType]
-
-    FontString:SetFormattedText(Layout, Value ~= '' and GetValue and GetValue(TextData, Value, ValueType) or Value, ...)
   else
     FontString:SetFormattedText(Layout, ...)
   end
+  return Layout
 end
 
 -- SetValueFont
@@ -5607,33 +5618,39 @@ function BarDB:SetValueFont(BoxNumber, ...)
   local TextData = Frame.TextData
   local TextFrame = TextData.TextFrame
   local MaxPar = select('#', ...)
-  local ParValue2 = nil
   local Index = 1
 
-  repeat
+  wipe(ParValues)
+  while Index <= MaxPar do
     local ParType, ParValue = select(Index, ...)
-    local ParSize = SetValueParSize[ParType] or 2
+    ParValues[ParType] = ParValue
 
-    TextData[ParType] = ParValue
-    if ParSize == 3 then
-      TextData[ParType .. '2'] = select(Index + 2, ...)
+    -- Handle parms with 2 values
+    if ParType == 'level' or ParType == 'name' then
+      Index = Index + 1
+      ParValues[format('%s2', ParType)] = select(Index + 1, ...)
     end
-    Index = Index + ParSize
-  until Index > MaxPar
+    Index = Index + 2
+  end
 
   local Texts = TextData.Texts
+  local ValueLayouts = TextData.ValueLayouts
 
-  for Index = 1, TextData.NumStrings do
-    local FontString = TextData[Index]
+  for Index = 1, #Texts do
     local Text = Texts[Index]
-    local ValueNames = Text.ValueNames
+    local ErrorMessage = Text.ErrorMessage
+    local FontString = TextData[Index]
 
-    -- Display the font string
-    local ReturnOK, Msg = pcall(SetValue, TextData, FontString, Text.Layout, #ValueNames, ValueNames, Text.ValueTypes)
+    if ErrorMessage == nil then
+      local ValueLayout = ValueLayouts[Index]
+      local ValueNames = Text.ValueNames
 
-    if not ReturnOK then
+      -- Display the font string
+      -- Call with an empty layout so each call doesn't create a longer string each time.
+      ValueLayout.Layout = SetValue(FontString, '', ParValues, ValueLayout.ValueOrder, ValueLayout.FormatStrings, #ValueNames, ValueNames, Text.ValueTypes)
+    else
       FontString:SetFormattedText('Err (%d)', Index)
-      Options:AddDebugLine(format('%s - Err (%d) :%s', self.BarType, Index, Msg))
+      Options:AddDebugLine(format('%s - Err (%d) :%s', self.BarType, Index, ErrorMessage))
     end
   end
 end
@@ -5652,48 +5669,10 @@ function BarDB:SetValueRawFont(BoxNumber, Text)
 
     local TextData = Frame.TextData
 
-    for Index = 1, TextData.NumStrings do
+    for Index = 1, #TextData do
       TextData[Index]:SetText(Text)
     end
   until LastBox
-end
-
--------------------------------------------------------------------------------
--- GetLayoutFont
---
--- ValueNames      Array containing the names.
--- ValueTypes      Array containing the types.
---
--- Returns:
---   Layout       String containing the new layout.
--------------------------------------------------------------------------------
-local function GetLayoutFont(ValueNames, ValueTypes)
-  local LastName = nil
-  local Sep = ''
-  local SepFlag = false
-
-  local Layout = ''
-
-  for NameIndex, Name in ipairs(ValueNames) do
-    if Name ~= 'none' then
-
-      -- Add a '/' between current and maximum.
-      if NameIndex > 1 then
-        if not SepFlag and (LastName == 'current' and Name == 'maximum' or
-                            LastName == 'maximum' and Name == 'current') then
-          Sep = ' / '
-          SepFlag = true
-        else
-          Sep = ' '
-        end
-      end
-
-      LastName = Name
-      Layout = Layout .. Sep .. (ValueLayout[ValueTypes[NameIndex]] or '')
-    end
-  end
-
-  return Layout
 end
 
 -------------------------------------------------------------------------------
@@ -5973,6 +5952,190 @@ function BarDB:SetStyleFont(BoxNumber, TextLine, Style)
 end
 
 -------------------------------------------------------------------------------
+-- ParseLayoutFont
+--
+-- Parses the layout so it can be used in SetValueFont()
+-------------------------------------------------------------------------------
+local function ParseLayoutFont(TextData)
+  local ValueLayouts = TextData.ValueLayouts
+
+  if ValueLayouts == nil then
+    ValueLayouts = {}
+    TextData.ValueLayouts = ValueLayouts
+  end
+
+  local Texts = TextData.Texts
+
+  for TextIndex = 1, #Texts do
+    local Text = Texts[TextIndex]
+    local ValueNames = Text.ValueNames
+    local ValueTypes = Text.ValueTypes
+    local Layout = strtrim(Text.Layout)
+    Text.Layout = Layout
+
+    local ValueLayout = ValueLayouts[TextIndex]
+    if ValueLayout == nil then
+      ValueLayout = {}
+      ValueLayouts[TextIndex] = ValueLayout
+    end
+
+    local ValueOrder = {}
+    local FormatStrings = {}
+    ValueLayout.Layout = ''
+    ValueLayout.ValueOrder = ValueOrder
+    ValueLayout.FormatStrings = FormatStrings
+
+    if Layout ~= '' then
+      local StartIndex = 1
+      local Index = 1
+      local ValueIndex = nil
+      local ErrorMessage = ''
+      local LeftBracket = ''
+      local Tag = ''
+      local OrderIndex = 0
+      local ReturnOK = nil
+      local Msg = nil
+
+      repeat
+        OrderIndex = OrderIndex + 1
+        Layout = strtrim(strsub(Layout, StartIndex))
+
+        if Layout ~= '' then
+          -- Validate tag and get ValueIndex
+          -- Search for letters only until the first non letter is found
+          -- Next keep searching until a non number is found
+          -- If the final character is '(' then stop search.
+          _, StartIndex, ValueIndex, LeftBracket = strfind(Layout, '^[%a]*([%d]*)(%()')
+
+          ValueIndex = tonumber(ValueIndex)
+          if ValueIndex == nil or LeftBracket == nil then
+            ErrorMessage = 'Invalid tag or "(" not found'
+          else
+            Index = StartIndex + 1
+
+            -- Get the format string.
+            while true do
+              Index = strfind(Layout, ')', Index, true)
+
+              if Index == nil then
+                ErrorMessage = '")" not found'
+                break
+              else
+                Index = Index + 1
+
+                -- Skip if 2 in a row
+                if strsub(Layout, Index, Index) == ')' then
+                  Index = Index + 1
+                else
+                  local FormatString = strsub(Layout, StartIndex + 1, Index - 2)
+
+                  if FormatString == '' then
+                    ErrorMessage = 'No format string found'
+                  else
+                    FormatString = gsub(FormatString, '%)%)', ')')
+                    ReturnOK = true
+
+                    -- Validate format string
+                    if ValueNames[ValueIndex] ~= 'none' then
+                      local ValueType = ValueTypes[ValueIndex]
+                      local TestData = ValueLayoutTest[ValueType]
+
+                      ReturnOK, Msg = pcall(TestFontString.SetFormattedText, TestFontString, FormatString, TestData)
+                    end
+
+                    if not ReturnOK then
+                      ErrorMessage = Msg
+                    else
+                      ValueOrder[OrderIndex] = ValueIndex
+                      FormatStrings[ValueIndex] = FormatString
+                      StartIndex = Index
+                    end
+                  end
+                  break
+                end
+              end
+            end
+          end
+        end
+      until Layout == '' or ErrorMessage ~= ''
+      if ErrorMessage ~= '' then
+        Text.ErrorMessage =  OrderIndex .. ':' .. ErrorMessage
+      else
+        Text.ErrorMessage = nil
+
+        -- Create sample text
+        SetValue(TestFontString, '', ParValuesTest, ValueOrder, FormatStrings, #ValueNames, ValueNames, ValueTypes)
+        Text.SampleText = 'Sample Text: \n' .. (TestFontString:GetText() or '')
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- GetLayoutFont
+--
+-- ValueNames      Array containing the names.
+-- ValueTypes      Array containing the types.
+--
+-- Returns:
+--   Layout       String containing the new layout.
+-------------------------------------------------------------------------------
+local function GetLayoutFont(ValueNames, ValueTypes)
+  local LastName = nil
+  local Sep = ''
+  local Space = ''
+  local Layout = ''
+  local Tag = ''
+  local SepFlag = false
+  local ValueIndex = 0
+  local MaxValueNames = 0
+
+  -- Get the real number of value names
+  for NameIndex, Name in ipairs(ValueNames) do
+    if Name ~= 'none' then
+      MaxValueNames = MaxValueNames + 1
+    end
+  end
+
+  for NameIndex, Name in ipairs(ValueNames) do
+    if Name ~= 'none' then
+
+      -- Check for valid tag
+      Tag = ValueLayoutTag[ValueNames[NameIndex]]
+      if Tag then
+        ValueIndex = ValueIndex + 1
+        Tag = Tag .. NameIndex .. '('
+
+        -- Add a '/' between current and maximum.
+        if NameIndex > 1 then
+          if not SepFlag and (LastName == 'current' and Name == 'maximum' or
+                              LastName == 'maximum' and Name == 'current') then
+            Sep = '/ '
+            SepFlag = true
+          else
+            Sep = ''
+          end
+        end
+        if Name == 'countermax' then
+          Sep = '/ '
+        end
+
+        if ValueIndex < MaxValueNames then
+          Space = ' '
+        else
+          Space = ''
+        end
+
+        LastName = Name
+        Layout = Layout .. Tag .. Sep .. (GetValueLayout[ValueTypes[NameIndex]] or '') .. Space .. ')   '
+      end
+    end
+  end
+
+  return Layout
+end
+
+-------------------------------------------------------------------------------
 -- UpdateFont
 --
 -- Updates a font based on the text settings in UnitBar.Text
@@ -5996,7 +6159,6 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
   TextData.Texts = Texts
 
   local TextFrames = TextData.TextFrames
-  local NumStrings = nil
 
   -- Adjust the fontstring array based on the text settings.
   for Index = 1, #Texts do
@@ -6011,7 +6173,6 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
     if ColorAll == nil then
       ColorAll = true
     end
-    NumStrings = Index
 
     -- Update the layout if not in custom mode.
     if not Text.Custom then
@@ -6063,12 +6224,19 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
   end
 
   -- Erase font string data no longer used.
-  for Index = NumStrings + 1, TextData.NumStrings do
-    TextData[Index]:SetText('')
+  for Index = 1, 10 do
+    if Texts[Index] == nil then
+      local TD = TextData[Index]
+
+      if TD then
+        TD:SetText('')
+      end
+    end
   end
   TextData.Multi = Multi
-  TextData.NumStrings = NumStrings
   TextData.Texts = Texts
+
+  ParseLayoutFont(TextData)
 end
 
 -------------------------------------------------------------------------------
@@ -6100,7 +6268,6 @@ function BarDB:CreateFont(TextTableName, BoxNumber, PercentFn)
 
     -- Store the text data.
     TextData.BarType = BarType
-    TextData.NumStrings = 0
     TextData.TextFrames = {}
     TextData.PercentFn = PercentFn
     TextData.Texts = Texts
@@ -6343,7 +6510,10 @@ local function FindLowestValue(Conditions)
   for TriggerIndex = 1, #Conditions do
     local Value = Conditions[TriggerIndex].Value
 
-    if LowestValue == nil or Value < LowestValue then
+    -- if string just return 1 and stop here.
+    if type(Value) == 'string' then
+        return 1
+    elseif LowestValue == nil or Value < LowestValue then
       LowestValue = Value
     end
   end
@@ -6374,7 +6544,6 @@ function BarDB:CheckTriggers()
 
   -- Check for text multiline.
   local Text = DUB[self.BarType].Text
-  local TextMultiLine = Text and Text._Multi
 
   -- Undo triggers first
   UndoTriggers(self)
@@ -6436,7 +6605,19 @@ function BarDB:CheckTriggers()
 
         for ConditionIndex = 1, #Conditions do
           local Condition = Conditions[ConditionIndex]
+          local Value = Condition.Value
 
+          if ValueTypeID == 'string' then
+            local Operator = Condition.Operator
+
+            if Operator ~= '<>' and Operator ~= '=' then
+              Condition.Operator = '='
+            end
+            Value = tostring(Value)
+          else
+            Value = tonumber(Value) or 0
+          end
+          Condition.Value = Value
           Condition.OrderNumber = ConditionIndex
         end
 
@@ -6469,17 +6650,9 @@ function BarDB:CheckTriggers()
 
         -- Check for text
         if strfind(TypeID, 'font') then
-          local TextLine = Trigger.TextLine or 1
-
-          if TextMultiLine == nil then
-            TextLine = 1
-          end
-
-          Trigger.TextLine = TextLine
-          Trigger.TextMultiLine = TextMultiLine
+          Trigger.TextLine = Trigger.TextLine or 1
         else
           Trigger.TextLine = nil
-          Trigger.TextMultiLine = nil
         end
 
         -- Filter triggers into static, sorted, and auras.
@@ -7283,6 +7456,7 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
     local ValueType = nil
     local CompValue = nil
     local CompState = nil
+    local CompString = nil
 
     if p2 == 'off' then
       Off = true
@@ -7290,8 +7464,12 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
     else
       ValueType = p2
 
+      -- Check for string.
+      if type(p3) == 'string' then
+        CompString = p3
+
       -- Check for compare state.
-      if type(p3) == 'boolean' then
+      elseif type(p3) == 'boolean' then
         CompState = p3
 
       -- Check for Current value and max value
@@ -7329,7 +7507,6 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
 
       if Virtual and VirtualGroupNumber == TriggerGroupNumber or
          not Virtual and ( GroupNumbers and GroupNumbers[GroupNumber] or GroupNumber == TriggerGroupNumber ) then
-
         local TriggerValueType = Trigger.ValueType
 
         if ( Off and ValueType == nil or TriggerValueType == ValueType ) or ( not Off and TriggerValueType == ValueType ) then
@@ -7343,7 +7520,7 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
             local Conditions = Trigger.Conditions
             local All = Conditions.All
             local NumConditions = #Conditions
-            local NumFound = 0
+            local Result = false
 
             -- Search thru conditions to find one or more that are true.
             for ConditionIndex = 1, NumConditions do
@@ -7351,21 +7528,31 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
               local Operator = Condition.Operator
               local Value = Condition.Value
 
-              if Operator == '<'  and CompValue <  Value or
-                 Operator == '>'  and CompValue >  Value or
-                 Operator == '<=' and CompValue <= Value or
-                 Operator == '>=' and CompValue >= Value or
-                 Operator == '='  and CompValue == Value or
-                 Operator == '<>' and CompValue ~= Value then
-                NumFound = NumFound + 1
-                if not All then -- dont need to check all conditions.
+              if CompString and (
+                   Operator == '='  and strfind(strlower(CompString), strlower(Value), 1, true) or
+                   Operator == '<>' and strfind(strlower(CompString), strlower(Value), 1, true) == nil ) or
+                 CompString == nil and tonumber(Value) ~= nil and (
+                   Operator == '<'  and CompValue <  Value or
+                   Operator == '>'  and CompValue >  Value or
+                   Operator == '<=' and CompValue <= Value or
+                   Operator == '>=' and CompValue >= Value or
+                   Operator == '='  and CompValue == Value or
+                   Operator == '<>' and CompValue ~= Value    ) then
+
+                -- dont need to check all conditions.
+                if not All then
+                  Result = true
                   break
+                -- All conditions are true
+                elseif ConditionIndex == NumConditions then
+                  Result = true
                 end
-              elseif All then -- dont need to keep checking since all would have to match.
+              -- dont need to keep checking since all would have to match.
+              elseif All then
                 break
               end
             end
-            Execute = not Off and NumFound > 0 and ( not All or NumFound == NumConditions )
+            Execute = not Off and Result
           end
           local TriggerTypeIndex = Trigger.TypeIndex
 

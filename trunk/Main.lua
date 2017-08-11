@@ -24,6 +24,7 @@ GUB.Main = Main
 GUB.Bar = Bar
 GUB.HapBar = HapBar
 GUB.StaggerBar = {}
+GUB.AltPowerBar = {}
 GUB.RuneBar = {}
 GUB.ComboBar = {}
 GUB.HolyBar = {}
@@ -42,26 +43,23 @@ local _, _G =
       _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
-      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
-local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
-      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
-      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
-local CreateFrame, UnitGUID, getmetatable, setmetatable =
-      CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter, UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
+      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
+local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type =
+      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type
+
+local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
+      CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
+local C_PetBattles, C_TimerAfter,  GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
+      C_PetBattles, C_Timer.After, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
+local UnitAffectingCombat, UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
+      UnitAffectingCombat, UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
+local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
+      UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
+local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll =
+      UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
+local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub =
+      PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub
 
 --- temporary fix to transition to 7.3.0
 local PlaySoundKitID = PlaySoundKitID
@@ -145,6 +143,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                            False  The bar is not active.
 --                            0      The bar is waiting to be active again.  If the flag is checked by StatusCheck() and is false.
 --                                   Then it sets it to zero.
+--   IsHealth             - Is a health bar part of health and power.
+--   IsPower              - Is a power bar part of health and power.
 --   BarType              - Mostly for debugging.  Contains the type of bar. 'PlayerHealth', 'RuneBar', etc.
 --   UnitBar              - Reference to the current UnitBar data which is the current profile.  Each time the
 --                          profile changes this value gets referenced to the new profile. This is the same
@@ -173,9 +173,12 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.InCombat          - set by UnitBarsUpdateStatus()
 -- Main.IsDead            - set by UnitBarsUpdateStatus()
 -- Main.HasTarget         - set by UnitBarsUpdateStatus()
+-- Main.HasAltPower       - set by UnitBarsUpdateStatus()
 -- Main.TrackedAurasList  - Set by SetAuraTracker()
 -- Main.PlayerGUID        - Set by ShareData()
 -- Main.GameVersion       - Current version of the game
+-- Main.AltPowerBarUsed   - Contains list of used power bars. Contains what minimap zone they were used in.
+--                          set by UnitBarsUpdateStatus(). Used by ShareData() and used by CreateAuraOptions()
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
@@ -198,7 +201,10 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- HasTarget              - True or false. If true then the player has a target.
 -- HasFocus               - True or false. If true then the player has a focus.
 -- HasPet                 - True or false. If true then the player has a pet.
-
+-- HasAltPower            - True or false. If true then the player has alternate power bar.
+-- BlizzAltPowerVisible   - True or false. If true then the blizzard alt power bar is visible, otherwise hidden.
+--                          Used by HideBlizzAltPowerBar()
+--
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
 -- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
@@ -364,6 +370,8 @@ local IsDead = false
 local HasTarget = false
 local HasFocus = false
 local HasPet = false
+local HasAltPower = false
+local BlizzAltPowerVisible = false
 local PlayerPowerType = nil
 local PlayerClass = nil
 local PlayerStance = nil
@@ -371,6 +379,7 @@ local PlayerSpecialization = nil
 local PlayerGUID = nil
 local UpdateStatusDelay = 5  -- time in seconds before calling UnitBarsUpdateStatus()
 local OtherEvents = {}
+local AltPowerBarUsed = nil
 
 local MoonkinForm = MOONKIN_FORM
 local CatForm = CAT_FORM
@@ -458,11 +467,11 @@ local AnchorOffset = {
 
 local ConvertPowerType = {
   MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, COMBO_POINTS = 4, RUNIC_POWER = 6,
-  SOUL_SHARDS = 7, LUNAR_POWER = 8, ASTRAL_POWER = 8, HOLY_POWER = 9, MAELSTROM = 11, CHI = 12,
-  INSANITY = 13, ARCANE_CHARGES = 16, FURY = 17, PAIN = 18,
+  SOUL_SHARDS = 7, LUNAR_POWER = 8, ASTRAL_POWER = 8, HOLY_POWER = 9, ALTERNATE = 10,
+  MAELSTROM = 11, CHI = 12, INSANITY = 13, ARCANE_CHARGES = 16, FURY = 17, PAIN = 18,
   [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY', [4] = 'COMBO_POINTS', [6] = 'RUNIC_POWER',
-  [7] = 'SOUL_SHARDS', [8] = 'LUNAR_POWER', [9] = 'HOLY_POWER', [11] = 'MAELSTROM', [12] = 'CHI',
-  [13] = 'INSANITY', [16] = 'ARCANE_CHARGES', [17] = 'FURY', [18] = 'PAIN',
+  [7] = 'SOUL_SHARDS', [8] = 'LUNAR_POWER', [9] = 'HOLY_POWER', [10] = 'ALTERNATE', [11] = 'MAELSTROM',
+  [12] = 'CHI', [13] = 'INSANITY', [16] = 'ARCANE_CHARGES', [17] = 'FURY', [18] = 'PAIN',
 
   -- This section used by health and power bars. See HealthPowerBar.lua
   ['RUNIC POWER'] = 6, ['LUNAR POWER'] = 8, ['ASTRAL POWER'] = 8,
@@ -524,6 +533,12 @@ do
       Index = Index + 1
       local UBFTable = CreateFrame('Frame')
 
+      if strfind(BarType, 'Health') then
+        UBFTable.IsHealth = true
+      elseif BarType ~= 'AltPowerBar' and strfind(BarType, 'Power') then
+        UBFTable.IsPower = true
+      end
+
       UnitBarsF[BarType] = UBFTable
       UnitBarsFE[Index] = UBFTable
     end
@@ -547,6 +562,8 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UNIT_EXITED_VEHICLE',           GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_DISPLAYPOWER',             GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_MAXPOWER',                 GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_POWER_BAR_SHOW',           GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'UNIT_POWER_BAR_HIDE',           GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'UNIT_FACTION',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
@@ -563,6 +580,8 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'PET_BATTLE_OPENING_START',      GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_CLOSE',              GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'ZONE_CHANGED_NEW_AREA',         GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'ZONE_CHANGED',                  GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'ZONE_CHANGED_INDOORS',          GUB.UnitBarsUpdateStatus)
 
     -- These events will always be checked even if unit is not player.
     OtherEvents['UNIT_FACTION'] = 1
@@ -635,6 +654,107 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- HideBlizzAltPowerBar
+--
+-- Hides and shows the blizzard alt power bar and timer1 frame
+--
+-- Calls are made to blizzard functions to avoid breaking stuff when hiding and showing
+-------------------------------------------------------------------------------
+local function HideBlizzAltPowerBar(Hide)
+
+  if Hide then
+    -- Only search if show blizz alt bar is true and zone name is true
+    if UnitBars.HideBlizzAltPower == 1 and UnitBars.ApbZoneName then
+      local ExactMatch = UnitBars.ApbZoneNameExactMatch
+      local ZoneText = strlower(GetMinimapZoneText())
+      local ZoneNameList = UnitBars.ApbZoneNameList
+
+      -- Search for a zone on the list, if found show instead of hide
+      for Index = 1, #ZoneNameList do
+        local Name = ZoneNameList[Index]
+
+        if ExactMatch and ZoneText == Name or not ExactMatch and strfind(ZoneText, Name, 1, true) then
+          Hide = false
+          break
+        end
+      end
+    end
+  end
+
+  if Hide ~= nil then
+    BlizzAltPowerVisible = not Hide
+
+    if Hide then
+      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_BAR_SHOW')
+      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_BAR_HIDE')
+      PlayerPowerBarAlt:UnregisterEvent('PLAYER_ENTERING_WORLD')
+      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER')
+      PlayerPowerBarAlt:UnregisterEvent('UNIT_MAXPOWER')
+
+      -- Need to do it this way so nothing bugs out
+      UnitPowerBarAlt_TearDown(PlayerPowerBarAlt)
+
+      PlayerBuffTimerManager:UnregisterEvent('UNIT_POWER_BAR_TIMER_UPDATE')
+      PlayerBuffTimerManager:UnregisterEvent('PLAYER_ENTERING_WORLD')
+
+    else
+      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_BAR_SHOW')
+      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_BAR_HIDE')
+      PlayerPowerBarAlt:RegisterEvent('PLAYER_ENTERING_WORLD')
+      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER')
+      PlayerPowerBarAlt:RegisterEvent('UNIT_MAXPOWER')
+
+      -- This function will show the bar if there is alt power
+      UnitPowerBarAlt_UpdateAll(PlayerPowerBarAlt)
+
+      PlayerBuffTimerManager:RegisterEvent('UNIT_POWER_BAR_TIMER_UPDATE')
+      PlayerBuffTimerManager:RegisterEvent('PLAYER_ENTERING_WORLD')
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- HideWowFrame
+--
+-- Hides different frames in the game.
+--
+-- Ussage: HideWowFrame(FrameName, Flag)
+--
+-- FrameName   Name of frame.
+--               'player' - Player frame
+--               'target' - Target frame
+--               'alternate' - blizzard alternate power bar
+--
+-- Flag        true hides the frame otherwise false
+--
+-- NOTES:  Can have more than one FrameName, Flag pair
+--------------------------------------------------------------------------------
+function GUB.Main:HideWowFrame(...)
+  for FrameIndex = 1, select('#', ...), 2 do
+    local FrameName, Hide = select(FrameIndex, ...)
+    local Frame = nil
+
+    if FrameName == 'player' then
+      Frame = PlayerFrame
+    elseif FrameName == 'target' then
+      -- Don't show the target player frame if there is no target.
+      if Hide or not Hide and HasTarget then
+        Frame = TargetFrame
+      end
+    elseif FrameName == 'alternate' and not HasAltPower then
+      HideBlizzAltPowerBar(Hide)
+    end
+    if Frame then
+      if Hide then
+        Frame:Hide()
+      else
+        Frame:Show()
+      end
+    end
+  end
+end
 
 -------------------------------------------------------------------------------
 -- RegEvent/RegEventFrame
@@ -1043,6 +1163,18 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
   Scroller:SetWidth(16)
 
   MessageBox:Show()
+end
+
+-------------------------------------------------------------------------------
+-- StringParse
+--
+-- Parses a string and dumps it into a table
+--
+-- Sep       Separator
+-- St        String to parse
+-- Table     Existing table to dump into. Table gets wiped prior to dumping.
+-------------------------------------------------------------------------------
+function GUB.Main:StringParse(Sep, St, Table)
 end
 
 -------------------------------------------------------------------------------
@@ -2669,7 +2801,7 @@ function GUB.Main:StatusCheck(Event)
 
       -- Check to see if the bar has an enable function and call it.
       -- Only call if the right class is using the bar or there is
-      -- no if there is no Hide not Usable option.
+      -- is no Hide not Usable option.
       if Visible then
         local Fn = self.BarVisible
         if Fn and (HideNotUsableRaw == nil or Spec) then
@@ -2696,7 +2828,7 @@ function GUB.Main:StatusCheck(Event)
           Visible = false
 
         -- Get the idle status based on HideNotActive when not in combat.
-        -- If the flag is not present the it defaults to false.
+        -- If the flag is not present then it defaults to false.
         elseif not InCombat and Status.HideNotActive then
           local IsActive = self.IsActive
           Visible = IsActive == true
@@ -2709,6 +2841,17 @@ function GUB.Main:StatusCheck(Event)
         -- Hide if not in combat with the HideNoCombat status.
         elseif not InCombat and Status.HideNoCombat then
           Visible = false
+
+        -- Hide if the blizzard alternate power bar is visible otherwise hide
+        -- Hide if there is no active blizzard alternate power bar
+        elseif Status.HideIfBlizzAltPowerVisible ~= nil then
+          if not HasAltPower then
+            Visible = false
+          elseif Status.HideIfBlizzAltPowerVisible then
+            if BlizzAltPowerVisible then
+              Visible = false
+            end
+          end
         end
       end
     end
@@ -3646,16 +3789,32 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   HasTarget = UnitExists('target')
   HasFocus = UnitExists('focus')
   HasPet = PetHasActionBar() or HasPetUI()
+  BlizzAltPowerVisible = PlayerPowerBarAlt:IsVisible()
   PlayerStance = GetShapeshiftFormID()
   PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization() or 0
 
+  local AltPowerType, _, _, _, _, _, _, _, _, _, _, _, _, BarID = UnitAlternatePowerInfo('player')
+  HasAltPower = AltPowerType  ~= nil
+  -- Save for alt bar history
+  if HasAltPower then
+    AltPowerBarUsed[BarID] = GetMinimapZoneText() or ''
+  end
+
   Main.InCombat = InCombat
   Main.IsDead = IsDead
   Main.HasTarget = HasTarget
+  Main.HasAltPower = HasAltPower
   Main.PlayerPowerType = PlayerPowerType
 
+  -- For alternate power bar options needs to be disabled when there is an bar active
+  Options:RefreshMainOptions()
+
+  -- Need to do this here since hiding targetframe at startup doesn't work.
+  Main:UnitBarsSetAllOptions('frames')
+
   -- Call for a checktrigger change thru setattr if player specialization has changed.
+  -- This is for triggers since specialization is supported now.
   local PlayerSpecializationChanged = Main.PlayerSpecialization ~= PlayerSpecialization
 
   Main.PlayerSpecializationChanged = PlayerSpecializationChanged
@@ -3809,47 +3968,61 @@ end
 --
 -- Activates the current settings in UnitBars.
 --
--- IsLocked
--- AlignAndSwapEnabled
--- IsClamped
--- FadeOutTime
--- FadeInTime
+-- If Action is 'frames' then it'll just do the frames options only
+-- Otherwise it does both.
 -------------------------------------------------------------------------------
-function GUB.Main:UnitBarsSetAllOptions()
+function GUB.Main:UnitBarsSetAllOptions(Action)
   local ATOFrame = Options.ATOFrame
   local IsLocked = UnitBars.IsLocked
   local IsClamped = UnitBars.IsClamped
   local AnimationOutTime = UnitBars.AnimationOutTime
   local AnimationInTime = UnitBars.AnimationInTime
 
-  -- Update text highlight only when options window is open
-  if Options.MainOptionsOpen then
-    Bar:SetHighlightFont('on', UnitBars.HideTextHighlight)
+  local HidePlayerFrame = UnitBars.HidePlayerFrame
+  local HideTargetFrame = UnitBars.HideTargetFrame
+  local HideBlizzAltPower = UnitBars.HideBlizzAltPower
+
+  if Action ~= 'frames' then
+    -- Update text highlight only when options window is open
+    if Options.MainOptionsOpen then
+      Bar:SetHighlightFont('on', UnitBars.HideTextHighlight)
+    end
+
+    -- Update alignment tool status.
+    if IsLocked or not UnitBars.AlignAndSwapEnabled then
+      Options:CloseAlignSwapOptions()
+    end
+
+    -- Apply the settings.
+    for _, UBF in ipairs(UnitBarsFE) do
+      local BBar = UBF.BBar
+      UBF:EnableMouseClicks(not IsLocked)
+      UBF.Anchor:SetClampedToScreen(IsClamped)
+
+      SetAnimationTypeUnitBar(UBF)
+      BBar:SetAnimationDurationBar('out', AnimationOutTime)
+      BBar:SetAnimationDurationBar('in', AnimationInTime)
+    end
+
+    -- Last Auras
+    if UnitBars.AuraListOn then
+      -- use a dummy function since nothing needs to be done.
+      Main:SetAuraTracker(AuraListName, 'fn', function() end)
+      Main:SetAuraTracker(AuraListName, 'units', Main:StringSplit(' ', UnitBars.AuraListUnits))
+    else
+      Main:SetAuraTracker(AuraListName, 'off')
+    end
   end
 
-  -- Update alignment tool status.
-  if IsLocked or not UnitBars.AlignAndSwapEnabled then
-    Options:CloseAlignSwapOptions()
+  -- Frames
+  if HidePlayerFrame ~= 0 then
+    Main:HideWowFrame('player', HidePlayerFrame == 1)
   end
-
-  -- Apply the settings.
-  for _, UBF in ipairs(UnitBarsFE) do
-    local BBar = UBF.BBar
-    UBF:EnableMouseClicks(not IsLocked)
-    UBF.Anchor:SetClampedToScreen(IsClamped)
-
-    SetAnimationTypeUnitBar(UBF)
-    BBar:SetAnimationDurationBar('out', AnimationOutTime)
-    BBar:SetAnimationDurationBar('in', AnimationInTime)
+  if HideTargetFrame ~= 0 then
+    Main:HideWowFrame('target', HideTargetFrame == 1)
   end
-
-  -- Last Auras
-  if UnitBars.AuraListOn then
-    -- use a dummy function since nothing needs to be done.
-    Main:SetAuraTracker(AuraListName, 'fn', function() end)
-    Main:SetAuraTracker(AuraListName, 'units', Main:StringSplit(' ', UnitBars.AuraListUnits))
-  else
-    Main:SetAuraTracker(AuraListName, 'off')
+  if HideBlizzAltPower ~= 0 then
+    Main:HideWowFrame('alternate', HideBlizzAltPower == 1)
   end
 end
 
@@ -3920,10 +4093,6 @@ local function SetUnitBarLayout(UnitBarF, BarType)
   -- Show the unitbar.  Then SetAttr and then hide.
   -- Weird things happen when the bar gets drawn when hidden.
   UnitBarF:SetAttr()
-
-  -- This is a fix to prevent a bar's borders from getting corrupted if some
-  -- kind of scaling animation was playing on the previous profile.
-  C_TimerAfter(0.008, function() UnitBarF:SetAttr() end)
 end
 
 -------------------------------------------------------------------------------
@@ -3987,7 +4156,7 @@ local function CreateUnitBar(UnitBarF, BarType)
     -- Save the enable bar function.
     UnitBarF.BarVisible = UB.BarVisible
 
-    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
+    if UnitBarF.IsHealth or UnitBarF.IsPower then
       HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
     else
       GUB[BarType]:CreateBar(UnitBarF, UB, ScaleFrame)
@@ -4109,6 +4278,7 @@ local function ShareData()
   Main.PlayerClass = PlayerClass
   Main.PlayerPowerType = PlayerPowerType
   Main.PlayerGUID = PlayerGUID
+  Main.AltPowerBarUsed = AltPowerBarUsed
 
   -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
@@ -4181,7 +4351,6 @@ local TriggerExcludeList =  {
   ['Select'] = 1,
   ['TypeIndex'] = 1,
   ['TextLine'] = 1,
-  ['TextMultiLine'] = 1,
   ['GroupNumbers'] = 1,
   ['OneTime'] = 1,
   ['OffsetAll'] = 1,
@@ -4222,6 +4391,7 @@ end
 local ExcludeList = {
   ['Version'] = 1,
   ['Reset'] = 1,
+  ['ApbZoneNameList'] = 1,
   ['*.BoxLocations'] = 1,
   ['*.BoxOrder'] = 1,
   ['*.Text.#'] = 1,
@@ -4357,12 +4527,12 @@ function GUB:OnEnable()
 
   -- Check for a bar not loaded
   local Exit = false
-  for BarType in pairs(UnitBarsF) do
-    if strfind(BarType, 'Health') == nil and strfind(BarType, 'Power') == nil then
-      if GUB[BarType].CreateBar == nil then
+  for BarType, UBF in pairs(UnitBarsF) do
+    if UBF.IsHealth or UBF.IsPower then
+      if GUB.HapBar.CreateBar == nil then
         Exit = true
       end
-    elseif GUB.HapBar.CreateBar == nil then
+    elseif GUB[BarType].CreateBar == nil then
       Exit = true
     end
     if Exit then
@@ -4380,6 +4550,12 @@ function GUB:OnEnable()
     GalvinUnitBarsData = {}
   end
   GUBData = GalvinUnitBarsData
+
+  AltPowerBarUsed = GUBData.AltPowerBarUsed
+  if AltPowerBarUsed == nil then
+    AltPowerBarUsed = {}
+    GUBData.AltPowerBarUsed = AltPowerBarUsed
+  end
 
   -- Add blizzards powerbar colors and class colors to defaults.
   InitializeColors()
@@ -4409,8 +4585,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 16 then
-    GUBData.ShowMessage = 16
+  if GUBData.ShowMessage ~= 18 then
+    GUBData.ShowMessage = 18
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

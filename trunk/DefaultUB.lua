@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 555
+GUB.DefaultUB.Version = 560
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -34,6 +34,19 @@ GUB.DefaultUB.Version = 555
 -- AlignSwapPaddingY      - Vertical padding between aligned bars.
 -- AlignSwapOffsetX       - Horizontal offset for a aligngroup of frames 2 or more.
 -- AlignSwapOffsetY       - Vertical offset for a aligngroup of frames 2 or more.
+--
+-- HidePlayerFrame        - Hides the player frame
+--                           0 -- doesn't do anything after reload UI. To avoid conflicts with other addons.
+--                           1 -- hide
+--                           2 -- show
+-- HideTargetFrame        - Same as above.
+-- HideBlizzAltPower      - Same as above.
+--                          **** All the Apb keys are for the HideBlizzAltPower, these are used for exclusion to not hide.
+-- ApbZoneName            - If true then search for the zone in the ZoneNameList. Not case sensitive.
+-- ApbZoneNameExactMatch  - If true then the zone name has to match exactly.  Not case sensitive.
+-- ApbZoneNameListRaw     - String. Contains the list of zones in text.
+-- ApbZoneNameList        - Hash table containing the zones.
+--
 -- HideTooltips           - Boolean. If true tooltips are not shown when mousing over unlocked bars.
 -- HideTooltipsDesc       - Boolean. If true the descriptions inside the tooltips will not be shown when mousing over
 -- HideTextHighlight      - Boolean. If true then text frames will not be highlighted when the options are opened.
@@ -188,7 +201,6 @@ GUB.DefaultUB.Version = 555
 --   Color                - Table, contains the color for one or more status bars.
 
 -- Text                   - Text settings used for displaying numerical or string.
---   _Multi                 If key is not present then no text lines can be created.
 --   _ValueNameMenu       - Tells the options what kind of menu to use for this bar.
 --
 --   [x]                  - Each array element is a text line (fontstring).
@@ -218,6 +230,7 @@ local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBorderTexture = 'Blizzard Tooltip'
 local DefaultStatusBarTexture = 'Blizzard'
 local GUBStatusBarTexture = 'GUB Bright Bar'
+local GUBSquareBorderTexture = 'GUB Square Border'
 local DefaultSound = 'None'
 local DefaultSoundChannel = 'SFX'
 local UBFontType = 'Arial Narrow'
@@ -279,6 +292,13 @@ GUB.DefaultUB.Default = {
     AlignSwapPaddingY = 0,
     AlignSwapOffsetX = 0,
     AlignSwapOffsetY = 0,
+    HidePlayerFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
+    HideTargetFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
+    HideBlizzAltPower = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
+    ApbZoneName = false,
+    ApbZoneNameExactMatch = false,
+    ApbZoneNameListRaw = '',
+    ApbZoneNameList = {},
     HideTooltips = false,
     HideTooltipsDesc = false,
     HideTextHighlight = false,
@@ -292,6 +312,7 @@ GUB.DefaultUB.Default = {
     AuraListOn = false,
     AuraListUnits = 'player',
     DebugOn = false,
+    AltPowerBarListOn = false,
     ClassTaggedColor = false,
     CombatClassColor = false,
     CombatTaggedColor = false,
@@ -384,7 +405,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'health',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -520,7 +540,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'power',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -655,7 +674,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'health',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -783,7 +801,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'hap',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -918,7 +935,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'health',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -1046,7 +1062,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'hap',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -1178,7 +1193,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'health',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -1307,7 +1321,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'hap',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -1440,7 +1453,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'mana',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -1608,7 +1620,6 @@ GUB.DefaultUB.Default = {
       Text = {
         _DC = 0,
         _ValueNameMenu = 'stagger',
-        _Multi = 1,
 
         { -- 1
           Custom    = false,
@@ -1691,10 +1702,190 @@ GUB.DefaultUB.Default = {
         },
       },
     },
+-- AlternatePowerBar
+    AltPowerBar = {
+      Name = 'Alternate Power Bar',
+      OptionOrder = 11,
+      UnitType = 'player',
+      Enabled = true,
+      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
+                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
+      x = -200,
+      y = -70,
+      Status = {
+        ShowAlways      = false,
+        HideWhenDead    = true,
+        HideInVehicle   = false,
+        HideInPetBattle = false,
+        HideIfBlizzAltPowerVisible = true,
+      },
+      TestMode = {
+        AltTypePower = true,
+        AltTypeCounter = false,
+        AltTypeBoth = false,
+        AltPowerName = 'This is test mode',
+        AltPower = 0,
+        AltPowerMax = 0,
+        AltPowerTime = 0,
+        AltPowerBarID = 0,
+        BothRotation = 180,
+      },
+      Layout = {
+        EnableTriggers = false,
+        ReverseFill = false,
+        HideText = false,
+        HideTextCounter = false,
+        SmoothFillMaxTime = 0,
+        SmoothFillSpeed = 0.15,
+
+        _More = 1,
+
+        UseBarColor = false,
+      },
+      Attributes = {
+        Scale = 1,
+        Alpha = 1,
+        AnchorPoint = 'TOPLEFT',
+        FrameStrata = 'MEDIUM',
+        MainAnimationType = true,
+        AnimationTypeBar = 'alpha',
+      },
+      BackgroundPower = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = GUBSquareBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
+      },
+      BackgroundCounter = {
+        PaddingAll = true,
+        BgTexture = DefaultBgTexture,
+        BorderTexture = GUBSquareBorderTexture,
+        BgTile = false,
+        BgTileSize = 16,
+        BorderSize = 12,
+        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+        Color = {r = 0, g = 0, b = 0, a = 1},
+        EnableBorderColor = false,
+        BorderColor = {r = 1, g = 1, b = 1, a = 1},
+      },
+      BarPower = {
+        Advanced = false,
+        Width = 170,
+        Height = 35,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
+      },
+      BarCounter = {
+        Advanced = false,
+        Width = 170,
+        Height = 35,
+        FillDirection = 'HORIZONTAL',
+        RotateTexture = false,
+        PaddingAll = true,
+        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+        StatusBarTexture = GUBStatusBarTexture,
+        Color = {r = 0, g = 1, b = 0, a = 1},
+      },
+      Text = {
+        _DC = 0,
+        _ValueNameMenu = 'altpower',
+
+        { -- 1
+          Custom    = false,
+          Layout    = '',
+          ValueNames = {'current', 'maximum'},
+          ValueTypes = {'whole', 'whole'},
+
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'OUTLINE',
+          FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
+          Position = 'CENTER',
+          FontPosition = 'CENTER',
+          Width = 200,
+          Height = 18,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
+        }
+      },
+      Text2 = {
+        _DC = 0,
+        _ValueNameMenu = 'altcounter',
+
+        { -- 1
+          Custom    = false,
+          Layout    = '',
+          ValueNames = {'counter', 'countermin', 'countermax'},
+          ValueTypes = {'whole', 'whole', 'whole'},
+
+          FontType = UBFontType,
+          FontSize = 16,
+          FontStyle = 'OUTLINE',
+          FontHAlign = 'CENTER',
+          FontVAlign = 'MIDDLE',
+          Position = 'CENTER',
+          FontPosition = 'CENTER',
+          Width = 200,
+          Height = 18,
+          OffsetX = 0,
+          OffsetY = 0,
+          ShadowOffset = 0,
+          Color = {r = 1, g = 1, b = 1, a = 1},
+        },
+      },
+      Triggers = {
+        _DC = 0,
+        MenuSync = false,
+        HideTabs = false,
+        Action = {},
+        ActionSync = {},
+
+        Default = { -- Default trigger
+          Enabled = true,
+          Static = false,
+          SpecEnabled = false,
+          DisabledBySpec = false,
+          ClassName = '',
+          ClassSpecs = {},
+          HideAuras = false,
+          OffsetAll = true,
+          Action = {Type = 1},
+          Name = '',
+          GroupNumber = 1,
+          OrderNumber = 0,
+          TypeID = 'bartexturecolor',
+          Type = 'bar color',
+          ValueTypeID = '',
+          ValueType = '',
+          CanAnimate = false,
+          Animate = false,
+          AnimateSpeed = 0.01,
+          State = true,
+          AuraOperator = 'or',
+          Conditions = { All = false, {Operator = '>', Value = 0} },
+          Pars = {},
+          GetFnTypeID = 'none',
+          GetPars = {},
+        },
+      },
+    },
 -- RuneBar
     RuneBar = {
       Name = 'Rune Bar',
-      OptionOrder = 11,
+      OptionOrder = 12,
       Enabled = true,
       UsedByClass = {DEATHKNIGHT = ''},
       x = 0,
@@ -1878,6 +2069,7 @@ GUB.DefaultUB.Default = {
         },
       },
       Text = {
+        _DC = 0,
         _ValueNameMenu = 'rune',
 
         { -- 1
@@ -1950,7 +2142,7 @@ GUB.DefaultUB.Default = {
 -- ComboBar
     ComboBar = {
       Name = 'Combo Bar',
-      OptionOrder = 12,
+      OptionOrder = 13,
       Enabled = true,
       UsedByClass = {ROGUE = '', DRUID = ''},
       x = 0,
@@ -2152,7 +2344,7 @@ GUB.DefaultUB.Default = {
 -- HolyBar
     HolyBar = {
       Name = 'Holy Bar',
-      OptionOrder = 13,
+      OptionOrder = 14,
       Enabled = true,
       UsedByClass = {PALADIN = '3'},
       x = 0,
@@ -2295,7 +2487,7 @@ GUB.DefaultUB.Default = {
 -- ShardBar
     ShardBar = {
       Name = 'Shard Bar',
-      OptionOrder = 14,
+      OptionOrder = 15,
       Enabled = true,
       UsedByClass = {WARLOCK = '12'},
       x = 0,
@@ -2438,7 +2630,7 @@ GUB.DefaultUB.Default = {
 -- FragmentBar
     FragmentBar = {
       Name = 'Fragment Bar',
-      OptionOrder = 15,
+      OptionOrder = 16,
       OptionText = 'Destruction Warlocks only',
       Enabled = true,
       UsedByClass = {WARLOCK = '3'},
@@ -2738,7 +2930,7 @@ GUB.DefaultUB.Default = {
 -- ChiBar
     ChiBar = {
       Name = 'Chi Bar',
-      OptionOrder = 16,
+      OptionOrder = 17,
       Enabled = true,
       UsedByClass = {MONK = '3'},
       x = 0,
@@ -2885,7 +3077,7 @@ GUB.DefaultUB.Default = {
 -- ArcaneBar
     ArcaneBar = {
       Name = 'Arcane Bar',
-      OptionOrder = 17,
+      OptionOrder = 18,
       Enabled = true,
       UsedByClass = {MAGE = '1'},
       x = 0,
@@ -3067,24 +3259,27 @@ All bars have status flags.  This tells a bar what to do based on a certain cond
 
 
 |cff00ff00Text|r
-Some bars support multiple text lines.  Each text line can have multiple values.  Click the add/remove buttons to add or remove values.  To add another text line click the button that has the + or - button with the name of the text line.  To add another text line beyond line 2.  Click the line 2 tab, then click the button with the + symbol.
+Each text line can have multiple values.  Click the add/remove buttons to add or remove values.  To add another text line click the add text line button.
 
 You can add extra text to the layout.  Just modify the layout in the edit box.  After you click accept the layout will become a custom layout.  Clicking exit will take you back to a normal layout.  You'll lose the custom layout though.
 
-The layout supports world of warcraft's UI escape color codes.  The format for this is ||cAARRGGBB<text>||r.  So for example to make percentage show up in red you would do ||c00FF0000%d%%||r.  If you want a "||" to appear on the bar you'll need to use "|||".
+The layout supports world of warcraft's UI escape color codes.  The format for this is ||cAARRGGBB<text>||r.  So for example to make percentage show up in red you would do ||c00FF0000%d%%||r.
+
+The characters ||, %, ) are reserved.  To make these appear in the format string you need to double them so use "||||", "%%", or "))"
 
 If the layout causes an error you will see a layout error appear in the format of Err (text line number). So Err (2) would mean text line 2 is causing the error.
+Also the same error will appear above the edit box in the format of #:<Error Message>.  The # is the parameter the error happened on.
 
 Here's some custom layout examples.
 
-(%d%%) : (%d) -> (20%) : (999)
-Health %d / Percentage %d%% -> Health 999 / Percentage 20%
-%.2fk -> 999.99k
+value1(%d%%) max2( : %d) -> (20%) : (999)
+value1(Health %.f /) value2(Percentage %d%%) -> Health 999 / Percentage 20%
+value1(%.2fk) -> 999.99k
 
 For more information you can check out the following links:
 
 For text:]]
-HelpText[#HelpText + 1] = [[https://www.youtube.com/watch?v=mQVCDJLrCNI]]
+HelpText[#HelpText + 1] = [[https://youtu.be/GWyw_x1gHn8]]
 HelpText[#HelpText + 1] = [[UI escape codes:]]
 HelpText[#HelpText + 1] = [[http://wow.gamepedia.com/UI_escape_sequences]]
 HelpText[#HelpText + 1] = [[
@@ -3172,15 +3367,84 @@ HelpText[#HelpText + 1] = [[
 Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box seperated by a space.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
 
 
+|cff00ff00Frames|r
+Found under General.  Frames lets you hide and show player frames and blizzards alternate power bar.
+
+Clicking on any of the 3 options will activate it.  When this is unchecked the mod doesn't do anything.  Leave these unchecked to avoid conflicting with another addon doing the same thing.
+
+Clicking on the option again changes it to 'show' and clicking again changes it back to unchecked.
+
+When the hide option for Blizzard Alternate Power Bar is checked.  You then have the option of excluding bars based on the zone they're in.  The zone name is the one that appears on the minimap.  Checking off Zone Name will bring up an edit box.  Just enter the full name or part of the name of the zone you want.  If you want to go by exact match use that instead.
+
+The names don't have to be case sensitive.
+
+
+|cff00ff00Alt Power Bar List|r
+Found under General.  This lists all the alternate power bars in the game.  You can use this information to create triggers that go off of bar ID.  Not every bar will use a color, since blizzards alternate power bar uses textures that may have the color already baked in.
+
+So a trigger may have to be created to solve the problem. Also a history is kept of which alternate power bars you have used.  These get listed at the top along with the zone they were used in.  Can use this info to help create triggers or not hide them under Frame options.
+
 |cff00ff00Profiles|r
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just create a new profile named backup.  Then copy your config to backup.  All characters by default start with a new config, but you can share one across all characters or any of your choosing.
 ]]
+
+
+-- Videos text
+local LinksText = {}
+
+GUB.DefaultUB.LinksText = LinksText
+LinksText[1] = [[
+Fragment Bar video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/snFdzm7c4M8]]
+LinksText[#LinksText + 1] = [[
+
+Rune Bar video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/F02vOl7I8Q8]]
+LinksText[#LinksText + 1] = [[
+
+Stagger Bar video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/7kHvv8Di0OY]]
+LinksText[#LinksText + 1] = [[
+
+Triggers video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/bey_dQBZlmA]]
+LinksText[#LinksText + 1] = [[
+
+Align and Swap video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/STYa5d6riuk]]
+LinksText[#LinksText + 1] = [[
+
+Align and Swap video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/GWyw_x1gHn8]]
+LinksText[#LinksText + 1] = [[
+
+Alternate Power Bar video:]]
+LinksText[#LinksText + 1] = [[https://youtu.be/g8WgT_6tid8]]
+LinksText[#LinksText + 1] = [[
+
+UI escape codes:]]
+LinksText[#LinksText + 1] = [[http://wow.gamepedia.com/UI_escape_sequences]]
+
 
 -- Message Text
 local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 5.60
+
+** ALL CUSTOM TEXT WILL CAUSE AN ERROR
+** You'll need to go into text options, exit custom text and create a new one.
+
+|cff00ff00Alternate Power Bar|r has been added
+|cff00ff00Alt Power Bar List|r found under 'General' options. Use this to help with triggers for Alternate Power Bar
+|cff00ff00Text|r has been given a few changes
+|cff00ff00Frames|r found under 'General' options.  Lets you hide/show the Player and Target Frame or Alternate Power Bar
+|cff00ff00"%d"|r no longer used for whole numbers in text. Since it can cause an integer overflow if the number is too high such as on bosses
+|cff00ff00Reset options|r now has pause text, this was missing
+|cff00ff00Links|r added to 'Help'.  Has all the links to videos and websites
+
 
 Version 5.50
 
