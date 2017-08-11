@@ -12,36 +12,19 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 local Bar = GUB.Bar
 local TT = GUB.DefaultUB.TriggerTypes
-local DUB = GUB.DefaultUB.Default.profile
-
-local UnitBarsF = Main.UnitBarsF
-local LSM = Main.LSM
 
 -- localize some globals.
 local _, _G =
       _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
-      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
-local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
-      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
-      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
-local CreateFrame, UnitGUID, getmetatable, setmetatable =
-      CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter, UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
+      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
+local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
+      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
+
+local UnitStagger, UnitHealthMax =
+      UnitStagger, UnitHealthMax
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -300,7 +283,7 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
   end
 
   -- Check triggers
-  if UB.Layout.EnableTriggers then
+  if Layout.EnableTriggers then
     if Testing and Layout.PauseTimer then
       BBar:SetTriggers(StaggerPauseBox, 'time', PauseTime)
     end
@@ -381,7 +364,7 @@ end
 ------------------------------------------------------------------------------
 -- EnableMouseClicks
 --
--- This will enable or disable mouse clicks for the rune icons.
+-- This will enable or disable mouse clicks for the stagger and pause bars.
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.StaggerBar:EnableMouseClicks(Enable)
   self.BBar:EnableMouseClicks(0, nil, Enable)
@@ -398,8 +381,8 @@ function Main.UnitBarsF.StaggerBar:SetAttr(TableName, KeyName)
   if not BBar:OptionsSet() then          -- OD.p1            OD.p2              OD.p3
     BBar:SetOptionData('BackgroundStagger', StaggerBarBox,   StaggerBarTFrame)
     BBar:SetOptionData('BackgroundPause',   StaggerPauseBox, StaggerPauseTFrame)
-    BBar:SetOptionData('BarStagger',        StaggerBarBox,   StaggerBarTFrame,   StaggerSBar )
-    BBar:SetOptionData('BarPause',          StaggerPauseBox, StaggerPauseTFrame, StaggerPauseSBar )
+    BBar:SetOptionData('BarStagger',        StaggerBarBox,   StaggerBarTFrame,   StaggerSBar)
+    BBar:SetOptionData('BarPause',          StaggerPauseBox, StaggerPauseTFrame, StaggerPauseSBar)
 
     BBar:SO('Text', '_Font', function()
       BBar:UpdateFont(StaggerBarBox)
@@ -436,7 +419,6 @@ function Main.UnitBarsF.StaggerBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignPaddingY',      function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
     BBar:SO('Layout', 'AlignOffsetX',       function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',       function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
-
     BBar:SO('Layout', 'SmoothFillMaxTime',  function(v) BBar:ChangeTexture(ChangeStagger, 'SetSmoothFillMaxTime', StaggerBarBox, v) end)
     BBar:SO('Layout', 'SmoothFillSpeed',    function(v) BBar:ChangeTexture(ChangeStagger, 'SetFillSpeedTexture', StaggerBarBox, v) end)
 
@@ -542,6 +524,7 @@ function GUB.StaggerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(StaggerBarBox, StaggerSBar, false)
   BBar:SetHiddenTexture(StaggerBarBox, BStaggerSBar, false)
   BBar:SetHiddenTexture(StaggerPauseBox, StaggerPauseSBar, false)
+
   BBar:ChangeTexture(ChangeStagger, 'SetFillTexture', StaggerBarBox, 0)
   BBar:SetFillTexture(StaggerPauseBox, StaggerPauseSBar, 0)
   BBar:SetSizeTextureFrame(StaggerBarBox, StaggerBarTFrame, UB.BarStagger.Width, UB.BarStagger.Height)

@@ -19,26 +19,13 @@ local _, _G =
       _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
-      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
-local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
-      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
-      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
-local CreateFrame, UnitGUID, getmetatable, setmetatable =
-      CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter, UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
+      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
+local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
+      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
+
+local UnitPower, UnitPowerMax =
+      UnitPower, UnitPowerMax
 
 -------------------------------------------------------------------------------
 -- Locals

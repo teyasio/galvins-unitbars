@@ -22,26 +22,15 @@ local _, _G =
       _, _G
 local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring =
-      strfind, strsplit, strsub, strtrim, strupper, strlower, strmatch, strrev, format, strconcat, gsub, tonumber, tostring
-local pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert =
-      pcall, pairs, ipairs, type, select, next, print, assert, unpack, sort, wipe, tremove, tinsert
-local GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile =
-      GetTime, MouseIsOver, IsModifierKeyDown, GameTooltip, PlaySoundFile
-local UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown =
-      UnitHasVehicleUI, UnitIsDeadOrGhost, UnitAffectingCombat, UnitExists, HasPetUI, PetHasActionBar, IsSpellKnown
-local UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger =
-      UnitPowerType, UnitClass, UnitHealth, UnitHealthMax, UnitPower, UnitAura, UnitPowerMax, UnitIsTapDenied, UnitStagger
-local UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP =
-      UnitName, UnitReaction, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitCanAttack, UnitPlayerControlled, UnitIsPVP
-local GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost =
-      GetRuneCooldown, GetSpellInfo, GetSpellBookItemInfo, PlaySound, message, UnitCastingInfo, GetSpellPowerCost
-local GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName =
-      GetShapeshiftFormID, GetSpecialization, GetInventoryItemID, GetRealmName
-local CreateFrame, UnitGUID, getmetatable, setmetatable =
-      CreateFrame, UnitGUID, getmetatable, setmetatable
-local C_PetBattles, C_TimerAfter, UIParent =
-      C_PetBattles, C_Timer.After, UIParent
+local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
+      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
+local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
+      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
+
+local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals =
+      GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals
+local UnitName, UnitPowerType, UnitPower, UnitPowerMax =
+      UnitName, UnitPowerType, UnitPower, UnitPowerMax
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -129,7 +118,7 @@ local PowerGroups = { -- BoxNumber, Name, ValueTypes,
 -------------------------------------------------------------------------------
 local function HapFunction(Name, Fn)
   for BarType, UBF in pairs(UnitBarsF) do
-    if strfind(BarType, 'Health') or strfind(BarType, 'Power') then
+    if UBF.IsHealth or UBF.IsPower then
       UBF[Name] = Fn
     end
   end
@@ -295,6 +284,9 @@ local function UpdateHealthBar(self, Event, Unit)
   local ScaledLevel = UnitEffectiveLevel(Unit)
   local PredictedHealing = Layout.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
 
+  local Name, Realm = UnitName(Unit)
+  Name = Name or ''
+
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
     local PredictedHealth = Layout.PredictedHealth and TestMode.PredictedHealth or 0
@@ -359,7 +351,7 @@ local function UpdateHealthBar(self, Event, Unit)
 
   BBar:SetFillTexture(HapBox, StatusBar, Value)
   if not UB.Layout.HideText then
-    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Unit)
+    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Name, Realm)
   end
 
   -- Check triggers
@@ -451,6 +443,9 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local PredictedPower = self.PredictedPower or 0
   local PredictedCost = self.PredictedCost or 0
 
+  local Name, Realm = UnitName(Unit)
+  Name = Name or ''
+
   local UseBarColor = Layout.UseBarColor or false
   local r, g, b, a = 1, 1, 1, 1
 
@@ -516,7 +511,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   BBar:SetFillTexture(HapBox, StatusBar, Value)
 
   if not UB.Layout.HideText then
-    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Unit)
+    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Name, Realm)
   end
 
   -- Check triggers
