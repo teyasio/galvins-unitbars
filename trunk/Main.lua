@@ -586,6 +586,11 @@ local function RegisterEvents(Action, EventType)
     -- These events will always be checked even if unit is not player.
     OtherEvents['UNIT_FACTION'] = 1
 
+    -- Track hiding and showing of blizzards alternate power bar
+    local AltPowerBarFrame = CreateFrame('Frame', nil, PlayerPowerBarAlt)
+    AltPowerBarFrame:SetScript('OnHide', function() GUB.UnitBarsUpdateStatus(GUB, 'OnHide', 'player') end)
+    AltPowerBarFrame:SetScript('OnShow', function() GUB.UnitBarsUpdateStatus(GUB, 'OnShow', 'player') end)
+
     -- Rest of the events are defined at the end of each lua file for the bars.
 
   elseif EventType == 'casttracker' then
