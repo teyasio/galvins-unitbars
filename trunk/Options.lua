@@ -7415,7 +7415,6 @@ end
 local function BuildAltPowerBarList(APA, Order)
   local AltPowerBarUsed = Main.AltPowerBarUsed
 
-  AltPowerBarUsed[205] = 'The Darkmoon Faire'
   local PowerBarList = {
     type = 'group',
     name = 'Alternate Power Bar',
