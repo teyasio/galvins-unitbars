@@ -2470,6 +2470,14 @@ local function AddTextLineOptions(BarType, TableName, UBF, TOA, DUBTexts, Texts,
   local TLA = TextLineOptions.args
   TOA[format(TextLineName, TextLine)] = TextLineOptions
 
+  if DUBTexts.Notes ~= nil then
+    TLA.Notes = {
+      type = 'description',
+      order = 0.1,
+      name = DUBTexts.Notes,
+    }
+  end
+
   TLA.RemoveTextLine = {
     type = 'execute',
     name = function()
@@ -6917,6 +6925,14 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
 
   local OptionArgs = UnitBarOptions.args
 
+  if UBD.Notes ~= nil then
+    OptionArgs.Notes = {
+      type = 'description',
+      name = UBD.Notes,
+      order = 0.1,
+    }
+  end
+
   -- Create Status options.
   OptionArgs.Status = CreateStatusOptions(BarType, 1, 'Status')
 
@@ -8154,7 +8170,7 @@ local function CreateFrameOptions(Order, Name)
         args = {
           Notes = {
             type = 'description',
-            name = 'Unchecked means do nothing',
+            name = 'Unchecked means do nothing. If you checked, then unchecked an option.\nYou may need to reload UI to avoid a conflict with another addon doing the same thing',
             order = 1,
           },
           HidePlayerFrame = {

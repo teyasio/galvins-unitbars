@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 562
+GUB.DefaultUB.Version = 564
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -1705,6 +1705,7 @@ GUB.DefaultUB.Default = {
 -- AlternatePowerBar
     AltPowerBar = {
       Name = 'Alternate Power Bar',
+      Notes = '|cff00ff00Counter is used for Darkmoon Faire games and anything else like it|r\n',
       OptionOrder = 11,
       UnitType = 'player',
       Enabled = true,
@@ -1824,6 +1825,7 @@ GUB.DefaultUB.Default = {
       Text2 = {
         _DC = 0,
         _ValueNameMenu = 'altcounter',
+        Notes = '|cff00ff00Minimum and maximum counter is used when a counter has a max|r\n',
 
         { -- 1
           Custom    = false,
@@ -2104,7 +2106,7 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        Notes = 'Empowered uses the Time settings from Empowerment in Layout settings.\nEven if turned off',
+        Notes = '|cff00ff00Empowered uses the Time settings from Empowerment in Layout settings.\nEven if turned off|r\n',
         MenuSync = false,
         HideTabs = false,
         Action = {},
@@ -2892,7 +2894,7 @@ GUB.DefaultUB.Default = {
       },
       Triggers = {
         _DC = 0,
-        Notes = '"Fragments" are based on the amount of fill from 0 to 10 or percentage per shard',
+        Notes = '"|cff00ff00Fragments" are based on the amount of fill from 0 to 10 or percentage per shard|r\n',
         MenuSync = false,
         HideTabs = false,
         Action = {},
