@@ -3801,6 +3801,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
 
   local AltPowerType, _, _, _, _, _, _, _, _, _, _, _, _, BarID = UnitAlternatePowerInfo('player')
   HasAltPower = AltPowerType  ~= nil
+
   -- Save for alt bar history
   if HasAltPower then
     AltPowerBarUsed[BarID] = GetMinimapZoneText() or ''
@@ -3813,7 +3814,9 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   Main.PlayerPowerType = PlayerPowerType
 
   -- For alternate power bar options needs to be disabled when there is an bar active
-  Options:RefreshMainOptions()
+  if Event == 'OnHide' or Event == 'OnShow' then
+    Options:RefreshMainOptions()
+  end
 
   -- Need to do this here since hiding targetframe at startup doesn't work.
   Main:UnitBarsSetAllOptions('frames')
