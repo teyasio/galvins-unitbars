@@ -498,7 +498,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'ReverseFill',    function(v) BBar:SetFillReverseTexture(0, RuneSBar, v) Update = true end)
     BBar:SO('Layout', 'HideText',       function(v)
       if v then
-        BBar:SetValueTimeFont(0, DoRuneTime)
+        BBar:SetValueRawFont(0, '')
       end
     end)
     BBar:SO('Layout', 'Rotation',       function(v) BBar:SetRotationBar(v) Display = true end)
