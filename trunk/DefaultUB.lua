@@ -1825,7 +1825,7 @@ GUB.DefaultUB.Default = {
       Text2 = {
         _DC = 0,
         _ValueNameMenu = 'altcounter',
-        Notes = '|cff00ff00Minimum and maximum counter is used when a counter has a max|r\n',
+        Notes = '|cff00ff00Current and maximum counter are used when a counter has a max|r\n',
 
         { -- 1
           Custom    = false,
