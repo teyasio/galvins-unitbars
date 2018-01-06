@@ -3690,9 +3690,11 @@ function GUB:CheckPredictedSpells(Event)
   local BookIndex = 0
 
   -- Scan the spell book or used the cached spells.
-  for Index = 1, 1024 do
+  for Index = 1, 512 do
     if Event == SpellBookChanged or Event == nil then
       SkillType, SpellID = GetSpellBookItemInfo(Index, 'spell')
+
+      -- Check for end of spell book
       if SpellID == nil then
         break
       end
@@ -3709,7 +3711,9 @@ function GUB:CheckPredictedSpells(Event)
       local Name, _, _, CastTime = GetSpellInfo(SpellID)
 
       -- Only need spells that have cast time.
-      if CastTime > 0 then
+      -- Sometimes spells from the spell book don't exist. So check
+      -- Name to be not nil
+      if Name and CastTime > 0 then
         ScanTooltip:SetHyperlink(format('spell:%s', SpellID))
 
         for LineIndex = 2, ScanTooltip:NumLines() do
