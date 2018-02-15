@@ -467,10 +467,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --   Static                        true or false.  If true trigger is always on, otherwise false.
 --   SpecEnabled                   true or false.  If true then specializations are used by this trigger.
 --   DisabledBySpec                true or false.  If true then this trigger was disabled based on the specialization settings.
---   ClassName                     Current class selected in the Class Specialization options pull down.
---   ClassSpecs                    A list of classes in uppercase.  Each class has an array where the index is the specialization
---                                 and the value is true or false.
---                                 Example: ClassSpecs.WARRIOR[3] = true, warrior protection spec
+--   ClassSpecs                    specialization settings. See CheckClassSpecs() in Main.lua
 --
 --   GroupNumber                   Number to assign 1 or more triggers under. Group numbers must be contiguous.
 --
@@ -6512,7 +6509,7 @@ local function FindLowestValue(Conditions)
 
     -- if string just return 1 and stop here.
     if type(Value) == 'string' then
-        return 1
+      return 1
     elseif LowestValue == nil or Value < LowestValue then
       LowestValue = Value
     end
@@ -6539,11 +6536,8 @@ function BarDB:CheckTriggers()
   local AllDeleted = true
   local TriggerIndex = 1
   local PlayerClass = Main.PlayerClass
-  local UsedByClass = DUB[self.BarType].UsedByClass
+  local ClassSpecs = DUB[self.BarType].ClassSpecs
   local PlayerSpecialization = Main.PlayerSpecialization
-
-  -- Check for text multiline.
-  local Text = DUB[self.BarType].Text
 
   -- Undo triggers first
   UndoTriggers(self)
@@ -6684,28 +6678,7 @@ function BarDB:CheckTriggers()
         if not SpecEnabled then
           DisabledBySpec = false
         else
-          local ClassSpecs = Trigger.ClassSpecs
-
-          -- Delete specs that don't belong
-          for ClassName, ClassSpec in pairs(ClassSpecs) do
-            local Spec = UsedByClass[ClassName]
-
-            if Spec == nil then
-              ClassSpecs[ClassName] = nil
-            else
-              for CS, Active in pairs(ClassSpec) do
-
-                -- Remove any specs not supported by this bar
-                if Spec ~= '' and strfind(Spec, CS) == nil then
-                  ClassSpec[CS] = nil
-
-                -- don't disable if player spec matches
-                elseif Active and PlayerClass == ClassName and PlayerSpecialization == CS then
-                  DisabledBySpec = false
-                end
-              end
-            end
-          end
+          DisabledBySpec = not Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true)
         end
         Trigger.DisabledBySpec = DisabledBySpec
 
