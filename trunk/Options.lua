@@ -33,6 +33,7 @@ local LSM = Main.LSM
 local HelpText = GUB.DefaultUB.HelpText
 local ChangesText = GUB.DefaultUB.ChangesText
 local LinksText = GUB.DefaultUB.LinksText
+local ClassSpecialization = GUB.DefaultUB.ClassSpecialization
 
 -- localize some globals.
 local _
@@ -599,22 +600,6 @@ local AuraStackOperatorDropdown = {
 local AnimationTypeDropdown = {
   alpha = 'Alpha',
   scale = 'Scale',
-}
-
-
-local ClassSpecialization = {
-  DEATHKNIGHT = {'Blood', 'Frost', 'Unholy'},
-  DEMONHUNTER = {'Havoc', 'Vengeance'},
-  DRUID       = {'Balance', 'Feral', 'Guardian', 'Restoration'},
-  HUNTER      = {'Beast Mastery', 'Marksmanship', 'Survival'},
-  MAGE        = {'Arcane', 'Fire', 'Frost'},
-  MONK        = {'Brewmaster', 'Mistweaver', 'Windwalker'},
-  PALADIN     = {'Holy', 'Protection', 'Retribution'},
-  PRIEST      = {'Discipline', 'Holy', 'Shadow'},
-  ROGUE       = {'Assassination', 'Outlaw', 'Subtlety'},
-  SHAMAN      = {'Elemental', 'Enhancement', 'Restoration'},
-  WARLOCK     = {'Affliction', 'Demonology', 'Destruction'},
-  WARRIOR     = {'Arms', 'Fury', 'Protection'},
 }
 
 local ConvertTypeIDColorIcon = {
@@ -3070,159 +3055,274 @@ local function CreateOffsetOption(Order, UBF, BBar, Trigger)
 end
 
 -------------------------------------------------------------------------------
--- CreateSpecOption
+-- CreateSpecOptions
 --
 -- Create options to change specializations for the trigger
 --
--- Subfunction of AddTriggerOption()
+-- Subfunction of AddTriggerOption(), CreateStatusOptions()
 --
--- Order    Position in the options.
--- UBF      Unitbar frame to access the bar functions.
--- BBar     Access to bar functions.
--- Trigger  Trigger being modified.
+-- Order         Position in the options.
+-- UBF           Unitbar frame to access the bar functions.
+-- BBar          Access to bar functions.
+-- ClassSpecsTP  String or table, if string then its a table path to the ClassSpecs table
+-- BBar          Only used with triggers
 -------------------------------------------------------------------------------
-local function CreateSpecOption(Order, UBF, BBar, Trigger)
+local function MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs)
+
+  -- Mark menu items that have specializations
+  for Index, ClassName in pairs(ClassDropdown) do
+    local ClassNameUpper = ConvertPlayerClass[ClassName]
+    local ClassSpec = ClassSpecs[ClassNameUpper]
+
+    if ClassSpec then
+      local CN = ClassName
+      local Found = false
+
+      for _, Active in pairs(ClassSpec) do
+        if Active then
+          Found = true
+          break
+        end
+      end
+      if Found then
+        CN = CN .. '*'
+      end
+      SelectClassDropdown[Index] = CN
+    end
+  end
+end
+
+local function GetClassSpecsTable(BarType, ClassSpecsTP)
+  if type(ClassSpecsTP) == 'string' then
+    return Main:GetUB(BarType, ClassSpecsTP)
+  else
+    return ClassSpecsTP
+  end
+end
+
+local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
+  local UBF = UnitBarsF[BarType]
   local PlayerClass = Main.PlayerClass
-  local ClassSpecs = Trigger.ClassSpecs
   local ClassDropdown = {}
   local SelectClassDropdown = {}
   local SpecDropdown = {}
-  local ClassName = ''
-
-  -- Create the class dropdown
+  local MyClassFound = false
+  local CSD = nil
+  local ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
   local Index = 1
 
-  for ClassName, Spec in pairs(DUB[BBar.BarType].UsedByClass) do
-    if ClassName ~= PlayerClass then
-      local CN = ConvertPlayerClass[ClassName]
+  if BBar then
+    CSD = DUB[BarType].Triggers.Default.ClassSpecs
+  else
+    CSD = DUB[BarType].ClassSpecs
+  end
 
-      ClassDropdown[Index] = CN
-      SelectClassDropdown[Index] = CN
-      Index = Index + 1
-    end
-    -- Create spec dropdown
-    local ClassSpec = ClassSpecialization[ClassName]
-    local SpecList = {}
-    local NumSpecs = #Spec
+  -- Build pulldown menus
+  for ClassName, Specs in pairs(CSD) do
+    if type(Specs) == 'table' then
+      local ClassNameLower =  ConvertPlayerClass[ClassName]
 
-    if NumSpecs ~= 0 then
-      for Index = 1, NumSpecs do
-        local SpecNumber = tonumber(strsub(Spec, Index, Index))
+      if ClassName ~= PlayerClass then
 
-        SpecList[SpecNumber] = ClassSpec[SpecNumber]
+        ClassDropdown[Index] = ClassNameLower
+        SelectClassDropdown[Index] = ClassNameLower
+        Index = Index + 1
+      else
+        MyClassFound = true
       end
-    else
-      for Index, SpecName in ipairs(ClassSpec) do
-        SpecList[#SpecList + 1] = SpecName
+      -- Create spec dropdown
+      local CS = ClassSpecialization[ClassName]
+      local SpecList = {}
+      local NumSpecs = #Specs
+
+      for Index in pairs(Specs) do
+        SpecList[Index] = CS[Index]
       end
+      SpecDropdown[ClassNameLower] = SpecList
     end
-    SpecDropdown[ClassName] = SpecList
   end
   sort(ClassDropdown)
   sort(SelectClassDropdown)
 
   -- Set class you're on to the first entry
-  local CN = ConvertPlayerClass[PlayerClass]
-  tinsert(ClassDropdown, 1, CN)
-  tinsert(SelectClassDropdown, 1, CN)
-
-  -- Mark menu items that have specializations
-  for Index, ClassName in ipairs(ClassDropdown) do
-    local CN = ConvertPlayerClass[ClassName]
-
-    if ClassSpecs[CN] then
-      SelectClassDropdown[Index] = ClassName .. '*'
-    end
+  -- Only if the bar supports your class
+  if MyClassFound then
+    local CN = ConvertPlayerClass[PlayerClass]
+    tinsert(ClassDropdown, 1, CN)
+    tinsert(SelectClassDropdown, 1, CN)
   end
 
-  local SpecOption = {
+  MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs)
+
+  local SpecOptions = {
     type = 'group',
-    name = 'Specialization',
+    dialogInline = true,
+    name = function()
+             MarkMenuSpec(ClassDropdown, SelectClassDropdown, GetClassSpecsTable(BarType, ClassSpecsTP))
+             return 'Specialization'
+           end,
     order = Order,
-    hidden = function()
-               return not Trigger.Select or not Trigger.SpecEnabled
-             end,
-    disabled = function()
-                 return not Trigger.Enabled
-               end,
     get = function(Info, Index)
-            if Info[#Info] == 'Class' then
-              local Index = FindMenuItem(ClassDropdown, Trigger.ClassName or '')
+            ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
+            local KeyName = Info[#Info]
 
-              -- Get classname in uppercase
-              ClassName = ConvertPlayerClass[ClassDropdown[Index]]
-              return Index
+            if KeyName == 'All' then
+              return ClassSpecs.All
+            elseif KeyName == 'Inverse' then
+              return ClassSpecs.Inverse or false
+            elseif KeyName == 'Class' then
+              local ClassIndex = FindMenuItem(ClassDropdown, ClassSpecs.ClassName or '')
+
+              -- Set default classname
+              ClassSpecs.ClassName = ClassDropdown[ClassIndex]
+
+              return ClassIndex
             else
-              -- Create entry if it doesn't exist
-              local ClassSpec = ClassSpecs[ClassName]
+              local ClassSpec = ClassSpecs[ConvertPlayerClass[ClassSpecs.ClassName]]
 
-              if ClassSpec == nil then
-                return false
-              else
-                return ClassSpec[Index] or false
-              end
+              return ClassSpec and ClassSpec[Index] or false
             end
             -- Highlight class menu items that have specializations set
           end,
     set = function(Info, Value, Active)
-            if Info[#Info] == 'Class' then
-              Trigger.ClassName = ClassDropdown[Value]
-            else
-              local ClassSpec = ClassSpecs[ClassName]
+            ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
+            local KeyName = Info[#Info]
 
-              -- Create spec table
-              if ClassSpec == nil and Active then
+            if KeyName == 'All' then
+              ClassSpecs.All = Value
+            elseif KeyName == 'Inverse' then
+              ClassSpecs.Inverse = Value
+            elseif KeyName == 'Class' then
+              ClassSpecs.ClassName = ClassDropdown[Value]
+            else
+              local ClassName = ClassSpecs.ClassName
+              local ClassNameUpper = ConvertPlayerClass[ClassName]
+              local ClassSpec = ClassSpecs[ClassNameUpper]
+
+              if ClassSpec == nil then
                 ClassSpec = {}
-                ClassSpecs[ClassName] = ClassSpec
+                ClassSpecs[ClassNameUpper] = ClassSpec
               end
 
               ClassSpec[Value] = Active
-
-              -- Delete spec if all are false
-              local Delete = true
-              for _, A in pairs(ClassSpec) do
-                if A then
-                  Delete = false
-                  break
-                end
-              end
-              local CN = ConvertPlayerClass[ClassName]
-              local Index = FindMenuItem(ClassDropdown, CN)
-              if Delete then
-                ClassSpecs[ClassName] = nil
-                SelectClassDropdown[Index] = CN
-              else
-                SelectClassDropdown[Index] = CN .. '*'
-              end
             end
             -- Update bar to reflect specialization setting.
-            BBar:CheckTriggers()
+            if BBar then
+              BBar:CheckTriggers()
+            end
             UBF:Update()
-            BBar:Display()
+            if BBar == nil then
+              UBF:StatusCheck()
+            end
+            if BBar then
+              BBar:Display()
+            end
           end,
     args = {
+      All = {
+        type = 'toggle',
+        name = 'All',
+        desc = 'Matches all classes and specializations',
+        width = 'half',
+        order = 1,
+      },
+      Inverse = {
+        type = 'toggle',
+        name = 'Inverse',
+        order = 2,
+        disabled = function()
+                     return GetClassSpecsTable(BarType, ClassSpecsTP).All
+                   end,
+      },
+      Reset = {
+        type = 'execute',
+        order = 3,
+        desc = 'Sets all specialization options to default',
+        name = 'Reset',
+        width = 'half',
+        func = function()
+                 ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
+                 Main:CopyTableValues(CSD, ClassSpecs, true)
+
+                 if BBar then
+                   BBar:CheckTriggers()
+                 end
+                 UBF:Update()
+                 if BBar == nil then
+                   UBF:StatusCheck()
+                 end
+                 if BBar then
+                   BBar:Display()
+                 end
+               end,
+        confirm = function()
+                    return 'This will reset your class specialization settings'
+                  end
+      },
+      Clear = {
+        type = 'execute',
+        order = 4,
+        desc = 'Uncheck all class specialization settings',
+        name = 'Clear',
+        width = 'half',
+        func = function()
+                 ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
+
+                 for _, ClassSpec in pairs(ClassSpecs) do
+                   if type(ClassSpec) == 'table' then
+                     for Index in pairs(ClassSpec) do
+                       ClassSpec[Index] = false
+                     end
+                   end
+                 end
+
+                 if BBar then
+                   BBar:CheckTriggers()
+                 end
+                 UBF:Update()
+                 if BBar == nil then
+                   UBF:StatusCheck()
+                 end
+                 if BBar then
+                   BBar:Display()
+                 end
+               end,
+        confirm = function()
+                    return 'This will uncheck your class specialization settings'
+                  end,
+        hidden = function()
+                   return BBar ~= nil
+                 end,
+      },
+      Spacer10 = CreateSpacer(10),
       Class = {
         type = 'select',
         name = 'Class',
-        order = 1,
+        order = 11,
         style = 'dropdown',
         values = SelectClassDropdown,
+        disabled = function()
+                     return GetClassSpecsTable(BarType, ClassSpecsTP).All
+                   end,
       },
       Spec = {
         type = 'multiselect',
         name = 'Specialization',
-        order = 2,
+        order = 12,
+        width = 'double',
         dialogControl = 'Dropdown',
         values = function()
-                   return SpecDropdown[ClassName]
+                   return SpecDropdown[ClassSpecs.ClassName]
                  end,
+        disabled = function()
+                     return GetClassSpecsTable(BarType, ClassSpecsTP).All
+                   end
       },
     },
   }
 
-  return SpecOption
+  return SpecOptions
 end
-
 
 -------------------------------------------------------------------------------
 -- AddTriggerOption
@@ -3765,7 +3865,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    return not Trigger.Enabled
                  end,
     },
-    SpecOption = CreateSpecOption(9, UBF, BBar, Trigger),
+    SpecOptions = CreateSpecOptions(BBar.BarType, 9, Trigger.ClassSpecs, BBar),
     Spacer10 = CreateSpacer(10, 'full', function() return not Trigger.Select end),
     ActionType = {
       type = 'input',
@@ -4336,6 +4436,16 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       },
     },
   }
+
+  --============
+  -- Specialization options modification
+  --============
+  TO.args.SpecOptions.hidden = function()
+                                 return not Trigger.Select or not Trigger.SpecEnabled
+                               end
+  TO.args.SpecOptions.disabled = function()
+                                   return not Trigger.Enabled
+                                 end
   --============
   -- GET and SET
   --============
@@ -4641,27 +4751,19 @@ local function CreateStatusOptions(BarType, Order, Name)
 
   local StatusArgs = StatusOptions.args
 
-  if UBD.Status.HideNotUsable ~= nil then
-    StatusArgs.HideNotUsable = {
-      type = 'toggle',
-      name = 'Hide not Usable',
-      order = 1,
-      desc = 'Hides the bar if it can not be used by your class or spec.  Bar will stay hidden even with bars unlocked or in test mode',
-    }
-  end
   if UBD.Status.ShowAlways ~= nil then
     StatusArgs.ShowAlways = {
       type = 'toggle',
       name = 'Show Always',
-      order = 2,
-      desc = "Always show the bar in and out of combat.  Doesn't override Hide not Usuable",
+      order = 3,
+      desc = "Always show the bar in and out of combat",
     }
   end
   if UBD.Status.HideWhenDead ~= nil then
     StatusArgs.HideWhenDead = {
       type = 'toggle',
       name = 'Hide when Dead',
-      order = 3,
+      order = 4,
       desc = "Hides the bar when you're dead",
     }
   end
@@ -4669,7 +4771,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNoTarget = {
       type = 'toggle',
       name = 'Hide no Target',
-      order = 4,
+      order = 5,
       desc = 'Hides the bar when you have no target selected',
     }
   end
@@ -4677,7 +4779,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideInVehicle = {
       type = 'toggle',
       name = 'Hide in Vehicle',
-      order = 5,
+      order = 6,
       desc = "Hides the bar when you're in a vehicle",
     }
   end
@@ -4685,7 +4787,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideInPetBattle = {
       type = 'toggle',
       name = 'Hide in Pet Battle',
-      order = 6,
+      order = 7,
       desc = "Hides the bar when you're in a pet battle",
     }
   end
@@ -4693,7 +4795,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNotActive = {
       type = 'toggle',
       name = 'Hide not Active',
-      order = 7,
+      order = 8,
       desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
     }
   end
@@ -4701,7 +4803,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNoCombat = {
       type = 'toggle',
       name = 'Hide no Combat',
-      order = 8,
+      order = 9,
       desc = 'When not in combat the bar will be hidden',
     }
   end
@@ -4709,7 +4811,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideIfBlizzAltPowerVisible = {
       type = 'toggle',
       name = 'Hide if Blizzard Visible',
-      order = 9,
+      order = 10,
       desc = 'Hide when the blizzard alternate power bar is visible. This only works while the alternate power bar is active',
     }
   end
@@ -6094,15 +6196,16 @@ local function CreateResetOptions(BarType, Order, Name)
   TableData = TableData or { -- For keynames, only the first one has to exist.
     All                       = { Name = 'All',                  Order =   1, Width = 'half' },
     Location                  = { Name = 'Location',             Order =   2, Width = 'half',   TablePaths = {'x', 'y'} },
-    Status                    = { Name = 'Status',               Order =   3, Width = 'half',   TablePaths = {'Status'} },
-    Test                      = { Name = 'Test',                 Order =   4, Width = 'half',   TablePaths = {'TestMode'} },
-    Layout                    = { Name = 'Layout',               Order =   5, Width = 'half',   TablePaths = {'Layout', 'BoxLocations', 'BoxOrder'} },
-    Region                    = { Name = 'Region',               Order =   6, Width = 'half',   TablePaths = {'Region'} },
-    Text                      = { Name = 'Text',                 Order =   7, Width = 'half',   TablePaths = {'Text'} },
-    TextPause                 = { Name = 'Text (pause)',         Order =   8, Width = 'normal', BarType = 'StaggerBar',  TablePaths = {'Text2'} },
-    TextCounter               = { Name = 'Text (counter)',       Order =   8, Width = 'normal', BarType = 'AltPowerBar', TablePaths = {'Text2'} },
-    Triggers                  = { Name = 'Triggers',             Order =   9, Width = 'half',   TablePaths = {'Triggers'} },
-    Attributes                = { Name = 'Attributes',           Order =  10, Width = 'normal', TablePaths = {'Attributes'} },
+    Specialization            = { Name = 'Spec',                 Order =   3, Width = 'half',   TablePaths = {'ClassSpecs'} },
+    Status                    = { Name = 'Status',               Order =   4, Width = 'half',   TablePaths = {'Status'} },
+    Test                      = { Name = 'Test',                 Order =   5, Width = 'half',   TablePaths = {'TestMode'} },
+    Layout                    = { Name = 'Layout',               Order =   6, Width = 'half',   TablePaths = {'Layout', 'BoxLocations', 'BoxOrder'} },
+    Region                    = { Name = 'Region',               Order =   7, Width = 'half',   TablePaths = {'Region'} },
+    Text                      = { Name = 'Text',                 Order =   8, Width = 'half',   TablePaths = {'Text'} },
+    TextPause                 = { Name = 'Text (pause)',         Order =   9, Width = 'normal', BarType = 'StaggerBar',  TablePaths = {'Text2'} },
+    TextCounter               = { Name = 'Text (counter)',       Order =  10, Width = 'normal', BarType = 'AltPowerBar', TablePaths = {'Text2'} },
+    Triggers                  = { Name = 'Triggers',             Order =  11, Width = 'half',   TablePaths = {'Triggers'} },
+    Attributes                = { Name = 'Attributes',           Order =  12, Width = 'normal', TablePaths = {'Attributes'} },
     --------------------------
     HEADER2 = { Order = 100, Name = 'Background' },
 
@@ -6508,11 +6611,12 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
 
   MenuButtons = MenuButtons or { -- Include means that these menu items will be usable during copy paste.
     ['Main'] = { Order = 1, Width = 'half',
-      { Name = 'All',                  Width = 'half',   All = false, TablePath = '',                                   },                                                          -- 1
-      { Name = 'Status',               Width = 'half',   All = true,  TablePath = 'Status',                             },  -- 2
-      { Name = 'Layout',               Width = 'half',   All = true,  TablePath = 'Layout',                             },  -- 3
-      { Name = 'Region',               Width = 'half',   All = true,  TablePath = 'Region',                             },  -- 4
-      { Name = 'Attributes',           Width = 'normal', All = true,  TablePath = 'Attributes',                         }}, -- 5
+      { Name = 'All',                  Width = 'half',   All = false, TablePath = '',                                   },  -- 1
+      { Name = 'Spec',                 Width = 'half',   All = true,  TablePath = 'ClassSpecs',                         },  -- 2
+      { Name = 'Status',               Width = 'half',   All = true,  TablePath = 'Status',                             },  -- 3
+      { Name = 'Layout',               Width = 'half',   All = true,  TablePath = 'Layout',                             },  -- 4
+      { Name = 'Region',               Width = 'half',   All = true,  TablePath = 'Region',                             },  -- 5
+      { Name = 'Attributes',           Width = 'normal', All = true,  TablePath = 'Attributes',                         }}, -- 6
 
     ['Background'] = { Order = 2, Width = 'normal',
       { Name = 'Background',           Width = 'normal', All = true,  TablePath = 'Background',                         },  -- 1
@@ -6932,6 +7036,8 @@ local function CreateUnitBarOptions(BarType, Order, Name, Desc)
       order = 0.1,
     }
   end
+
+  OptionArgs.SpecOptions = CreateSpecOptions(BarType, 0.5, 'ClassSpecs')
 
   -- Create Status options.
   OptionArgs.Status = CreateStatusOptions(BarType, 1, 'Status')

@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 567
+GUB.DefaultUB.Version = 570
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -81,23 +81,13 @@ GUB.DefaultUB.Version = 567
 --   UnitType             - Type of unit: 'player', 'pet', 'focus', 'target'
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
 --   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this. Set in Main.lua
---   UsedByClass          - Contains the data for HideNotUsable flag.  Not all unitbars use this. This is also used for Enable Bar Options and
---                          Triggers for specializations.
---                          Example1: {DRUID = '1234'}
---                            Class has to be druid and any of the 4 specs can be used.
---                          Example2: {DRUID = '12', DEATHKNIGHT = ''}
---                            Class has to be druid or deathknight.  Spec 1 or 2 on the druid has to be used. Deathknight, spec isn't checked.
---                          '0' (zero) can be used for no specialization.
+--   ClassSpecs           - See main.lua CheckClassSpecs()
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
 --   Status               - Table that contains a list of flags marked as true or false.
 --                          If a flag is found true then a statuscheck will be done to see what the
 --                          bar should do. Flags with a higher priority override flags with a lower.
 --                          Flags from highest priority to lowest.
---                            HideNotUsable    Disables and hides the unitbar if the bar is not usable
---                                             by class and/or specialization.
---                                             Not everybar has this flag.  If one is present then
---                                             the bar has a UsedByClass table.
 --                            ShowAlways       Show the bar all the time.
 --                            HideWhenDead     Hide the unitbar when the player is dead.
 --                            HideNoTarget     Hide the unitbar when the player has no target.
@@ -273,6 +263,61 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
 }
 
+GUB.DefaultUB.ClassSpecialization = {
+  DEATHKNIGHT = {'Blood', 'Frost', 'Unholy'},
+  DEMONHUNTER = {'Havoc', 'Vengeance'},
+  DRUID       = {'Balance', 'Feral', 'Guardian', 'Restoration'},
+  HUNTER      = {'Beast Mastery', 'Marksmanship', 'Survival'},
+  MAGE        = {'Arcane', 'Fire', 'Frost'},
+  MONK        = {'Brewmaster', 'Mistweaver', 'Windwalker'},
+  PALADIN     = {'Holy', 'Protection', 'Retribution'},
+  PRIEST      = {'Discipline', 'Holy', 'Shadow'},
+  ROGUE       = {'Assassination', 'Outlaw', 'Subtlety'},
+  SHAMAN      = {'Elemental', 'Enhancement', 'Restoration'},
+  WARLOCK     = {'Affliction', 'Demonology', 'Destruction'},
+  WARRIOR     = {'Arms', 'Fury', 'Protection'},
+}
+
+local ClassSpecialization = GUB.DefaultUB.ClassSpecialization
+local pairs, ipairs, type, next =
+      pairs, ipairs, type, next
+
+local function MergeTable(Source, Dest)
+  for k, v in pairs(Dest) do
+    Source[k] = v
+  end
+
+  return Source
+end
+
+local function SetClassSpecs(Flag, ClassSpecs)
+  local CS = {}
+
+  for ClassName, ClassSpec in pairs(ClassSpecs) do
+    if type(ClassSpec) == 'table' then
+      local t = {}
+      CS[ClassName] = t
+
+      if next(ClassSpec) == nil then
+        for Index in ipairs(ClassSpecialization[ClassName]) do
+          t[Index] = Flag
+        end
+      else
+        for Index in pairs(ClassSpec) do
+          t[Index] = Flag
+        end
+      end
+    else
+      CS[ClassName] = ClassSpec
+    end
+  end
+
+  return CS
+end
+
+--=============================================================================
+-- Default Profile Database
+--=============================================================================
 GUB.DefaultUB.Default = {
   profile = {
     Point = 'CENTER',
@@ -329,2898 +374,2981 @@ GUB.DefaultUB.Default = {
     },
     TaggedTest = false,
     TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},  -- grey
-    Reset = {Minimize = false},
+    Reset = {Minimize = false}
+  },
+}
+local Profile = GUB.DefaultUB.Default.profile
+
+--=============================================================================
 -- Player Health
-    PlayerHealth = {
-      Name = 'Player Health',
-      OptionOrder = 1,
-      UnitType = 'player',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = 230,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        PredictedHealth = 0.25,
-        UnitLevel = 1,
-        ScaledLevel = 1
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.PlayerHealth = {
+  Name = 'Player Health',
+  OptionOrder = 1,
+  UnitType = 'player',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = true, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = 230,
+}
+MergeTable(Profile.PlayerHealth, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    PredictedHealth = 0.25,
+    UnitLevel = 1,
+    ScaledLevel = 1
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        PredictedHealth = true,
-        ClassColor = false,
-        CombatColor = false,
-        TaggedColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'health',
+    PredictedHealth = true,
+    ClassColor = false,
+    CombatColor = false,
+    TaggedColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    PredictedBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+    PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'health',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.PlayerHealth.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Player Power
-    PlayerPower = {
-      Name = 'Player Power',
-      OptionOrder = 2,
-      UnitType = 'player',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = 200,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.25,
-        PredictedPower = 0.25,
-        PredictedCost = 0.25,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.2,
+--=============================================================================
+Profile.PlayerPower = {
+  Name = 'Player Power',
+  OptionOrder = 2,
+  UnitType = 'player',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = true, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = 200,
+}
+MergeTable(Profile.PlayerPower, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false,
+  },
+  TestMode = {
+    Value = 0.25,
+    PredictedPower = 0.25,
+    PredictedCost = 0.25,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.2,
 
-        _More = 1,
+    _More = 1,
 
-        PredictedPower = true,
-        PredictedCost = true,
-        UseBarColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        PredictedCostBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-        PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'power',
+    PredictedPower = true,
+    PredictedCost = true,
+    UseBarColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    PredictedBarTexture = DefaultStatusBarTexture,
+    PredictedCostBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+    PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+    PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'power',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.PlayerPower.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Target Health
-    TargetHealth = {
-      Name = 'Target Health',
-      OptionOrder = 3,
-      UnitType = 'target',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = 170,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        PredictedHealth = 0.25,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.TargetHealth = {
+  Name = 'Target Health',
+  OptionOrder = 3,
+  UnitType = 'target',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = true, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = 170,
+}
+MergeTable(Profile.TargetHealth, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = true,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    PredictedHealth = 0.25,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        PredictedHealth = true,
-        ClassColor = false,
-        CombatColor = false,
-        TaggedColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-        TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'health',
+    PredictedHealth = true,
+    ClassColor = false,
+    CombatColor = false,
+    TaggedColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    PredictedBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+    PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+    TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'health',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.TargetHealth.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Target Power
-    TargetPower = {
-      Name = 'Target Power',
-      OptionOrder = 4,
-      UnitType = 'target',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = 140,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = true,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.TargetPower = {
+  Name = 'Target Power',
+  OptionOrder = 4,
+  UnitType = 'target',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = true, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = 140,
+}
+MergeTable(Profile.TargetPower, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = true,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        UseBarColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'hap',
+    UseBarColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'hap',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.TargetPower.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Focus Health
-    FocusHealth = {
-      Name = 'Focus Health',
-      OptionOrder = 5,
-      UnitType = 'focus',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = 110,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        PredictedHealth = 0.25,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.FocusHealth = {
+  Name = 'Focus Health',
+  OptionOrder = 5,
+  UnitType = 'focus',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = true, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = 110,
+}
+MergeTable(Profile.FocusHealth, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    PredictedHealth = 0.25,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        PredictedHealth = true,
-        ClassColor = false,
-        CombatColor = false,
-        TaggedColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-        TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'health',
+    PredictedHealth = true,
+    ClassColor = false,
+    CombatColor = false,
+    TaggedColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    PredictedBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+    PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+    TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'health',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.FocusHealth.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Focus Power
-    FocusPower = {
-      Name = 'Focus Power',
-      OptionOrder = 6,
-      UnitType = 'focus',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = 80,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.FocusPower = {
+  Name = 'Focus Power',
+  OptionOrder = 6,
+  UnitType = 'focus',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = true, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = 80,
+}
+MergeTable(Profile.FocusPower, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        UseBarColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'hap',
+    UseBarColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'hap',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.FocusPower.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Pet Health
-    PetHealth = {
-      Name = 'Pet Health',
-      OptionOrder = 7,
-      OptionText = 'Classes with pets only',
-      UnitType = 'pet',
-      Enabled = true,
-      UsedByClass = {ROGUE = '2', DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
-      x = -200,
-      y = 50,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        PredictedHealth = 0.25,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.PetHealth = {
+  Name = 'Pet Health',
+  OptionOrder = 7,
+  OptionText = 'Classes with pets only',
+  UnitType = 'pet',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 ROGUE = {[2] = true}, MAGE = {[3] = true},
+                 DEATHKNIGHT = {}, WARLOCK = {}, HUNTER = {} } ),
+  x = -200,
+  y = 50,
+}
+MergeTable(Profile.PetHealth, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    PredictedHealth = 0.25,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        PredictedHealth = true,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'health',
+    PredictedHealth = true,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    PredictedBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+    PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'health',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.PetHealth.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Pet Power
-    PetPower = {
-      Name = 'Pet Power',
-      OptionOrder = 8,
-      OptionText = 'Classes with pets only',
-      UnitType = 'pet',
-      Enabled = true,
-      UsedByClass = {ROGUE = '2', DEATHKNIGHT = '', MAGE = '3', WARLOCK = '', HUNTER = ''},
-      x = -200,
-      y = 20,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.PetPower = {
+  Name = 'Pet Power',
+  OptionOrder = 8,
+  OptionText = 'Classes with pets only',
+  UnitType = 'pet',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 ROGUE = {[2] = true}, MAGE = {[3] = true},
+                 DEATHKNIGHT = {}, WARLOCK = {}, HUNTER = {} } ),
+  x = -200,
+  y = 20,
+}
+MergeTable(Profile.PetPower, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        UseBarColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'hap',
+    UseBarColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'hap',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.PetPower.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- Mana Power
-    ManaPower = {
-      Name = 'Mana Power',
-      OptionOrder = 9,
-      OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
-      UnitType = 'player',
-      Enabled = true,
-      UsedByClass = {DRUID = '', MONK = '', PRIEST = '', SHAMAN = ''},
-      x = -200,
-      y = -10,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Value = 0.50,
-        PredictedCost = 0.25,
-        UnitLevel = 1,
-        ScaledLevel = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.ManaPower = {
+  Name = 'Mana Power',
+  OptionOrder = 9,
+  OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
+  UnitType = 'player',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(false, {
+                 All = false, Inverse = false, ClassName = '',
+                 DRUID = {}, MONK = {}, PRIEST = {}, SHAMAN = {} } ),
+  x = -200,
+  y = -10,
+}
+MergeTable(Profile.ManaPower, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Value = 0.50,
+    PredictedCost = 0.25,
+    UnitLevel = 1,
+    ScaledLevel = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        PredictedCost = true,
-        UseBarColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Bar = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        PredictedCostBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-        PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'mana',
+    PredictedCost = true,
+    UseBarColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    PredictedCostBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+    PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'mana',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.ManaPower.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- StaggerBar
-    StaggerBar = {
-      Name = 'Stagger Bar',
-      OptionOrder = 10,
-      UnitType = 'player',
-      Enabled = true,
-      UsedByClass = {MONK = '1'},
-      x = -200,
-      y = -40,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        StaggerPercent = 0,
-        StaggerPause = 0,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        HideTextPause = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
-        Swap = false,
-        Float = false,
-        Rotation = 360,
-        Padding = 0,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
+--=============================================================================
+Profile.StaggerBar = {
+  Name = 'Stagger Bar',
+  OptionOrder = 10,
+  UnitType = 'player',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 MONK = {[1] = true} } ),
+  x = -200,
+  y = -40,
+}
+MergeTable(Profile.StaggerBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    StaggerPercent = 0,
+    StaggerPause = 0,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    HideTextPause = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
+    Swap = false,
+    Float = false,
+    Rotation = 360,
+    Padding = 0,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
 
-        _More = 1,
+    _More = 1,
 
-        Layered = true,
-        Overlay = false,
-        SideBySide = false,
-        PauseTimer = false,
-        PauseTimerAutoHide = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      BackgroundStagger = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundPause = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BarStagger = {
-        Advanced = false,
-        Width = 170,
-        Height = 25,
-        MaxPercent = 1,
-        MaxPercentBStagger = 2,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        BStaggerBarTexture = DefaultStatusBarTexture,
-        Color = {r = 0.52, g = 1, b = 0.52, a = 1},
-        BStaggerColor = {r = 1, g = 0.42, b = 0.42, a = 1},
-      },
-      BarPause = {
-        Advanced = false,
-        Width = 170,
-        Height = 20,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = DefaultStatusBarTexture,
-        Color = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'stagger',
+    Layered = true,
+    Overlay = false,
+    SideBySide = false,
+    PauseTimer = false,
+    PauseTimerAutoHide = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  BackgroundStagger = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  BackgroundPause = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  BarStagger = {
+    Advanced = false,
+    Width = 170,
+    Height = 25,
+    MaxPercent = 1,
+    MaxPercentBStagger = 2,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    BStaggerBarTexture = DefaultStatusBarTexture,
+    Color = {r = 0.52, g = 1, b = 0.52, a = 1},
+    BStaggerColor = {r = 1, g = 0.42, b = 0.42, a = 1},
+  },
+  BarPause = {
+    Advanced = false,
+    Width = 170,
+    Height = 20,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = DefaultStatusBarTexture,
+    Color = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'stagger',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current'},
-          ValueTypes = {'percent'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current'},
+      ValueTypes = {'percent'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Text2 = { -- Pause Timer
-        _ValueNameMenu = 'staggerpause',
-
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'time'},
-          ValueTypes = {'timeSS'},
-
-          FontType = UBFontType,
-          FontSize = 14,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Text2 = { -- Pause Timer
+    _ValueNameMenu = 'staggerpause',
+
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'time'},
+      ValueTypes = {'timeSS'},
+
+      FontType = UBFontType,
+      FontSize = 14,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.StaggerBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- AlternatePowerBar
-    AltPowerBar = {
-      Name = 'Alternate Power Bar',
-      Notes = '|cff00ff00Counter is used for Darkmoon Faire games and anything else like it|r\n',
-      OptionOrder = 11,
-      UnitType = 'player',
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = '', DEMONHUNTER = '', DRUID = '', HUNTER = '', MAGE    = '', MONK    = '',
-                     PALADIN     = '', PRIEST      = '', ROGUE = '', SHAMAN = '', WARLOCK = '', WARRIOR = '' },
-      x = -200,
-      y = -70,
-      Status = {
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideInVehicle   = false,
-        HideInPetBattle = false,
-        HideIfBlizzAltPowerVisible = true,
-      },
-      TestMode = {
-        AltTypePower = true,
-        AltTypeCounter = false,
-        AltTypeBoth = false,
-        AltPowerName = 'This is test mode',
-        AltPower = 0,
-        AltPowerMax = 0,
-        AltPowerTime = 0,
-        AltPowerBarID = 0,
-        BothRotation = 180,
-      },
-      Layout = {
-        EnableTriggers = false,
-        ReverseFill = false,
-        HideText = false,
-        HideTextCounter = false,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
+--=============================================================================
+Profile.AltPowerBar = {
+  Name = 'Alternate Power Bar',
+  OptionOrder = 11,
+  UnitType = 'player',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                All = true, Inverse = false, ClassName = '',
+                DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
+                PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  x = -200,
+  y = -70,
+}
+MergeTable(Profile.AltPowerBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideInVehicle   = false,
+    HideInPetBattle = false,
+    HideIfBlizzAltPowerVisible = true,
+  },
+  TestMode = {
+    AltTypePower = true,
+    AltTypeCounter = false,
+    AltTypeBoth = false,
+    AltPowerName = 'This is test mode',
+    AltPower = 0,
+    AltPowerMax = 0,
+    AltPowerTime = 0,
+    AltPowerBarID = 0,
+    BothRotation = 180,
+  },
+  Layout = {
+    EnableTriggers = false,
+    ReverseFill = false,
+    HideText = false,
+    HideTextCounter = false,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
 
-        _More = 1,
+    _More = 1,
 
-        UseBarColor = false,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      BackgroundPower = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = GUBSquareBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundCounter = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = GUBSquareBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0, g = 0, b = 0, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BarPower = {
-        Advanced = false,
-        Width = 170,
-        Height = 35,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      BarCounter = {
-        Advanced = false,
-        Width = 170,
-        Height = 35,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {r = 0, g = 1, b = 0, a = 1},
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'altpower',
+    UseBarColor = false,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  BackgroundPower = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = GUBSquareBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  BackgroundCounter = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = GUBSquareBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0, g = 0, b = 0, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  BarPower = {
+    Advanced = false,
+    Width = 170,
+    Height = 35,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+  },
+  BarCounter = {
+    Advanced = false,
+    Width = 170,
+    Height = 35,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {r = 0, g = 1, b = 0, a = 1},
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'altpower',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'current', 'maximum'},
-          ValueTypes = {'whole', 'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'current', 'maximum'},
+      ValueTypes = {'whole', 'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'OUTLINE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        }
-      },
-      Text2 = {
-        _DC = 0,
-        _ValueNameMenu = 'altcounter',
-        Notes = '|cff00ff00Current and maximum counter are used when a counter has a max|r\n',
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'OUTLINE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
+    }
+  },
+  Text2 = {
+    _DC = 0,
+    _ValueNameMenu = 'altcounter',
+    Notes = '|cff00ff00Current and maximum counter are used when a counter has a max|r\n',
 
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'counter', 'countermin', 'countermax'},
-          ValueTypes = {'whole', 'whole', 'whole'},
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'counter', 'countermin', 'countermax'},
+      ValueTypes = {'whole', 'whole', 'whole'},
 
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'OUTLINE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 200,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {r = 1, g = 1, b = 1, a = 1},
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'OUTLINE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 200,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {r = 1, g = 1, b = 1, a = 1},
     },
+  },
+  Triggers = {
+    _DC = 0,
+    Notes = '|cff00ff00Counter is used for Darkmoon Faire games and anything else like it|r\n',
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.AltPowerBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
 -- RuneBar
-    RuneBar = {
-      Name = 'Rune Bar',
-      OptionOrder = 12,
-      Enabled = true,
-      UsedByClass = {DEATHKNIGHT = ''},
-      x = 0,
-      y = 229,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        BloodSpec = false,
-        FrostSpec = true,
-        UnHolySpec = false,
-        RuneTime = 0,
-        RuneOnCooldown = 1,
-      },
-      Layout = {
-        EnableTriggers = false,
-        HideRegion = false,
-        ReverseFill = false,
-        HideText = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
+--=============================================================================
+Profile.RuneBar = {
+  Name = 'Rune Bar',
+  OptionOrder = 12,
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 DEATHKNIGHT = {} } ),
+  x = 0,
+  y = 229,
+}
+MergeTable(Profile.RuneBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    BloodSpec = false,
+    FrostSpec = true,
+    UnHolySpec = false,
+    RuneTime = 0,
+    RuneOnCooldown = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    HideRegion = false,
+    ReverseFill = false,
+    HideText = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
 
-        _More = 1,
+    _More = 1,
 
-        RuneMode = 'rune',
-        CooldownLine = true,
-        BarSpark = false,
-        CooldownFlash = true,
-        CooldownAnimation = true,
-        RunePosition = 'LEFT',
-        RuneOffsetX = 0,
-        RuneOffsetY = 0,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.2, g = 0.2, b = 0.2, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        ColorAllSelect = {bg = 'Frost', border = 'Frost'},
-        ColorBlood = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,        -- All runes
-          {r = 0, g = 0, b = 0, a = 1,},     -- 1
-          {r = 0, g = 0, b = 0, a = 1,},     -- 2
-          {r = 0, g = 0, b = 0, a = 1,},     -- 3
-          {r = 0, g = 0, b = 0, a = 1,},     -- 4
-          {r = 0, g = 0, b = 0, a = 1,},     -- 5
-          {r = 0, g = 0, b = 0, a = 1,},     -- 6
-        },
-        ColorFrost = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,        -- All runes
-          {r = 0, g = 0, b = 0, a = 1,},     -- 1
-          {r = 0, g = 0, b = 0, a = 1,},     -- 2
-          {r = 0, g = 0, b = 0, a = 1,},     -- 3
-          {r = 0, g = 0, b = 0, a = 1,},     -- 4
-          {r = 0, g = 0, b = 0, a = 1,},     -- 5
-          {r = 0, g = 0, b = 0, a = 1,},     -- 6
-        },
-        ColorUnholy = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,        -- All runes
-          {r = 0, g = 0, b = 0, a = 1,},     -- 1
-          {r = 0, g = 0, b = 0, a = 1,},     -- 2
-          {r = 0, g = 0, b = 0, a = 1,},     -- 3
-          {r = 0, g = 0, b = 0, a = 1,},     -- 4
-          {r = 0, g = 0, b = 0, a = 1,},     -- 5
-          {r = 0, g = 0, b = 0, a = 1,},     -- 6
-        },
-        EnableBorderColor = false,
-        BorderColorBlood = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,        -- All runes
-          {r = 1, g = 1, b = 1, a = 1,},     -- 1
-          {r = 1, g = 1, b = 1, a = 1,},     -- 2
-          {r = 1, g = 1, b = 1, a = 1,},     -- 3
-          {r = 1, g = 1, b = 1, a = 1,},     -- 4
-          {r = 1, g = 1, b = 1, a = 1,},     -- 5
-          {r = 1, g = 1, b = 1, a = 1,},     -- 6
-        },
-        BorderColorFrost = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,        -- All runes
-          {r = 1, g = 1, b = 1, a = 1,},     -- 1
-          {r = 1, g = 1, b = 1, a = 1,},     -- 2
-          {r = 1, g = 1, b = 1, a = 1,},     -- 3
-          {r = 1, g = 1, b = 1, a = 1,},     -- 4
-          {r = 1, g = 1, b = 1, a = 1,},     -- 5
-          {r = 1, g = 1, b = 1, a = 1,},     -- 6
-        },
-        BorderColorUnholy = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,        -- All runes
-          {r = 1, g = 1, b = 1, a = 1,},     -- 1
-          {r = 1, g = 1, b = 1, a = 1,},     -- 2
-          {r = 1, g = 1, b = 1, a = 1,},     -- 3
-          {r = 1, g = 1, b = 1, a = 1,},     -- 4
-          {r = 1, g = 1, b = 1, a = 1,},     -- 5
-          {r = 1, g = 1, b = 1, a = 1,},     -- 6
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        FillDirection = 'HORIZONTAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        ColorAllSelect = {bar = 'Frost'},
-        ColorBlood = {
-          All = false,
-          r = 0.937, g = 0.156, b = 0.031, a = 1,       -- All runes
-          {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 1
-          {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 2
-          {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 3
-          {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 4
-          {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 5
-          {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 6
-        },
-        ColorFrost = {
-          All = false,
-          r = 0.419, g = 0.713, b = 0.937, a = 1,       -- All runes
-          {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 1
-          {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 2
-          {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 3
-          {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 4
-          {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 5
-          {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 6
-        },
-        ColorUnholy = {
-          All = false,
-          r = 0.678, g = 0.905, b = 0.290, a = 1,       -- All runes
-          {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 1
-          {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 2
-          {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 3
-          {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 4
-          {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 5
-          {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 6
-        },
-      },
-      Text = {
-        _DC = 0,
-        _ValueNameMenu = 'rune',
-
-        { -- 1
-          Custom    = false,
-          Layout    = '',
-          ValueNames = {'time'},
-          ValueTypes = {'timeSS'},
-
-          FontType = UBFontType,
-          FontSize = 16,
-          FontStyle = 'NONE',
-          FontHAlign = 'CENTER',
-          FontVAlign = 'MIDDLE',
-          Position = 'CENTER',
-          FontPosition = 'CENTER',
-          Width = 50,
-          Height = 18,
-          OffsetX = 0,
-          OffsetY = 0,
-          ShadowOffset = 0,
-          Color = {
-            All = false,
-            r = 1, g = 1, b = 1, a = 1,      -- All runes
-            {r = 1, g = 1, b = 1, a = 1},    -- 1
-            {r = 1, g = 1, b = 1, a = 1},    -- 2
-            {r = 1, g = 1, b = 1, a = 1},    -- 3
-            {r = 1, g = 1, b = 1, a = 1},    -- 4
-            {r = 1, g = 1, b = 1, a = 1},    -- 5
-            {r = 1, g = 1, b = 1, a = 1},    -- 6
-          },
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        Notes = '|cff00ff00Empowered uses the Time settings from Empowerment in Layout settings.\nEven if turned off|r\n',
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '=', Value = 1} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+    RuneMode = 'rune',
+    CooldownLine = true,
+    BarSpark = false,
+    CooldownFlash = true,
+    CooldownAnimation = true,
+    RunePosition = 'LEFT',
+    RuneOffsetX = 0,
+    RuneOffsetY = 0,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.2, g = 0.2, b = 0.2, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    ColorAllSelect = {bg = 'Frost', border = 'Frost'},
+    ColorBlood = {
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,        -- All runes
+      {r = 0, g = 0, b = 0, a = 1,},     -- 1
+      {r = 0, g = 0, b = 0, a = 1,},     -- 2
+      {r = 0, g = 0, b = 0, a = 1,},     -- 3
+      {r = 0, g = 0, b = 0, a = 1,},     -- 4
+      {r = 0, g = 0, b = 0, a = 1,},     -- 5
+      {r = 0, g = 0, b = 0, a = 1,},     -- 6
     },
--- ComboBar
-    ComboBar = {
-      Name = 'Combo Bar',
-      OptionOrder = 13,
-      Enabled = true,
-      UsedByClass = {ROGUE = '', DRUID = ''},
-      x = 0,
-      y = 195,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        ComboPoints = 0,
-        DeeperStratagem = false,
-        Anticipation = false,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        AnimationType = DefaultAnimationType,
-        AnimationInTime = DefaultAnimationInTime,
-        AnimationOutTime = DefaultAnimationOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-
-        _More = 1,
-
-        TextureScaleCombo = 1,
-        TextureScaleAnticipation = 1,
-        InactiveAnticipationAlpha = 1,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.176, g = 0.160, b = 0.094, a = 1},
-        EnabelBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundCombo = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 1
-          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 2
-          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 3
-          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 4
-          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 5
-          {r = 0, g = 0, b = 0, a = 1},  -- Combo point 6
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 1
-          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 2
-          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 3
-          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 4
-          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 5
-          {r = 1, g = 1, b = 1, a = 1},  -- Combo point 6
-        },
-      },
-      BackgroundAnticipation = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          _Offset = 6,
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 1
-          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 2
-          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 3
-          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 4
-          {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          _Offset = 6,
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 1
-          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 2
-          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 3
-          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 4
-          {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 5
-        },
-      },
-      BarCombo = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.784, g = 0.031, b = 0.031, a = 1,
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 1
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 2
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 3
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 4
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 5
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 6
-        },
-      },
-      BarAnticipation = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          _Offset = 6,
-          All = false,
-          r = 0.784, g = 0.031, b = 0.031, a = 1,
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 1
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 2
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 3
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 4
-          {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 5
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+    ColorFrost = {
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,        -- All runes
+      {r = 0, g = 0, b = 0, a = 1,},     -- 1
+      {r = 0, g = 0, b = 0, a = 1,},     -- 2
+      {r = 0, g = 0, b = 0, a = 1,},     -- 3
+      {r = 0, g = 0, b = 0, a = 1,},     -- 4
+      {r = 0, g = 0, b = 0, a = 1,},     -- 5
+      {r = 0, g = 0, b = 0, a = 1,},     -- 6
     },
--- HolyBar
-    HolyBar = {
-      Name = 'Holy Bar',
-      OptionOrder = 14,
-      Enabled = true,
-      UsedByClass = {PALADIN = '3'},
-      x = 0,
-      y = 154,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        HolyPower = 0,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        AnimationType = DefaultAnimationType,
-        AnimationInTime = DefaultAnimationInTime,
-        AnimationOutTime = DefaultAnimationOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0.121, g = 0.121, b = 0.121, a = 1,
-          {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 1
-          {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 2
-          {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 3
-          {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 4
-          {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 1, g = 0.705, b = 0, a = 1,
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 1
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 2
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 3
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 4
-          {r = 1, g = 0.705, b = 0, a = 1}, -- 5
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+    ColorUnholy = {
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,        -- All runes
+      {r = 0, g = 0, b = 0, a = 1,},     -- 1
+      {r = 0, g = 0, b = 0, a = 1,},     -- 2
+      {r = 0, g = 0, b = 0, a = 1,},     -- 3
+      {r = 0, g = 0, b = 0, a = 1,},     -- 4
+      {r = 0, g = 0, b = 0, a = 1,},     -- 5
+      {r = 0, g = 0, b = 0, a = 1,},     -- 6
     },
--- ShardBar
-    ShardBar = {
-      Name = 'Shard Bar',
-      OptionOrder = 15,
-      Enabled = true,
-      UsedByClass = {WARLOCK = '12'},
-      x = 0,
-      y = 112,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        SoulShards = 0,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        AnimationType = DefaultAnimationType,
-        AnimationInTime = DefaultAnimationInTime,
-        AnimationOutTime = DefaultAnimationOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.266, g = 0.290, b = 0.274, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0.329, g = 0.172, b = 0.337, a = 1,
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 25,
-        Height = 32,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.980, g = 0.517, b = 1, a = 1,
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 5
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+    EnableBorderColor = false,
+    BorderColorBlood = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,        -- All runes
+      {r = 1, g = 1, b = 1, a = 1,},     -- 1
+      {r = 1, g = 1, b = 1, a = 1,},     -- 2
+      {r = 1, g = 1, b = 1, a = 1,},     -- 3
+      {r = 1, g = 1, b = 1, a = 1,},     -- 4
+      {r = 1, g = 1, b = 1, a = 1,},     -- 5
+      {r = 1, g = 1, b = 1, a = 1,},     -- 6
     },
--- FragmentBar
-    FragmentBar = {
-      Name = 'Fragment Bar',
-      OptionOrder = 16,
-      OptionText = 'Destruction Warlocks only',
-      Enabled = true,
-      UsedByClass = {WARLOCK = '3'},
-      x = 150,
-      y = 112,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        ShowFull = true,
-        ShardFragments = 0,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        ReverseFill = false,
-        FillDirection = 'VERTICAL',
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        AnimationType = DefaultAnimationType,
-        AnimationInTime = DefaultAnimationInTime,
-        AnimationOutTime = DefaultAnimationOutTime,
-        SmoothFillMaxTime = 0,
-        SmoothFillSpeed = 0.15,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-
-        _More = 1,
-
-        BurningEmbers = false,
-        GreenFire = false,
-        GreenFireAuto = true,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.266, g = 0.290, b = 0.274, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      BackgroundShard = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        ColorAllSelect = {bg = 'Color', border = 'Color'},
-        Color = {
-          All = false,
-          r = 0.329, g = 0.172, b = 0.337, a = 1,
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
-          {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 5
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.123, g = 0.311, b = 0.039, a = 1,
-          {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 1
-          {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 2
-          {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 3
-          {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 4
-          {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-        BorderColorGreen = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-      },
-      BackgroundEmber = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        ColorAllSelect = {bg = 'Color', border = 'Color'},
-        Color = {
-          All = false,
-          r = 0.611, g = 0.137, b = 0.058, a = 1,
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 1
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 2
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 3
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 4
-          {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 5
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.223, g = 0.411, b = 0.039, a = 1,
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 1
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 2
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 3
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 4
-          {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 5
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-        BorderColorGreen = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-        },
-      },
-      BarShard = {
-        Advanced = false,
-        Width = 25,
-        Height = 32,
-        FillDirection = 'VERTICAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        FullBarTexture = GUBStatusBarTexture,
-        ColorAllSelect = {bar = 'Color', barfull = 'Color'},
-        Color = {
-          All = false,
-          r = 0.792, g = 0.254, b = 0.913, a = 1,
-          {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 1
-          {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 2
-          {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 3
-          {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 4
-          {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 5
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.203, g = 0.662, b = 0, a = 1,
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 5
-        },
-        ColorFull = {
-          All = false,
-          r = 0.980, g = 0.517, b = 1, a = 1,
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
-          {r = 0.980, g = 0.517, b = 1, a = 1}, -- 5
-        },
-        ColorFullGreen = {
-          All = false,
-          r = 0, g = 1, b = 0.078, a = 1,
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 1
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 2
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 3
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 4
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 5
-        },
-      },
-      BarEmber = {
-        Advanced = false,
-        Width = 25,
-        Height = 32,
-        FillDirection = 'VERTICAL',
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        FullBarTexture = GUBStatusBarTexture,
-        ColorAllSelect = {bar = 'Color', barfull = 'Color'},
-        Color = {
-          All = false,
-          r = 1, g = 0.325, b = 0 , a = 1,
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 1
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 2
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 3
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 4
-          {r = 1, g = 0.325, b = 0 , a = 1}, -- 5
-        },
-        ColorGreen = {
-          All = false,
-          r = 0.203, g = 0.662, b = 0, a = 1,
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
-          {r = 0.203, g = 0.662, b = 0, a = 1}, -- 5
-        },
-        ColorFull = {
-          All = false,
-          r = 0.941, g = 0.690, b = 0.094, a = 1,
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 1
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 2
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 3
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 4
-          {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 5
-        },
-        ColorFullGreen = {
-          All = false,
-          r = 0, g = 1, b = 0.078, a = 1,
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 1
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 2
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 3
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 4
-          {r = 0, g = 1, b = 0.078, a = 1}, -- 5
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        Notes = '"|cff00ff00Fragments" are based on the amount of fill from 0 to 10 or percentage per shard|r\n',
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+    BorderColorFrost = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,        -- All runes
+      {r = 1, g = 1, b = 1, a = 1,},     -- 1
+      {r = 1, g = 1, b = 1, a = 1,},     -- 2
+      {r = 1, g = 1, b = 1, a = 1,},     -- 3
+      {r = 1, g = 1, b = 1, a = 1,},     -- 4
+      {r = 1, g = 1, b = 1, a = 1,},     -- 5
+      {r = 1, g = 1, b = 1, a = 1,},     -- 6
     },
--- ChiBar
-    ChiBar = {
-      Name = 'Chi Bar',
-      OptionOrder = 17,
-      Enabled = true,
-      UsedByClass = {MONK = '3'},
-      x = 0,
-      y = 69,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        Chi = 0,
-        Ascension = true,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        AnimationType = DefaultAnimationType,
-        AnimationInTime = DefaultAnimationInTime,
-        AnimationOutTime = DefaultAnimationOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.113, g = 0.192, b = 0.188, a = 1},
-        EnabelBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0, g = 0, b = 0, a = 1,
-          {r = 0, g = 0, b = 0, a = 1}, -- 1
-          {r = 0, g = 0, b = 0, a = 1}, -- 2
-          {r = 0, g = 0, b = 0, a = 1}, -- 3
-          {r = 0, g = 0, b = 0, a = 1}, -- 4
-          {r = 0, g = 0, b = 0, a = 1}, -- 5
-          {r = 0, g = 0, b = 0, a = 1}, -- 6
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-          {r = 1, g = 1, b = 1, a = 1},  -- 5
-          {r = 1, g = 1, b = 1, a = 1},  -- 6
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 30,
-        Height = 30,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.407, g = 0.764, b = 0.670, a = 1,
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 1
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 2
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 3
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 4
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
-          {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 6
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
-
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
-      },
+    BorderColorUnholy = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,        -- All runes
+      {r = 1, g = 1, b = 1, a = 1,},     -- 1
+      {r = 1, g = 1, b = 1, a = 1,},     -- 2
+      {r = 1, g = 1, b = 1, a = 1,},     -- 3
+      {r = 1, g = 1, b = 1, a = 1,},     -- 4
+      {r = 1, g = 1, b = 1, a = 1,},     -- 5
+      {r = 1, g = 1, b = 1, a = 1,},     -- 6
     },
--- ArcaneBar
-    ArcaneBar = {
-      Name = 'Arcane Bar',
-      OptionOrder = 18,
-      Enabled = true,
-      UsedByClass = {MAGE = '1'},
-      x = 0,
-      y = 30,
-      Status = {
-        HideNotUsable   = true,
-        ShowAlways      = false,
-        HideWhenDead    = true,
-        HideNoTarget    = false,
-        HideInVehicle   = true,
-        HideInPetBattle = true,
-        HideNotActive   = false,
-        HideNoCombat    = false
-      },
-      TestMode = {
-        ArcaneCharges = 0,
-      },
-      Layout = {
-        BoxMode = false,
-        EnableTriggers = false,
-        HideRegion = false,
-        Swap = false,
-        Float = false,
-        BorderPadding = 6,
-        Rotation = 90,
-        Slope = 0,
-        Padding = 0,
-        TextureScale = 1,
-        AnimationType = DefaultAnimationType,
-        AnimationInTime = DefaultAnimationInTime,
-        AnimationOutTime = DefaultAnimationOutTime,
-        Align = false,
-        AlignPaddingX = 0,
-        AlignPaddingY = 0,
-        AlignOffsetX = 0,
-        AlignOffsetY = 0,
-      },
-      Attributes = {
-        Scale = 1,
-        Alpha = 1,
-        AnchorPoint = 'TOPLEFT',
-        FrameStrata = 'MEDIUM',
-        MainAnimationType = true,
-        AnimationTypeBar = 'alpha',
-      },
-      Region = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {r = 0.188, g = 0.094, b = 0.313, a = 1},
-        EnableBorderColor = false,
-        BorderColor = {r = 1, g = 1, b = 1, a = 1},
-      },
-      Background = {
-        PaddingAll = true,
-        BgTexture = DefaultBgTexture,
-        BorderTexture = DefaultBorderTexture,
-        BgTile = false,
-        BgTileSize = 16,
-        BorderSize = 12,
-        Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
-        Color = {
-          All = false,
-          r = 0.034, g = 0.129, b = 0.317, a = 1,
-          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 1
-          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 2
-          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 3
-          {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 4
-        },
-        EnableBorderColor = false,
-        BorderColor = {
-          All = false,
-          r = 1, g = 1, b = 1, a = 1,
-          {r = 1, g = 1, b = 1, a = 1},  -- 1
-          {r = 1, g = 1, b = 1, a = 1},  -- 2
-          {r = 1, g = 1, b = 1, a = 1},  -- 3
-          {r = 1, g = 1, b = 1, a = 1},  -- 4
-        },
-      },
-      Bar = {
-        Advanced = false,
-        Width = 40,
-        Height = 25,
-        RotateTexture = false,
-        PaddingAll = true,
-        Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
-        StatusBarTexture = GUBStatusBarTexture,
-        Color = {
-          All = false,
-          r = 0.376, g = 0.784, b = 0.972, a = 1,
-          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 1
-          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 2
-          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 3
-          {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 4
-        },
-      },
-      Triggers = {
-        _DC = 0,
-        MenuSync = false,
-        HideTabs = false,
-        Action = {},
-        ActionSync = {},
+  },
+  Bar = {
+    Advanced = false,
+    Width = 40,
+    Height = 25,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    ColorAllSelect = {bar = 'Frost'},
+    ColorBlood = {
+      All = false,
+      r = 0.937, g = 0.156, b = 0.031, a = 1,       -- All runes
+      {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 1
+      {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 2
+      {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 3
+      {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 4
+      {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 5
+      {r = 0.937, g = 0.156, b = 0.031, a = 1},     -- 6
+    },
+    ColorFrost = {
+      All = false,
+      r = 0.419, g = 0.713, b = 0.937, a = 1,       -- All runes
+      {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 1
+      {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 2
+      {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 3
+      {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 4
+      {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 5
+      {r = 0.419, g = 0.713, b = 0.937, a = 1},     -- 6
+    },
+    ColorUnholy = {
+      All = false,
+      r = 0.678, g = 0.905, b = 0.290, a = 1,       -- All runes
+      {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 1
+      {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 2
+      {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 3
+      {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 4
+      {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 5
+      {r = 0.678, g = 0.905, b = 0.290, a = 1},     -- 6
+    },
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'rune',
 
-        Default = { -- Default trigger
-          Enabled = true,
-          Static = false,
-          SpecEnabled = false,
-          DisabledBySpec = false,
-          ClassName = '',
-          ClassSpecs = {},
-          HideAuras = false,
-          OffsetAll = true,
-          Action = {Type = 1},
-          Name = '',
-          GroupNumber = 1,
-          OrderNumber = 0,
-          TypeID = 'bartexturecolor',
-          Type = 'bar color',
-          ValueTypeID = '',
-          ValueType = '',
-          CanAnimate = false,
-          Animate = false,
-          AnimateSpeed = 0.01,
-          State = true,
-          AuraOperator = 'or',
-          Conditions = { All = false, {Operator = '>', Value = 0} },
-          Pars = {},
-          GetFnTypeID = 'none',
-          GetPars = {},
-        },
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'time'},
+      ValueTypes = {'timeSS'},
+
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      Position = 'CENTER',
+      FontPosition = 'CENTER',
+      Width = 50,
+      Height = 18,
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {
+        All = false,
+        r = 1, g = 1, b = 1, a = 1,      -- All runes
+        {r = 1, g = 1, b = 1, a = 1},    -- 1
+        {r = 1, g = 1, b = 1, a = 1},    -- 2
+        {r = 1, g = 1, b = 1, a = 1},    -- 3
+        {r = 1, g = 1, b = 1, a = 1},    -- 4
+        {r = 1, g = 1, b = 1, a = 1},    -- 5
+        {r = 1, g = 1, b = 1, a = 1},    -- 6
       },
     },
   },
+  Triggers = {
+    _DC = 0,
+    Notes = '|cff00ff00Empowered uses the Time settings from Empowerment in Layout settings.\nEven if turned off|r\n',
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.RuneBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '=', Value = 1} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
+-- ComboBar
+--=============================================================================
+Profile.ComboBar = {
+  Name = 'Combo Bar',
+  OptionOrder = 13,
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 ROGUE = {}, DRUID = {} } ),
+  x = 0,
+  y = 195,
 }
+MergeTable(Profile.ComboBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    ComboPoints = 0,
+    DeeperStratagem = false,
+    Anticipation = false,
+  },
+  Layout = {
+    BoxMode = false,
+    EnableTriggers = false,
+    HideRegion = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+
+    _More = 1,
+
+    TextureScaleCombo = 1,
+    TextureScaleAnticipation = 1,
+    InactiveAnticipationAlpha = 1,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.176, g = 0.160, b = 0.094, a = 1},
+    EnabelBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  BackgroundCombo = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 1
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 2
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 3
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 4
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 5
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 6
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 1
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 2
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 3
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 4
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 5
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 6
+    },
+  },
+  BackgroundAnticipation = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      _Offset = 6,
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,
+      {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 1
+      {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 2
+      {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 3
+      {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 4
+      {r = 0, g = 0, b = 0, a = 1},  -- Anticipation point 5
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      _Offset = 6,
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 1
+      {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 2
+      {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 3
+      {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 4
+      {r = 1, g = 1, b = 1, a = 1},  -- Anticipation point 5
+    },
+  },
+  BarCombo = {
+    Advanced = false,
+    Width = 40,
+    Height = 25,
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {
+      All = false,
+      r = 0.784, g = 0.031, b = 0.031, a = 1,
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 1
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 2
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 3
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 4
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 5
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 6
+    },
+  },
+  BarAnticipation = {
+    Advanced = false,
+    Width = 40,
+    Height = 25,
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {
+      _Offset = 6,
+      All = false,
+      r = 0.784, g = 0.031, b = 0.031, a = 1,
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 1
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 2
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 3
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 4
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Anticipation point 5
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.ComboBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
+-- HolyBar
+--=============================================================================
+Profile.HolyBar = {
+  Name = 'Holy Bar',
+  OptionOrder = 14,
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 PALADIN = {[3] = true} } ),
+  x = 0,
+  y = 154,
+}
+MergeTable(Profile.HolyBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    HolyPower = 0,
+  },
+  Layout = {
+    BoxMode = false,
+    EnableTriggers = false,
+    HideRegion = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      All = false,
+      r = 0.121, g = 0.121, b = 0.121, a = 1,
+      {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 1
+      {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 2
+      {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 3
+      {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 4
+      {r = 0.121, g = 0.121, b = 0.121, a = 1}, -- 5
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+    },
+  },
+  Bar = {
+    Advanced = false,
+    Width = 40,
+    Height = 25,
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {
+      All = false,
+      r = 1, g = 0.705, b = 0, a = 1,
+      {r = 1, g = 0.705, b = 0, a = 1}, -- 1
+      {r = 1, g = 0.705, b = 0, a = 1}, -- 2
+      {r = 1, g = 0.705, b = 0, a = 1}, -- 3
+      {r = 1, g = 0.705, b = 0, a = 1}, -- 4
+      {r = 1, g = 0.705, b = 0, a = 1}, -- 5
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.HolyBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
+-- ShardBar
+--=============================================================================
+Profile.ShardBar = {
+  Name = 'Shard Bar',
+  OptionOrder = 15,
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 WARLOCK = {[1] = true, [2] = true} } ),
+  x = 0,
+  y = 112,
+}
+MergeTable(Profile.ShardBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    SoulShards = 0,
+  },
+  Layout = {
+    BoxMode = false,
+    EnableTriggers = false,
+    HideRegion = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.266, g = 0.290, b = 0.274, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      All = false,
+      r = 0.329, g = 0.172, b = 0.337, a = 1,
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 5
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+    },
+  },
+  Bar = {
+    Advanced = false,
+    Width = 25,
+    Height = 32,
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {
+      All = false,
+      r = 0.980, g = 0.517, b = 1, a = 1,
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 5
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.ShardBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
+-- FragmentBar
+--=============================================================================
+Profile.FragmentBar = {
+  Name = 'Fragment Bar',
+  OptionOrder = 16,
+  OptionText = 'Destruction Warlocks only',
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 WARLOCK = {[3] = true} } ),
+  x = 150,
+  y = 112,
+}
+MergeTable(Profile.FragmentBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    ShowFull = true,
+    ShardFragments = 0,
+  },
+  Layout = {
+    BoxMode = false,
+    EnableTriggers = false,
+    HideRegion = false,
+    ReverseFill = false,
+    FillDirection = 'VERTICAL',
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    SmoothFillMaxTime = 0,
+    SmoothFillSpeed = 0.15,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+
+    _More = 1,
+
+    BurningEmbers = false,
+    GreenFire = false,
+    GreenFireAuto = true,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.266, g = 0.290, b = 0.274, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  BackgroundShard = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    ColorAllSelect = {bg = 'Color', border = 'Color'},
+    Color = {
+      All = false,
+      r = 0.329, g = 0.172, b = 0.337, a = 1,
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 1
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 2
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 3
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 4
+      {r = 0.329, g = 0.172, b = 0.337, a = 1}, -- 5
+    },
+    ColorGreen = {
+      All = false,
+      r = 0.123, g = 0.311, b = 0.039, a = 1,
+      {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 1
+      {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 2
+      {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 3
+      {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 4
+      {r = 0.123, g = 0.311, b = 0.039, a = 1}, -- 5
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+    },
+    BorderColorGreen = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+    },
+  },
+  BackgroundEmber = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    ColorAllSelect = {bg = 'Color', border = 'Color'},
+    Color = {
+      All = false,
+      r = 0.611, g = 0.137, b = 0.058, a = 1,
+      {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 1
+      {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 2
+      {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 3
+      {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 4
+      {r = 0.611, g = 0.137, b = 0.058, a = 1}, -- 5
+    },
+    ColorGreen = {
+      All = false,
+      r = 0.223, g = 0.411, b = 0.039, a = 1,
+      {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 1
+      {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 2
+      {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 3
+      {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 4
+      {r = 0.223, g = 0.411, b = 0.039, a = 1}, -- 5
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+    },
+    BorderColorGreen = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+    },
+  },
+  BarShard = {
+    Advanced = false,
+    Width = 25,
+    Height = 32,
+    FillDirection = 'VERTICAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    FullBarTexture = GUBStatusBarTexture,
+    ColorAllSelect = {bar = 'Color', barfull = 'Color'},
+    Color = {
+      All = false,
+      r = 0.792, g = 0.254, b = 0.913, a = 1,
+      {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 1
+      {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 2
+      {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 3
+      {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 4
+      {r = 0.792, g = 0.254, b = 0.913, a = 1,}, -- 5
+    },
+    ColorGreen = {
+      All = false,
+      r = 0.203, g = 0.662, b = 0, a = 1,
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 5
+    },
+    ColorFull = {
+      All = false,
+      r = 0.980, g = 0.517, b = 1, a = 1,
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 1
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 2
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 3
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 4
+      {r = 0.980, g = 0.517, b = 1, a = 1}, -- 5
+    },
+    ColorFullGreen = {
+      All = false,
+      r = 0, g = 1, b = 0.078, a = 1,
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 1
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 2
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 3
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 4
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 5
+    },
+  },
+  BarEmber = {
+    Advanced = false,
+    Width = 25,
+    Height = 32,
+    FillDirection = 'VERTICAL',
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    FullBarTexture = GUBStatusBarTexture,
+    ColorAllSelect = {bar = 'Color', barfull = 'Color'},
+    Color = {
+      All = false,
+      r = 1, g = 0.325, b = 0 , a = 1,
+      {r = 1, g = 0.325, b = 0 , a = 1}, -- 1
+      {r = 1, g = 0.325, b = 0 , a = 1}, -- 2
+      {r = 1, g = 0.325, b = 0 , a = 1}, -- 3
+      {r = 1, g = 0.325, b = 0 , a = 1}, -- 4
+      {r = 1, g = 0.325, b = 0 , a = 1}, -- 5
+    },
+    ColorGreen = {
+      All = false,
+      r = 0.203, g = 0.662, b = 0, a = 1,
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 1
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 2
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 3
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 4
+      {r = 0.203, g = 0.662, b = 0, a = 1}, -- 5
+    },
+    ColorFull = {
+      All = false,
+      r = 0.941, g = 0.690, b = 0.094, a = 1,
+      {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 1
+      {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 2
+      {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 3
+      {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 4
+      {r = 0.941, g = 0.690, b = 0.094, a = 1}, -- 5
+    },
+    ColorFullGreen = {
+      All = false,
+      r = 0, g = 1, b = 0.078, a = 1,
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 1
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 2
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 3
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 4
+      {r = 0, g = 1, b = 0.078, a = 1}, -- 5
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    Notes = '"|cff00ff00Fragments" are based on the amount of fill from 0 to 10 or percentage per shard|r\n',
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.FragmentBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
+-- ChiBar
+--=============================================================================
+Profile.ChiBar = {
+  Name = 'Chi Bar',
+  OptionOrder = 17,
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 MONK = {[3] = true} } ),
+  x = 0,
+  y = 69,
+}
+MergeTable(Profile.ChiBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    Chi = 0,
+    Ascension = true,
+  },
+  Layout = {
+    BoxMode = false,
+    EnableTriggers = false,
+    HideRegion = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.113, g = 0.192, b = 0.188, a = 1},
+    EnabelBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,
+      {r = 0, g = 0, b = 0, a = 1}, -- 1
+      {r = 0, g = 0, b = 0, a = 1}, -- 2
+      {r = 0, g = 0, b = 0, a = 1}, -- 3
+      {r = 0, g = 0, b = 0, a = 1}, -- 4
+      {r = 0, g = 0, b = 0, a = 1}, -- 5
+      {r = 0, g = 0, b = 0, a = 1}, -- 6
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+      {r = 1, g = 1, b = 1, a = 1},  -- 6
+    },
+  },
+  Bar = {
+    Advanced = false,
+    Width = 30,
+    Height = 30,
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {
+      All = false,
+      r = 0.407, g = 0.764, b = 0.670, a = 1,
+      {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 1
+      {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 2
+      {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 3
+      {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 4
+      {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 5
+      {r = 0.407, g = 0.764, b = 0.670, a = 1}, -- 6
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.ChiBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+--=============================================================================
+-- ArcaneBar
+--=============================================================================
+Profile.ArcaneBar = {
+  Name = 'Arcane Bar',
+  OptionOrder = 18,
+  Enabled = true,
+  ClassSpecs = SetClassSpecs(true, {
+                 All = false, Inverse = false, ClassName = '',
+                 MAGE = {[1] = true} } ),
+  x = 0,
+  y = 30,
+}
+MergeTable(Profile.ArcaneBar, {
+  Status = {
+    ShowAlways      = false,
+    HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideInVehicle   = true,
+    HideInPetBattle = true,
+    HideNotActive   = false,
+    HideNoCombat    = false
+  },
+  TestMode = {
+    ArcaneCharges = 0,
+  },
+  Layout = {
+    BoxMode = false,
+    EnableTriggers = false,
+    HideRegion = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.188, g = 0.094, b = 0.313, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      All = false,
+      r = 0.034, g = 0.129, b = 0.317, a = 1,
+      {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 1
+      {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 2
+      {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 3
+      {r = 0.034, g = 0.129, b = 0.317, a = 1}, -- 4
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+    },
+  },
+  Bar = {
+    Advanced = false,
+    Width = 40,
+    Height = 25,
+    RotateTexture = false,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    Color = {
+      All = false,
+      r = 0.376, g = 0.784, b = 0.972, a = 1,
+      {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 1
+      {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 2
+      {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 3
+      {r = 0.376, g = 0.784, b = 0.972, a = 1}, -- 4
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    MenuSync = false,
+    HideTabs = false,
+    Action = {},
+    ActionSync = {},
+
+    Default = { -- Default trigger
+      Enabled = true,
+      Static = false,
+      SpecEnabled = false,
+      DisabledBySpec = false,
+      ClassSpecs = SetClassSpecs(false, Profile.ArcaneBar.ClassSpecs),
+      HideAuras = false,
+      OffsetAll = true,
+      Action = {Type = 1},
+      Name = '',
+      GroupNumber = 1,
+      OrderNumber = 0,
+      TypeID = 'bartexturecolor',
+      Type = 'bar color',
+      ValueTypeID = '',
+      ValueType = '',
+      CanAnimate = false,
+      Animate = false,
+      AnimateSpeed = 0.01,
+      State = true,
+      AuraOperator = 'or',
+      Conditions = { All = false, {Operator = '>', Value = 0} },
+      Pars = {},
+      GetFnTypeID = 'none',
+      GetPars = {},
+    },
+  },
+} )
+
 
 local HelpText = {}
-
 --=============================================================================
 --
 -- To label HTTP address.  So the name appears above the input box.
@@ -3433,6 +3561,12 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 5.70
+
+|cff00ff00Specialization|r settings in triggers will have to be redone.  This has been recoded
+|cff00ff00Specializations|r has been added to all bars.  This is found above 'Status'. This replaces the Hide not Usable option which has been ported to the 'All' setting
+
 
 Version 5.60
 

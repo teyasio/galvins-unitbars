@@ -145,6 +145,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                                   Then it sets it to zero.
 --   IsHealth             - Is a health bar part of health and power.
 --   IsPower              - Is a power bar part of health and power.
+--   ClassSpecEnabled     - If true then the bar is enabled by CheckClassSpecs()
 --   BarType              - Mostly for debugging.  Contains the type of bar. 'PlayerHealth', 'RuneBar', etc.
 --   UnitBar              - Reference to the current UnitBar data which is the current profile.  Each time the
 --                          profile changes this value gets referenced to the new profile. This is the same
@@ -165,7 +166,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                        - Number. Contains the current specialization of the player.
 -- Main.UnitBars          - Set by SharedData()
 -- Main.PlayerClass       - Set by SharedData()
--- Main.ConvertPlayerClass - Turns player class into lower case with spaces. Also contains list of uppercaase class in alphabetical order.
+-- Main.ConvertPlayerClass - Reference to ConvertPlayerClass
 -- Main.PlayerPowerType   - Set by SharedData() and UnitBarsUpdateStatus()
 -- Main.ConvertCombatColor - Reference to ConvertCombatColor
 -- Main.PowerColorType    - Reference to PowerColorType
@@ -206,7 +207,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                          Used by HideBlizzAltPowerBar()
 --
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
--- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed.
+-- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed and back into uppercase.
+--                          Also used to turn an index number into a player class.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in.
@@ -495,6 +497,7 @@ local ConvertPlayerClass = {
   ['Death Knight'] = 'DEATHKNIGHT', ['Demon Hunter'] = 'DEMONHUNTER', Druid = 'DRUID', Hunter = 'HUNTER', Mage    = 'MAGE',    Monk    = 'MONK',
   Paladin          = 'PALADIN',     Priest           = 'PRIEST',      Rogue = 'ROGUE', Shaman = 'SHAMAN', Warlock = 'WARLOCK', Warrior = 'WARRIOR',
 
+  -- Indexed
   'DEATHKNIGHT', 'DEMONHUNTER', 'DRUID',  'HUNTER', 'MAGE',    'MONK',
   'PALADIN',     'PRIEST',      'ROGUE',  'SHAMAN', 'WARLOCK', 'WARRIOR'
 }
@@ -1171,18 +1174,6 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
 end
 
 -------------------------------------------------------------------------------
--- StringParse
---
--- Parses a string and dumps it into a table
---
--- Sep       Separator
--- St        String to parse
--- Table     Existing table to dump into. Table gets wiped prior to dumping.
--------------------------------------------------------------------------------
-function GUB.Main:StringParse(Sep, St, Table)
-end
-
--------------------------------------------------------------------------------
 -- StringSplit
 --
 -- Splits and trims a string and returns it as paramaters. Removes any extra spaces.
@@ -1557,6 +1548,15 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
 
       SourceUB.SmoothFillMaxTime = SmoothFill and SmoothFill or 0
     end
+  elseif Ver == 10 then
+    if SourceKey == 'Triggers' then -- triggers
+      local Triggers = SourceUB.Triggers
+
+      for Index, Trigger in ipairs(SourceUB.Triggers) do
+        Trigger.ClassName = nil
+        Trigger.ClassSpecs = nil
+      end
+    end
   end
 end
 
@@ -1621,6 +1621,10 @@ local function ConvertUnitBarData(Ver)
                                                                                                    'TaggedColor', 'TextureScaleAnticipation',
                                                                                                    'TextureScaleCombo', 'UseBarColor' },
   }
+  local ConvertUBData10 = {
+    {Action = 'custom',    Source = '',                                 '=Triggers'},
+    {Action = 'copy',      Source = 'Status', Dest = 'ClassSpecs',      '!HideNotUsable:All'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1642,6 +1646,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData8
   elseif Ver == 9 then
     ConvertUBData = ConvertUBData9
+  elseif Ver == 10 then
+    ConvertUBData = ConvertUBData10
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -2639,6 +2645,7 @@ local function CopyTable(Source, Dest, DC, Array)
           CopyTable(v, d, DC)
         else
           Dest[k] = v
+          --print(k, '=', v)
         end
       end
     end
@@ -2762,6 +2769,74 @@ local function HideUnitBar(UnitBarF, HideBar)
 end
 
 -------------------------------------------------------------------------------
+-- CheckClassSpecs
+--
+-- Checks the class and or spec against a table. The spec must be supported by the
+-- bar first.
+--
+-- BarType      The bar thats being checked
+-- ClassSpecs   Table containing the class and specs
+-- IsTriggers   Used by triggers
+-- Returns true if the spec is found
+--
+-- NOTES:  This will remove entries in ClassSpecs if those are not found
+--         in the bar.  This is so when triggers or flag options get copied
+--         to a different bar, specs that matched on the old bar are removed
+--         if they'll never match on the new bar
+--
+--   ClassSpecs                    A list of classes in uppercase.  Each class has an array where the index is the specialization
+--                                 Example: ClassSpecs.WARRIOR[3] = true, warrior protection spec
+--     Inverse                     Does the opposite.  So if you had Warrior arms.  Then inverse would mean everything thats
+--                                 not arms or not a Warrior.
+--     ClassName                   Current class selected in the Class Specialization options pull down.
+--                                 and the value is true or false.
+--     All                         if true matches all specs, ignores any class spec settings.
+--
+-------------------------------------------------------------------------------
+function GUB.Main:CheckClassSpecs(BarType, ClassSpecs, IsTriggers)
+  local CSD = nil
+  local All = ClassSpecs.All
+
+  if IsTriggers then
+    CSD = DUB[BarType].Triggers.Default.ClassSpecs
+  else
+    CSD = DUB[BarType].ClassSpecs
+  end
+  Main:CopyMissingTableValues(CSD, ClassSpecs)
+
+  for KeyName, ClassSpec in pairs(ClassSpecs) do
+    local SpecD = CSD[KeyName]
+
+    if SpecD ~= nil then
+      if type(ClassSpec) == 'table' then
+        for Index in pairs(ClassSpec) do
+
+          -- Does the spec exist in defaults
+          if SpecD[Index] == nil then
+            ClassSpec[Index] = nil
+          end
+        end
+      end
+    else
+      -- Remove keys not found in defaults
+      ClassSpecs[KeyName] = nil
+    end
+  end
+
+  -- Check for spec match
+  local ClassSpec = ClassSpecs[PlayerClass]
+
+  local Match = All or ClassSpec and ClassSpec[PlayerSpecialization] or false
+
+  -- Check for inverse
+  if not All and ClassSpecs.Inverse then
+    Match = not Match
+  end
+
+  return Match
+end
+
+-------------------------------------------------------------------------------
 -- StatusCheck    UnitBarsF function
 --
 -- Does a status check and updates the bar if it became visible.
@@ -2772,89 +2847,63 @@ function GUB.Main:StatusCheck(Event)
   local UB = self.UnitBar
   local Status = UB.Status
   local Visible = true
+  local ClassSpecEnabled = false
   local Spec = nil
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
   if UB.Enabled then
+    ClassSpecEnabled = Main:CheckClassSpecs(self.BarType, UB.ClassSpecs)
+    self.ClassSpecEnabled = ClassSpecEnabled
 
-    -- Check if the right class is using this bar.
-    Spec = DUB[self.BarType].UsedByClass[PlayerClass]
-
-    -- Check to see if the bar has a HideNotUsable flag.
-    local HideNotUsableRaw = Status.HideNotUsable
-    local HideNotUsable = HideNotUsableRaw or false
-    if HideNotUsable then
+    if not ClassSpecEnabled then
       Visible = false
 
-      -- Check if class found, then check spec.
-      if Spec and (Spec == '' or strfind(Spec, PlayerSpecialization)) then
-        Visible = true
-      end
-    end
-
     -- Show bars if not locked or testing.
-    if not UnitBars.IsLocked or UnitBars.Testing then
+    elseif UnitBars.IsLocked or not UnitBars.Testing then
 
-      -- use HideNotUsable visible flag if HideNotUsable is set.
-      if not HideNotUsable then
-        Visible = true
-      end
+      -- Continue if show always is false.
+      if not Status.ShowAlways then
 
-    -- Continue if show always is false.
-    elseif not Status.ShowAlways then
-
-      -- Check to see if the bar has an enable function and call it.
-      -- Only call if the right class is using the bar or there is
-      -- is no Hide not Usable option.
-      if Visible then
+        -- Check to see if the bar has an enable function and call it.
         local Fn = self.BarVisible
-        if Fn and (HideNotUsableRaw == nil or Spec) then
+        if Fn then
           Visible = Fn()
         end
-      end
-
-      if Visible then
-
-        -- Hide if the HideWhenDead status is set.
-        if IsDead and Status.HideWhenDead then
-          Visible = false
-
-        -- Hide if the player has no target.
-        elseif not HasTarget and Status.HideNoTarget then
-          Visible = false
-
-        -- Hide if in a vehicle if the HideInVehicle status is set
-        elseif InVehicle and Status.HideInVehicle then
-          Visible = false
-
-        -- Hide if in a pet battle and the HideInPetBattle status is set.
-        elseif InPetBattle and Status.HideInPetBattle then
-          Visible = false
-
-        -- Get the idle status based on HideNotActive when not in combat.
-        -- If the flag is not present then it defaults to false.
-        elseif not InCombat and Status.HideNotActive then
-          local IsActive = self.IsActive
-          Visible = IsActive == true
-
-          -- if not visible then set IsActive to watch for activity.
-          if not Visible then
-            self.IsActive = 0
-          end
-
-        -- Hide if not in combat with the HideNoCombat status.
-        elseif not InCombat and Status.HideNoCombat then
-          Visible = false
-
-        -- Hide if the blizzard alternate power bar is visible otherwise hide
-        -- Hide if there is no active blizzard alternate power bar
-        elseif Status.HideIfBlizzAltPowerVisible ~= nil then
-          if not HasAltPower then
+        if Visible then
+          -- Hide if the HideWhenDead status is set.
+          if IsDead and Status.HideWhenDead then
             Visible = false
-          elseif Status.HideIfBlizzAltPowerVisible then
-            if BlizzAltPowerVisible then
+          -- Hide if the player has no target.
+          elseif not HasTarget and Status.HideNoTarget then
+            Visible = false
+          -- Hide if in a vehicle if the HideInVehicle status is set
+          elseif InVehicle and Status.HideInVehicle then
+            Visible = false
+          -- Hide if in a pet battle and the HideInPetBattle status is set.
+          elseif InPetBattle and Status.HideInPetBattle then
+            Visible = false
+          -- Get the idle status based on HideNotActive when not in combat.
+          -- If the flag is not present then it defaults to false.
+          elseif not InCombat and Status.HideNotActive then
+            local IsActive = self.IsActive
+            Visible = IsActive == true
+            -- if not visible then set IsActive to watch for activity.
+            if not Visible then
+              self.IsActive = 0
+            end
+          -- Hide if not in combat with the HideNoCombat status.
+          elseif not InCombat and Status.HideNoCombat then
+            Visible = false
+          -- Hide if the blizzard alternate power bar is visible otherwise hide
+          -- Hide if there is no active blizzard alternate power bar
+          elseif Status.HideIfBlizzAltPowerVisible ~= nil then
+            if not HasAltPower then
               Visible = false
+            elseif Status.HideIfBlizzAltPowerVisible then
+              if BlizzAltPowerVisible then
+                Visible = false
+              end
             end
           end
         end
@@ -4096,6 +4145,7 @@ local function SetUnitBarLayout(UnitBarF, BarType)
   BBar:SetAnimationBar('stopall')
 
   UnitBarF.IsActive = false
+  UnitBarF.ClassSpecEnabled = false
 
   -- Hide the unitbar.
   UnitBarF.Visible = false
@@ -4227,10 +4277,10 @@ function GUB.Main:SetUnitBars(ProfileChanged)
     Total = Total + 1
 
     -- Enable/Disable if player class option is true.
-    local UsedByClass = UB.UsedByClass
+    local ClassSpecs = UB.ClassSpecs
 
     if EnableClass then
-      UB.Enabled = UsedByClass == nil or UsedByClass[PlayerClass] ~= nil
+      UB.Enabled = ClassSpecs == nil or ClassSpecs[PlayerClass] ~= nil
     end
     local Enabled = UB.Enabled
 
@@ -4497,6 +4547,10 @@ function GUB:ApplyProfile()
     -- Convert profile from a version before 5.41
     ConvertUnitBarData(9)
   end
+  if Ver == nil or Ver < 570 then
+    -- Convert profile from a version before 5.70
+    ConvertUnitBarData(10)
+  end
 
   -- Make sure profile is accurate.
   FixUnitBars()
@@ -4597,8 +4651,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 18 then
-    GUBData.ShowMessage = 18
+  if GUBData.ShowMessage ~= 19 then
+    GUBData.ShowMessage = 19
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
