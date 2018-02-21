@@ -3059,7 +3059,7 @@ end
 --
 -- Create options to change specializations for the trigger
 --
--- Subfunction of AddTriggerOption(), CreateStatusOptions()
+-- Subfunction of AddTriggerOption(), CreateUnitBarOptions()
 --
 -- Order         Position in the options.
 -- UBF           Unitbar frame to access the bar functions.
@@ -3182,7 +3182,6 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
 
               return ClassSpec and ClassSpec[Index] or false
             end
-            -- Highlight class menu items that have specializations set
           end,
     set = function(Info, Value, Active)
             ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
