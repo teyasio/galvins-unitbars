@@ -60,9 +60,7 @@ local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPo
       UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
 local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub =
       PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub
-
---- temporary fix to transition to 7.3.0
-local PlaySoundKitID = PlaySoundKitID
+local SOUNDKIT = SOUNDKIT
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -1134,7 +1132,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     OkButton:ClearAllPoints()
     OkButton:SetPoint('BOTTOMLEFT', 10, 10)
     OkButton:SetScript('OnClick', function()
-                                    PlaySound(PlaySoundKitID and 'igMainMenuOptionCheckBoxOn' or 856)
+                                    PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
                                     MessageBox:Hide()
                                   end)
     OkButton:SetText('Okay')
@@ -1149,7 +1147,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     -- esc key to close
     MessageBox:SetScript('OnKeyDown', function(self, Key)
                                         if Key == 'ESCAPE' then
-                                          PlaySound(PlaySoundKitID and 'igMainMenuOptionCheckBoxOn' or 856)
+                                          PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
                                           MessageBox:Hide()
                                         end
                                       end)
@@ -2794,43 +2792,47 @@ end
 --
 -------------------------------------------------------------------------------
 function GUB.Main:CheckClassSpecs(BarType, ClassSpecs, IsTriggers)
-  local CSD = nil
-  local All = ClassSpecs.All
+  local Match = nil
 
   if IsTriggers then
-    CSD = DUB[BarType].Triggers.Default.ClassSpecs
-  else
-    CSD = DUB[BarType].ClassSpecs
-  end
-  Main:CopyMissingTableValues(CSD, ClassSpecs)
+    -- Only need to do this for triggers.
+    -- Since specs in non triggers gets checked by
+    -- FixUnitBars()
+    local CSD = DUB[BarType].Triggers.Default.ClassSpecs
+    Main:CopyMissingTableValues(CSD, ClassSpecs)
 
-  for KeyName, ClassSpec in pairs(ClassSpecs) do
-    local SpecD = CSD[KeyName]
+    for KeyName, ClassSpec in pairs(ClassSpecs) do
+      local SpecD = CSD[KeyName]
 
-    if SpecD ~= nil then
-      if type(ClassSpec) == 'table' then
-        for Index in pairs(ClassSpec) do
+      if SpecD ~= nil then
+        if type(ClassSpec) == 'table' then
+          for Index in pairs(ClassSpec) do
 
-          -- Does the spec exist in defaults
-          if SpecD[Index] == nil then
-            ClassSpec[Index] = nil
+            -- Does the spec exist in defaults
+            if SpecD[Index] == nil then
+              ClassSpec[Index] = nil
+            end
           end
         end
+      else
+        -- Remove keys not found in defaults
+        ClassSpecs[KeyName] = nil
       end
-    else
-      -- Remove keys not found in defaults
-      ClassSpecs[KeyName] = nil
     end
   end
 
-  -- Check for spec match
-  local ClassSpec = ClassSpecs[PlayerClass]
+  if not ClassSpecs.All then
 
-  local Match = All or ClassSpec and ClassSpec[PlayerSpecialization] or false
+    -- Check for spec match
+    local ClassSpec = ClassSpecs[PlayerClass]
+    Match = ClassSpec and ClassSpec[PlayerSpecialization] or false
 
-  -- Check for inverse
-  if not All and ClassSpecs.Inverse then
-    Match = not Match
+    -- Check for inverse
+    if ClassSpecs.Inverse then
+      Match = not Match
+    end
+  else
+    Match = true
   end
 
   return Match

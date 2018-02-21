@@ -25,11 +25,8 @@ local table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCur
       table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont
 local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
       ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
-local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime  =
-      C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime
-
---- temporary fix to transition to 7.3.0
-local PlaySoundKitID = PlaySoundKitID
+local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime, SOUNDKIT =
+      C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime, SOUNDKIT
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -1001,7 +998,7 @@ end
 -------------------------------------------------------------------------------
 local function MenuButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound(PlaySoundKitID and 'igMainMenuOption' or 852)
+  PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
@@ -1207,7 +1204,7 @@ end
 -------------------------------------------------------------------------------
 local function FlexButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound(PlaySoundKitID and 'igMainMenuOption' or 852)
+  PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
@@ -1326,7 +1323,7 @@ end
 -------------------------------------------------------------------------------
 local function TextButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound(PlaySoundKitID and 'igMainMenuOption' or 852)
+  PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
