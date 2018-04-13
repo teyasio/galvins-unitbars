@@ -4653,8 +4653,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 19 then
-    GUBData.ShowMessage = 19
+  if GUBData.ShowMessage ~= 20 then
+    GUBData.ShowMessage = 20
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
