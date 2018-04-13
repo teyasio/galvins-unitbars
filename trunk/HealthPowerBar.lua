@@ -27,8 +27,8 @@ local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, 
 local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
       GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
 
-local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals =
-      GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals
+local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs =
+      GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs
 local UnitName, UnitPowerType, UnitPower, UnitPowerMax =
       UnitName, UnitPowerType, UnitPower, UnitPowerMax
 
@@ -48,7 +48,8 @@ local HapTFrame = 1
 
 local StatusBar = 10
 local PredictedBar = 20
-local PredictedCostBar = 30
+local AbsorbBar = 30
+local PredictedCostBar = 40
 local ChangeStatusBars = 5
 
 -- Powertype constants
@@ -92,6 +93,7 @@ local TD = { -- Trigger data
 local HealthVTs = {'whole',   'Health',
                    'percent', 'Health (percent)',
                    'whole',   'Predicted Health',
+                   'whole',   'Absorb Health',
                    'whole',   'Unit Level',
                    'whole',   'Scaled Level',
                    'auras',   'Auras'            }
@@ -277,12 +279,15 @@ local function UpdateHealthBar(self, Event, Unit)
   local UB = self.UnitBar
   local Layout = UB.Layout
   local Bar = UB.Bar
+  local AbsorbBarDontClip = Bar.AbsorbBarDontClip or false
 
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
   local Level = UnitLevel(Unit)
   local ScaledLevel = UnitEffectiveLevel(Unit)
   local PredictedHealing = Layout.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
+  local AbsorbHealth = Layout.AbsorbHealth and UnitGetTotalAbsorbs(Unit) or 0
+  local AbsorbBarSize = Bar.AbsorbBarSize
 
   local Name, Realm = UnitName(Unit)
   Name = Name or ''
@@ -290,12 +295,14 @@ local function UpdateHealthBar(self, Event, Unit)
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
     local PredictedHealth = Layout.PredictedHealth and TestMode.PredictedHealth or 0
+    local AbsorbHealth2 = Layout.AbsorbHealth and TestMode.AbsorbHealth or 0
 
     self.Testing = true
 
     MaxValue = MaxValue > 10000 and MaxValue or 10000
     CurrValue = floor(MaxValue * TestMode.Value)
     PredictedHealing = floor(MaxValue * PredictedHealth)
+    AbsorbHealth = floor(MaxValue * AbsorbHealth2)
 
     Level = TestMode.UnitLevel
     ScaledLevel = TestMode.ScaledLevel
@@ -306,6 +313,8 @@ local function UpdateHealthBar(self, Event, Unit)
 
     if MaxValue == 0 then
       BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
+      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'length', 0)
+      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'offset', 0)
     end
   end
 
@@ -329,29 +338,63 @@ local function UpdateHealthBar(self, Event, Unit)
     r, g, b, a = Main:GetTaggedColor(Unit, nil, nil, nil, r, g, b, a)
   end
 
+  AbsorbHealth = AbsorbHealth * AbsorbBarSize
   local Value = 0
+  local AbsorbValue = 0
+  local PredictedValue = 0
 
   if MaxValue > 0 then
     Value = CurrValue / MaxValue
+    PredictedValue = PredictedHealing / MaxValue
+    AbsorbValue = AbsorbHealth / MaxValue
+
+    -- Clip AbsorbValue
+    if AbsorbValue > AbsorbBarSize then
+      AbsorbValue = AbsorbBarSize
+    end
+    local Total = Value + PredictedValue + AbsorbValue
+
+    -- Calculate clipping. It's done this way to look good
+    -- with smooth fill
+    if AbsorbBarDontClip and AbsorbHealth > 0 and Total > 1 then
+      Value = Value - (Total - 1)
+      AbsorbValue = 1
+    end
   end
 
   if MaxValue > 0 then
 
     -- Do predicted healing
     if self.LastPredictedHealing ~= PredictedHealing then
-      local Color = Bar.PredictedColor
-
-      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', PredictedHealing / MaxValue)
+      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', PredictedValue)
       self.LastPredictedHealing = PredictedHealing
+
+      -- Offset absorb health
+      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'offset', PredictedValue)
+    end
+
+    -- Do absorb health
+    if self.LastAbsorbValue ~= AbsorbValue then
+      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'length', AbsorbValue)
+
+      self.LastAbsorbHealth = AbsorbHealth
     end
   end
 
   -- Set the color and display the value.
   BBar:SetColorTexture(HapBox, StatusBar, r, g, b, a)
-
   BBar:SetFillTexture(HapBox, StatusBar, Value)
+
   if not UB.Layout.HideText then
-    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    if PredictedHealing > 0 and AbsorbHealth > 0 then
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'absorbhealth', AbsorbHealth, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    elseif PredictedHealing > 0 and AbsorbHealth == 0 then
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedhealth', PredictedHealing, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    elseif PredictedHealing == 0 and AbsorbHealth > 0 then
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'absorbhealth', AbsorbHealth, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    else
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    end
   end
 
   -- Check triggers
@@ -359,6 +402,7 @@ local function UpdateHealthBar(self, Event, Unit)
     BBar:SetTriggers(1, 'health', CurrValue)
     BBar:SetTriggers(1, 'health (percent)', CurrValue, MaxValue)
     BBar:SetTriggers(1, 'predicted health', PredictedHealing)
+    BBar:SetTriggers(1, 'absorb health', AbsorbHealth)
     BBar:SetTriggers(1, 'unit level', Level)
     BBar:SetTriggers(1, 'scaled level', ScaledLevel)
     BBar:DoTriggers()
@@ -511,7 +555,15 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   BBar:SetFillTexture(HapBox, StatusBar, Value)
 
   if not UB.Layout.HideText then
-    BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    if PredictedPower > 0 and PredictedCost > 0 then
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    elseif PredictedPower > 0 and PredictedCost == 0 then
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedpower', PredictedPower, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    elseif PredictedPower == 0 and PredictedCost > 0 then
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedcost', PredictedCost, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    else
+      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'level', Level, ScaledLevel, 'name', Name, Realm)
+    end
   end
 
   -- Check triggers
@@ -594,6 +646,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
   if not BBar:OptionsSet() then
     BBar:SetTexture(1, PredictedBar, 'GUB EMPTY')
+    BBar:SetTexture(1, AbsorbBar, 'GUB EMPTY')
     BBar:SetTexture(1, PredictedCostBar, 'GUB EMPTY')
 
     BBar:SO('Text', '_Font', function() BBar:UpdateFont(1) Update = true end)
@@ -628,6 +681,13 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         BBar:SO('Layout', 'PredictedHealth', function(v)
           BBar:SetHiddenTexture(HapBox, PredictedBar, not v)
           BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, v and 'enable' or 'disable')
+          Update = true
+        end)
+      end
+      if DLayout.AbsorbHealth ~= nil then
+        BBar:SO('Layout', 'AbsorbHealth', function(v)
+          BBar:SetHiddenTexture(HapBox, AbsorbBar, not v)
+          BBar:SetFillClipFlagsTexture(HapBox, AbsorbBar, v and 'enable' or 'disable')
           Update = true
         end)
       end
@@ -688,6 +748,11 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       BBar:SO('Bar', 'PredictedColor',      function(v) BBar:SetColorTexture(HapBox, PredictedBar, v.r, v.g, v.b, v.a) end)
     end
 
+    if DBar.AbsorbColor ~= nil then
+      BBar:SO('Bar', 'AbsorbBarTexture', function(v) BBar:SetTexture(HapBox, AbsorbBar, v) end)
+      BBar:SO('Bar', 'AbsorbColor',      function(v) BBar:SetColorTexture(HapBox, AbsorbBar, v.r, v.g, v.b, v.a) end)
+    end
+
     if DBar.PredictedCostColor ~= nil then
       BBar:SO('Bar', 'PredictedCostBarTexture', function(v) BBar:SetTexture(HapBox, PredictedCostBar, v) end)
       BBar:SO('Bar', 'PredictedCostColor',      function(v) BBar:SetColorTexture(HapBox, PredictedCostBar, v.r, v.g, v.b, v.a) end)
@@ -698,6 +763,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end
     BBar:SO('Bar', 'TaggedColor',           function(v, UB) Update = true end)
 
+    BBar:SO('Bar', '_Absorb',               function()  Update = true end)
     BBar:SO('Bar', '_Size',                 function(v) BBar:SetSizeTextureFrame(HapBox, HapTFrame, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',               function(v) BBar:SetPaddingTextureFrame(HapBox, HapTFrame, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
@@ -732,7 +798,8 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateTextureFrame(HapBox, HapTFrame, 0)
     BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 1, StatusBar)
     BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 2, PredictedBar)
-    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 3, PredictedCostBar)
+    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 3, AbsorbBar)
+    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 4, PredictedCostBar)
 
   -- Create font text for the box frame.
   BBar:CreateFont('Text', HapBox)
@@ -741,7 +808,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltip(HapBox, nil, UB.Name)
 
   -- Use setchange for all statusbars.
-  BBar:SetChangeTexture(ChangeStatusBars, StatusBar, PredictedBar, PredictedCostBar)
+  BBar:SetChangeTexture(ChangeStatusBars, StatusBar, PredictedBar, AbsorbBar, PredictedCostBar)
 
   -- Show the bar.
   BBar:SetHidden(HapBox, HapTFrame, false)
@@ -755,6 +822,11 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, 'reverse')
   BBar:SetFillClipTexture(HapBox, PredictedBar, 'tstart', StatusBar)
   BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
+
+  -- Set the absorb bar
+  BBar:SetFillClipFlagsTexture(HapBox, AbsorbBar, 'reverse')
+  BBar:SetFillClipTexture(HapBox, AbsorbBar, 'tstart', StatusBar)
+  BBar:SetFillClipTexture(HapBox, AbsorbBar, 'length', 0)
 
   -- Set the predicted cost bar
   BBar:SetFillClipFlagsTexture(HapBox, PredictedCostBar, 'reverse')
@@ -771,10 +843,11 @@ end
 --*****************************************************************************
 
 local function RegEventHealth(Enable, UnitBarF, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION', UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT', UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',       UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',         UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION',       UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_ABSORB_AMOUNT_CHANGED', UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT',       UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',             UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',               UpdateHealthBar, ...)
 end
 
 local function RegEventPower(Enable, UnitBarF, ...)

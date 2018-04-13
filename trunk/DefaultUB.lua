@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 571
+GUB.DefaultUB.Version = 572
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -407,6 +407,7 @@ MergeTable(Profile.PlayerHealth, {
   TestMode = {
     Value = 0.50,
     PredictedHealth = 0.25,
+    AbsorbHealth = 0.25,
     UnitLevel = 1,
     ScaledLevel = 1
   },
@@ -420,6 +421,7 @@ MergeTable(Profile.PlayerHealth, {
     _More = 1,
 
     PredictedHealth = true,
+    AbsorbHealth = true,
     ClassColor = false,
     CombatColor = false,
     TaggedColor = false,
@@ -450,12 +452,16 @@ MergeTable(Profile.PlayerHealth, {
     Height = 25,
     FillDirection = 'HORIZONTAL',
     RotateTexture = false,
+    AbsorbBarSize = 1,
+    AbsorbBarDontClip = true,
     PaddingAll = true,
     Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
     StatusBarTexture = DefaultStatusBarTexture,
     PredictedBarTexture = DefaultStatusBarTexture,
+    AbsorbBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+    AbsorbColor = {r = 0, g = 0.752, b = 1, a = 1},
   },
   Text = {
     _DC = 0,
@@ -685,6 +691,7 @@ MergeTable(Profile.TargetHealth, {
   TestMode = {
     Value = 0.50,
     PredictedHealth = 0.25,
+    AbsorbHealth = 0.25,
     UnitLevel = 1,
     ScaledLevel = 1,
   },
@@ -698,6 +705,7 @@ MergeTable(Profile.TargetHealth, {
     _More = 1,
 
     PredictedHealth = true,
+    AbsorbHealth = true,
     ClassColor = false,
     CombatColor = false,
     TaggedColor = false,
@@ -728,13 +736,17 @@ MergeTable(Profile.TargetHealth, {
     Height = 25,
     FillDirection = 'HORIZONTAL',
     RotateTexture = false,
+    AbsorbBarSize = 1,
+    AbsorbBarDontClip = true,
     PaddingAll = true,
     Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
     StatusBarTexture = DefaultStatusBarTexture,
     PredictedBarTexture = DefaultStatusBarTexture,
+    AbsorbBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
     TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+    AbsorbColor = {r = 0, g = 0.752, b = 1, a = 1},
   },
   Text = {
     _DC = 0,
@@ -956,6 +968,7 @@ MergeTable(Profile.FocusHealth, {
   TestMode = {
     Value = 0.50,
     PredictedHealth = 0.25,
+    AbsorbHealth = 0.25,
     UnitLevel = 1,
     ScaledLevel = 1,
   },
@@ -969,6 +982,7 @@ MergeTable(Profile.FocusHealth, {
     _More = 1,
 
     PredictedHealth = true,
+    AbsorbHealth = true,
     ClassColor = false,
     CombatColor = false,
     TaggedColor = false,
@@ -999,13 +1013,17 @@ MergeTable(Profile.FocusHealth, {
     Height = 25,
     FillDirection = 'HORIZONTAL',
     RotateTexture = false,
+    AbsorbBarSize = 1,
+    AbsorbBarDontClip = true,
     PaddingAll = true,
     Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
     StatusBarTexture = DefaultStatusBarTexture,
     PredictedBarTexture = DefaultStatusBarTexture,
+    AbsorbBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
     TaggedColor = {r = 0.5, g = 0.5, b = 0.5, a = 1},
+    AbsorbColor = {r = 0, g = 0.752, b = 1, a = 1},
   },
   Text = {
     _DC = 0,
@@ -1228,6 +1246,7 @@ MergeTable(Profile.PetHealth, {
   TestMode = {
     Value = 0.50,
     PredictedHealth = 0.25,
+    AbsorbHealth = 0.25,
     UnitLevel = 1,
     ScaledLevel = 1,
   },
@@ -1241,6 +1260,7 @@ MergeTable(Profile.PetHealth, {
     _More = 1,
 
     PredictedHealth = true,
+    AbsorbHealth = true,
   },
   Attributes = {
     Scale = 1,
@@ -1268,12 +1288,16 @@ MergeTable(Profile.PetHealth, {
     Height = 25,
     FillDirection = 'HORIZONTAL',
     RotateTexture = false,
+    AbsorbBarSize = 1,
+    AbsorbBarDontClip = true,
     PaddingAll = true,
     Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
     StatusBarTexture = DefaultStatusBarTexture,
     PredictedBarTexture = DefaultStatusBarTexture,
+    AbsorbBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedColor = {r = 0, g = 0.827, b = 0.765, a = 1},
+    AbsorbColor = {r = 0, g = 0.752, b = 1, a = 1},
   },
   Text = {
     _DC = 0,
@@ -3561,6 +3585,11 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 5.72
+
+|cff00ff00Absorb Health|r added to all health bars.  Options found under 'Layout' and 'Bar'
+|cff00ff00Text|r for health and power bars.  Predicted Power, Predicted Cost, Predicted Health, and Absorb Health. Will not show if their value is zero
 
 Version 5.70
 

@@ -242,6 +242,10 @@ local o = {
   UnitBarMaxPercentMin = .5,
   UnitBarMaxPercentMax = 2,
 
+  -- Absorb size options
+  UnitBarAbsorbSizeMin = .01,
+  UnitBarAbsorbSizeMax = 1,
+
   -- Bar size options
   UnitBarSizeMin = 15,
   UnitBarSizeMax = 500,
@@ -299,8 +303,8 @@ local ValueName_AllDropdown = { -- this isn't used anymore
 local ValueName_HapDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
-  [6]  = 'Name',
-  [7]  = 'Level',
+  [7]  = 'Name',
+  [8]  = 'Level',
   [99] = 'None',
 }
 
@@ -308,8 +312,9 @@ local ValueName_HealthDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
   [3]  = 'Predicted Health',
-  [6]  = 'Name',
-  [7]  = 'Level',
+  [6]  = 'Absorb Health',
+  [7]  = 'Name',
+  [8]  = 'Level',
   [99] = 'None',
 }
 
@@ -318,8 +323,8 @@ local ValueName_PowerDropdown = {
   [2]  = 'Maximum Value',
   [4]  = 'Predicted Power',
   [5]  = 'Predicted Cost',
-  [6]  = 'Name',
-  [7]  = 'Level',
+  [7]  = 'Name',
+  [8]  = 'Level',
   [99] = 'None',
 }
 
@@ -327,35 +332,35 @@ local ValueName_ManaDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
   [5]  = 'Predicted Cost',
-  [6]  = 'Name',
-  [7]  = 'Level',
+  [7]  = 'Name',
+  [8]  = 'Level',
   [99] = 'None',
 }
 
 local ValueName_RuneDropdown = {
-  [11] = 'Time',
+  [12] = 'Time',
   [99] = 'None',
 }
 
 local ValueName_StaggerDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
-  [11] = 'Time',
+  [12] = 'Time',
   [99] = 'None',
 }
 
 local ValueName_AltPowerDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
-  [12] = 'Power Name',
+  [13] = 'Power Name',
 }
 
 local ValueName_AltCounterDropdown = {
-  [8]  = 'Counter',
-  [9]  = 'Current Counter',
-  [10] = 'Maximum Counter',
-  [11] = 'Time',
-  [12] = 'Power Name',
+  [9]  = 'Counter',
+  [10] = 'Current Counter',
+  [11] = 'Maximum Counter',
+  [12] = 'Time',
+  [13] = 'Power Name',
 }
 
 local ValueNameMenuDropdown = {
@@ -419,6 +424,7 @@ local ValueTypeMenuDropdown = {
   predictedhealth = ValueType_ValueDropdown,
   predictedpower  = ValueType_ValueDropdown,
   predictedcost   = ValueType_ValueDropdown,
+  absorbhealth    = ValueType_ValueDropdown,
   name            = ValueType_NameDropdown,
   level           = ValueType_LevelDropdown,
   time            = ValueType_TimeDropdown,
@@ -440,26 +446,28 @@ local ConvertValueName = {
          predictedhealth   = 3,
          predictedpower    = 4,
          predictedcost     = 5,
-         name              = 6,
-         level             = 7,
-         counter           = 8,
-         countermin        = 9,
-         countermax        = 10,
-         time              = 11,
-         powername         = 12,
+         absorbhealth      = 6,
+         name              = 7,
+         level             = 8,
+         counter           = 9,
+         countermin        = 10,
+         countermax        = 11,
+         time              = 12,
+         powername         = 13,
          none              = 99,
          'current',         -- 1
          'maximum',         -- 2
          'predictedhealth', -- 3
          'predictedpower',  -- 4
          'predictedcost',   -- 5
-         'name',            -- 6
-         'level',           -- 7
-         'counter',         -- 8
-         'countermin',      -- 9
-         'countermax',      -- 10
-         'time',            -- 11
-         'powername',       -- 12
+         'absorbhealth',    -- 6
+         'name',            -- 7
+         'level',           -- 8
+         'counter',         -- 9
+         'countermin',      -- 10
+         'countermax',      -- 11
+         'time',            -- 12
+         'powername',       -- 13
   [99] = 'none',            -- 99
 }
 
@@ -716,6 +724,7 @@ local function Flag(NilValue, Value)
     return Value
   end
 end
+
 -------------------------------------------------------------------------------
 -- HideTooltip
 --
@@ -1487,6 +1496,59 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateAbsorbOptions
+--
+-- Subfunction of CreateBarOptions()
+--
+-- Allows the user to set the way absorbs are shown
+--
+-- BarType     Type of options being created.
+-- Order       Position in the options list.
+-- Name        Name of the options.
+-------------------------------------------------------------------------------
+local function CreateAbsorbOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+
+  local AbsorbOptions = {
+    type = 'group',
+    name = Name,
+    dialogInline = true,
+    order = Order,
+    get = function(Info)
+            return UBF.UnitBar.Bar[Info[#Info]]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            UBF.UnitBar.Bar[KeyName] = Value
+            UBF:SetAttr('Bar', '_Absorb')
+          end,
+    args = {
+      AbsorbBarDontClip = {
+        type = 'toggle',
+        name = "Don't Clip Absorb Bar",
+        desc = 'Will always show the absorb bar instead of being pushed off',
+        width = 'double',
+        order = 1,
+      },
+      AbsorbBarSize = {
+        type = 'range',
+        name = 'Absorb Bar Size',
+        order = 2,
+        desc = 'Shrinks the absorb bar by the percentage set',
+        width = 'full',
+        step = .01,
+        isPercent = true,
+        min = o.UnitBarAbsorbSizeMin,
+        max = o.UnitBarAbsorbSizeMax,
+      },
+    },
+  }
+
+  return AbsorbOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateBarSizeOptions
 --
 -- Subfunction of CreateBarOptions()
@@ -1504,7 +1566,6 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
 
   local function SetSize()
     local UB = UBF.UnitBar[TableName]
-
     for KeyName in pairs(BarSizeOptions.args) do
       local SliderArgs = BarSizeOptions.args[KeyName]
       local Min = nil
@@ -1706,8 +1767,8 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
 
     GeneralArgs.PredictedBarTexture = {
       type = 'select',
-      name = strfind(BarType, 'Health') and 'Bar Texture (predicted health)' or
-                                            'Bar Texture (predicted power)' ,
+      name = UBF.IsHealth and 'Bar Texture (predicted health)' or
+                              'Bar Texture (predicted power)' ,
       order = 11,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
@@ -1719,10 +1780,35 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     if UBD[TableName].PredictedColor ~= nil then
       GeneralArgs.PredictedColor = {
         type = 'color',
-        name = strfind(BarType, 'Health') and 'Color (predicted health)' or
-                                              'Color (predicted power)' ,
+        name = UBF.IsHealth and 'Color (predicted health)' or
+                                'Color (predicted power)' ,
         hasAlpha = true,
         order = 13,
+      }
+    end
+  end
+
+  -- Absorb Health bar.
+  if UBD[TableName].AbsorbBarTexture ~= nil then
+    GeneralArgs.Spacer10 = CreateSpacer(14)
+
+    GeneralArgs.AbsorbBarTexture = {
+      type = 'select',
+      name = 'Bar Texture (absorb health)',
+      order = 15,
+      dialogControl = 'LSM30_Statusbar',
+      values = LSMStatusBarDropdown,
+    }
+
+    GeneralArgs.Spacer16 = CreateSpacer(16, 'half')
+
+    -- absorb color
+    if UBD[TableName].AbsorbColor ~= nil then
+      GeneralArgs.AbsorbColor = {
+        type = 'color',
+        name = 'Color (absorb health)',
+        hasAlpha = true,
+        order = 17,
       }
     end
   end
@@ -1898,7 +1984,10 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     end
   end
 
-  BarArgs.BoxSize = CreateBarSizeOptions(BarType, TableName, 9, 'Bar Size')
+  if UBF.IsHealth then
+    BarArgs.Absorb = CreateAbsorbOptions(BarType, 9, 'Absorb')
+  end
+  BarArgs.BoxSize = CreateBarSizeOptions(BarType, TableName, 10, 'Bar Size')
 
   BarArgs.Padding = {
     type = 'group',
@@ -4909,11 +4998,23 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = 1,
     }
   end
+  if UBD.TestMode.AbsorbHealth ~= nil then
+    TestModeArgs.AbsorbHealth = {
+      type = 'range',
+      name = 'Absorb Health',
+      order = 102,
+      step = .01,
+      width = 'full',
+      isPercent = true,
+      min = 0,
+      max = 1,
+    }
+  end
   if UBD.TestMode.PredictedPower ~= nil then
     TestModeArgs.PredictedPower = {
       type = 'range',
       name = 'Predicted Power',
-      order = 102,
+      order = 103,
       step = .01,
       width = 'full',
       isPercent = true,
@@ -4925,7 +5026,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.PredictedCost = {
       type = 'range',
       name = 'Predicted Cost',
-      order = 103,
+      order = 104,
       step = .01,
       width = 'full',
       isPercent = true,
@@ -4937,7 +5038,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.UnitLevel = {
       type = 'range',
       name = 'Unit Level',
-      order = 104,
+      order = 105,
       desc = 'Change the bars level',
       step = 1,
       width = 'full',
@@ -4949,7 +5050,7 @@ local function CreateTestModeOptions(BarType, Order, Name)
     TestModeArgs.ScaledLevel = {
       type = 'range',
       name = 'Scaled Level',
-      order = 105,
+      order = 106,
       desc = 'Change the bars scaled level',
       step = 1,
       width = 'full',
@@ -5538,11 +5639,20 @@ local function CreateMoreLayoutOptions(BarType, Order)
       desc = 'Predicted health will be shown',
     }
   end
+  if UBD.Layout.AbsorbHealth ~= nil then
+    MoreLayoutArgs.AbsorbHealth = {
+      type = 'toggle',
+      name = 'Absorb Health',
+      desc = 'Shows how much health in absorbs you have left',
+      order = 3,
+      desc = 'Absorb health will be shown',
+    }
+  end
   if UBD.Layout.PredictedPower ~= nil then
     MoreLayoutArgs.PredictedPower = {
       type = 'toggle',
       name = 'Predicted Power',
-      order = 3,
+      order = 4,
       desc = 'Show predicted power of spells that return power with a cast time',
     }
   end
@@ -5550,7 +5660,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.PredictedCost = {
       type = 'toggle',
       name = 'Predicted Cost',
-      order = 4,
+      order = 6,
       desc = 'Show predicted cost of spells that cost power with a cast time',
     }
   end
@@ -5558,7 +5668,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.ClassColor = {
       type = 'toggle',
       name = 'Class Color',
-      order = 5,
+      order = 6,
       desc = 'Show class color',
     }
   end
@@ -5566,7 +5676,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.CombatColor = {
       type = 'toggle',
       name = 'Combat Color',
-      order = 6,
+      order = 7,
       desc = 'Show combat color',
     }
   end
@@ -5574,7 +5684,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.TaggedColor = {
       type = 'toggle',
       name = 'Tagged Color',
-      order = 7,
+      order = 8,
       desc = 'Shows if the target is tagged by another player',
     }
   end
@@ -5582,7 +5692,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.TextureScaleCombo = {
       type = 'range',
       name = 'Texture Scale (Combo)',
-      order = 8,
+      order = 9,
       desc = 'Changes the texture size of the combo point objects',
       step = 0.01,
       isPercent = true,
@@ -5597,7 +5707,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.TextureScaleAnticipation = {
       type = 'range',
       name = 'Texture Scale (Anticipation)',
-      order = 9,
+      order = 10,
       desc = 'Changes the texture size of the anticipation point objects',
       step = 0.01,
       isPercent = true,
@@ -5612,7 +5722,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.InactiveAnticipationAlpha = {
       type = 'range',
       name = 'Inactive Anticipation Alpha',
-      order = 10,
+      order = 11,
       desc = 'Changes the transparency of inactive anticipation points',
       min = 0,
       max = 1,
@@ -5624,7 +5734,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.BurningEmbers = {
       type = 'toggle',
       name = 'Burning Embers',
-      order = 11,
+      order = 12,
       desc = 'Changes the shards into burning embers',
     }
   end
@@ -5632,7 +5742,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.GreenFire = {
       type = 'toggle',
       name = 'Green Fire',
-      order = 12,
+      order = 13,
       desc = 'Use green fire',
       disabled = function()
                    return UBF.UnitBar.Layout.GreenFireAuto
@@ -5643,7 +5753,7 @@ local function CreateMoreLayoutOptions(BarType, Order)
     MoreLayoutArgs.GreenFireAuto = {
       type = 'toggle',
       name = 'Green Fire Auto',
-      order = 13,
+      order = 14,
       desc = 'Use green fire if available',
       disabled = function()
                    return UBF.UnitBar.Layout.GreenFire
@@ -6282,29 +6392,30 @@ local function CreateResetOptions(BarType, Order, Name)
     BarColor                  = { Name = 'Bar Color',            Order = 501, Width = 'wide',   TablePaths = {'Bar.Color'} },
     BarColorPredicted         = { Name = 'Predicted',            Order = 502, Width = 'wide',   TablePaths = {'Bar.PredictedColor'} },
     BarColorPredictedCost     = { Name = 'Predicted Cost',       Order = 503, Width = 'wide',   TablePaths = {'Bar.PredictedCostColor'} },
+    BarColorAbsorbHealth      = { Name = 'Absorb Health',        Order = 504, Width = 'wide',   TablePaths = {'Bar.AbsorbColor'} },
 
-    BarColorCombo             = { Name = 'Combo',                Order = 504, Width = 'wide',   TablePaths = {'BarCombo.Color'} },
-    BarColorAnticipation      = { Name = 'Anticipation',         Order = 505, Width = 'wide',   TablePaths = {'BarAnticipation.Color'} },
+    BarColorCombo             = { Name = 'Combo',                Order = 505, Width = 'wide',   TablePaths = {'BarCombo.Color'} },
+    BarColorAnticipation      = { Name = 'Anticipation',         Order = 506, Width = 'wide',   TablePaths = {'BarAnticipation.Color'} },
 
-    BarColorShard             = { Name = 'Shard',                Order = 506, Width = 'wide',   TablePaths = {'BarShard.Color'} },
-    BarColorEmber             = { Name = 'Ember',                Order = 507, Width = 'wide',   TablePaths = {'BarEmber.Color'} },
-    BarColorShardFull         = { Name = 'Shard (full)',         Order = 508, Width = 'wide',   TablePaths = {'BarShard.ColorFull'} },
-    BarColorEmberFull         = { Name = 'Ember (full)',         Order = 509, Width = 'wide',   TablePaths = {'BarEmber.ColorFull'} },
-    BarColorShardGreen        = { Name = 'Shard [Green]',        Order = 510, Width = 'wide',   TablePaths = {'BarShard.ColorGreen'} },
-    BarColorEmberGreen        = { Name = 'Ember [Green]',        Order = 511, Width = 'wide',   TablePaths = {'BarEmber.ColorGreen'} },
-    BarColorShardFullGreen    = { Name = 'Shard (full) [Green]', Order = 512, Width = 'wide',   TablePaths = {'BarShard.ColorFullGreen'} },
-    BarColorEmberFullGreen    = { Name = 'Ember (full) [Green]', Order = 513, Width = 'wide',   TablePaths = {'BarEmber.ColorFullGreen'} },
+    BarColorShard             = { Name = 'Shard',                Order = 507, Width = 'wide',   TablePaths = {'BarShard.Color'} },
+    BarColorEmber             = { Name = 'Ember',                Order = 508, Width = 'wide',   TablePaths = {'BarEmber.Color'} },
+    BarColorShardFull         = { Name = 'Shard (full)',         Order = 509, Width = 'wide',   TablePaths = {'BarShard.ColorFull'} },
+    BarColorEmberFull         = { Name = 'Ember (full)',         Order = 510, Width = 'wide',   TablePaths = {'BarEmber.ColorFull'} },
+    BarColorShardGreen        = { Name = 'Shard [Green]',        Order = 511, Width = 'wide',   TablePaths = {'BarShard.ColorGreen'} },
+    BarColorEmberGreen        = { Name = 'Ember [Green]',        Order = 512, Width = 'wide',   TablePaths = {'BarEmber.ColorGreen'} },
+    BarColorShardFullGreen    = { Name = 'Shard (full) [Green]', Order = 513, Width = 'wide',   TablePaths = {'BarShard.ColorFullGreen'} },
+    BarColorEmberFullGreen    = { Name = 'Ember (full) [Green]', Order = 514, Width = 'wide',   TablePaths = {'BarEmber.ColorFullGreen'} },
 
-    BarColorBlood             = { Name = 'Blood',                Order = 514, Width = 'wide',   TablePaths = {'Bar.ColorBlood'} },
-    BarColorFrost             = { Name = 'Frost',                Order = 515, Width = 'wide',   TablePaths = {'Bar.ColorFrost'} },
-    BarColorUnholy            = { Name = 'Unholy',               Order = 516, Width = 'wide',   TablePaths = {'Bar.ColorUnholy'} },
+    BarColorBlood             = { Name = 'Blood',                Order = 515, Width = 'wide',   TablePaths = {'Bar.ColorBlood'} },
+    BarColorFrost             = { Name = 'Frost',                Order = 516, Width = 'wide',   TablePaths = {'Bar.ColorFrost'} },
+    BarColorUnholy            = { Name = 'Unholy',               Order = 517, Width = 'wide',   TablePaths = {'Bar.ColorUnholy'} },
 
-    BarColorStagger           = { Name = 'Stagger',              Order = 517, Width = 'wide',   TablePaths = {'BarStagger.Color'} },
-    BarColorStaggerCont       = { Name = 'Stagger (Continued)',  Order = 518, Width = 'wide',   TablePaths = {'BarStagger.BStaggerColor'} },
-    BarColorPause             = { Name = 'Pause',                Order = 519, Width = 'wide',   TablePaths = {'BarPause.Color'} },
+    BarColorStagger           = { Name = 'Stagger',              Order = 518, Width = 'wide',   TablePaths = {'BarStagger.Color'} },
+    BarColorStaggerCont       = { Name = 'Stagger (Continued)',  Order = 519, Width = 'wide',   TablePaths = {'BarStagger.BStaggerColor'} },
+    BarColorPause             = { Name = 'Pause',                Order = 520, Width = 'wide',   TablePaths = {'BarPause.Color'} },
 
-    BarColorAltPower          = { Name = 'Power',                Order = 520, Width = 'wide',   TablePaths = {'BarPower.Color'} },
-    BarColorAltCounter        = { Name = 'Counter',              Order = 521, Width = 'wide',   TablePaths = {'BarCounter.Color'} },
+    BarColorAltPower          = { Name = 'Power',                Order = 521, Width = 'wide',   TablePaths = {'BarPower.Color'} },
+    BarColorAltCounter        = { Name = 'Counter',              Order = 522, Width = 'wide',   TablePaths = {'BarCounter.Color'} },
   }
 
   Options:DoFunction(BarType, 'ResetOptions', function()
@@ -6677,23 +6788,24 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
       { Name = 'Bar Color',            Width = 'normal', All = true,  TablePath = 'Bar.Color',                          },  -- 1
       { Name = 'Predicted',            Width = 'normal', All = true,  TablePath = 'Bar.PredictedColor',                 },  -- 2
       { Name = 'Predicted Cost',       Width = 'normal', All = true,  TablePath = 'Bar.PredictedCostColor',             },  -- 3
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BarCombo.Color',                     },  -- 4
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BarAnticipation.Color',              },  -- 5
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BarShard.Color',                     },  -- 6
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BarEmber.Color',                     },  -- 7
-      { Name = 'Shard (full)',         Width = 'normal', All = false, TablePath = 'BarShard.ColorFull',                 },  -- 8
-      { Name = 'Ember (full)',         Width = 'normal', All = false, TablePath = 'BarEmber.ColorFull',                 },  -- 9
-      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = 'BarShard.ColorGreen',                },  -- 10
-      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = 'BarEmber.ColorGreen',                },  -- 11
-      { Name = 'Shard (full) [Green]', Width = 'normal', All = false, TablePath = 'BarShard.ColorFullGreen',            },  -- 12
-      { Name = 'Ember (full) [Green]', Width = 'normal', All = false, TablePath = 'BarEmber.ColorFullGreen',            },  -- 13
-      { Name = 'Blood',                Width = 'half',   All = false, TablePath = 'Bar.ColorBlood',                     },  -- 14
-      { Name = 'Frost',                Width = 'half',   All = false, TablePath = 'Bar.ColorFrost',                     },  -- 15
-      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = 'Bar.ColorUnholy',                    },  -- 16
-      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BarStagger.Color',                   },  -- 17
-      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BarPause.Color',                     },  -- 18
-      { Name = 'Power',                Width = 'half',   All = false, TablePath = 'BarPower.Color',                     },  -- 19
-      { Name = 'Counter',              Width = 'half',   All = false, TablePath = 'BarCounter.Color',                   }}, -- 20
+      { Name = 'Absorb Health',        Width = 'normal', All = true,  TablePath = 'Bar.AbsorbColor',                    },  -- 4
+      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BarCombo.Color',                     },  -- 5
+      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BarAnticipation.Color',              },  -- 6
+      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BarShard.Color',                     },  -- 7
+      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BarEmber.Color',                     },  -- 8
+      { Name = 'Shard (full)',         Width = 'normal', All = false, TablePath = 'BarShard.ColorFull',                 },  -- 9
+      { Name = 'Ember (full)',         Width = 'normal', All = false, TablePath = 'BarEmber.ColorFull',                 },  -- 10
+      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = 'BarShard.ColorGreen',                },  -- 11
+      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = 'BarEmber.ColorGreen',                },  -- 12
+      { Name = 'Shard (full) [Green]', Width = 'normal', All = false, TablePath = 'BarShard.ColorFullGreen',            },  -- 13
+      { Name = 'Ember (full) [Green]', Width = 'normal', All = false, TablePath = 'BarEmber.ColorFullGreen',            },  -- 14
+      { Name = 'Blood',                Width = 'half',   All = false, TablePath = 'Bar.ColorBlood',                     },  -- 15
+      { Name = 'Frost',                Width = 'half',   All = false, TablePath = 'Bar.ColorFrost',                     },  -- 16
+      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = 'Bar.ColorUnholy',                    },  -- 17
+      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BarStagger.Color',                   },  -- 18
+      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BarPause.Color',                     },  -- 19
+      { Name = 'Power',                Width = 'half',   All = false, TablePath = 'BarPower.Color',                     },  -- 20
+      { Name = 'Counter',              Width = 'half',   All = false, TablePath = 'BarCounter.Color',                   }}, -- 21
 
     ['Text'] = { Order = 7, Width = 'half', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
       { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = 'Text',                               },  -- 1
@@ -7524,9 +7636,9 @@ local function CreateAuraOptions(Order, Name, Desc)
 end
 
 -------------------------------------------------------------------------------
--- CreateAuraOptions
+-- CreateAltPowerBarOptions
 --
--- Creates options that let you view the aura list.
+-- Creates options that let you view all the alternate power bars
 --
 -- Order     Position in the options list.
 -- Name      Name of the options.

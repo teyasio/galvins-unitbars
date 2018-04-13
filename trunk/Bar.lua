@@ -233,8 +233,8 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 -------------------------------------------------------------------------------
 -- SetFillClip
 --
--- If using SetFIll() you can also change the way filling works.  With
--- SetFillClipTexture() you're able to change the positions of more than
+-- If using SetFill() you can also change the way filling works.  With
+-- SetFillClipTexture() you're able to change the positions of more than one
 -- texture in a texture frame.  Have multiple statusbars act as one bar
 -- Seamlessly filling from one into another.
 --
@@ -244,7 +244,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 -- on how its used.  SetFillClip clips off of MaxValue set on the TextureFrame.
 --
 -- Texture.FillClip                 Is a table that gets added to a texture who's fill you
---                                  to change.  This is an indexed array in pairs of 2.
+--                                  want to change.
 --
 -- Texture.FillClipTextures[]       This keeps track of all the textures SetFill'ing off of this one.
 --                                  This array is saved to the Texture that is being used.
@@ -260,7 +260,9 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --                      This sets the relative texture whose value will be used.
 --                      This can only be set once per TextureNumber
 --
---    Length            This is only works with 'tstart' or 'tend', this sets the size of the texture instead
+--    Offset            This only works with 'tstart' or 'tend', this offsets the texture from the relative texture.
+--                      This value can be negative or positive
+--    Length            This only works with 'tstart' or 'tend', this sets the size of the texture instead
 --                      of an ending or starting position.
 --    Reverse           If true the texture will be repositioned if needed when a texture has been set to reverse
 --                      fill.
@@ -668,6 +670,7 @@ local ValueLayoutTag = {
   predictedhealth = 'phealth',
   predictedpower  = 'ppower',
   predictedcost   = 'pcost',
+  absorbhealth    = 'ahealth',
   name            = 'name',
   level           = 'level',
   time            = 'time',
@@ -684,6 +687,7 @@ local ParValuesTest = {
   predictedhealth = 50000,
   predictedpower  = 5000,
   predictedcost   = 5000,
+  absorbhealth    = 50000,
   name            = 'Testname',
   name2           = 'Testrealm',
   level           = 100,
@@ -3782,14 +3786,13 @@ local function SetFillClip(Texture, MaxValue, FillDirection, ReverseFill)
   local EndPos = nil
   local Size = nil
 
-  local Position = FillClip.Position
   local RelativeTexture = FillClip.RelativeTexture
   local Start = FillClip.Start
   local End = FillClip.End
 
   if RelativeTexture then
     local Length = FillClip.Length
-    local ValueClipped = RelativeTexture.ValueClipped
+    local ValueClipped = RelativeTexture.ValueClipped + ( FillClip.Offset or 0 )
 
     if FillClip.Tstart then
       StartPos = ValueClipped
@@ -4721,9 +4724,11 @@ end
 -- Makes it so SetFillTexture will only fill part of the texture that is set in
 -- this function.  Can use it to use multiple statusbars as one, etc.
 --
--- Usage: SetFillClipTexture(BoxNumber, TextureNumber, Reverse, 'start' or 'end', [Value])
---        SetFillClipTexture(BoxNumber, TextureNumber, Reverse, 'tstart' or 'tend', Value)
---        SetFillClipTexture(BoxNumber, TextureNumber, Reverse, 'length', Value)
+-- Usage: SetFillClipTexture(BoxNumber, TextureNumber, 'start' or 'end', [Value])
+--        SetFillClipTexture(BoxNumber, TextureNumber, 'tstart' or 'tend', Value)
+--        SetFillClipTexture(BoxNumber, TextureNumber, 'length', Value)
+--        SetFillClipTexture(BoxNumber, TextureNumber, 'toffset', Value)
+--        SetFillClipTexture(BoxNumber, TextureNumber, 'clear', Value)
 --
 -- BoxNumber                Box containing texture.
 -- TextureNumber            Texture that is being modified.
@@ -4732,26 +4737,31 @@ end
 --                                                If nil then 0 is used for 'start' and MaxValue for 'end'
 --                           'tstart' or 'tend' : This sets the relative texture whos value will be used.
 --                                                This can only be set once per TextureNumber
---                           'length'           : This sets the length, takes the place of a starting or ending position.
+--                           'offset'           : Works with tstart or tend settings only.  This offsets the texture
+--                                                from the relative texture, can be negative or positive
+--                                                This setting must happen after tstart or tend was set to the texture.
+--                           'length'           : With with tstart or tend settings only.
+--                                                This sets the length, takes the place of a starting or ending position.
 
 -- NOTES: Look at StaggerBar and HealthPowerBar for how this is used.
 --        So if you set the Start to 0.25 and End to 0.75, then the statusbar
 --        would have a range from 25% to 75% on horizontal or vertical
 --
 --        'start' is where fill starts from doesn't matter if its reverse fill or not
+-- Example: PredictedBar, 'tstart', StatusBar
+--          This would make it so the Predicted bar starting (the left side of the predicted bar)
+--          Will start drawing from the end of the statusbar
 -------------------------------------------------------------------------------
 function BarDB:SetFillClipTexture(BoxNumber, TextureNumber, Position, Value)
-  local RelativeTexture = false
-
   repeat
     local TFTextures = NextBox(self, BoxNumber).TFTextures
     local Texture = TFTextures[TextureNumber]
     local FillClip = Texture.FillClip
-    local Index = #FillClip
 
     if Value == nil then
       Value = 'nil'
     end
+
     -- Relative clip
     if Position == 'tstart' or Position == 'tend' then
 
@@ -4783,6 +4793,10 @@ function BarDB:SetFillClipTexture(BoxNumber, TextureNumber, Position, Value)
       else
         FillClip.End = Value
       end
+    -- Save offset for tstart or tend textures
+    elseif Position == 'offset' then
+      FillClip.Offset = Value
+
     -- Save length for fillclip texture
     elseif Position == 'length' then
       FillClip.Length = Value
