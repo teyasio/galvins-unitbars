@@ -25,7 +25,7 @@ local table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCur
       table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont
 local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
       ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
-local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime, SOUNDKIT =
+local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime, SoundKit =
       C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime, SOUNDKIT
 
 -------------------------------------------------------------------------------
@@ -201,11 +201,11 @@ local function LoadSpells()
 
       -- Load as many spells in
       for SpellID = CurrentIndex + 1, CurrentIndex + SpellsPerRun do
-        local Name, SubName, Icon = GetSpellInfo(SpellID)
+        local Name, _, Icon = GetSpellInfo(SpellID)
 
         -- Filter out all trade skill spells.
         -- Passive can't really be used, so filter out those too.
-        if Icon and Name and Name ~= '' and SubName ~= SPELL_PASSIVE and C_TradeSkillUIGetTradeSkillLineForRecipe(SpellID) == nil then
+        if Icon and Name and Name ~= '' and C_TradeSkillUIGetTradeSkillLineForRecipe(SpellID) == nil then
           NumSpells = NumSpells + 1
           SpellList[SpellID] = strlower(Name)
 
@@ -998,7 +998,7 @@ end
 -------------------------------------------------------------------------------
 local function MenuButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
+  PlaySound(SoundKit.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
@@ -1204,7 +1204,7 @@ end
 -------------------------------------------------------------------------------
 local function FlexButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
+  PlaySound(SoundKit.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 
@@ -1323,7 +1323,7 @@ end
 -------------------------------------------------------------------------------
 local function TextButtonOnEnterPressed(self, ...)
   AceGUI:ClearFocus()
-  PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
+  PlaySound(SoundKit.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
 

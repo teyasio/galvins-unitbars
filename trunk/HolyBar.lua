@@ -378,5 +378,5 @@ end
 
 function Main.UnitBarsF.HolyBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_UPDATE', self.Update, 'player')
 end

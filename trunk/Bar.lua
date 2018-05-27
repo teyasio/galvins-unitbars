@@ -2253,7 +2253,7 @@ end
 -------------------------------------------------------------------------------
 -- SetAnimationBar
 --
--- Sets a new animation type to play the bar gets hidden or shown.
+-- Sets a new animation type to play when the bar gets hidden or shown.
 --
 -- Type  'scale' or 'alpha'
 --

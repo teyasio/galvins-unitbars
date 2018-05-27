@@ -608,6 +608,6 @@ function Main.UnitBarsF.AltPowerBar:Enable(Enable)
   Main:RegEventFrame(Enable, self, EventPowerBarHide, self.Update, 'player')
   Main:RegEventFrame(Enable, self, EventPowerBarShow, self.Update, 'player')
 
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER', self.Update, 'player')
+  Main:RegEventFrame(Enable, self, 'UNIT_POWER_UPDATE', self.Update, 'player')
   Main:RegEventFrame(Enable, self, 'UNIT_MAXPOWER', self.Update, 'player')
 end
