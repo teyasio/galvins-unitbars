@@ -60,7 +60,7 @@ local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPo
       UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
 local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub =
       PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub
-local SOUNDKIT = SOUNDKIT
+local SoundKit = SOUNDKIT
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -504,12 +504,6 @@ DUB.FocusHealth.BarVisible  = function() return HasFocus end
 DUB.FocusPower.BarVisible   = function() return HasFocus end
 DUB.PetHealth.BarVisible    = function() return HasPet end
 DUB.PetPower.BarVisible     = function() return HasPet and UnitPowerMax('pet', UnitPowerType('pet')) ~= 0 end
-DUB.ManaPower.BarVisible    = function()
-                                return PlayerClass == 'DRUID'  and PlayerPowerType == 8 or  -- Astral Power
-                                       PlayerClass == 'PRIEST' and PlayerPowerType == 13 or -- Insanity
-                                       PlayerClass == 'SHAMAN' and PlayerPowerType == 11 or -- Maelstrom
-                                       PlayerClass == 'MONK' and PlayerSpecialization == MonkBrewmasterSpec
-                              end
 DUB.ComboBar.BarVisible     = function() return PlayerClass == 'ROGUE' or
                                                 (PlayerClass == 'DRUID' and PlayerStance == CatForm) end
 
@@ -696,7 +690,7 @@ local function HideBlizzAltPowerBar(Hide)
       PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_BAR_SHOW')
       PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_BAR_HIDE')
       PlayerPowerBarAlt:UnregisterEvent('PLAYER_ENTERING_WORLD')
-      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER')
+      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_UPDATE')
       PlayerPowerBarAlt:UnregisterEvent('UNIT_MAXPOWER')
 
       -- Need to do it this way so nothing bugs out
@@ -709,7 +703,7 @@ local function HideBlizzAltPowerBar(Hide)
       PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_BAR_SHOW')
       PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_BAR_HIDE')
       PlayerPowerBarAlt:RegisterEvent('PLAYER_ENTERING_WORLD')
-      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER')
+      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_UPDATE')
       PlayerPowerBarAlt:RegisterEvent('UNIT_MAXPOWER')
 
       -- This function will show the bar if there is alt power
@@ -885,6 +879,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:GetTooltip(SpellID)
   CreateScanTooltip()
+  ScanTooltip:ClearLines()
   ScanTooltip:SetHyperlink(format('spell:%s', SpellID))
 
   return ScanTooltip
@@ -1132,7 +1127,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     OkButton:ClearAllPoints()
     OkButton:SetPoint('BOTTOMLEFT', 10, 10)
     OkButton:SetScript('OnClick', function()
-                                    PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+                                    PlaySound(SoundKit.IG_MAINMENU_OPTION_CHECKBOX_ON)
                                     MessageBox:Hide()
                                   end)
     OkButton:SetText('Okay')
@@ -1147,7 +1142,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     -- esc key to close
     MessageBox:SetScript('OnKeyDown', function(self, Key)
                                         if Key == 'ESCAPE' then
-                                          PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+                                          PlaySound(SoundKit.IG_MAINMENU_OPTION_CHECKBOX_ON)
                                           MessageBox:Hide()
                                         end
                                       end)
@@ -1169,6 +1164,24 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
   Scroller:SetWidth(16)
 
   MessageBox:Show()
+end
+
+-------------------------------------------------------------------------------
+-- Contains
+--
+-- Returns the key of the item being searched for.
+--
+-- Table    Can be any table, wont search sub tables
+-- Value    Search for value
+--
+-- Returns nil if not found
+-------------------------------------------------------------------------------
+local function Contains(Table, Value)
+  for k, v in pairs(Table) do
+    if v == Value then
+      return k
+    end
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -2084,7 +2097,7 @@ function GUB.Main:CheckAura(Operator, ...)
   local AuraIndex = 1
 
   repeat
-    local Name, _, _, Stacks, _, _, ExpiresIn, _, _, _, SpellID = UnitAura('player', AuraIndex)
+    local Name, _, Stacks, _, _, ExpiresIn, _, _, _, SpellID = UnitAura('player', AuraIndex)
     if Name then
 
       -- Search for the aura against the list of auras passed.
@@ -3549,13 +3562,13 @@ local function TrackCastSendMessage(Message)
   end
 end
 
-function GUB:TrackCast(Event, Unit, Name, Rank, CastID, SpellID)
+function GUB:TrackCast(Event, Unit, CastID, SpellID)
   local CastEvent = CastTrackerEvent[Event]
 
   if CastEvent then
     -- Start a new cast or delay the timeout on an existing cast.
     if CastEvent == EventCastStart  or CastEvent == EventCastDelayed then
-      local _, _, _, _, StartTime, EndTime, _, _, _, SpellID = UnitCastingInfo('player')
+      local _, _, _, StartTime, EndTime, _, _, _, SpellID = UnitCastingInfo('player')
       local Duration = EndTime / 1000 - StartTime / 1000
 
       if CastEvent == EventCastStart then
@@ -3667,9 +3680,9 @@ function GUB.Main:AuraUpdate(Object)
       local AuraIndex = 1
 
       repeat
-        local Name, _, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HELPFUL')
+        local Name, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HELPFUL')
         if Name == nil then
-          Name, _, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HARMFUL')
+          Name, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HARMFUL')
         end
         if Name then
           local Aura = Auras[SpellID]
@@ -3765,6 +3778,7 @@ function GUB:CheckPredictedSpells(Event)
       -- Sometimes spells from the spell book don't exist. So check
       -- Name to be not nil
       if Name and CastTime > 0 then
+        ScanTooltip:ClearLines()
         ScanTooltip:SetHyperlink(format('spell:%s', SpellID))
 
         for LineIndex = 2, ScanTooltip:NumLines() do
@@ -4279,10 +4293,11 @@ function GUB.Main:SetUnitBars(ProfileChanged)
     Total = Total + 1
 
     -- Enable/Disable if player class option is true.
-    local ClassSpecs = UB.ClassSpecs
-
+    -- Must use default classspecs
     if EnableClass then
-      UB.Enabled = ClassSpecs == nil or ClassSpecs[PlayerClass] ~= nil
+      local ClassSpecs = DUB[BarType].ClassSpecs[PlayerClass]
+
+      UB.Enabled = ClassSpecs ~= nil and Contains(ClassSpecs, true) ~= nil
     end
     local Enabled = UB.Enabled
 
@@ -4588,8 +4603,8 @@ end
 -- until after OnEnable()
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
-  if GetGameVersion() < 725 then
-    message("Galvin's UnitBars\nThis will work on patch 7.2.5 or higher only")
+  if GetGameVersion() < 800 then
+    message("Galvin's UnitBars\nThis will work on beta 8.x or higher only")
     return
   end
 
@@ -4653,8 +4668,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 20 then
-    GUBData.ShowMessage = 20
+  if GUBData.ShowMessage ~= 22 then
+    GUBData.ShowMessage = 22
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

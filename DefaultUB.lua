@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 572
+GUB.DefaultUB.Version = 600
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -262,7 +262,31 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_CombatColor = 'combatcolor', Type_CombatColor = 'Combat Color',
   TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
 }
+local abs, assert, format, pairs, ipairs, type, next =
+      abs, assert, format, pairs, ipairs, type, next
+local GetNumSpecializationsForClassID, GetSpecializationInfoForClassID, GetNumClasses, GetClassInfo =
+      GetNumSpecializationsForClassID, GetSpecializationInfoForClassID, GetNumClasses, GetClassInfo
 
+
+-- Build spec list.  Should work at loadup
+local ClassSpecialization = {}
+
+for ClassIndex = 1, GetNumClasses() do
+  local Specs = {}
+  local _, Class = GetClassInfo(ClassIndex)
+
+  ClassSpecialization[Class] = Specs
+
+  for ClassSpec = 1, GetNumSpecializationsForClassID(ClassIndex) do
+    local _, SpecName = GetSpecializationInfoForClassID(ClassIndex, ClassSpec)
+
+    Specs[ClassSpec] = SpecName
+  end
+end
+GUB.DefaultUB.ClassSpecialization = ClassSpecialization
+
+
+--[[
 GUB.DefaultUB.ClassSpecialization = {
   DEATHKNIGHT = {'Blood', 'Frost', 'Unholy'},
   DEMONHUNTER = {'Havoc', 'Vengeance'},
@@ -277,10 +301,7 @@ GUB.DefaultUB.ClassSpecialization = {
   WARLOCK     = {'Affliction', 'Demonology', 'Destruction'},
   WARRIOR     = {'Arms', 'Fury', 'Protection'},
 }
-
-local ClassSpecialization = GUB.DefaultUB.ClassSpecialization
-local pairs, ipairs, type, next =
-      pairs, ipairs, type, next
+]]
 
 local function MergeTable(Source, Dest)
   for k, v in pairs(Dest) do
@@ -290,21 +311,40 @@ local function MergeTable(Source, Dest)
   return Source
 end
 
-local function SetClassSpecs(Flag, ClassSpecs)
+-- Flag = false: set everything to false
+-- True doesn't do anything
+-- Negative number means false for that spec
+local function SetClassSpecs(ClassSpecs, Flag)
   local CS = {}
+  Flag = Flag == nil or Flag
 
   for ClassName, ClassSpec in pairs(ClassSpecs) do
     if type(ClassSpec) == 'table' then
       local t = {}
       CS[ClassName] = t
 
+      -- Check for empty table
       if next(ClassSpec) == nil then
+        assert(false, format('Class Table Empty: %s', ClassName))
+      end
+
+      if #ClassSpec == 1 and type(ClassSpec[1]) == 'boolean' then
+        local SpecFlag = Flag
+
+        if Flag then
+          SpecFlag = ClassSpec[1]
+        end
         for Index in ipairs(ClassSpecialization[ClassName]) do
-          t[Index] = Flag
+          t[Index] = SpecFlag
         end
       else
-        for Index in pairs(ClassSpec) do
-          t[Index] = Flag
+        local SpecFlag = Flag
+
+        for Index, SpecNumber in pairs(ClassSpec) do
+          if Flag then
+            SpecFlag = SpecNumber > 0
+          end
+          t[abs(SpecNumber)] = SpecFlag
         end
       end
     else
@@ -378,19 +418,27 @@ GUB.DefaultUB.Default = {
   },
 }
 local Profile = GUB.DefaultUB.Default.profile
+local ClassSpecs = nil
+
+-- for empty tables
+local T = true
+local F = false
 
 --=============================================================================
 -- Player Health
 --=============================================================================
+ClassSpecs = { -- This is used for all health and power bars
+  All = true, Inverse = false, ClassName = '',
+  DEATHKNIGHT = {T}, DEMONHUNTER = {T}, DRUID = {T}, HUNTER = {T}, MAGE    = {T}, MONK    = {T},
+  PALADIN     = {T}, PRIEST      = {T}, ROGUE = {T}, SHAMAN = {T}, WARLOCK = {T}, WARRIOR = {T}
+}
+
 Profile.PlayerHealth = {
   Name = 'Player Health',
   OptionOrder = 1,
   UnitType = 'player',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = true, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 230,
 }
@@ -500,7 +548,7 @@ MergeTable(Profile.PlayerHealth, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.PlayerHealth.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -531,10 +579,7 @@ Profile.PlayerPower = {
   OptionOrder = 2,
   UnitType = 'player',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = true, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 200,
 }
@@ -640,7 +685,7 @@ MergeTable(Profile.PlayerPower, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.PlayerPower.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -671,10 +716,7 @@ Profile.TargetHealth = {
   OptionOrder = 3,
   UnitType = 'target',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = true, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 170,
 }
@@ -785,7 +827,7 @@ MergeTable(Profile.TargetHealth, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.TargetHealth.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -816,10 +858,7 @@ Profile.TargetPower = {
   OptionOrder = 4,
   UnitType = 'target',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = true, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 140,
 }
@@ -917,7 +956,7 @@ MergeTable(Profile.TargetPower, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.TargetPower.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -948,10 +987,7 @@ Profile.FocusHealth = {
   OptionOrder = 5,
   UnitType = 'focus',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = true, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 110,
 }
@@ -1062,7 +1098,7 @@ MergeTable(Profile.FocusHealth, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.FocusHealth.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -1093,10 +1129,7 @@ Profile.FocusPower = {
   OptionOrder = 6,
   UnitType = 'focus',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = true, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                 PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 80,
 }
@@ -1194,7 +1227,7 @@ MergeTable(Profile.FocusPower, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.FocusPower.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, true),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -1220,16 +1253,23 @@ MergeTable(Profile.FocusPower, {
 --=============================================================================
 -- Pet Health
 --=============================================================================
+ClassSpecs = { -- This is used for pet health and power
+  All = false, Inverse = false, ClassName = '',
+  DEATHKNIGHT = { 1, 2, 3 },
+  WARLOCK     = { 1, 2, 3 },
+  HUNTER      = { 1, 2, 3 },
+  MAGE        = { -1, -2, 3 },
+  DEMONHUNTER = {F}, DRUID = {F}, MONK   = {F}, PALADIN = {F},
+  PRIEST      = {F}, ROGUE = {F}, SHAMAN = {F}, WARRIOR = {F}
+}
+
 Profile.PetHealth = {
   Name = 'Pet Health',
   OptionOrder = 7,
   OptionText = 'Classes with pets only',
   UnitType = 'pet',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 ROGUE = {[2] = true}, MAGE = {[3] = true},
-                 DEATHKNIGHT = {}, WARLOCK = {}, HUNTER = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 50,
 }
@@ -1336,7 +1376,7 @@ MergeTable(Profile.PetHealth, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.PetHealth.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -1368,10 +1408,7 @@ Profile.PetPower = {
   OptionText = 'Classes with pets only',
   UnitType = 'pet',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 ROGUE = {[2] = true}, MAGE = {[3] = true},
-                 DEATHKNIGHT = {}, WARLOCK = {}, HUNTER = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = 20,
 }
@@ -1469,7 +1506,7 @@ MergeTable(Profile.PetPower, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.PetPower.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -1495,15 +1532,20 @@ MergeTable(Profile.PetPower, {
 --=============================================================================
 -- Mana Power
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  DRUID  = { 1, -2, -3, -4 },
+  PRIEST = { 3 },
+  SHAMAN = { 1, 2 },
+}
+
 Profile.ManaPower = {
   Name = 'Mana Power',
   OptionOrder = 9,
   OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
   UnitType = 'player',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(false, {
-                 All = false, Inverse = false, ClassName = '',
-                 DRUID = {}, MONK = {}, PRIEST = {}, SHAMAN = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = -10,
 }
@@ -1605,7 +1647,7 @@ MergeTable(Profile.ManaPower, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.ManaPower.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -1631,14 +1673,17 @@ MergeTable(Profile.ManaPower, {
 --=============================================================================
 -- StaggerBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  MONK = { 1 },
+}
+
 Profile.StaggerBar = {
   Name = 'Stagger Bar',
   OptionOrder = 10,
   UnitType = 'player',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 MONK = {[1] = true} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = -40,
 }
@@ -1800,7 +1845,7 @@ MergeTable(Profile.StaggerBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.StaggerBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -1826,15 +1871,18 @@ MergeTable(Profile.StaggerBar, {
 --=============================================================================
 -- AlternatePowerBar
 --=============================================================================
+ClassSpecs = {
+  All = true, Inverse = false, ClassName = '',
+  DEATHKNIGHT = {T}, DEMONHUNTER = {T}, DRUID = {T}, HUNTER = {T}, MAGE    = {T}, MONK    = {T},
+  PALADIN     = {T}, PRIEST      = {T}, ROGUE = {T}, SHAMAN = {T}, WARLOCK = {T}, WARRIOR = {T}
+}
+
 Profile.AltPowerBar = {
   Name = 'Alternate Power Bar',
   OptionOrder = 11,
   UnitType = 'player',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                All = true, Inverse = false, ClassName = '',
-                DEATHKNIGHT = {}, DEMONHUNTER = {}, DRUID = {}, HUNTER = {}, MAGE    = {}, MONK    = {},
-                PALADIN     = {}, PRIEST      = {}, ROGUE = {}, SHAMAN = {}, WARLOCK = {}, WARRIOR = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
   y = -70,
 }
@@ -1987,7 +2035,7 @@ MergeTable(Profile.AltPowerBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.AltPowerBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -2013,13 +2061,16 @@ MergeTable(Profile.AltPowerBar, {
 --=============================================================================
 -- RuneBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  DEATHKNIGHT = {T},
+}
+
 Profile.RuneBar = {
   Name = 'Rune Bar',
   OptionOrder = 12,
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 DEATHKNIGHT = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 229,
 }
@@ -2248,7 +2299,7 @@ MergeTable(Profile.RuneBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.RuneBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -2274,13 +2325,16 @@ MergeTable(Profile.RuneBar, {
 --=============================================================================
 -- ComboBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  ROGUE = {T}, DRUID = {T},
+}
+
 Profile.ComboBar = {
   Name = 'Combo Bar',
   OptionOrder = 13,
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 ROGUE = {}, DRUID = {} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 195,
 }
@@ -2454,7 +2508,7 @@ MergeTable(Profile.ComboBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.ComboBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -2480,13 +2534,16 @@ MergeTable(Profile.ComboBar, {
 --=============================================================================
 -- HolyBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  PALADIN = { 3 },
+}
+
 Profile.HolyBar = {
   Name = 'Holy Bar',
   OptionOrder = 14,
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 PALADIN = {[3] = true} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 154,
 }
@@ -2601,7 +2658,7 @@ MergeTable(Profile.HolyBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.HolyBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -2627,13 +2684,16 @@ MergeTable(Profile.HolyBar, {
 --=============================================================================
 -- ShardBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  WARLOCK = { 1, 2 },
+}
+
 Profile.ShardBar = {
   Name = 'Shard Bar',
   OptionOrder = 15,
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 WARLOCK = {[1] = true, [2] = true} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 112,
 }
@@ -2748,7 +2808,7 @@ MergeTable(Profile.ShardBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.ShardBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -2774,14 +2834,17 @@ MergeTable(Profile.ShardBar, {
 --=============================================================================
 -- FragmentBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  WARLOCK = { 3 },
+}
+
 Profile.FragmentBar = {
   Name = 'Fragment Bar',
   OptionOrder = 16,
   OptionText = 'Destruction Warlocks only',
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 WARLOCK = {[3] = true} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 150,
   y = 112,
 }
@@ -3052,7 +3115,7 @@ MergeTable(Profile.FragmentBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.FragmentBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -3078,13 +3141,16 @@ MergeTable(Profile.FragmentBar, {
 --=============================================================================
 -- ChiBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  MONK = { 3 },
+}
+
 Profile.ChiBar = {
   Name = 'Chi Bar',
   OptionOrder = 17,
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 MONK = {[3] = true} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 69,
 }
@@ -3203,7 +3269,7 @@ MergeTable(Profile.ChiBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.ChiBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -3229,13 +3295,16 @@ MergeTable(Profile.ChiBar, {
 --=============================================================================
 -- ArcaneBar
 --=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  MAGE = { 1 },
+}
+
 Profile.ArcaneBar = {
   Name = 'Arcane Bar',
   OptionOrder = 18,
   Enabled = true,
-  ClassSpecs = SetClassSpecs(true, {
-                 All = false, Inverse = false, ClassName = '',
-                 MAGE = {[1] = true} } ),
+  ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 30,
 }
@@ -3347,7 +3416,7 @@ MergeTable(Profile.ArcaneBar, {
       Static = false,
       SpecEnabled = false,
       DisabledBySpec = false,
-      ClassSpecs = SetClassSpecs(false, Profile.ArcaneBar.ClassSpecs),
+      ClassSpecs = SetClassSpecs(ClassSpecs, false),
       HideAuras = false,
       OffsetAll = true,
       Action = {Type = 1},
@@ -3586,10 +3655,15 @@ local ChangesText = {}
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 
+Version 6.00
+|cff00ff00Specializations|r for mana power and pet bars.  Now have defaults set for class or specs that always have a pet.  All other specs set to unchecked
+
+
 Version 5.72
 
 |cff00ff00Absorb Health|r added to all health bars.  Options found under 'Layout' and 'Bar'
 |cff00ff00Text|r for health and power bars.  Predicted Power, Predicted Cost, Predicted Health, and Absorb Health. Will not show if their value is zero
+
 
 Version 5.70
 
