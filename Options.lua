@@ -29,6 +29,7 @@ local ConvertPowerType = Main.ConvertPowerType
 local ConvertCombatColor = Main.ConvertCombatColor
 local ConvertPlayerClass = Main.ConvertPlayerClass
 local LSM = Main.LSM
+local Talents = Main.Talents
 
 local HelpText = GUB.DefaultUB.HelpText
 local ChangesText = GUB.DefaultUB.ChangesText
@@ -561,6 +562,13 @@ local ConvertFrameStrata = {
   'TOOLTIP',              -- 8
 }
 
+local TalentType = {
+  ['T=']  = 'PvE',
+  ['T<>'] = 'PvE',
+  ['P=']  = 'PvP',
+  ['P<>'] = 'PvP'
+}
+
 local Operator_WholePercentDropdown = {
   '<',             -- 1
   '>',             -- 2
@@ -568,6 +576,10 @@ local Operator_WholePercentDropdown = {
   '>=',            -- 4
   '=',             -- 5
   '<>',            -- 6
+  'T=',            -- 7
+  'T<>',           -- 8
+  'P=',            -- 9
+  'P<>',           -- 10
 }
 
 local Operator_AurasDropdown = {
@@ -2685,9 +2697,12 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
   local TOA = TO.args
   local HexSt = ToHex(Condition)
   local ConditionOperator = 'ConditionOperator' .. HexSt
-  local ConditionValue = 'ConditionValue' .. HexSt
+  local ConditionValue  = 'ConditionValue'  .. HexSt
+  local ConditionTalent = 'ConditionTalent' .. HexSt
   local ConditionDelete = 'ConditionDelete' .. HexSt
   local ConditionSpacer = 'ConditionSpacer' .. HexSt
+
+  local IsTalent = nil
 
   -- Operator
   TOA[ConditionOperator] = {
@@ -2699,10 +2714,18 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
               return Condition.OrderNumber + Order + 0.1
             end,
     get = function()
-            return FindMenuItem(TriggerOperatorDropdown[Trigger.ValueTypeID], Condition.Operator)
+            local Value = FindMenuItem(TriggerOperatorDropdown[Trigger.ValueTypeID], Condition.Operator)
+
+            -- Convert value to operator (string)
+            local Operator = TriggerOperatorDropdown[Trigger.ValueTypeID][Value]
+            IsTalent = TalentType[Operator]
+
+            return Value
           end,
     set = function(Info, Value)
-            Condition.Operator = TriggerOperatorDropdown[Trigger.ValueTypeID][Value]
+            local Operator = TriggerOperatorDropdown[Trigger.ValueTypeID][Value]
+            Condition.Operator = Operator
+            IsTalent = TalentType[Value]
 
             -- Update bar to reflect trigger changes
             BBar:CheckTriggers()
@@ -2719,6 +2742,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
                return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
              end,
   }
+
   -- Value
   TOA[ConditionValue] = {
     type = 'input',
@@ -2741,7 +2765,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
            end,
     get = function()
             -- Turn into a string. Input takes strings.
-            return tostring(Condition.Value) or 0
+            return tostring(tonumber(Condition.Value) or 0)
           end,
     set = function(Info, Value)
             -- Change to number
@@ -2763,7 +2787,65 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
     hidden = function()
                local ValueTypeID = Trigger.ValueTypeID
 
-               return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
+               return IsTalent ~= nil or Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
+             end,
+  }
+  -- Value Talents
+  TOA[ConditionTalent] = {
+    type = 'select',
+    name = function()
+             return format('Talent (%s)', IsTalent or '')
+           end,
+    order = function()
+              return Condition.OrderNumber + Order + 0.2
+            end,
+    get = function()
+            local Value = tostring(Condition.Value)
+            local Dropdown = nil
+
+            if IsTalent == 'PvE' then
+              Dropdown = Talents.Dropdown
+            else
+              Dropdown = Talents.PvPDropdown
+            end
+
+            Value = FindMenuItem(Dropdown, Value)
+
+            -- Save value as a string
+            Condition.Value = Dropdown[Value]
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+
+            return Value
+          end,
+    set = function(Info, Value)
+            local Dropdown = nil
+
+            if IsTalent == 'PvE' then
+              Dropdown = Talents.Dropdown
+            else
+              Dropdown = Talents.PvPDropdown
+            end
+            Condition.Value = Dropdown[Value]
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    values = function()
+               if IsTalent == 'PvE' then
+                 return Talents.IconDropdown
+               else
+                 return Talents.IconPvPDropdown
+               end
+             end,
+    style = 'dropdown',
+    hidden = function()
+               return IsTalent == nil
              end,
   }
   -- Delete

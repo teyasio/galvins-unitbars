@@ -52,6 +52,8 @@ local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPe
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
 local C_PetBattles, C_TimerAfter,  GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
       C_PetBattles, C_Timer.After, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
+local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfoByID =
+      C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID
 local UnitAffectingCombat, UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
       UnitAffectingCombat, UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
 local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
@@ -178,6 +180,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.GameVersion       - Current version of the game
 -- Main.AltPowerBarUsed   - Contains list of used power bars. Contains what minimap zone they were used in.
 --                          set by UnitBarsUpdateStatus(). Used by ShareData() and used by CreateAuraOptions()
+-- Main.Talents           - Contains the table Talents
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
 -- PowerColorType         - Table used by InitializeColors()
@@ -214,6 +217,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- RegEventFrames         - Table used by RegEvent()
 -- RegUnitEventFrames     - Table used by RegUnitEvent()
+-- Talents                - Table that contains talents, active, and used by options. See GetTalents()
 --
 -- MoonkinForm            - Current forms used by their bars.
 -- CatForm
@@ -424,6 +428,7 @@ local PredictedSpells = nil
 
 local RegEventFrames = {}
 local RegUnitEventFrames = {}
+local Talents = {}
 
 local SelectFrameBorder = {
   bgFile   = '',
@@ -513,6 +518,7 @@ Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
 Main.ConvertCombatColor = ConvertCombatColor
 Main.ConvertPlayerClass = ConvertPlayerClass
+Main.Talents = Talents
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
 
@@ -578,7 +584,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'ZONE_CHANGED',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'ZONE_CHANGED_INDOORS',          GUB.UnitBarsUpdateStatus)
 
-    -- These events will always be checked even if unit is not player.
+    -- These events will always be checked even if unit is not a player.
     OtherEvents['UNIT_FACTION'] = 1
 
     -- Track hiding and showing of blizzards alternate power bar
@@ -2431,6 +2437,116 @@ function GUB.Main:SetPredictedSpells(UnitBarF, Action, Fn)
 end
 
 -------------------------------------------------------------------------------
+-- GetTalents
+--
+-- Stores which talents are active. Also contains pulldown menu data for options.
+--
+-- NOTES: PvP talent table
+--   enabled            - Enable or disable talents. True if enabled.
+--   selectedTalentID   - PvP talent selected.  This doesn't exist if nothing is selected
+--   availableTalentIDs - Array containing a list of the PvP talents.
+--
+-- Talents data structure:
+--   Talents
+--     Active[Talent Name]      Talent Name is a string, if not nil then talent is in use
+--     PvPActive[Talent Name]   Same as above except for PvP
+--     Dropdown                 Array showing all the available talents. Used by options
+--     PvPDropdown              Array showing all the available pvp talents. Used by options
+-------------------------------------------------------------------------------
+function GUB.Main:GetTalents()
+  local DropdownIndex = 0
+  local Index = 0
+  local AllTalentIDs = nil -- To handle repeats for PvP talents
+
+  local DropdownDefined = true
+  local Dropdown = Talents.Dropdown
+  local PvPDropdown = Talents.PvPDropdown
+  local IconDropdown = Talents.IconDropdown
+  local IconPvPDropdown = Talents.IconPvPDropdown
+
+  if Dropdown == nil then
+    Dropdown = {}
+    IconDropdown = {}
+    PvPDropdown = {}
+    IconPvPDropdown = {}
+
+    Talents.Dropdown = Dropdown
+    Talents.IconDropdown = IconDropdown
+    Talents.PvPDropdown = PvPDropdown
+    Talents.IconPvPDropdown = IconPvPDropdown
+
+    DropdownDefined = false
+    AllTalentIDs = {}
+  end
+
+  local Active = Talents.Active
+  local PvPActive = Talents.PvPActive
+
+  if Active == nil then
+    Active = {}
+    PvPActive = {}
+    Talents.Active = Active
+    Talents.PvPActive = PvPActive
+  end
+
+  wipe(Active)
+  wipe(PvPActive)
+
+  -- Get PvE talents
+  DropdownIndex = 0
+  for Tier = 1, 10 do
+    for Column = 1, 3 do
+      Index = Index + 1
+      local _, Name, Icon, Selected, _, _, _, _, _, _, Known  = GetTalentInfo(Tier, Column, 1)
+
+      if Name then
+        if Selected or Known then
+          Active[Name] = true
+        end
+        if not DropdownDefined then
+          DropdownIndex = DropdownIndex + 1
+          Dropdown[DropdownIndex] = Name
+          IconDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+        end
+      end
+    end
+  end
+
+  -- Get PvP talents
+  Index = 0
+  DropdownIndex = 0
+  for SlotIndex = 1, 4 do
+    local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
+    local TalentID = SlotInfo.selectedTalentID
+    local TalentIDs = SlotInfo.availableTalentIDs
+
+    if TalentID then
+      Index = Index + 1
+      local _, Name = GetPvpTalentInfoByID(TalentID)
+
+      PvPActive[Name] = true
+    end
+
+    if not DropdownDefined then
+      for PvPIndex = 1, #TalentIDs do
+        TalentID = TalentIDs[PvPIndex]
+
+        -- Only add if its a new talent
+        if AllTalentIDs[TalentID] == nil then
+          DropdownIndex = DropdownIndex + 1
+
+          AllTalentIDs[TalentID] = true
+          local _, Name, Icon = GetPvpTalentInfoByID(TalentID)
+
+          PvPDropdown[DropdownIndex] = Name
+          IconPvPDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+        end
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- PrintRaw()
 --
 -- Shows all escapes codes in a string.
@@ -3882,6 +3998,9 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   Main.HasAltPower = HasAltPower
   Main.PlayerPowerType = PlayerPowerType
 
+  -- Check for talent changes
+  Main:GetTalents()
+
   -- For alternate power bar options needs to be disabled when there is an bar active
   if Event == 'OnHide' or Event == 'OnShow' then
     Options:RefreshMainOptions()
@@ -4604,7 +4723,7 @@ end
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
   if GetGameVersion() < 800 then
-    message("Galvin's UnitBars\nThis will work on beta 8.x or higher only")
+    message("Galvin's UnitBars\nThis will work on WoW 8.x or higher only")
     return
   end
 
@@ -4668,8 +4787,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 22 then
-    GUBData.ShowMessage = 22
+  if GUBData.ShowMessage ~= 23 then
+    GUBData.ShowMessage = 23
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
