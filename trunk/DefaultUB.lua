@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 600
+GUB.DefaultUB.Version = 601
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3654,6 +3654,10 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 6.01
+|cff00ff00Conditions|r for triggers.  New operators added 'T<>', 'T=', 'P<>', and 'P='. Works like normal operators except these check talents that are active. P is for PvP talents. These are only available for Percent and Whole Number
+
 
 Version 6.00
 |cff00ff00Specializations|r for mana power and pet bars.  Now have defaults set for class or specs that always have a pet.  All other specs set to unchecked

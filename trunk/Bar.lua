@@ -16,6 +16,7 @@ local TT = GUB.DefaultUB.TriggerTypes
 local TexturePath = GUB.DefaultUB.TexturePath
 
 local LSM = Main.LSM
+local Talents = Main.Talents
 
 -- localize some globals.
 local _, _G =
@@ -507,7 +508,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --   Conditions[]                  Contains one or more conditions. Not used by Aura or Static.
 --     OrderNumber                 Used by options. This is updated in CheckTriggers()
 --                                 This is used to keep track of where the conditions are displayed in the options.
---     Operator                    can be '<', '>', '<=', '>=', '==', '<>'
+--     Operator                    can be '<', '>', '<=', '>=', '==', '<>', 'T=', 'T<>', 'P=', 'P<>'
 --     Value                       Value to trigger off of.
 --
 --   Auras[SpellID]
@@ -789,6 +790,13 @@ local AnchorPointWord = {
   BOTTOMLEFT = 'Bottom Left',
   BOTTOMRIGHT = 'Bottom Right',
   CENTER = 'Center'
+}
+
+local TalentType = {
+  ['T=']  = 'PvE',
+  ['T<>'] = 'PvE',
+  ['P=']  = 'PvP',
+  ['P<>'] = 'PvP'
 }
 
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1657,7 +1665,7 @@ end
 -- StartTime            Starting time if nil then the current time will be used.
 -- Duration             Duration in seconds.  Duration of 0 or less will stop the current timer.
 -- Direction            Direction to go in +1 or -1
---                      if Direction is -1 then the timer will start counting dwom from StartTime
+--                      if Direction is -1 then the timer will start counting down from StartTime
 --                      otherwise starts counting from 0 to StartTime
 -- Fn                   Call back function
 --
@@ -1840,7 +1848,7 @@ local function AnyPlaying(AGroup, GroupType)
 end
 
 -------------------------------------------------------------------------------
--- StopAnimation (called direct or by OnFinish
+-- StopAnimation (called direct or by OnFinish)
 --
 -- Stops an animation and restores the object.
 --
@@ -1948,6 +1956,9 @@ end
 --
 --        Blizzard built in animation scaling doesn't work well with child frames.
 --        So this has to be done instead.
+--
+--        I haven't rechecked these for WoW 8.x.  Basically don't try to fix what's not
+--        broken.
 -------------------------------------------------------------------------------
 local function OnObjectAlpha(AGroup)
   local Value = AGroup.FromValue
@@ -2116,6 +2127,7 @@ local function PlayAnimation(AGroup, ...)
 
     elseif Type == 'offset' then
       local FromLeft, FromRight, FromTop, FromBottom, ToLeft, ToRight, ToTop, ToBottom = select(2, ...)
+
       AGroup.DistanceLeft = ToLeft - FromLeft
       AGroup.DistanceRight = ToRight - FromRight
       AGroup.DistanceTop = ToTop - FromTop
@@ -6613,16 +6625,19 @@ function BarDB:CheckTriggers()
 
         for ConditionIndex = 1, #Conditions do
           local Condition = Conditions[ConditionIndex]
+          local Operator = Condition.Operator
           local Value = Condition.Value
 
+          -- If talent operator found, must change type to string
           if ValueTypeID == 'string' then
-            local Operator = Condition.Operator
 
             if Operator ~= '<>' and Operator ~= '=' then
               Condition.Operator = '='
             end
             Value = tostring(Value)
-          else
+
+          -- Only change if not a talent operator
+          elseif TalentType[Operator] == nil then
             Value = tonumber(Value) or 0
           end
           Condition.Value = Value
@@ -7508,6 +7523,8 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
             local All = Conditions.All
             local NumConditions = #Conditions
             local Result = false
+            local Active = Talents.Active
+            local PvPActive = Talents.PvPActive
 
             -- Search thru conditions to find one or more that are true.
             for ConditionIndex = 1, NumConditions do
@@ -7524,7 +7541,14 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
                    Operator == '<=' and CompValue <= Value or
                    Operator == '>=' and CompValue >= Value or
                    Operator == '='  and CompValue == Value or
-                   Operator == '<>' and CompValue ~= Value    ) then
+                   Operator == '<>' and CompValue ~= Value    ) or
+                 CompString == nil and type(Value) == 'string' and (
+
+                   -- Talents
+                   Operator == 'T='  and Active[Value]           or
+                   Operator == 'T<>' and Active[Value]    == nil or
+                   Operator == 'P='  and PvPActive[Value]        or
+                   Operator == 'P<>' and PvPActive[Value] == nil    ) then
 
                 -- dont need to check all conditions.
                 if not All then
