@@ -2516,30 +2516,34 @@ function GUB.Main:GetTalents()
   Index = 0
   DropdownIndex = 0
   for SlotIndex = 1, 4 do
+    -- Sometimes this returns, nil so need to check it. Why does blizzard do stuff like this.
     local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
-    local TalentID = SlotInfo.selectedTalentID
-    local TalentIDs = SlotInfo.availableTalentIDs
 
-    if TalentID then
-      Index = Index + 1
-      local _, Name = GetPvpTalentInfoByID(TalentID)
+    if SlotInfo then
+      local TalentID = SlotInfo.selectedTalentID
+      local TalentIDs = SlotInfo.availableTalentIDs
 
-      PvPActive[Name] = true
-    end
+      if TalentID then
+        Index = Index + 1
+        local _, Name = GetPvpTalentInfoByID(TalentID)
 
-    if not DropdownDefined then
-      for PvPIndex = 1, #TalentIDs do
-        TalentID = TalentIDs[PvPIndex]
+        PvPActive[Name] = true
+      end
 
-        -- Only add if its a new talent
-        if AllTalentIDs[TalentID] == nil then
-          DropdownIndex = DropdownIndex + 1
+      if not DropdownDefined then
+        for PvPIndex = 1, #TalentIDs do
+          TalentID = TalentIDs[PvPIndex]
 
-          AllTalentIDs[TalentID] = true
-          local _, Name, Icon = GetPvpTalentInfoByID(TalentID)
+          -- Only add if its a new talent
+          if AllTalentIDs[TalentID] == nil then
+            DropdownIndex = DropdownIndex + 1
 
-          PvPDropdown[DropdownIndex] = Name
-          IconPvPDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+            AllTalentIDs[TalentID] = true
+            local _, Name, Icon = GetPvpTalentInfoByID(TalentID)
+
+            PvPDropdown[DropdownIndex] = Name
+            IconPvPDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+          end
         end
       end
     end
