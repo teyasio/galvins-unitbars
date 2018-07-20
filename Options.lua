@@ -2863,6 +2863,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
              -- Delete this option.
              TOA[ConditionOperator] = nil
              TOA[ConditionValue] = nil
+             TOA[ConditionTalent] = nil
              TOA[ConditionDelete] = nil
              TOA[ConditionSpacer] = nil
 
