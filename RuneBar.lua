@@ -362,17 +362,22 @@ local function OnUpdateRunes(self)
       local LD = LastDuration[RuneID]
       local ROC = RuneOnCooldown[RuneID]
 
+      -- Fresh timers always start from the bottom first due to sorting
       if not ROC then
+
+        -- Clear bar of any previous timer
+        DoRuneCooldown(RuneBar, 'stop', RuneIndex)
         DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
 
       -- Refresh only if rune moved or if its a dark rune. Since dark runes
       -- start times can change. This is done so flicker don't happen
       -- on bar animations.
+      -- Dark rune is when the StartTime >= CurrentTime
       elseif ROC ~= RuneIndex or StartTime >= CurrentTime or Testing then
 
-        -- Clear the rune index below this one.  Then start a timer on this index.
-        if not Testing or RuneTime == 0 then
-          DoRuneCooldown(RuneBar, 'stop', ROC)
+        -- Clear bar if dark rune
+        if StartTime > CurrentTime then
+          DoRuneCooldown(RuneBar, 'stop', RuneIndex)
         end
         DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
 
