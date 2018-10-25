@@ -3853,8 +3853,8 @@ local function SetFillClip(Texture, MaxValue, FillDirection, ReverseFill)
     Size = PaddingFrame:GetHeight()
   end
 
-  StartPos = StartPos / MaxValue * Size
-  EndPos = (Size - EndPos / MaxValue * Size) * -1
+  StartPos = floor(StartPos / MaxValue * Size)
+  EndPos = floor((Size - EndPos / MaxValue * Size) * -1)
   Texture:ClearAllPoints()
 
   if FillDirection == 'HORIZONTAL' then
