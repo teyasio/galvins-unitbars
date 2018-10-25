@@ -1030,7 +1030,11 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
       local CombatColor = UnitBars.CombatColor
       local Reaction = UnitReaction(Unit, 'player')
 
-      if Reaction == 4 then -- yellow
+      -- If reaction returns nil then return white
+      if Reaction == nil then
+        Color.r, Color.g, Color.b, Color.a = 1, 1, 1, 1
+
+      elseif Reaction == 4 then -- yellow
         -- Unit can be attacked, but cant attack you
         Color = CombatColor.Attack
 
