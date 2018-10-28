@@ -1032,7 +1032,7 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
 
       -- If reaction returns nil then return white
       if Reaction == nil then
-        Color.r, Color.g, Color.b, Color.a = 1, 1, 1, 1
+        Color = {r = 1, g = 1, b = 1, a = 1}
 
       elseif Reaction == 4 then -- yellow
         -- Unit can be attacked, but cant attack you
