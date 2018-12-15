@@ -57,6 +57,8 @@ local ChangePoints = 3
 local ChangeComboPoints = 4
 local ChangeAnticipationPoints = 5
 
+local AllTextures = 11
+
 local ComboSBar = 10
 local ComboDarkTexture = 11
 local ComboLightTexture = 12
@@ -81,7 +83,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,              ComboSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          ComboDarkTexture, ComboLightTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -388,7 +390,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetTexture', ComboSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetRotateTexture', ComboSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetRotationTexture', ComboSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ComboSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetSizeTextureFrame', BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:ChangeBox(OD.p1, 'SetPaddingTextureFrame', BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -423,17 +425,18 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Name = nil
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ComboSBar)
+  BBar:CreateTextureFrame(0, BoxMode, 1)
+    BBar:CreateTexture(0, BoxMode, ComboSBar, 'statusbar')
 
   -- Create texture mode.
   for ComboIndex = 1, MaxComboPoints do
-    BBar:CreateTextureFrame(ComboIndex, TextureMode, 0)
+    BBar:SetFillTexture(ComboIndex, ComboSBar, 1)
 
-    for Level, CD in ipairs(ComboData) do
+    BBar:CreateTextureFrame(ComboIndex, TextureMode, 1)
+    for _, CD in ipairs(ComboData) do
       local TextureNumber = CD.TextureNumber
 
-      BBar:CreateTexture(ComboIndex, TextureMode, 'texture', Level, TextureNumber)
+      BBar:CreateTexture(ComboIndex, TextureMode, TextureNumber, 'texture')
       BBar:SetAtlasTexture(ComboIndex, TextureNumber, CD.AtlasName)
       BBar:SetSizeTexture(ComboIndex, TextureNumber, CD.Width, CD.Height)
     end
@@ -470,8 +473,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleTexture(0, ComboDarkTexture, 1)
-  BBar:SetScaleTexture(0, ComboLightTexture, 1)
+  BBar:SetScaleAllTexture(0, AllTextures, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

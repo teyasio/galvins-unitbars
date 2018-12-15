@@ -50,7 +50,6 @@ local StatusBar = 10
 local PredictedBar = 20
 local AbsorbBar = 30
 local PredictedCostBar = 40
-local ChangeStatusBars = 5
 
 -- Powertype constants
 local PowerMana = ConvertPowerType['MANA']
@@ -312,9 +311,8 @@ local function UpdateHealthBar(self, Event, Unit)
     self.Testing = false
 
     if MaxValue == 0 then
-      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
-      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'length', 0)
-      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'offset', 0)
+      BBar:SetFillTexture(HapBox, PredictedBar, 0)
+      BBar:SetFillTexture(HapBox, AbsorbBar, 0)
     end
   end
 
@@ -342,6 +340,7 @@ local function UpdateHealthBar(self, Event, Unit)
   local Value = 0
   local AbsorbValue = 0
   local PredictedValue = 0
+  local Clip = false
 
   if MaxValue > 0 then
     Value = CurrValue / MaxValue
@@ -358,7 +357,7 @@ local function UpdateHealthBar(self, Event, Unit)
     -- with smooth fill
     if AbsorbBarDontClip and AbsorbHealth > 0 and Total > 1 then
       Value = Value - (Total - 1)
-      AbsorbValue = 1
+      Clip = true
     end
   end
 
@@ -366,18 +365,14 @@ local function UpdateHealthBar(self, Event, Unit)
 
     -- Do predicted healing
     if self.LastPredictedHealing ~= PredictedHealing then
-      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', PredictedValue)
+      BBar:SetFillLengthTexture(HapBox, PredictedBar, PredictedValue)
       self.LastPredictedHealing = PredictedHealing
-
-      -- Offset absorb health
-      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'offset', PredictedValue)
     end
 
     -- Do absorb health
     if self.LastAbsorbValue ~= AbsorbValue then
-      BBar:SetFillClipTexture(HapBox, AbsorbBar, 'length', AbsorbValue)
-
-      self.LastAbsorbHealth = AbsorbHealth
+      BBar:SetFillLengthTexture(HapBox, AbsorbBar, AbsorbValue)
+      self.LastAbsorbValue = AbsorbValue
     end
   end
 
@@ -525,8 +520,8 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     PredictedCost = 0
 
     if MaxValue == 0 then
-      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
-      BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'length', 0)
+      BBar:SetFillTexture(HapBox, PredictedBar, 0)
+      BBar:SetFillTexture(HapBox, PredictedCostBar, 0)
     end
   end
 
@@ -540,13 +535,13 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
 
     -- Do predicted power
     if self.LastPredictedPower ~= PredictedPower then
-      BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', PredictedPower / MaxValue)
+      BBar:SetFillLengthTexture(HapBox, PredictedBar, PredictedPower / MaxValue)
       self.LastPredictedPower = PredictedPower
     end
 
     -- Do predicted cost
     if self.LastPredictedCost ~= PredictedCost then
-      BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'length', PredictedCost / MaxValue)
+      BBar:SetFillLengthTexture(HapBox, PredictedCostBar, PredictedCost / MaxValue)
       self.LastPredictedCost = PredictedCost
     end
   end
@@ -661,7 +656,7 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
       end
       Update = true
     end)
-    BBar:SO('Layout', 'ReverseFill',     function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillReverseTexture', HapBox, v) Update = true end)
+    BBar:SO('Layout', 'ReverseFill',     function(v) BBar:SetFillReverseTexture(HapBox, StatusBar, v) Update = true end)
     BBar:SO('Layout', 'HideText',        function(v)
       if v then
         BBar:SetValueRawFont(1, '')
@@ -669,8 +664,8 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetSmoothFillMaxTime', HapBox, v) end)
-    BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillSpeedTexture', HapBox, v) end)
+    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:SetSmoothFillMaxTime(HapBox, StatusBar, v) end)
+    BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:SetFillSpeedTexture(HapBox, StatusBar, v) end)
 
     if DLayout then
       -- More layout
@@ -678,18 +673,10 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         BBar:SO('Layout', 'UseBarColor', function(v) Update = true end)
       end
       if DLayout.PredictedHealth ~= nil then
-        BBar:SO('Layout', 'PredictedHealth', function(v)
-          BBar:SetHiddenTexture(HapBox, PredictedBar, not v)
-          BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, v and 'enable' or 'disable')
-          Update = true
-        end)
+        BBar:SO('Layout', 'PredictedHealth', function(v) Update = true end)
       end
       if DLayout.AbsorbHealth ~= nil then
-        BBar:SO('Layout', 'AbsorbHealth', function(v)
-          BBar:SetHiddenTexture(HapBox, AbsorbBar, not v)
-          BBar:SetFillClipFlagsTexture(HapBox, AbsorbBar, v and 'enable' or 'disable')
-          Update = true
-        end)
+        BBar:SO('Layout', 'AbsorbHealth', function(v) Update = true end)
       end
 
       if DLayout.ClassColor ~= nil then
@@ -709,7 +696,6 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     if DLayout.PredictedPower ~= nil then
       BBar:SO('Layout', 'PredictedPower', function(v)
         BBar:SetHiddenTexture(HapBox, PredictedBar, not v)
-        BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, v and 'enable' or 'disable')
         SetPredictedPower(self, v)
         Update = true
       end)
@@ -718,7 +704,6 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     if DLayout.PredictedCost ~= nil then
       BBar:SO('Layout', 'PredictedCost', function(v)
         BBar:SetHiddenTexture(HapBox, PredictedCostBar, not v)
-        BBar:SetFillClipFlagsTexture(HapBox, PredictedCostBar, v and 'enable' or 'disable')
         SetPredictedCost(self, v)
         Update = true
       end)
@@ -740,8 +725,13 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(HapBox, StatusBar, v) end)
-    BBar:SO('Bar', 'FillDirection',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetFillDirectionTexture', HapBox, v) Update = true end)
-    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:ChangeTexture(ChangeStatusBars, 'SetRotateTexture', HapBox, v) end)
+    BBar:SO('Bar', 'SyncFillDirection',   function(v) BBar:SyncFillDirectionTexture(HapBox, StatusBar, v) Update = true end)
+    BBar:SO('Bar', 'Clipping',            function(v) BBar:SetClippingTexture(HapBox, StatusBar, v) Update = true end)
+    BBar:SO('Bar', 'FillDirection',       function(v) BBar:SetFillDirectionTexture(HapBox, StatusBar, v) Update = true end)
+    BBar:SO('Bar', 'RotateTexture',       function(v)
+
+
+    BBar:SetRotationTexture(HapBox, StatusBar, v) end)
 
     if DBar.PredictedColor ~= nil then
       BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(HapBox, PredictedBar, v) end)
@@ -795,11 +785,11 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
   -- Create the health and predicted bar
-  BBar:CreateTextureFrame(HapBox, HapTFrame, 0)
-    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 1, StatusBar)
-    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 2, PredictedBar)
-    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 3, AbsorbBar)
-    BBar:CreateTexture(HapBox, HapTFrame, 'statusbar', 4, PredictedCostBar)
+  BBar:CreateTextureFrame(HapBox, HapTFrame, 1)
+    BBar:CreateTexture(HapBox, HapTFrame, StatusBar, 'statusbar')
+    BBar:CreateTexture(HapBox, HapTFrame, PredictedBar)
+    BBar:CreateTexture(HapBox, HapTFrame, AbsorbBar)
+    BBar:CreateTexture(HapBox, HapTFrame, PredictedCostBar)
 
   -- Create font text for the box frame.
   BBar:CreateFont('Text', HapBox)
@@ -807,31 +797,29 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   -- Enable tooltip
   BBar:SetTooltip(HapBox, nil, UB.Name)
 
-  -- Use setchange for all statusbars.
-  BBar:SetChangeTexture(ChangeStatusBars, StatusBar, PredictedBar, AbsorbBar, PredictedCostBar)
-
   -- Show the bar.
   BBar:SetHidden(HapBox, HapTFrame, false)
   BBar:SetHiddenTexture(HapBox, StatusBar, false)
+  BBar:SetHiddenTexture(HapBox, PredictedBar, false)
+  BBar:SetHiddenTexture(HapBox, PredictedCostBar, false)
+  BBar:SetHiddenTexture(HapBox, AbsorbBar, false)
+
   BBar:SetFillTexture(HapBox, StatusBar, 0)
+  BBar:SetFillTexture(HapBox, PredictedBar, 1)
+  BBar:SetFillTexture(HapBox, PredictedCostBar, 1)
+  BBar:SetFillTexture(HapBox, AbsorbBar, 1)
 
   -- Set this for trigger bar offsets
   BBar:SetOffsetTextureFrame(HapBox, HapTFrame, 0, 0, 0, 0)
 
-  -- Set the predicted bar
-  BBar:SetFillClipFlagsTexture(HapBox, PredictedBar, 'reverse')
-  BBar:SetFillClipTexture(HapBox, PredictedBar, 'tstart', StatusBar)
-  BBar:SetFillClipTexture(HapBox, PredictedBar, 'length', 0)
+  -- Set the tagged bars
+  BBar:TagTexture(HapBox, StatusBar, PredictedBar, AbsorbBar)
+  BBar:TagTexture(HapBox, StatusBar, PredictedCostBar)
 
-  -- Set the absorb bar
-  BBar:SetFillClipFlagsTexture(HapBox, AbsorbBar, 'reverse')
-  BBar:SetFillClipTexture(HapBox, AbsorbBar, 'tstart', StatusBar)
-  BBar:SetFillClipTexture(HapBox, AbsorbBar, 'length', 0)
-
-  -- Set the predicted cost bar
-  BBar:SetFillClipFlagsTexture(HapBox, PredictedCostBar, 'reverse')
-  BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'tend', StatusBar)
-  BBar:SetFillClipTexture(HapBox, PredictedCostBar, 'length', 0)
+  BBar:SetFillLengthTexture(HapBox, AbsorbBar, 0)
+  BBar:SetFillLengthTexture(HapBox, PredictedBar, 0)
+  BBar:SetFillLengthTexture(HapBox, PredictedCostBar, 0)
+  BBar:TagLeftTexture(HapBox, PredictedCostBar, true)
 
   UnitBarF.BBar = BBar
 end

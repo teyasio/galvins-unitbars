@@ -48,6 +48,8 @@ local TextureMode = 2
 
 local ChangeShards = 3
 
+local AllTextures = 11
+
 local ShardSBar = 10
 local ShardDarkTexture = 11
 local ShardLightTexture = 12
@@ -72,7 +74,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,              ShardSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          ShardDarkTexture, ShardLightTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -283,7 +285,7 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, ShardSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, ShardSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotationTexture(0, ShardSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ShardSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTextureFrame(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -317,17 +319,18 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Names = {}
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ShardSBar)
+  BBar:CreateTextureFrame(0, BoxMode, 1)
+    BBar:CreateTexture(0, BoxMode, ShardSBar, 'statusbar')
 
   -- Create texture mode.
   for ShardIndex = 1, MaxSoulShards do
-    BBar:CreateTextureFrame(ShardIndex, TextureMode, 0)
+    BBar:SetFillTexture(ShardIndex, ShardSBar, 1)
 
-    for Level, SD in ipairs(ShardData) do
+    BBar:CreateTextureFrame(ShardIndex, TextureMode, 0)
+    for _, SD in ipairs(ShardData) do
       local TextureNumber = SD.TextureNumber
 
-      BBar:CreateTexture(ShardIndex, TextureMode, 'texture', Level, TextureNumber)
+      BBar:CreateTexture(ShardIndex, TextureMode, TextureNumber, 'texture')
       BBar:SetAtlasTexture(ShardIndex, TextureNumber, SD.AtlasName)
       BBar:SetSizeTexture(ShardIndex, TextureNumber, SD.Width, SD.Height)
 
@@ -352,8 +355,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(ChangeShards, ShardLightTexture, ShardSBar)
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleTexture(0, ShardDarkTexture, 1)
-  BBar:SetScaleTexture(0, ShardLightTexture, 1)
+  BBar:SetScaleAllTexture(0, AllTextures, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

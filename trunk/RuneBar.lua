@@ -42,10 +42,12 @@ local Display = false
 local Update = false
 local SortedRunes = {1, 2, 3, 4, 5, 6}
 local RuneCooldownRuneBar = nil
-local TenHours = 36000
+local OneHour = 3600
 
 local BarMode = 1
 local RuneMode = 2
+
+local AllTextures = 20
 
 local RuneSBar = 10
 local RuneTexture = 20
@@ -71,7 +73,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BarMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          RuneTexture, RuneEmptyTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
   { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
     GF = GF },
   { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
@@ -164,8 +166,8 @@ local function GetRuneCooldown2(RuneID)
     if TestMode.RuneOnCooldown >= RuneID then
 
       -- Use a 10 hour clock to simulate a test cooldown
-      StartTime = CurrentTime - TenHours * RuneTime
-      Duration = TenHours
+      StartTime = CurrentTime - OneHour * RuneTime
+      Duration = OneHour
       RuneReady = RuneTime == 0
     else
       StartTime = 0
@@ -249,7 +251,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
   if Action ~= 'stop' then
     local TestDuration = nil
     if Main.UnitBars.Testing then
-      TestDuration = (GetTime() - StartTime) / TenHours
+      TestDuration = (GetTime() - StartTime) / OneHour
     end
 
     if Action ~= 'change' then
@@ -370,7 +372,7 @@ local function OnUpdateRunes(self)
         DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
 
       -- Refresh only if rune moved or if its a dark rune. Since dark runes
-      -- start times can change. This is done so flicker don't happen
+      -- start times can change. This is done so stutter don't happen
       -- on bar animations.
       -- Dark rune is when the StartTime >= CurrentTime
       elseif ROC ~= RuneIndex or StartTime >= CurrentTime or Testing then
@@ -383,7 +385,6 @@ local function OnUpdateRunes(self)
 
       -- Change speed of rune due to haste changing.
       elseif LD ~= false and LD ~= Duration then
-
         DoRuneCooldown(RuneBar, 'change', RuneIndex, StartTime, Duration)
       end
       RuneOnCooldown[RuneID] = RuneIndex
@@ -482,7 +483,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
     BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
-    BBar:SO('Layout', 'RuneMode',          function(v)
+    BBar:SO('Layout', 'RuneMode',       function(v)
       BBar:SetHidden(0, BarMode, true)
       BBar:SetHidden(0, RuneMode, true)
       if strfind(v, 'rune') then
@@ -594,10 +595,12 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, RuneSBar, v) end)
-    BBar:SO('Bar', 'FillDirection',    function(v) BBar:SetFillDirectionTexture(0, RuneSBar, v) Update = true end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, RuneSBar, v) end)
-    BBar:SO('Bar', 'ColorBlood',       function(v, UB, OD)
+    BBar:SO('Bar', 'StatusBarTexture',  function(v) BBar:SetTexture(0, RuneSBar, v) end)
+    BBar:SO('Bar', 'SyncFillDirection', function(v) BBar:SyncFillDirectionTexture(0, RuneSBar, v) Update = true end)
+    BBar:SO('Bar', 'Clipping',          function(v) BBar:SetClippingTexture(0, RuneSBar, v) Update = true end)
+    BBar:SO('Bar', 'FillDirection',     function(v) BBar:SetFillDirectionTexture(0, RuneSBar, v) Update = true end)
+    BBar:SO('Bar', 'RotateTexture',     function(v) BBar:SetRotationTexture(0, RuneSBar, v) end)
+    BBar:SO('Bar', 'ColorBlood',        function(v, UB, OD)
       if self.PlayerSpecialization == 1 then
         BBar:SetColorTexture(OD.Index, RuneSBar, OD.r, OD.g, OD.b, OD.a)
       end
@@ -646,14 +649,14 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Names = {}
   local Name = nil
 
-  BBar:CreateTextureFrame(0, BarMode, 0)
-    BBar:CreateTexture(0, BarMode, 'statusbar', 1, RuneSBar)
+  BBar:CreateTextureFrame(0, BarMode, 1)
+    BBar:CreateTexture(0, BarMode, RuneSBar, 'statusbar')
 
   for RuneIndex = 1, MaxRunes do
     BBar:SetFillTexture(RuneIndex, RuneSBar, 0)
 
-    BBar:CreateTextureFrame(RuneIndex, RuneMode, 2)
-      BBar:CreateTexture(RuneIndex, RuneMode, 'cooldown', 3, RuneEmptyTexture)
+    BBar:CreateTextureFrame(RuneIndex, RuneMode, 20)
+      BBar:CreateTexture(RuneIndex, RuneMode, RuneEmptyTexture, 'cooldown')
         BBar:SetAtlasTexture(RuneIndex, RuneEmptyTexture, RuneDataAtlasEmptyRune)
         BBar:SetCooldownReverse(RuneIndex, RuneEmptyTexture, true)
         BBar:SetCooldownSwipeTexture(RuneIndex, RuneEmptyTexture, RuneCooldownFillTexture[1])
@@ -665,7 +668,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
         BBar:SetCooldownDrawFlash(RuneIndex, RuneEmptyTexture, false)
         BBar:SetCooldownCircular(RuneIndex, RuneEmptyTexture, true)
 
-      BBar:CreateTexture(RuneIndex, RuneMode, 'cooldown', 4, RuneTexture)
+      BBar:CreateTexture(RuneIndex, RuneMode, RuneTexture, 'cooldown')
         BBar:SetAtlasTexture(RuneIndex, RuneTexture, RuneReadyTexture[1])
         BBar:SetSizeTexture(RuneIndex, RuneTexture, RuneDataWidth, RuneDataHeight)
         BBar:SetSizeCooldownTexture(RuneIndex, RuneTexture, RuneDataWidth, RuneDataHeight)
@@ -685,9 +688,8 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetSizeTextureFrame(0, BarMode, UB.Bar.Width, UB.Bar.Height)
   BBar:SetSizeTextureFrame(0, RuneMode, RuneDataWidth, RuneDataHeight)
 
-  -- Set the texture scale for Texture Size triggers.
-  BBar:SetScaleTexture(0, RuneEmptyTexture, 1)
-  BBar:SetScaleTexture(0, RuneTexture, 1)
+  -- Set the texture scale default for Texture Size triggers.
+  BBar:SetScaleAllTexture(0, AllTextures, 1)
 
   BBar:SetHiddenTexture(0, RuneSBar, false)
   BBar:SetHiddenTexture(0, RuneEmptyTexture, false)

@@ -527,8 +527,10 @@ function Main.UnitBarsF.AltPowerBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v, UB, OD) BBar:SetTexture(OD.p1, OD.p3, v) end)
+    BBar:SO('Bar', 'SyncFillDirection',   function(v, UB, OD) BBar:SyncFillDirectionTexture(OD.p1, OD.p3, v) Update = true end)
+    BBar:SO('Bar', 'Clipping',            function(v, UB, OD) BBar:SetClippingTexture(OD.p1, OD.p3, v) Update = true end)
     BBar:SO('Bar', 'FillDirection',       function(v, UB, OD) BBar:SetFillDirectionTexture(OD.p1, OD.p3, v) Update = true end)
-    BBar:SO('Bar', 'RotateTexture',       function(v, UB, OD) BBar:SetRotateTexture(OD.p1, OD.p3, v) end)
+    BBar:SO('Bar', 'RotateTexture',       function(v, UB, OD) BBar:SetRotationTexture(OD.p1, OD.p3, v) end)
     BBar:SO('Bar', 'Color',               function(v) Update = true end)
     BBar:SO('Bar', '_Size',               function(v, UB, OD) BBar:SetSizeTextureFrame(OD.p1, OD.p2, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',             function(v, UB, OD) BBar:SetPaddingTextureFrame(OD.p1, OD.p2, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -563,12 +565,12 @@ function GUB.AltPowerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetJustifyBar('CORNER')
 
   -- Create the alt power bar
-  BBar:CreateTextureFrame(AltPowerBarBox, AltPowerBarTFrame, 0)
-    BBar:CreateTexture(AltPowerBarBox, AltPowerBarTFrame, 'statusbar', 1, AltPowerSBar)
+  BBar:CreateTextureFrame(AltPowerBarBox, AltPowerBarTFrame, 1)
+    BBar:CreateTexture(AltPowerBarBox, AltPowerBarTFrame, AltPowerSBar, 'statusbar')
 
   -- Create the counter bar
-  BBar:CreateTextureFrame(AltCounterBarBox, AltCounterBarTFrame, 0)
-    BBar:CreateTexture(AltCounterBarBox, AltCounterBarTFrame, 'statusbar', 1, AltCounterSBar)
+  BBar:CreateTextureFrame(AltCounterBarBox, AltCounterBarTFrame, 1)
+    BBar:CreateTexture(AltCounterBarBox, AltCounterBarTFrame, AltCounterSBar, 'statusbar')
 
   -- Create font
   BBar:CreateFont('Text', AltPowerBarBox)

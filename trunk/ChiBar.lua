@@ -48,6 +48,8 @@ local TextureMode = 2
 
 local ChangeChi = 3
 
+local AllTextures = 20
+
 local ChiSBar = 10
 local ChiDarkTexture = 20
 local ChiLightTexture = 21
@@ -70,7 +72,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,                        ChiSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,                       BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                    ChiDarkTexture, ChiLightTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                    AllTextures },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -105,13 +107,11 @@ local ChiData = {
   TextureWidth = 21 + 8, TextureHeight = 21 + 8,
   { -- Level 1
     TextureNumber = ChiDarkTexture,
-    Level = 1,
     Width = 21, Height = 21,
     AtlasName = 'MonkUI-OrbOff',
   },
   { -- Level 2
     TextureNumber = ChiLightTexture,
-    Level = 2,
     Width = 21, Height = 21,
     AtlasName = 'MonkUI-LightOrb',
   },
@@ -298,7 +298,7 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, ChiSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, ChiSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotationTexture(0, ChiSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ChiSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTextureFrame(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -332,16 +332,17 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ChiSBar)
+    BBar:CreateTexture(0, BoxMode, ChiSBar, 'statusbar')
 
   -- Create texture mode.
   for ChiIndex = 1, MaxChiOrbs do
-    BBar:CreateTextureFrame(ChiIndex, TextureMode, 0)
+    BBar:SetFillTexture(ChiIndex, ChiSBar, 1)
 
-    for Level, CD in ipairs(ChiData) do
+    BBar:CreateTextureFrame(ChiIndex, TextureMode, 0)
+    for _, CD in ipairs(ChiData) do
       local TextureNumber = CD.TextureNumber
 
-      BBar:CreateTexture(ChiIndex, TextureMode, 'texture', Level, TextureNumber)
+      BBar:CreateTexture(ChiIndex, TextureMode, TextureNumber, 'texture')
       BBar:SetAtlasTexture(ChiIndex, TextureNumber, CD.AtlasName)
       BBar:SetSizeTexture(ChiIndex, TextureNumber, CD.Width, CD.Height)
     end
@@ -362,8 +363,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltipRegion(UB.Name .. ' - Region')
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleTexture(0, ChiDarkTexture, 1)
-  BBar:SetScaleTexture(0, ChiLightTexture, 1)
+  BBar:SetScaleAllTexture(0, AllTextures, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names
