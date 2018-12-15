@@ -247,6 +247,10 @@ local o = {
   UnitBarAbsorbSizeMin = .01,
   UnitBarAbsorbSizeMax = 1,
 
+  -- Bar rotation options
+  UnitBarRotationMin = -90,
+  UnitBarRotationMax = 180,
+
   -- Bar size options
   UnitBarSizeMin = 15,
   UnitBarSizeMax = 500,
@@ -1802,7 +1806,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
 
   -- Absorb Health bar.
   if UBD[TableName].AbsorbBarTexture ~= nil then
-    GeneralArgs.Spacer10 = CreateSpacer(14)
+    GeneralArgs.Spacer14 = CreateSpacer(14)
 
     GeneralArgs.AbsorbBarTexture = {
       type = 'select',
@@ -1957,27 +1961,53 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
 
   GeneralArgs.Spacer30 = CreateSpacer(30)
 
+  if UBD[TableName].SyncFillDirection ~= nil then
+    GeneralArgs.SyncFillDirection = {
+      type = 'toggle',
+      name = 'Sync Fill Direction',
+      order = 31,
+      desc = 'Fill direction changes based on rotation',
+    }
+  end
+
+  if UBD[TableName].Clipping ~= nil then
+    if UBD[TableName].SyncFillDirection ~= nil then
+      GeneralArgs.Spacer32 = CreateSpacer(32, 'half')
+    end
+
+    GeneralArgs.Clipping = {
+      type = 'toggle',
+      name = 'Clipping',
+      order = 33,
+      desc = 'Texture is clipped instead of being stretched',
+    }
+  end
+  GeneralArgs.Spacer34 = CreateSpacer(34)
+
   if UBD[TableName].FillDirection ~= nil then
     GeneralArgs.FillDirection = {
       type = 'select',
       name = 'Fill Direction',
-      order = 31,
+      order = 35,
       values = DirectionDropdown,
       style = 'dropdown',
+      disabled = function()
+                   return UBF.UnitBar[TableName].SyncFillDirection or false
+                 end,
     }
-
-    GeneralArgs.Spacer32 = CreateSpacer(32, 'half')
+    GeneralArgs.Spacer36 = CreateSpacer(36, 'half')
   end
 
   if UBD[TableName].RotateTexture ~= nil then
     GeneralArgs.RotateTexture = {
-      type = 'toggle',
+      type = 'range',
       name = 'Rotate Texture',
-      order = 33,
+      order = 37,
+      min = o.UnitBarRotationMin,
+      max = o.UnitBarRotationMax,
+      step = 90,
     }
   end
-
-  GeneralArgs.Spacer30 = CreateSpacer(30)
 
   -- Standard color all
   local Color = UBD[TableName].Color
@@ -3381,10 +3411,10 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
             if BBar then
               BBar:CheckTriggers()
             end
-            UBF:Update()
             if BBar == nil then
               UBF:StatusCheck()
             end
+            UBF:Update()
             if BBar then
               BBar:Display()
             end

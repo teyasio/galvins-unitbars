@@ -65,16 +65,22 @@ local ShardFullSBar = 21
 local EmberFillSBar = 22
 local EmberFullSBar = 23
 
+local ShardAllTexture = 50
 local ShardBgTexture = 50
 local ShardFillTexture = 51
 local ShardFullTexture = 52
+
+local EmberAllTexture = 60
 local EmberBgTexture = 60
 local EmberFillTexture = 61
 local EmberFullTexture = 62
 
+local GreenShardAllTexture = 70
 local GreenShardBgTexture = 70
 local GreenShardFillTexture = 71
 local GreenShardFullTexture = 72
+
+local GreenEmberAllTexture = 80
 local GreenEmberBgTexture = 80
 local GreenEmberFillTexture = 81
 local GreenEmberFullTexture = 82
@@ -133,12 +139,11 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Ember ]',       EmberFullSBar,
     GF = GF },
 
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Shard ]',              BoxMode },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Ember ]',              BoxModeEmber },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Shard ]',             BoxMode },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Ember ]',             BoxModeEmber },
 
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale, ShardBgTexture, EmberBgTexture, GreenShardBgTexture, GreenEmberBgTexture,
-                                                           ShardFillTexture, GreenShardFillTexture, EmberFillTexture, GreenEmberFillTexture,
-                                                           ShardFullTexture, GreenShardFullTexture, EmberFullTexture, GreenEmberFullTexture},
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                           ShardAllTexture, EmberAllTexture,
+                                                                                     GreenShardAllTexture, GreenEmberAllTexture },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -225,7 +230,7 @@ local ShardData = {
       TextureNumber = EmberBgTexture,
       Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
-      Width = 36, Height= 39,
+      Width = 36, Height = 39,
       Texture = EmberTexture,
       Left = 0.15234375, Right = 0.29296875, Top = 0.32812500, Bottom = 0.93750000,
     },
@@ -558,33 +563,35 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
       end
     end)
 
-    BBar:SO('Bar', 'StatusBarTexture', function(v, UB, OD) BBar:SetTexture(0, OD.p2, v) end)
-    BBar:SO('Bar', 'FullBarTexture',   function(v, UB, OD) BBar:SetTexture(0, OD.p3, v) end)
-    BBar:SO('Bar', 'FillDirection',    function(v, UB, OD) BBar:SetFillDirectionTexture(0, OD.p2, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:SetRotateTexture(0, OD.p2, v)
-                                                           BBar:SetRotateTexture(0, OD.p3, v) end)
-    BBar:SO('Bar', 'Color',            function(v, UB, OD)
+    BBar:SO('Bar', 'StatusBarTexture',  function(v, UB, OD) BBar:SetTexture(0, OD.p2, v) end)
+    BBar:SO('Bar', 'FullBarTexture',    function(v, UB, OD) BBar:SetTexture(0, OD.p3, v) end)
+    BBar:SO('Bar', 'SyncFillDirection', function(v, UB, OD) BBar:SyncFillDirectionTexture(0, OD.p2, v) end)
+    BBar:SO('Bar', 'Clipping',          function(v, UB, OD) BBar:SetClippingTexture(0, OD.p2, v) end)
+    BBar:SO('Bar', 'FillDirection',     function(v, UB, OD) BBar:SetFillDirectionTexture(0, OD.p2, v) end)
+    BBar:SO('Bar', 'RotateTexture',     function(v, UB, OD) BBar:SetRotationTexture(0, OD.p2, v)
+                                                            BBar:SetRotationTexture(0, OD.p3, v) end)
+    BBar:SO('Bar', 'Color',             function(v, UB, OD)
       if not self.GreenFire then
         BBar:SetColorTexture(OD.Index, OD.p2, OD.r, OD.g, OD.b, OD.a)
       end
     end)
-    BBar:SO('Bar', 'ColorFull',        function(v, UB, OD)
+    BBar:SO('Bar', 'ColorFull',         function(v, UB, OD)
       if not self.GreenFire then
         BBar:SetColorTexture(OD.Index, OD.p3, OD.r, OD.g, OD.b, OD.a)
       end
     end)
-    BBar:SO('Bar', 'ColorGreen',       function(v, UB, OD)
+    BBar:SO('Bar', 'ColorGreen',        function(v, UB, OD)
       if self.GreenFire then
         BBar:SetColorTexture(OD.Index, OD.p2, OD.r, OD.g, OD.b, OD.a)
       end
     end)
-    BBar:SO('Bar', 'ColorFullGreen',   function(v, UB, OD)
+    BBar:SO('Bar', 'ColorFullGreen',    function(v, UB, OD)
       if self.GreenFire then
         BBar:SetColorTexture(OD.Index, OD.p3, OD.r, OD.g, OD.b, OD.a)
       end
     end)
-    BBar:SO('Bar', '_Size',            function(v, UB, OD) BBar:SetSizeTextureFrame(0, OD.p1, v.Width, v.Height) Display = true end)
-    BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:SetPaddingTextureFrame(0, OD.p1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+    BBar:SO('Bar', '_Size',             function(v, UB, OD) BBar:SetSizeTextureFrame(0, OD.p1, v.Width, v.Height) Display = true end)
+    BBar:SO('Bar', 'Padding',           function(v, UB, OD) BBar:SetPaddingTextureFrame(0, OD.p1, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -615,23 +622,23 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Names = {}
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ShardFillSBar)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 2, ShardFullSBar)
-  BBar:CreateTextureFrame(0, BoxModeEmber, 0)
-    BBar:CreateTexture(0, BoxModeEmber, 'statusbar', 1, EmberFillSBar)
-    BBar:CreateTexture(0, BoxModeEmber, 'statusbar', 2, EmberFullSBar)
+  BBar:CreateTextureFrame(0, BoxMode, 1)
+    BBar:CreateTexture(0, BoxMode, ShardFillSBar, 'statusbar')
+    BBar:CreateTexture(0, BoxMode, ShardFullSBar)
+  BBar:CreateTextureFrame(0, BoxModeEmber, 1)
+    BBar:CreateTexture(0, BoxModeEmber, EmberFillSBar, 'statusbar')
+    BBar:CreateTexture(0, BoxModeEmber, EmberFullSBar)
 
   -- Create texture mode.
   for ShardIndex = 1, MaxSoulShards do
     for ModeType, SD in pairs(ShardData) do
       if type(ModeType) == 'number' then
-        BBar:CreateTextureFrame(ShardIndex, ModeType, 0)
+        BBar:CreateTextureFrame(ShardIndex, ModeType, 1)
 
-        for Level, SSD in ipairs(SD) do
+        for Index, SSD in ipairs(SD) do
           local TextureNumber = SSD.TextureNumber
 
-          BBar:CreateTexture(ShardIndex, ModeType, 'texture', Level, TextureNumber)
+          BBar:CreateTexture(ShardIndex, ModeType, TextureNumber, 'statusbar')
           if SSD.Texture then
             BBar:SetTexture(ShardIndex, TextureNumber, SSD.Texture)
           else
@@ -647,6 +654,10 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
           if TextureNumber == ShardBgTexture or TextureNumber == GreenShardBgTexture then
             BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
             BBar:SetColorTexture(ShardIndex, TextureNumber, ShardBgColor.r, ShardBgColor.g, ShardBgColor.b, ShardBgColor.a)
+          end
+          -- Need to setfill 1 to each BG texture so they're visible
+          if Index == 1 then
+            BBar:SetFillTexture(ShardIndex, TextureNumber, 1)
           end
         end
       end
@@ -680,25 +691,17 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(0, EmberBgTexture, false)
   BBar:SetHiddenTexture(0, GreenEmberBgTexture, false)
 
+  -- Need to set the full texture full to 1 so its visible
+  BBar:ChangeTexture(ShardFull, 'SetFillTexture', 0, 1)
+
   -- Set default fill direction.
   BBar:ChangeTexture(ShardFill, 'SetFillDirectionTexture', 0, 'VERTICAL')
 
   -- Set the texture scale triggers.
-  BBar:SetScaleTexture(0, ShardBgTexture, 1)
-  BBar:SetScaleTexture(0, EmberBgTexture, 1)
-  BBar:SetScaleTexture(0, GreenShardBgTexture, 1)
-  BBar:SetScaleTexture(0, GreenEmberBgTexture, 1)
-
-  BBar:SetScaleTexture(0, ShardFillTexture, 1)
-  BBar:SetScaleTexture(0, EmberFillTexture, 1)
-  BBar:SetScaleTexture(0, GreenShardFillTexture, 1)
-  BBar:SetScaleTexture(0, GreenEmberFillTexture, 1)
-
-  BBar:SetScaleTexture(0, EmberFullTexture, 1)
-  BBar:SetScaleTexture(0, ShardFullTexture, 1)
-  BBar:SetScaleTexture(0, GreenEmberFullTexture, 1)
-  BBar:SetScaleTexture(0, GreenShardFullTexture, 1)
-
+  BBar:SetScaleAllTexture(0, ShardAllTexture, 1)
+  BBar:SetScaleAllTexture(0, EmberAllTexture, 1)
+  BBar:SetScaleAllTexture(0, GreenShardAllTexture, 1)
+  BBar:SetScaleAllTexture(0, GreenEmberAllTexture, 1)
 
   -- Set bar offsets for triggers
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)

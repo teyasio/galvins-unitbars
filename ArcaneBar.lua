@@ -48,6 +48,8 @@ local TextureMode = 2
 
 local ChangeArcane = 3
 
+local AllTextures = 11
+
 local ArcaneSBar = 10
 local ArcaneDarkTexture = 11
 local ArcaneLightTexture = 12
@@ -72,7 +74,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,              ArcaneSBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          ArcaneDarkTexture, ArcaneLightTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -265,7 +267,7 @@ function Main.UnitBarsF.ArcaneBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture',  function(v) BBar:SetTexture(0, ArcaneSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',     function(v) BBar:SetRotateTexture(0, ArcaneSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',     function(v) BBar:SetRotationTexture(0, ArcaneSBar, v) end)
     BBar:SO('Bar', 'Color',             function(v, UB, OD) BBar:SetColorTexture(OD.Index, ArcaneSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',             function(v) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',           function(v) BBar:SetPaddingTextureFrame(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -300,13 +302,13 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, ArcaneSBar)
+    BBar:CreateTexture(0, BoxMode, ArcaneSBar, 'statusbar')
 
   -- Create texture mode.
   BBar:CreateTextureFrame(0, TextureMode, 0)
 
-  BBar:CreateTexture(0, TextureMode, 'texture', 1, ArcaneDarkTexture)
-  BBar:CreateTexture(0, TextureMode, 'texture', 2, ArcaneLightTexture)
+  BBar:CreateTexture(0, TextureMode, ArcaneDarkTexture, 'texture')
+  BBar:CreateTexture(0, TextureMode, ArcaneLightTexture, 'texture')
 
   BBar:SetAtlasTexture(0, ArcaneDarkTexture, ArcaneData.AtlasName)
   BBar:SetAtlasTexture(0, ArcaneLightTexture, ArcaneData.AtlasName)
@@ -323,6 +325,8 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(0, ArcaneDarkTexture, false)
 
   for ArcaneIndex = 1, MaxArcaneCharges do
+    BBar:SetFillTexture(ArcaneIndex, ArcaneSBar, 1)
+
     local Name = NamePrefix .. Groups[ArcaneIndex][2]
 
     BBar:SetTooltip(ArcaneIndex, nil, Name)
@@ -334,8 +338,7 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(ChangeArcane, ArcaneLightTexture, ArcaneSBar)
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleTexture(0, ArcaneDarkTexture, 1)
-  BBar:SetScaleTexture(0, ArcaneLightTexture, 1)
+  BBar:SetScaleAllTexture(0, AllTextures, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

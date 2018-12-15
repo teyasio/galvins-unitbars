@@ -1263,7 +1263,7 @@ end
 --        custom.  These keys can exist in the default profile.
 --        When a table is empty cause everything was removed or moved out of it'll then be deleted.
 -------------------------------------------------------------------------------
-local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
+local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey, KeyFound)
   if Ver < 3 then
     if BarType == 'RuneBar' then
 
@@ -1578,6 +1578,20 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
         Trigger.ClassSpecs = nil
       end
     end
+  elseif Ver == 11 then
+    local SUB = SourceUB[KeyFound]
+    if type(SUB) == 'table' then
+      local RotateTexture = SUB.RotateTexture
+
+      if type(RotateTexture) == 'boolean' then
+        if RotateTexture then
+          RotateTexture = 90
+        else
+          RotateTexture = 0
+        end
+        SUB.RotateTexture = RotateTexture
+      end
+    end
   end
 end
 
@@ -1646,6 +1660,9 @@ local function ConvertUnitBarData(Ver)
     {Action = 'custom',    Source = '',                                 '=Triggers'},
     {Action = 'copy',      Source = 'Status', Dest = 'ClassSpecs',      '!HideNotUsable:All'},
   }
+  local ConvertUBData11 = {
+    {Action = 'custom',    Source = '',                                 'Bar'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1669,6 +1686,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData9
   elseif Ver == 10 then
     ConvertUBData = ConvertUBData10
+  elseif Ver == 11 then
+    ConvertUBData = ConvertUBData11
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1727,7 +1746,7 @@ local function ConvertUnitBarData(Ver)
             local KeyFound = KeysFound[Index]
 
             if Action == 'custom' then
-              local ReturnOK, Msg = pcall(ConvertCustom, Ver, BarType, SourceUB, DestUB, SourceKey, DestKey)
+              local ReturnOK, Msg = pcall(ConvertCustom, Ver, BarType, SourceUB, DestUB, SourceKey, DestKey, KeyFound)
 
               if not ReturnOK then
                 print('ERROR (custom): Report message to author')
@@ -4323,6 +4342,11 @@ local function CreateUnitBar(UnitBarF, BarType)
     -- Weird stuff happens if I dont hide here.
     Anchor:Hide()
 
+    -- This is needed because the runebar wouldn't show textures correctly
+    -- after reloadui
+    Anchor:SetPoint('TOPLEFT')
+    Anchor:SetSize(1, 1)
+
     -- Save a lookback to UnitBarF in anchor for selection (selectframe)
     Anchor.IsAnchor = true
     Anchor.UnitBar = UB
@@ -4695,6 +4719,10 @@ function GUB:ApplyProfile()
     -- Convert profile from a version before 5.70
     ConvertUnitBarData(10)
   end
+  if Ver == nil or Ver < 610 then
+    -- Convert profile from a version before 6.10
+    ConvertUnitBarData(11)
+  end
 
   -- Make sure profile is accurate.
   FixUnitBars()
@@ -4795,8 +4823,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 23 then
-    GUBData.ShowMessage = 23
+  if GUBData.ShowMessage ~= 24 then
+    GUBData.ShowMessage = 24
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

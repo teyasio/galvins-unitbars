@@ -47,6 +47,8 @@ local TextureMode = 2
 
 local ChangeHoly = 3
 
+local AllTextures = 12
+
 local HolySBar = 10
 local HolyDarkTexture = 12
 local HolyLightTexture = 13
@@ -71,7 +73,7 @@ local TD = { -- Trigger data
   { TT.TypeID_BarColor,              TT.Type_BarColor,              HolySBar,
     GF = GF },
   { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          HolyDarkTexture, HolyLightTexture },
+  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
@@ -286,7 +288,7 @@ function Main.UnitBarsF.HolyBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, HolySBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotateTexture(0, HolySBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotationTexture(0, HolySBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, HolySBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTextureFrame(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -320,15 +322,16 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local DarkColor = HolyData.DarkColor
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, 'statusbar', 1, HolySBar)
+  BBar:CreateTextureFrame(0, BoxMode, 1)
+    BBar:CreateTexture(0, BoxMode, HolySBar, 'statusbar')
 
   -- Create texture mode.
   for HolyIndex, HD in ipairs(HolyData) do
+    BBar:SetFillTexture(HolyIndex, HolySBar, 1)
 
-    BBar:CreateTextureFrame(HolyIndex, TextureMode, 0)
-      BBar:CreateTexture(HolyIndex, TextureMode, 'texture', 1, HolyDarkTexture)
-      BBar:CreateTexture(HolyIndex, TextureMode, 'texture', 2, HolyLightTexture)
+    BBar:CreateTextureFrame(HolyIndex, TextureMode, 1)
+      BBar:CreateTexture(HolyIndex, TextureMode, HolyDarkTexture, 'texture')
+      BBar:CreateTexture(HolyIndex, TextureMode, HolyLightTexture, 'texture')
 
     BBar:SetTexture(HolyIndex, HolyDarkTexture, HolyData.Texture)
     BBar:SetTexture(HolyIndex, HolyLightTexture, HolyData.Texture)
@@ -354,8 +357,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetSizeTextureFrame(0, TextureMode, HolyData.BoxWidth, HolyData.BoxHeight)
 
   -- Set the texture scale for Texture Size triggers.
-  BBar:SetScaleTexture(0, HolyDarkTexture, 1)
-  BBar:SetScaleTexture(0, HolyLightTexture, 1)
+  BBar:SetScaleAllTexture(0, AllTextures, 1)
   BBar:SetScaleTextureFrame(0, BoxMode, 1)
 
   BBar:SetChangeTexture(ChangeHoly, HolyLightTexture, HolySBar)
