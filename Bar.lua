@@ -655,7 +655,6 @@ local Args = {}
 local BarTextData = {}
 
 local DoOptionData = {}
-local VirtualFrameLevels = nil
 local CalledByTrigger = false
 local AnimateSpeedTrigger = nil
 local MaxTextLines = 4
@@ -1020,67 +1019,6 @@ local function GetSpeedDuration(Range, Speed)
     return 0
   end
   return abs(Range) / (1000 * Speed)
-end
-
--------------------------------------------------------------------------------
--- SetVirtualFrameLevel
---
--- Creates a virtual frame level.  Each virtual frame level has a Base which
--- is the frame level it was created with.  If you call it again with another
--- frame level it will store it under highest.  And highest only gets updated
--- if a higher frame level was set again.
---
--- NOTES:  You can't go back and create a new virtual frame level lower than
---         one already created.
--------------------------------------------------------------------------------
-local function SetVirtualFrameLevel(VirtualLevel, Level)
-  if VirtualFrameLevels == nil then
-    VirtualFrameLevels = {}
-  end
-  local VirtualFrameLevel = VirtualFrameLevels[VirtualLevel]
-
-  if VirtualFrameLevel == nil then
-    VirtualFrameLevel = {}
-    VirtualFrameLevels[VirtualLevel] = VirtualFrameLevel
-  end
-
-  if VirtualFrameLevel.Base == nil then
-    VirtualFrameLevel.Base = Level
-  end
-  if (VirtualFrameLevel.Highest or 0) <= Level then
-    VirtualFrameLevel.Highest = Level
-  end
-end
-
--------------------------------------------------------------------------------
--- GetVirtualFrameLevel
---
--- Gets a frame level from an existing virtual frame level or a new frame level.
---
--- If the VirtualLevel doesn't exist then it will return a frame level higher
--- than any frame level in the existing frame levels.  If the virtual frame does
--- exist then it returns the base level.
--------------------------------------------------------------------------------
-local function GetVirtualFrameLevel(VirtualLevel)
-  if VirtualFrameLevels == nil then
-    return 0
-  else
-    local VirtualFrameLevel = VirtualFrameLevels[VirtualLevel]
-
-    if VirtualFrameLevel then
-      return VirtualFrameLevel.Base
-    else
-      -- Search for the higehst frame level
-      local HighestLevel = 0
-
-      for _, VirtualFrameLevel in pairs(VirtualFrameLevels) do
-        if VirtualFrameLevel.Highest > HighestLevel then
-          HighestLevel = VirtualFrameLevel.Highest
-        end
-      end
-      return HighestLevel + 1
-    end
-  end
 end
 
 -------------------------------------------------------------------------------
@@ -5638,9 +5576,6 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
     end
   end
 
-  -- Reset the virtual frame levels
-  VirtualFrameLevels = nil
-
   Bar.Hidden = nil
   Bar.UnitBarF = UnitBarF
   Bar.Anchor = Anchor
@@ -5693,8 +5628,6 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
     BoxFrame.TFTextures = {}
     Bar.BoxFrames[BoxFrameIndex] = BoxFrame
   end
-
-  SetVirtualFrameLevel(0, BoxBorder:GetFrameLevel() + 2)
 
   return Bar
 end
