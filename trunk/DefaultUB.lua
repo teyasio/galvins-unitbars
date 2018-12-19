@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 610
+GUB.DefaultUB.Version = 611
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3694,6 +3694,7 @@ Version 6.10
 |cff00ff00Rotation|r now has 4 different angles (-90, 0, 90, and 180)
 |cff00ff00Sync Fill Direction|r default on.  This will change the fill direction to fit the rotation
 |cff00ff00Clipping|r default on.  This can turn clipping off making textures stretch when filling
+
 
 Version 6.01
 |cff00ff00Conditions|r for triggers.  New operators added 'T<>', 'T=', 'P<>', and 'P='. Works like normal operators except these check talents that are active. P is for PvP talents. These are only available for Percent and Whole Number
