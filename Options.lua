@@ -7755,89 +7755,79 @@ end
 --
 -- Order     Position in the options list.
 -- Name      Name of the options.
+-- TableName Will create the tab under this table.
 --
 -- NOTES: The list needs to be built over time so no lag is caused.
 -------------------------------------------------------------------------------
-local function BuildAltPowerBarList(APA, Order)
-  local AltPowerBarUsed = Main.AltPowerBarUsed
+local function BuildAltPowerBarList(APA, Order, Name, TableName)
+  local APBUsed = Main.APBUsed
+  local APBUseBlizz = Main.APBUseBlizz
 
   local PowerBarList = {
     type = 'group',
-    name = 'Alternate Power Bar',
+    name = Name,
     order = Order,
     args = {},
+    disabled = function()
+                 return Main.UnitBars.APBDisabled
+               end,
   }
-  APA.PowerBarList = PowerBarList
+  APA[TableName] = PowerBarList
   local PBA = PowerBarList.args
 
   for BarID = 1, 10000 do
     local AltPowerType, MinPower, _, _, _, _, _, _, _, _, PowerName, PowerTooltip = GetAlternatePowerInfoByID(BarID)
+    local ZoneName = APBUsed[BarID]
 
-    if AltPowerType then
+    if TableName ~= 'APB' then
+      if AltPowerType and APBUseBlizz[BarID] then
+        local Index = 'APBUseBlizz' .. BarID
+        PBA[Index] = APA.APB.args[Index]
+      end
+    elseif AltPowerType then
       if AltPowerBarSearch == '' or BarID == tonumber(AltPowerBarSearch) or
                                     strfind(strlower(PowerName),    strlower(AltPowerBarSearch)) or
-                                    strfind(strlower(PowerTooltip), strlower(AltPowerBarSearch))      then
-        PBA['Line1' .. BarID] = {
-          type = 'description',
-          fontSize = function()
-                       if AltPowerBarUsed[BarID] then
-                         return 'large'
-                       else
-                         return 'medium'
-                       end
-                     end,
-          name = format('|cff00ff00%s|r : |cffffff00%s|r', BarID, PowerName),
+                                    strfind(strlower(PowerTooltip), strlower(AltPowerBarSearch)) or
+                                    ZoneName and strfind(strlower(ZoneName), strlower(AltPowerBarSearch)) then
+        PBA['APBUseBlizz' .. BarID] = {
+          type = 'toggle',
+          width = 'full',
+          arg = BarID,
+          name = function()
+                   if ZoneName then
+                     return format('|cff00ff00%s|r : |cffffff00%s|r (|cff00ffff%s|r)', BarID, PowerName, ZoneName)
+                   else
+                     return format('|cff00ff00%s|r : |cffffff00%s|r', BarID, PowerName)
+                   end
+                 end,
           order = function()
-                    if AltPowerBarUsed[BarID] then
+                    if APBUsed[BarID] then
                       return BarID
                     else
                       return BarID + 1000
                     end
                   end,
+          hidden = function()
+                     return APBUsed[BarID] == nil and Main.UnitBars.APBShowUsed
+                   end,
+          disabled = function()
+                       return Main.HasAltPower
+                     end,
         }
         PBA['Line2' .. BarID] = {
           type = 'description',
-          fontSize = 'medium',
-          name = function()
-                    local ZoneName = AltPowerBarUsed[BarID]
-                    if ZoneName then
-                      return format('|cff00ffff%s|r', ZoneName)
-                    else
-                      return ''
-                    end
-                  end,
-          order = function()
-                    if AltPowerBarUsed[BarID] then
-                      return BarID + 0.1
-                    else
-                      return BarID + 1000.2
-                    end
-                  end,
-          hidden = function()
-                     return AltPowerBarUsed[BarID] == nil
-                   end,
-        }
-        PBA['Line3' .. BarID] = {
-          type = 'description',
           name = PowerTooltip,
+          fontSize = 'medium',
           order = function()
-                    if AltPowerBarUsed[BarID] then
+                    if APBUsed[BarID] then
                       return BarID + 0.2
                     else
                       return BarID + 1000.3
                     end
                   end,
-        }
-        PBA['Line4' .. BarID] = {
-          type = 'header',
-          name = '',
-          order = function()
-                    if AltPowerBarUsed[BarID] then
-                      return BarID + 0.3
-                    else
-                      return BarID + 1000.4
-                    end
-                  end,
+          hidden = function()
+                     return APBUsed[BarID] == nil and Main.UnitBars.APBShowUsed
+                   end,
         }
       end
     end
@@ -7855,7 +7845,9 @@ local function CreateAltPowerBarOptions(Order, Name)
     get = function(Info)
             local KeyName = Info[#Info]
 
-            if KeyName == 'Search' then
+            if strfind(KeyName, 'APBUseBlizz') then
+              return Main.APBUseBlizz[Info.arg]
+            elseif KeyName == 'Search' then
               return AltPowerBarSearch
             else
               return Main.UnitBars[KeyName]
@@ -7863,24 +7855,31 @@ local function CreateAltPowerBarOptions(Order, Name)
           end,
     set = function(Info, Value)
             local KeyName = Info[#Info]
-            if KeyName == 'Search' then
+
+            if strfind(KeyName, 'APBUseBlizz') then
+              Main.APBUseBlizz[Info.arg] = Value
+            elseif KeyName == 'Search' then
               AltPowerBarSearch = Value
-              BuildAltPowerBarList(APA, 100)
+              BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
+              BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
             else
-              if KeyName == 'AltPowerBarListOn' then
-                if Value then
-                  BuildAltPowerBarList(APA, 100)
-                else
-                  APA.PowerBarList = nil
-                end
+              if APA and strfind(KeyName, 'APBDisabled') and Value then
+                APA.PowerBarList = nil
               end
               Main.UnitBars[KeyName] = Value
             end
           end,
+    disabled = function()
+                 if not Main.UnitBars.APBDisabled then
+                   BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
+                   BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
+                 end
+                 return Main.HasAltPower
+               end,
     args = {
       Description = {
         type = 'description',
-        name = 'Lists all alternate power bars.  May take a few seconds to build the list. Bars already used appear in large letters\nBars are listed by Bar ID and Name',
+        name = 'May take a few seconds to build the list. Bars already used have an area name.\nChecking off a bar will use the blizzard bar instead',
         order = 1,
       },
       Search = {
@@ -7888,7 +7887,7 @@ local function CreateAltPowerBarOptions(Order, Name)
         name = 'Search',
         order = 3,
         disabled = function()
-                     return not Main.UnitBars.AltPowerBarListOn
+                     return Main.UnitBars.APBDisabled or Main.HasAltPower
                    end,
       },
       clearSearch = {
@@ -7899,43 +7898,36 @@ local function CreateAltPowerBarOptions(Order, Name)
         order = 4,
         func = function()
                  AltPowerBarSearch = ''
-                 BuildAltPowerBarList(APA, 100)
+                 BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
+                 BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
                  HideTooltip(true)
                end,
         disabled = function()
-                     return AltPowerBarSearch == '' or not Main.UnitBars.AltPowerBarListOn
+                     return Main.UnitBars.APBDisabled or Main.HasAltPower
                    end,
       },
-      AltPowerBarListOn = {
+      APBShowUsed = {
         type = 'toggle',
-        name = 'Enable',
-        width = 'half',
+        name = 'Show used bars only',
+        width = 'normal',
         order = 5,
-      },
-      Reset = {
-        type = 'execute',
-        name = 'Reset History',
-        desc = 'Clears your used bar history',
-        width = 'wide',
-        order = 6,
-        confirm = function()
-                    return 'Clear your used bar history?'
-                  end,
-        func = function()
-                 wipe(Main.AltPowerBarUsed)
-               end,
         disabled = function()
-                     return next(Main.AltPowerBarUsed) == nil
+                     return Main.UnitBars.APBDisabled or Main.HasAltPower
                    end,
+      },
+      APBDisabled = {
+        type = 'toggle',
+        name = 'Disable',
+        width = 'half',
+        order = 6,
       },
       Spacer10 = CreateSpacer(10),
     },
   }
 
   APA = AltPowerBarOptions.args
-  if Main.UnitBars.AltPowerBarListOn then
-    BuildAltPowerBarList(APA, 100)
-  end
+  BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
+  BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
 
   return AltPowerBarOptions
 end
@@ -8475,28 +8467,28 @@ local function CreateFrameOptions(Order, Name)
     type = 'group',
     name = Name,
     order = Order,
-    get = function(Info)
-            local MultiValue = tonumber(Main.UnitBars[Info[#Info]]) or 0
-            Main.UnitBars[Info[#Info]] = MultiValue
-            return MultiValue ~= 0
-          end,
-    set = function(Info, Value)
-            local KeyName = Info[#Info]
-            local MultiValue = tonumber(Main.UnitBars[KeyName]) or 0
-
-            MultiValue = MultiValue + 1
-            if MultiValue > 2 then
-              MultiValue = 0
-            end
-            Main.UnitBars[KeyName] = MultiValue
-            Main:UnitBarsSetAllOptions()
-          end,
     args = {
-      PlayerGroup = {
+      PortraitGroup = {
         type = 'group',
-        order = 2,
-        name = 'Player',
+        order = 1,
+        name = 'Portraits',
         dialogInline = true,
+        get = function(Info)
+                local MultiValue = tonumber(Main.UnitBars[Info[#Info]]) or 0
+                Main.UnitBars[Info[#Info]] = MultiValue
+                return MultiValue ~= 0
+              end,
+        set = function(Info, Value)
+                local KeyName = Info[#Info]
+                local MultiValue = tonumber(Main.UnitBars[KeyName]) or 0
+
+                MultiValue = MultiValue + 1
+                if MultiValue > 2 then
+                  MultiValue = 0
+                end
+                Main.UnitBars[KeyName] = MultiValue
+                Main:UnitBarsSetAllOptions()
+              end,
         args = {
           Notes = {
             type = 'description',
@@ -8532,97 +8524,89 @@ local function CreateFrameOptions(Order, Name)
                      end
                    end,
           },
-          HideBlizzAltPower = {
-            type = 'toggle',
-            width = 'full',
-            order = 4,
-            name = function()
-                     local HideBlizzAltPower = tonumber(Main.UnitBars.HideBlizzAltPower) or 0
-
-                     if HideBlizzAltPower <= 1 then
-                       return 'Hide Blizzard Alternate Power Bar'
-                     elseif HideBlizzAltPower == 2 then
-                       return 'Show Blizzard Alternate Power Bar'
-                     end
-                   end,
-            disabled = function()
-                         HideTooltip(true)
-                         return Main.HasAltPower
-                       end
-          },
         },
       },
-      ExcludeBlizzAltPowerBarGroup = {
+      APBGroup = {
         type = 'group',
-        name = 'Exclude (blizzard alternate power bar)',
-        order = 5,
+        order = 2,
+        name = 'Blizzard Alternate Power Bar',
         dialogInline = true,
         get = function(Info)
-                return Main.UnitBars[Info[#Info]]
+                local KeyName = Info[#Info]
+                return Main.UnitBars[KeyName]
               end,
         set = function(Info, Value)
                 local KeyName = Info[#Info]
-                local ZoneNameList = {}
-
-                if KeyName == 'ApbZoneNameListRaw' then
-                  local Index = 0
-                  for _, Name in pairs( {strsplit('\n', Value .. '\n')} ) do
-                    Name = strtrim(Name)
-                    if Name and Name ~= '' then
-                      Index = Index + 1
-                      ZoneNameList[Index] = strlower(Name)
-                    end
-                  end
-                  Main.UnitBars.ApbZoneNameList = ZoneNameList
-                end
                 Main.UnitBars[KeyName] = Value
-                Main:UnitBarsSetAllOptions()
+
+                if KeyName == 'APBMoverDisabled' then
+                  Main:APBSetMover()
+                end
               end,
-        hidden = function()
-                   return tonumber(Main.UnitBars.HideBlizzAltPower) ~= 1
-                 end,
-        disabled = function()
-                     return Main.HasAltPower
-                   end,
         args = {
-          ApbZoneName = {
-            type = 'toggle',
-            name = 'Zone Name',
-            width = 'normal',
-            order = 1,
-            hidden = function()
-                       HideTooltip(true)
-                       return false
-                     end,
-          },
-          ApbZoneNameExactMatch = {
-            type = 'toggle',
-            name = 'Exact Match',
-            width = 'normal',
-            order = 2,
-            desc = 'Zone names have to match exactly in the list below. Not case sensitive',
-            disabled = function()
-                         return not Main.UnitBars.ApbZoneName
-                       end,
-          },
           Notes = {
             type = 'description',
-            name = 'These are names that appear on your minimap. Not case sensitive\nEnter the name of 1 or more zones on each line',
-            order = 10,
-            hidden = function()
-                       return not Main.UnitBars.ApbZoneName
-                     end,
+            name = 'This will let you move the blizzard alternate power bar and the timer like those in the Darkmoon Faire\nIf this conflicts with other addons just disable',
+            order = 1,
           },
-          ApbZoneNameListRaw = {
-            type = 'input',
-            name = '',
+          APBMoverDisabled = {
+            type = 'toggle',
+            name = 'Disable mover',
+            width = 'normal',
+            order = 2,
+          },
+          Spacer5 = CreateSpacer(5, 'normal'),
+          Reset = {
+            type = 'execute',
+            name = 'Reset',
+            order = 6,
+            confirm = function()
+                        return 'Are you sure?'
+                      end,
+            func = function()
+                     Main:APBReset()
+                   end,
+            disabled = function()
+                         return Main.UnitBars.APBMoverDisabled
+                       end,
+          },
+          Spacer7 = CreateSpacer(7),
+          MoveAPB = {
+            type = 'execute',
+            name = function()
+                     if Main.APBMoverEnabled then
+                       return 'Stop Moving APB'
+                     else
+                       return 'Move APB'
+                     end
+                   end,
+            order = 8,
+            func = function()
+                     Main.APBMoverEnabled = not Main.APBMoverEnabled
+                     Main:APBSetMover('apb')
+                   end,
+            disabled = function()
+                         return Main.UnitBars.APBMoverDisabled
+                       end,
+          },
+          Spacer10 = CreateSpacer(10),
+          MoveAPBTimer = {
+            type = 'execute',
+            name = function()
+                     if Main.APBBuffTimerMoverEnabled then
+                       return 'Stop moving Timer'
+                     else
+                       return 'Move Timer'
+                     end
+                   end,
             order = 11,
-            multiline = 7,
-            width = 'double',
-            desc = '',
-            hidden = function()
-                       return not Main.UnitBars.ApbZoneName
-                     end,
+            func = function()
+                     Main.APBBuffTimerMoverEnabled = not Main.APBBuffTimerMoverEnabled
+                     Main:APBSetMover('timer')
+                   end,
+            disabled = function()
+                         return Main.UnitBars.APBMoverDisabled
+                       end,
           },
         },
       },
@@ -8898,7 +8882,7 @@ local function CreateMainOptions()
             },
           },
           AuraOptions = CreateAuraOptions(6, 'Aura List'),
-          AltPowerBar = CreateAltPowerBarOptions(7, 'Alt Power Bar List'),
+          AltPowerBar = CreateAltPowerBarOptions(7, 'Alt Power Bar'),
           DebugOptions = CreateDebugOptions(8, 'Debug'),
         },
       },
