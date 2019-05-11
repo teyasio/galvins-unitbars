@@ -45,8 +45,8 @@ local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge
       abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
 local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
       strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type
+local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type, unpack =
+      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type, unpack
 
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
@@ -62,7 +62,8 @@ local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPo
       UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
 local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub =
       PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub
-local SoundKit = SOUNDKIT
+local SoundKit, hooksecurefunc =
+      SOUNDKIT, hooksecurefunc
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -178,8 +179,12 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.TrackedAurasList  - Set by SetAuraTracker()
 -- Main.PlayerGUID        - Set by ShareData()
 -- Main.GameVersion       - Current version of the game
--- Main.AltPowerBarUsed   - Contains list of used power bars. Contains what minimap zone they were used in.
---                          set by UnitBarsUpdateStatus(). Used by ShareData() and used by CreateAuraOptions()
+-- Main.APBUsed           - Contains list of used power bars. Contains what minimap zone they were used in.
+--                          set by UnitBarsUpdateStatus(). Used by ShareData()
+-- Main.APBUseBlizz       - Contains a list of which power bars should use blizzards own, and not the GUB version
+--                          set by CreateAltPowerBarOptions(). Used by ShareData() and DoBlizzAltPowerBar()
+-- Main.APBMoverEnabled   - If true then the blizzard alternate power can be move to a new location
+-- Main.APBBuffTimerMoverEnabled - If true then the blizzard alternate power bar timer can be moved to a new location
 -- Main.Talents           - Contains the table Talents
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
@@ -205,7 +210,14 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- HasPet                 - True or false. If true then the player has a pet.
 -- HasAltPower            - True or false. If true then the player has alternate power bar.
 -- BlizzAltPowerVisible   - True or false. If true then the blizzard alt power bar is visible, otherwise hidden.
---                          Used by HideBlizzAltPowerBar()
+--                          Set by DoBlizzAltPowerBar(). Used by StatusCheck()
+--
+-- AltPowerBarID          - Current ID of the power bar if one is being used.
+--                          Set by UnitBarsUpdateStatus(). Used by DoBlizzAltPowerBar()
+-- APBMover               - Used to move the blizzard style alternate power bar
+--                          Set by InitAltPowerBar(). Used by DoBlizzAltPowerBar()
+-- APBBuffTimerMover      - Used to move the blizzard style buff timer alternate power bar
+--                          Set by InitAltPowerBar(). Used by DoBlizzAltPowerBar()
 --
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
 -- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed and back into uppercase.
@@ -359,6 +371,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 local AlignAndSwapTooltipDesc = 'Right mouse button to align and swap this bar'
 local MouseOverDesc = 'Modifier + left mouse button to drag this bar'
 local TrackingFrame = CreateFrame('Frame')
+local APBBuffTimerMover = nil
+local APBMover = nil
 local ScanTooltip = nil
 local AuraListName = 'AuraList'
 local InitOnce = true
@@ -376,6 +390,7 @@ local HasFocus = false
 local HasPet = false
 local HasAltPower = false
 local BlizzAltPowerVisible = false
+local AltPowerBarID = nil
 local PlayerPowerType = nil
 local PlayerClass = nil
 local PlayerStance = nil
@@ -383,7 +398,8 @@ local PlayerSpecialization = nil
 local PlayerGUID = nil
 local UpdateStatusDelay = 5  -- time in seconds before calling UnitBarsUpdateStatus()
 local OtherEvents = {}
-local AltPowerBarUsed = nil
+local APBUsed = nil
+local APBUseBlizz = nil
 
 local MoonkinForm = MOONKIN_FORM
 local CatForm = CAT_FORM
@@ -521,6 +537,8 @@ Main.ConvertPlayerClass = ConvertPlayerClass
 Main.Talents = Talents
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
+Main.APBBuffTimerMoverEnabled = false
+Main.APBMoverEnabled = false
 
 -------------------------------------------------------------------------------
 --
@@ -586,11 +604,6 @@ local function RegisterEvents(Action, EventType)
 
     -- These events will always be checked even if unit is not a player.
     OtherEvents['UNIT_FACTION'] = 1
-
-    -- Track hiding and showing of blizzards alternate power bar
-    local AltPowerBarFrame = CreateFrame('Frame', nil, PlayerPowerBarAlt)
-    AltPowerBarFrame:SetScript('OnHide', function() GUB.UnitBarsUpdateStatus(GUB, 'OnHide', 'player') end)
-    AltPowerBarFrame:SetScript('OnShow', function() GUB.UnitBarsUpdateStatus(GUB, 'OnShow', 'player') end)
 
     -- Rest of the events are defined at the end of each lua file for the bars.
 
@@ -662,61 +675,187 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- HideBlizzAltPowerBar
+-- APBStartMoving
 --
--- Hides and shows the blizzard alt power bar and timer1 frame
---
--- Calls are made to blizzard functions to avoid breaking stuff when hiding and showing
+-- Moves the Alternate power bars
 -------------------------------------------------------------------------------
-local function HideBlizzAltPowerBar(Hide)
+local function APBStartMoving(Frame)
+  Frame:StartMoving()
+end
 
-  if Hide then
-    -- Only search if show blizz alt bar is true and zone name is true
-    if UnitBars.HideBlizzAltPower == 1 and UnitBars.ApbZoneName then
-      local ExactMatch = UnitBars.ApbZoneNameExactMatch
-      local ZoneText = strlower(GetMinimapZoneText())
-      local ZoneNameList = UnitBars.ApbZoneNameList
+-------------------------------------------------------------------------------
+-- APBStopMoving
+--
+-- Stops moving the alternate power bars
+-------------------------------------------------------------------------------
+local function APBStopMoving(Frame)
+  if Frame == APBMover then
+    UnitBars.APBPos = { Frame:GetPoint() }
+  else
+    UnitBars.APBTimerPos = { Frame:GetPoint() }
+  end
+  Frame:StopMovingOrSizing()
+end
 
-      -- Search for a zone on the list, if found show instead of hide
-      for Index = 1, #ZoneNameList do
-        local Name = ZoneNameList[Index]
+-------------------------------------------------------------------------------
+-- APBSetMover
+--
+-- Turns moving on or off for both Alternate Power Bars
+--
+-- Type : 'apb' and 'timer'. or nil for both
+-------------------------------------------------------------------------------
+function GUB.Main:APBSetMover(Type)
+  local Hide = false
+  if UnitBars.APBMoverDisabled then
+    Hide = true
+  end
 
-        if ExactMatch and ZoneText == Name or not ExactMatch and strfind(ZoneText, Name, 1, true) then
-          Hide = false
-          break
-        end
+  if Type == nil or Type == 'apb' then
+    if not Hide and Main.APBMoverEnabled then
+      APBMover:Show()
+    else
+      APBMover:Hide()
+    end
+  end
+  if Type == nil or Type == 'timer' then
+    if not Hide and Main.APBBuffTimerMoverEnabled then
+      APBBuffTimerMover:Show()
+    else
+      APBBuffTimerMover:Hide()
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- APBReset
+--
+-- Reset the alternate power bar movers to default position
+-------------------------------------------------------------------------------
+function GUB.Main:APBReset()
+  APBMover:ClearAllPoints()
+  APBMover:SetPoint('CENTER', 0, 0)
+
+  APBBuffTimerMover:ClearAllPoints()
+  APBBuffTimerMover:SetPoint('CENTER', 0, -100)
+
+  UnitBars.APBPos = {'CENTER', 0, 0}
+  UnitBars.APBTimerPos = {'CENTER', 0, -100}
+
+  Main:DoBlizzAltPowerBar()
+end
+
+-------------------------------------------------------------------------------
+-- InitAltPowerBar
+--
+-- This sets up the blizzard alternate power bar for hiding/showing/moving
+-------------------------------------------------------------------------------
+local function InitAltPowerBar()
+  local APBPos = UnitBars.APBPos
+  local APBTimerPos = UnitBars.APBTimerPos
+
+  APBMover = CreateFrame('Frame', nil, UIParent)
+  APBMover:SetSize(75, 50)
+  APBMover:SetMovable(true)
+  APBMover:SetBackdrop(SelectFrameBorder)
+  APBMover:SetScript('OnMouseDown', APBStartMoving)
+  APBMover:SetScript('OnMouseUp', APBStopMoving)
+  APBMover:SetFrameStrata('HIGH')
+  APBMover:SetClampedToScreen(true)
+
+  if next(APBPos) == nil then
+    APBMover:SetPoint('CENTER', 0, 0)
+  else
+    APBMover:SetPoint(unpack(APBPos))
+  end
+
+  APBBuffTimerMover = CreateFrame('Frame', nil, UIParent)
+  APBBuffTimerMover:SetPoint('CENTER')
+  APBBuffTimerMover:SetSize(250, 75)
+  APBBuffTimerMover:SetMovable(true)
+  APBBuffTimerMover:SetBackdrop(SelectFrameBorder)
+  APBBuffTimerMover:SetScript('OnMouseDown', APBStartMoving)
+  APBBuffTimerMover:SetScript('OnMouseUp', APBStopMoving)
+  APBBuffTimerMover:SetFrameStrata('HIGH')
+  APBBuffTimerMover:SetClampedToScreen(true)
+
+  if next(APBTimerPos) == nil then
+    APBBuffTimerMover:SetPoint('CENTER', 0, -100)
+  else
+    APBBuffTimerMover:SetPoint(unpack(APBTimerPos))
+  end
+
+  -- Hook secure func for alt power bars
+  hooksecurefunc('PlayerBuffTimerManager_UpdateTimers', Main.DoBlizzAltPowerBar)
+
+  -- This is used to make sure the power bar can be repositioned after reload UI
+  hooksecurefunc('UIParent_ManageFramePositions', function()
+    local APBMoverDisabled = UnitBars.APBMoverDisabled
+    PlayerPowerBarAlt:SetMovable(true)
+    PlayerPowerBarAlt:SetUserPlaced(not APBMoverDisabled)
+
+    if not APBMoverDisabled then
+      PlayerPowerBarAlt:ClearAllPoints()
+      PlayerPowerBarAlt:SetPoint('CENTER', APBMover, 'CENTER')
+    end
+  end)
+
+  Main:APBSetMover()
+end
+
+-------------------------------------------------------------------------------
+-- DoBlizzAltPowerBar
+--
+-- Hides and shows the blizzard alt power bar and BuffTimer frame
+-- And positions them if moving is enable
+--
+-- Blizzard code will not modify the positon of the alt power bar when
+-- SetUserPlaced is set to true
+-- This also hides things like the darkmoon faire timers
+--
+-- NOTES: This function is also called when PlayerBuffTimerManager_UpdateTimers()
+--        is called. This secure function call is done in InitAltPowerBar()
+-------------------------------------------------------------------------------
+function GUB.Main:DoBlizzAltPowerBar()
+  local BuffTimer = nil
+  local APBMoverDisabled = UnitBars.APBMoverDisabled
+  BlizzAltPowerVisible = UnitBars.APBDisabled or APBUseBlizz[AltPowerBarID] or false
+
+  -- Look for bufftimers for darkmoon faire or similar
+  for TimerIndex = 1, 10 do
+    BuffTimer = _G[format('BuffTimer%s', TimerIndex)]
+
+    if BuffTimer then
+      if BuffTimer:IsVisible() then
+        break
+      else
+        -- Clear points incase mover is disabled
+        BuffTimer:ClearAllPoints()
       end
     end
   end
 
-  if Hide ~= nil then
-    BlizzAltPowerVisible = not Hide
+  -- Need to do SetMovable otherwise SetUserPlaced causes an error
+  PlayerPowerBarAlt:SetMovable(true)
 
-    if Hide then
-      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_BAR_SHOW')
-      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_BAR_HIDE')
-      PlayerPowerBarAlt:UnregisterEvent('PLAYER_ENTERING_WORLD')
-      PlayerPowerBarAlt:UnregisterEvent('UNIT_POWER_UPDATE')
-      PlayerPowerBarAlt:UnregisterEvent('UNIT_MAXPOWER')
+  if not BlizzAltPowerVisible then -- hide
+    PlayerPowerBarAlt:SetUserPlaced(false)
+    PlayerPowerBarAlt:Hide()
 
-      -- Need to do it this way so nothing bugs out
-      UnitPowerBarAlt_TearDown(PlayerPowerBarAlt)
+    if BuffTimer then
+      BuffTimer:Hide()
+      BuffTimer:ClearAllPoints()
+    end
+  else -- show
+    PlayerPowerBarAlt:SetUserPlaced(not APBMoverDisabled)
 
-      PlayerBuffTimerManager:UnregisterEvent('UNIT_POWER_BAR_TIMER_UPDATE')
-      PlayerBuffTimerManager:UnregisterEvent('PLAYER_ENTERING_WORLD')
+    if not APBMoverDisabled then
+      PlayerPowerBarAlt:ClearAllPoints()
+      PlayerPowerBarAlt:SetPoint('CENTER', APBMover, 'CENTER')
 
-    else
-      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_BAR_SHOW')
-      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_BAR_HIDE')
-      PlayerPowerBarAlt:RegisterEvent('PLAYER_ENTERING_WORLD')
-      PlayerPowerBarAlt:RegisterEvent('UNIT_POWER_UPDATE')
-      PlayerPowerBarAlt:RegisterEvent('UNIT_MAXPOWER')
-
-      -- This function will show the bar if there is alt power
-      UnitPowerBarAlt_UpdateAll(PlayerPowerBarAlt)
-
-      PlayerBuffTimerManager:RegisterEvent('UNIT_POWER_BAR_TIMER_UPDATE')
-      PlayerBuffTimerManager:RegisterEvent('PLAYER_ENTERING_WORLD')
+      if BuffTimer then
+        BuffTimer:ClearAllPoints()
+        BuffTimer:SetPoint('CENTER', APBBuffTimerMover, 'CENTER')
+      end
     end
   end
 end
@@ -731,7 +870,6 @@ end
 -- FrameName   Name of frame.
 --               'player' - Player frame
 --               'target' - Target frame
---               'alternate' - blizzard alternate power bar
 --
 -- Flag        true hides the frame otherwise false
 --
@@ -749,8 +887,6 @@ function GUB.Main:HideWowFrame(...)
       if Hide or not Hide and HasTarget then
         Frame = TargetFrame
       end
-    elseif FrameName == 'alternate' and not HasAltPower then
-      HideBlizzAltPowerBar(Hide)
     end
     if Frame then
       if Hide then
@@ -4012,11 +4148,13 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   PlayerSpecialization = GetSpecialization() or 0
 
   local AltPowerType, _, _, _, _, _, _, _, _, _, _, _, _, BarID = UnitAlternatePowerInfo('player')
-  HasAltPower = AltPowerType  ~= nil
+  HasAltPower = AltPowerType ~= nil
+  AltPowerBarID = BarID
 
-  -- Save for alt bar history
+  -- Save for alt bar history and hide blizz alt power bar
   if HasAltPower then
-    AltPowerBarUsed[BarID] = GetMinimapZoneText() or ''
+    APBUsed[BarID] = GetMinimapZoneText() or 'No Area'
+    Main:DoBlizzAltPowerBar()
   end
 
   Main.InCombat = InCombat
@@ -4028,8 +4166,8 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   -- Check for talent changes
   Main:GetTalents()
 
-  -- For alternate power bar options needs to be disabled when there is an bar active
-  if Event == 'OnHide' or Event == 'OnShow' then
+  -- Alternate power bar options needs to be disabled when there is a bar active
+  if Event == 'UNIT_POWER_BAR_SHOW' or Event == 'UNIT_POWER_BAR_HIDE' then
     Options:RefreshMainOptions()
   end
 
@@ -4203,7 +4341,6 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
 
   local HidePlayerFrame = UnitBars.HidePlayerFrame
   local HideTargetFrame = UnitBars.HideTargetFrame
-  local HideBlizzAltPower = UnitBars.HideBlizzAltPower
 
   if Action ~= 'frames' then
     -- Update text highlight only when options window is open
@@ -4243,9 +4380,6 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
   end
   if HideTargetFrame ~= 0 then
     Main:HideWowFrame('target', HideTargetFrame == 1)
-  end
-  if HideBlizzAltPower ~= 0 then
-    Main:HideWowFrame('alternate', HideBlizzAltPower == 1)
   end
 end
 
@@ -4508,7 +4642,8 @@ local function ShareData()
   Main.PlayerClass = PlayerClass
   Main.PlayerPowerType = PlayerPowerType
   Main.PlayerGUID = PlayerGUID
-  Main.AltPowerBarUsed = AltPowerBarUsed
+  Main.APBUsed = APBUsed
+  Main.APBUseBlizz = APBUseBlizz
 
   -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
@@ -4621,7 +4756,8 @@ end
 local ExcludeList = {
   ['Version'] = 1,
   ['Reset'] = 1,
-  ['ApbZoneNameList'] = 1,
+  ['APBPos'] = 1,
+  ['APBTimerPos'] = 1,
   ['*.BoxLocations'] = 1,
   ['*.BoxOrder'] = 1,
   ['*.Text.#'] = 1,
@@ -4789,10 +4925,16 @@ function GUB:OnEnable()
   end
   GUBData = GalvinUnitBarsData
 
-  AltPowerBarUsed = GUBData.AltPowerBarUsed
-  if AltPowerBarUsed == nil then
-    AltPowerBarUsed = {}
-    GUBData.AltPowerBarUsed = AltPowerBarUsed
+  APBUsed = GUBData.AltPowerBarUsed
+  APBUseBlizz = GUBData.APBUseBlizz
+
+  if APBUsed == nil then
+    APBUsed = {}
+    GUBData.AltPowerBarUsed = APBUsed
+  end
+  if APBUseBlizz == nil then
+    APBUseBlizz = {}
+    GUBData.APBUseBlizz = APBUseBlizz
   end
 
   -- Add blizzards powerbar colors and class colors to defaults.
@@ -4812,6 +4954,8 @@ function GUB:OnEnable()
 
   ShareData()
   Options:OnInitialize()
+  InitAltPowerBar()
+
   GUB:ApplyProfile()
 
   GUB.MainDB.RegisterCallback(GUB, 'OnProfileReset', 'ProfileNew')
@@ -4823,8 +4967,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 24 then
-    GUBData.ShowMessage = 24
+  if GUBData.ShowMessage ~= 25 then
+    GUBData.ShowMessage = 25
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

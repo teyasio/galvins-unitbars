@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 611
+GUB.DefaultUB.Version = 620
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -40,12 +40,6 @@ GUB.DefaultUB.Version = 611
 --                           1 -- hide
 --                           2 -- show
 -- HideTargetFrame        - Same as above.
--- HideBlizzAltPower      - Same as above.
---                          **** All the Apb keys are for the HideBlizzAltPower, these are used for exclusion to not hide.
--- ApbZoneName            - If true then search for the zone in the ZoneNameList. Not case sensitive.
--- ApbZoneNameExactMatch  - If true then the zone name has to match exactly.  Not case sensitive.
--- ApbZoneNameListRaw     - String. Contains the list of zones in text.
--- ApbZoneNameList        - Hash table containing the zones.
 --
 -- HideTooltips           - Boolean. If true tooltips are not shown when mousing over unlocked bars.
 -- HideTooltipsDesc       - Boolean. If true the descriptions inside the tooltips will not be shown when mousing over
@@ -59,7 +53,11 @@ GUB.DefaultUB.Version = 611
 -- HighlightDraggedBar    - Shows a box around the frame currently being dragged.
 -- AuraListOn             - If true then the aura list utility is active.
 -- AuraListUnits          - String. Contains a list of units seperated by spaces for the aura utility to track.
+-- DebugOn                - If true then the debug options will show any errors.
+-- AltPowerBarDisabled    - If true then all the alt power bar options are disabled. And blizzard style bars will be used.
+-- AltPowerBarShowUsed    - If true then show only bars that you used in the alt power bar options
 -- ClassTaggedColor       - Boolean.  If true then if the target is an NPC, then tagged color will be shown.
+-- APBMoverDisabled       - If true then blizzards alternate power bars can't be moved.
 -- CombatClassColor       - If true then then the combat colors will use player class colors.
 -- CombatTaggedColor      - If true then Tagged color will be used along with combat color if the unit is not a player..
 -- CombatColor            - Table containing the colors hostile, attack, friendly, flagged, none.
@@ -379,11 +377,6 @@ GUB.DefaultUB.Default = {
     AlignSwapOffsetY = 0,
     HidePlayerFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
     HideTargetFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
-    HideBlizzAltPower = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
-    ApbZoneName = false,
-    ApbZoneNameExactMatch = false,
-    ApbZoneNameListRaw = '',
-    ApbZoneNameList = {},
     HideTooltips = false,
     HideTooltipsDesc = false,
     HideTextHighlight = false,
@@ -397,7 +390,11 @@ GUB.DefaultUB.Default = {
     AuraListOn = false,
     AuraListUnits = 'player',
     DebugOn = false,
-    AltPowerBarListOn = false,
+    APBMoverDisabled = true,
+    APBDisabled = false,
+    APBShowUsed = false,
+    APBPos = {},
+    APBTimerPos = {},
     ClassTaggedColor = false,
     CombatClassColor = false,
     CombatTaggedColor = false,
@@ -3623,21 +3620,20 @@ Found under General.  This will list any auras the mod comes in contact with.  T
 
 
 |cff00ff00Frames|r
-Found under General.  Frames lets you hide and show player frames and blizzards alternate power bar.
+Found under General.
 
-Clicking on any of the 3 options will activate it.  When this is unchecked the mod doesn't do anything.  Leave these unchecked to avoid conflicting with another addon doing the same thing.
+|cff00ffffPORTRAITS|r Leave these unchecked to avoid conflicting with another addon doing the same thing.  Clicking on the option again changes it to 'show' and clicking again changes it back to unchecked.
 
-Clicking on the option again changes it to 'show' and clicking again changes it back to unchecked.
-
-When the hide option for Blizzard Alternate Power Bar is checked.  You then have the option of excluding bars based on the zone they're in.  The zone name is the one that appears on the minimap.  Checking off Zone Name will bring up an edit box.  Just enter the full name or part of the name of the zone you want.  If you want to go by exact match use that instead.
-
-The names don't have to be case sensitive.
+|cff00ffffBLIZZARD ALTERNATE POWER BAR|r This lets you move the blizzard style alternate power bar and the timer.  The timers are used in places like the Darkmoon Faire.  Leave disabled to avoid conflicting with another addon doing the same thing.
 
 
-|cff00ff00Alt Power Bar List|r
+|cff00ff00Alt Power Bar|r
 Found under General.  This lists all the alternate power bars in the game.  You can use this information to create triggers that go off of bar ID.  Not every bar will use a color, since blizzards alternate power bar uses textures that may have the color already baked in.
 
-So a trigger may have to be created to solve the problem. Also a history is kept of which alternate power bars you have used.  These get listed at the top along with the zone they were used in.  Can use this info to help create triggers or not hide them under Frame options.
+So a trigger may have to be created to solve the problem. Also a history is kept of which area alternate power bars were used.
+
+To use the blizzard style alternate power bar.  Just check off the bar in the list.  Or if you want to use the blizzard style for all just disable.
+
 
 |cff00ff00Profiles|r
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just create a new profile named backup.  Then copy your config to backup.  All characters by default start with a new config, but you can share one across all characters or any of your choosing.
@@ -3686,6 +3682,10 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 6.20
+|cff00ff00|cff00ff00Frames|r Alt Power Bar settings has changed.  This now lets you move blizzards APB
+|cff00ff00|cff00ff00Alternate Power Bar|r Now lets you pick which bars you want to use as the blizzard style instead of GUB
 
 Version 6.10
 |cff00ff00|cff00ff00StatusBars|r no longer uses Blizzards.  This means no more texture stretching
