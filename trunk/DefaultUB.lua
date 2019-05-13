@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 620
+GUB.DefaultUB.Version = 630
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -57,7 +57,11 @@ GUB.DefaultUB.Version = 620
 -- AltPowerBarDisabled    - If true then all the alt power bar options are disabled. And blizzard style bars will be used.
 -- AltPowerBarShowUsed    - If true then show only bars that you used in the alt power bar options
 -- ClassTaggedColor       - Boolean.  If true then if the target is an NPC, then tagged color will be shown.
--- APBMoverDisabled       - If true then blizzards alternate power bars can't be moved.
+-- APBMoverOptionsDisabled - If true then blizzards alternate power bars will not be moved.
+-- EABMoverOptionsDisabled - If true then extra action button will not be moved.
+-- APBPos                 - Contains the position of the blizzards alternate power bar relative to UIParent
+-- APBTimerPos            - Contains the position of the blizzards alternate power timer relative to UIParent
+-- EABPos                 - Contains the position of the extra action button relative to UIParent
 -- CombatClassColor       - If true then then the combat colors will use player class colors.
 -- CombatTaggedColor      - If true then Tagged color will be used along with combat color if the unit is not a player..
 -- CombatColor            - Table containing the colors hostile, attack, friendly, flagged, none.
@@ -390,11 +394,13 @@ GUB.DefaultUB.Default = {
     AuraListOn = false,
     AuraListUnits = 'player',
     DebugOn = false,
-    APBMoverDisabled = true,
+    APBMoverOptionsDisabled = true,
     APBDisabled = false,
     APBShowUsed = false,
     APBPos = {},
     APBTimerPos = {},
+    EABMoverOptionsDisabled = true,
+    EABPos = {},
     ClassTaggedColor = false,
     CombatClassColor = false,
     CombatTaggedColor = false,
@@ -3626,6 +3632,8 @@ Found under General.
 
 |cff00ffffBLIZZARD ALTERNATE POWER BAR|r This lets you move the blizzard style alternate power bar and the timer.  The timers are used in places like the Darkmoon Faire.  Leave disabled to avoid conflicting with another addon doing the same thing.
 
+|cff00ffffEXTRA ACTION BUTTON|r This lets you move the extra action button.  Leave disabled to avoid conflicting with another addon doing the same thing.
+
 
 |cff00ff00Alt Power Bar|r
 Found under General.  This lists all the alternate power bars in the game.  You can use this information to create triggers that go off of bar ID.  Not every bar will use a color, since blizzards alternate power bar uses textures that may have the color already baked in.
@@ -3682,6 +3690,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 6.30
+|cff00ff00|cff00ff00Frames|r Extra Action Button mover added
 
 Version 6.20
 |cff00ff00|cff00ff00Frames|r Alt Power Bar settings has changed.  This now lets you move blizzards APB

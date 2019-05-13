@@ -738,7 +738,7 @@ local function CreateButton(PredictFrame, EditBox, Index)
   Text:SetHeight(1)
   Text:SetWidth(1)
   Text:SetJustifyH('LEFT')
-  Text:SetAllPoints(Button)
+  Text:SetAllPoints()
   Button:SetFontString(Text)
 
   -- Setup the highlighting
