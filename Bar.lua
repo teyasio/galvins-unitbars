@@ -6718,7 +6718,7 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
       TextFrames[Index] = TextFrame
       FontString = TextFrame:CreateFontString()
 
-      FontString:SetAllPoints(TextFrame)
+      FontString:SetAllPoints()
       TextData[Index] = FontString
     end
 

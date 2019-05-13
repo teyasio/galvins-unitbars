@@ -60,10 +60,10 @@ local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied,
       UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
 local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll =
       UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
-local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub =
-      PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerPowerBarAlt, PlayerBuffTimerManager, GetBuildInfo, LibStub
-local SoundKit, hooksecurefunc =
-      SOUNDKIT, hooksecurefunc
+local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerBuffTimerManager, GetBuildInfo, LibStub =
+      PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerBuffTimerManager, GetBuildInfo, LibStub
+local SoundKit, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1 =
+      SOUNDKIT, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -179,12 +179,15 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.TrackedAurasList  - Set by SetAuraTracker()
 -- Main.PlayerGUID        - Set by ShareData()
 -- Main.GameVersion       - Current version of the game
+--
 -- Main.APBUsed           - Contains list of used power bars. Contains what minimap zone they were used in.
 --                          set by UnitBarsUpdateStatus(). Used by ShareData()
 -- Main.APBUseBlizz       - Contains a list of which power bars should use blizzards own, and not the GUB version
 --                          set by CreateAltPowerBarOptions(). Used by ShareData() and DoBlizzAltPowerBar()
--- Main.APBMoverEnabled   - If true then the blizzard alternate power can be move to a new location
+-- Main.APBMoverEnabled   - If true then the blizzard alternate power can be moved to a new location
 -- Main.APBBuffTimerMoverEnabled - If true then the blizzard alternate power bar timer can be moved to a new location
+-- Main.EABMoverEnabled   - If true then the extra action button can be moved to a new location
+--
 -- Main.Talents           - Contains the table Talents
 --
 -- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
@@ -218,6 +221,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                          Set by InitAltPowerBar(). Used by DoBlizzAltPowerBar()
 -- APBBuffTimerMover      - Used to move the blizzard style buff timer alternate power bar
 --                          Set by InitAltPowerBar(). Used by DoBlizzAltPowerBar()
+-- EABMover               - Used to move the extra action button.
+--                        - Set by InitExtraActionButton()
 --
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
 -- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed and back into uppercase.
@@ -371,8 +376,9 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 local AlignAndSwapTooltipDesc = 'Right mouse button to align and swap this bar'
 local MouseOverDesc = 'Modifier + left mouse button to drag this bar'
 local TrackingFrame = CreateFrame('Frame')
-local APBBuffTimerMover = nil
 local APBMover = nil
+local EABMover = nil
+local APBBuffTimerMover = nil
 local ScanTooltip = nil
 local AuraListName = 'AuraList'
 local InitOnce = true
@@ -539,6 +545,7 @@ Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
 Main.APBBuffTimerMoverEnabled = false
 Main.APBMoverEnabled = false
+Main.EABMoverEnabled = false
 
 -------------------------------------------------------------------------------
 --
@@ -670,18 +677,9 @@ end
 
 --*****************************************************************************
 --
--- Unitbar utility
+-- Unitbar utility (APB and EAB)
 --
 --*****************************************************************************
-
--------------------------------------------------------------------------------
--- APBStartMoving
---
--- Moves the Alternate power bars
--------------------------------------------------------------------------------
-local function APBStartMoving(Frame)
-  Frame:StartMoving()
-end
 
 -------------------------------------------------------------------------------
 -- APBStopMoving
@@ -706,7 +704,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:APBSetMover(Type)
   local Hide = false
-  if UnitBars.APBMoverDisabled then
+  if UnitBars.APBMoverOptionsDisabled then
     Hide = true
   end
 
@@ -736,10 +734,10 @@ function GUB.Main:APBReset()
   APBMover:SetPoint('CENTER', 0, 0)
 
   APBBuffTimerMover:ClearAllPoints()
-  APBBuffTimerMover:SetPoint('CENTER', 0, -100)
+  APBBuffTimerMover:SetPoint('CENTER', 0, -75)
 
   UnitBars.APBPos = {'CENTER', 0, 0}
-  UnitBars.APBTimerPos = {'CENTER', 0, -100}
+  UnitBars.APBTimerPos = {'CENTER', 0, -75}
 
   Main:DoBlizzAltPowerBar()
 end
@@ -757,10 +755,18 @@ local function InitAltPowerBar()
   APBMover:SetSize(75, 50)
   APBMover:SetMovable(true)
   APBMover:SetBackdrop(SelectFrameBorder)
-  APBMover:SetScript('OnMouseDown', APBStartMoving)
+  APBMover:SetScript('OnMouseDown', APBMover.StartMoving)
   APBMover:SetScript('OnMouseUp', APBStopMoving)
   APBMover:SetFrameStrata('HIGH')
   APBMover:SetClampedToScreen(true)
+
+  local FontString = APBMover:CreateFontString(nil)
+  FontString:SetAllPoints()
+  FontString:SetFont([[Fonts\FRIZQT__.TTF]], 13, 'THICKOUTLINE')
+  FontString:SetJustifyH('CENTER')
+  FontString:SetJustifyV('MIDDLE')
+  FontString:SetText('APB')
+
 
   if next(APBPos) == nil then
     APBMover:SetPoint('CENTER', 0, 0)
@@ -773,29 +779,43 @@ local function InitAltPowerBar()
   APBBuffTimerMover:SetSize(250, 75)
   APBBuffTimerMover:SetMovable(true)
   APBBuffTimerMover:SetBackdrop(SelectFrameBorder)
-  APBBuffTimerMover:SetScript('OnMouseDown', APBStartMoving)
+  APBBuffTimerMover:SetScript('OnMouseDown', APBBuffTimerMover.StartMoving)
   APBBuffTimerMover:SetScript('OnMouseUp', APBStopMoving)
   APBBuffTimerMover:SetFrameStrata('HIGH')
   APBBuffTimerMover:SetClampedToScreen(true)
 
+  local FontString = APBBuffTimerMover:CreateFontString(nil)
+  FontString:SetAllPoints()
+  FontString:SetFont([[Fonts\FRIZQT__.TTF]], 13, 'THICKOUTLINE')
+  FontString:SetJustifyH('CENTER')
+  FontString:SetJustifyV('MIDDLE')
+  FontString:SetText('TIMER')
+
   if next(APBTimerPos) == nil then
-    APBBuffTimerMover:SetPoint('CENTER', 0, -100)
+    APBBuffTimerMover:SetPoint('CENTER', 0, -75)
   else
     APBBuffTimerMover:SetPoint(unpack(APBTimerPos))
   end
 
   -- Hook secure func for alt power bars
-  hooksecurefunc('PlayerBuffTimerManager_UpdateTimers', Main.DoBlizzAltPowerBar)
+  hooksecurefunc('PlayerBuffTimerManager_UpdateTimers', function()
+    if not UnitAffectingCombat('player') then
+      Main.DoBlizzAltPowerBar()
+    end
+  end)
 
   -- This is used to make sure the power bar can be repositioned after reload UI
   hooksecurefunc('UIParent_ManageFramePositions', function()
-    local APBMoverDisabled = UnitBars.APBMoverDisabled
-    PlayerPowerBarAlt:SetMovable(true)
-    PlayerPowerBarAlt:SetUserPlaced(not APBMoverDisabled)
+    if not UnitAffectingCombat('player') then
 
-    if not APBMoverDisabled then
-      PlayerPowerBarAlt:ClearAllPoints()
-      PlayerPowerBarAlt:SetPoint('CENTER', APBMover, 'CENTER')
+      local APBMoverOptionsDisabled = UnitBars.APBMoverOptionsDisabled
+      PlayerPowerBarAlt:SetMovable(true)
+      PlayerPowerBarAlt:SetUserPlaced(not APBMoverOptionsDisabled)
+
+      if not APBMoverOptionsDisabled then
+        PlayerPowerBarAlt:ClearAllPoints()
+        PlayerPowerBarAlt:SetPoint('CENTER', APBMover, 'CENTER')
+      end
     end
   end)
 
@@ -817,7 +837,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:DoBlizzAltPowerBar()
   local BuffTimer = nil
-  local APBMoverDisabled = UnitBars.APBMoverDisabled
+  local APBMoverOptionsDisabled = UnitBars.APBMoverOptionsDisabled
   BlizzAltPowerVisible = UnitBars.APBDisabled or APBUseBlizz[AltPowerBarID] or false
 
   -- Look for bufftimers for darkmoon faire or similar
@@ -846,9 +866,9 @@ function GUB.Main:DoBlizzAltPowerBar()
       BuffTimer:ClearAllPoints()
     end
   else -- show
-    PlayerPowerBarAlt:SetUserPlaced(not APBMoverDisabled)
+    PlayerPowerBarAlt:SetUserPlaced(not APBMoverOptionsDisabled)
 
-    if not APBMoverDisabled then
+    if not APBMoverOptionsDisabled then
       PlayerPowerBarAlt:ClearAllPoints()
       PlayerPowerBarAlt:SetPoint('CENTER', APBMover, 'CENTER')
 
@@ -859,6 +879,88 @@ function GUB.Main:DoBlizzAltPowerBar()
     end
   end
 end
+
+-------------------------------------------------------------------------------
+-- EABReset
+--
+-- Reset the extra action button to default position
+-------------------------------------------------------------------------------
+function GUB.Main:EABReset()
+  EABMover:ClearAllPoints()
+  EABMover:SetPoint('CENTER', 0, -150)
+
+  UnitBars.EABPos = {'CENTER', 0, -150}
+
+  Main:DoBlizzAltPowerBar()
+end
+
+-------------------------------------------------------------------------------
+-- InitExtraActionButton
+--
+-- This sets up the extra action button for hiding/showing/moving
+-------------------------------------------------------------------------------
+local function InitExtraActionButton()
+  local EABPos = UnitBars.EABPos
+
+  EABMover = CreateFrame('Frame', nil, UIParent)
+  EABMover:SetSize(ExtraActionButton1:GetSize())
+  EABMover:SetMovable(true)
+  EABMover:SetBackdrop(SelectFrameBorder)
+  EABMover:SetScript('OnMouseDown', EABMover.StartMoving)
+  EABMover:SetScript('OnMouseUp', function()
+    UnitBars.EABPos = { EABMover:GetPoint() }
+    EABMover:StopMovingOrSizing()
+  end)
+  EABMover:SetFrameStrata('HIGH')
+  EABMover:SetClampedToScreen(true)
+
+  local FontString = EABMover:CreateFontString(nil)
+  FontString:SetAllPoints()
+  FontString:SetFont([[Fonts\FRIZQT__.TTF]], 13, 'THICKOUTLINE')
+  FontString:SetJustifyH('CENTER')
+  FontString:SetJustifyV('MIDDLE')
+  FontString:SetText('EAB')
+
+  -- Hook secure func for extra action button
+  hooksecurefunc('UIParent_ManageFramePositions', function()
+    if not UnitAffectingCombat('player') then
+      Main.DoExtraActionButton()
+    end
+  end)
+
+  if next(EABPos) == nil then
+    EABMover:SetPoint(ExtraActionButton1:GetPoint())
+  else
+    EABMover:SetPoint(unpack(EABPos))
+  end
+  Main:DoExtraActionButton()
+end
+
+-------------------------------------------------------------------------------
+-- DoExtraActionButton
+--
+-- Hides and shows the blizzard extra action button frame
+-- And positions them if moving is enable
+-------------------------------------------------------------------------------
+function GUB.Main:DoExtraActionButton()
+  if not UnitBars.EABMoverOptionsDisabled then
+    if Main.EABMoverEnabled then
+      EABMover:Show()
+    else
+      EABMover:Hide()
+    end
+    ExtraActionButton1:ClearAllPoints()
+    ExtraActionButton1:SetPoint('CENTER', EABMover, 'CENTER')
+  else
+    EABMover:Hide()
+  end
+end
+
+--*****************************************************************************
+--
+-- Unitbar utility
+--
+--*****************************************************************************
 
 -------------------------------------------------------------------------------
 -- HideWowFrame
@@ -1246,7 +1348,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
       MessageBox.ContentFrame = ContentFrame
 
       local FontString = ContentFrame:CreateFontString(nil)
-      FontString:SetAllPoints(ContentFrame)
+      FontString:SetAllPoints()
       FontString:SetFont(LSM:Fetch('font', Font or 'Arial Narrow'), FontSize or 13, 'NONE')
       FontString:SetJustifyH('LEFT')
       FontString:SetJustifyV('TOP')
@@ -1262,7 +1364,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
 
     -- Create the dark background for the Scroller
     local ScrollerBG = Scroller:CreateTexture(nil, 'BACKGROUND')
-    ScrollerBG:SetAllPoints(Scroller)
+    ScrollerBG:SetAllPoints()
     ScrollerBG:SetTexture(0, 0, 0, 0.4)
     Scroller.ScrollerBG = ScrollerBG
 
@@ -4758,6 +4860,7 @@ local ExcludeList = {
   ['Reset'] = 1,
   ['APBPos'] = 1,
   ['APBTimerPos'] = 1,
+  ['EABPos'] = 1,
   ['*.BoxLocations'] = 1,
   ['*.BoxOrder'] = 1,
   ['*.Text.#'] = 1,
@@ -4955,6 +5058,7 @@ function GUB:OnEnable()
   ShareData()
   Options:OnInitialize()
   InitAltPowerBar()
+  InitExtraActionButton()
 
   GUB:ApplyProfile()
 
@@ -4967,8 +5071,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 25 then
-    GUBData.ShowMessage = 25
+  if GUBData.ShowMessage ~= 27 then
+    GUBData.ShowMessage = 27
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

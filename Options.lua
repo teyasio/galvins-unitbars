@@ -8539,17 +8539,17 @@ local function CreateFrameOptions(Order, Name)
                 local KeyName = Info[#Info]
                 Main.UnitBars[KeyName] = Value
 
-                if KeyName == 'APBMoverDisabled' then
+                if KeyName == 'APBMoverOptionsDisabled' then
                   Main:APBSetMover()
                 end
               end,
         args = {
           Notes = {
             type = 'description',
-            name = 'This will let you move the blizzard alternate power bar and the timer like those in the Darkmoon Faire\nIf this conflicts with other addons just disable',
+            name = 'This will let you move the blizzard alternate power bar and the timer like those in the Darkmoon Faire\nIf this conflicts with other addons just disable.  May have to reload UI',
             order = 1,
           },
-          APBMoverDisabled = {
+          APBMoverOptionsDisabled = {
             type = 'toggle',
             name = 'Disable mover',
             width = 'normal',
@@ -8559,6 +8559,7 @@ local function CreateFrameOptions(Order, Name)
           Reset = {
             type = 'execute',
             name = 'Reset',
+            width = 'half',
             order = 6,
             confirm = function()
                         return 'Are you sure?'
@@ -8567,7 +8568,7 @@ local function CreateFrameOptions(Order, Name)
                      Main:APBReset()
                    end,
             disabled = function()
-                         return Main.UnitBars.APBMoverDisabled
+                         return Main.UnitBars.APBMoverOptionsDisabled
                        end,
           },
           Spacer7 = CreateSpacer(7),
@@ -8586,7 +8587,7 @@ local function CreateFrameOptions(Order, Name)
                      Main:APBSetMover('apb')
                    end,
             disabled = function()
-                         return Main.UnitBars.APBMoverDisabled
+                         return Main.UnitBars.APBMoverOptionsDisabled
                        end,
           },
           Spacer10 = CreateSpacer(10),
@@ -8605,7 +8606,73 @@ local function CreateFrameOptions(Order, Name)
                      Main:APBSetMover('timer')
                    end,
             disabled = function()
-                         return Main.UnitBars.APBMoverDisabled
+                         return Main.UnitBars.APBMoverOptionsDisabled
+                       end,
+          },
+        },
+      },
+      EABGroup = {
+        type = 'group',
+        order = 3,
+        name = 'Extra Action Button',
+        dialogInline = true,
+        get = function(Info)
+                local KeyName = Info[#Info]
+                return Main.UnitBars[KeyName]
+              end,
+        set = function(Info, Value)
+                local KeyName = Info[#Info]
+                Main.UnitBars[KeyName] = Value
+
+                if KeyName == 'EABMoverOptionsDisabled' then
+                  Main:DoExtraActionButton()
+                end
+              end,
+        args = {
+          Notes = {
+            type = 'description',
+            name = 'This will let you move the extra action button. If this conflicts with other addons just disable.  May have to reload UI',
+            order = 1,
+          },
+          EABMoverOptionsDisabled = {
+            type = 'toggle',
+            name = 'Disable mover',
+            width = 'normal',
+            order = 2,
+          },
+          Spacer5 = CreateSpacer(5, 'normal'),
+          Reset = {
+            type = 'execute',
+            name = 'Reset',
+            width = 'half',
+            order = 6,
+            confirm = function()
+                        return 'Are you sure?'
+                      end,
+            func = function()
+                     Main:EABReset()
+                   end,
+            disabled = function()
+                         return Main.UnitBars.EABMoverOptionsDisabled
+                       end,
+          },
+          Spacer7 = CreateSpacer(7),
+          MoveEAB = {
+            type = 'execute',
+            name = function()
+                     if Main.EABMoverEnabled then
+                       return 'Stop Moving EAB'
+                     else
+                       return 'Move EAB'
+                     end
+                   end,
+            order = 8,
+            func = function()
+                     Main.EABMoverEnabled = not Main.EABMoverEnabled
+                     Main:DoExtraActionButton()
+                   end,
+            disabled = function()
+                         return Main.UnitBars.EABMoverOptionsDisabled
                        end,
           },
         },
