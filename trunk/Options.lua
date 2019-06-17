@@ -11,6 +11,7 @@ local MyAddon, GUB = ...
 local DUB = GUB.DefaultUB.Default.profile
 local Version = GUB.DefaultUB.Version
 local InCombatOptionsMessage = GUB.DefaultUB.InCombatOptionsMessage
+local InCombatOptionsMessage2 = GUB.DefaultUB.InCombatOptionsMessage2
 
 local DefaultBgTexture        = GUB.DefaultUB.DefaultBgTexture
 local DefaultBorderTexture    = GUB.DefaultUB.DefaultBorderTexture
@@ -49,8 +50,8 @@ local ipairs, pairs, type, next, sort, select =
       ipairs, pairs, type, next, sort, select
 local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown =
       InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown
-local UnitReaction, GetAlternatePowerInfoByID =
-      UnitReaction, GetAlternatePowerInfoByID
+local UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat =
+      UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -849,40 +850,53 @@ local function OnHideToGUBOptions()
   Options.MainOptionsOpen = false
 end
 
+local function OpenOptions()
+  -- Hide blizz blizz options if it's opened.
+  if InterfaceOptionsFrame:IsVisible() then
+    InterfaceOptionsFrame:Hide()
+
+    -- Hide the UI panel behind blizz options.
+    HideUIPanel(GameMenuFrame)
+  end
+
+  Bar:SetHighlightFont('on', Main.UnitBars.HideTextHighlight)
+  Options.MainOptionsOpen = true
+
+  -- Open a movable options frame.
+  AceConfigDialog:SetDefaultSize(AddonMainOptions, o.MainOptionsWidth, o.MainOptionsHeight)
+
+  AceConfigDialog:Open(AddonMainOptions)
+
+  -- Set the OnHideFrame's frame parent to AceConfigDialog's options frame.
+  MainOptionsHideFrame:SetParent(AceConfigDialog.OpenFrames[AddonMainOptions].frame)
+
+  -- When hidden call OnHideToGUBOptions for close.
+  MainOptionsHideFrame:SetScript('OnHide', OnHideToGUBOptions)
+end
+
+local function CheckForNoCombat(Timer)
+  if not UnitAffectingCombat('player') then
+    Main:SetTimer(Timer, nil)
+    OpenOptions()
+  end
+end
+
 local function CreateToGUBOptions(Order, Name, Desc)
+  local Timer = {}
+
   local ToGUBOptions = {
     type = 'execute',
     name = Name,
     order = Order,
     desc = Desc,
     func = function()
-
              -- check for in combat
              if not Main.InCombat then
-
-               -- Hide blizz blizz options if it's opened.
-               if InterfaceOptionsFrame:IsVisible() then
-                 InterfaceOptionsFrame:Hide()
-
-                 -- Hide the UI panel behind blizz options.
-                 HideUIPanel(GameMenuFrame)
-               end
-
-               Bar:SetHighlightFont('on', Main.UnitBars.HideTextHighlight)
-               Options.MainOptionsOpen = true
-
-               -- Open a movable options frame.
-               AceConfigDialog:SetDefaultSize(AddonMainOptions, o.MainOptionsWidth, o.MainOptionsHeight)
-
-               AceConfigDialog:Open(AddonMainOptions)
-
-               -- Set the OnHideFrame's frame parent to AceConfigDialog's options frame.
-               MainOptionsHideFrame:SetParent(AceConfigDialog.OpenFrames[AddonMainOptions].frame)
-
-               -- When hidden call OnHideToGUBOptions for close.
-               MainOptionsHideFrame:SetScript('OnHide', OnHideToGUBOptions)
+               OpenOptions()
              else
-               print(InCombatOptionsMessage)
+               Main:SetTimer(Timer, nil)
+               Main:SetTimer(Timer, CheckForNoCombat, 0.10)
+               print(InCombatOptionsMessage2)
              end
            end,
   }
@@ -4179,7 +4193,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                  return TriggerAction('Type') == 0 or not Trigger.Select
                end,
       disabled = function()
-                   return not Trigger.Enabled or Trigger.DisabledBySpec
+                   return not Trigger.Enabled
                  end,
       args = {
         ValueType = {
@@ -4191,7 +4205,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    end,
           style = 'dropdown',
           disabled = function()
-                       return Trigger.Static or not Trigger.Enabled or Trigger.DisabledBySpec
+                       return Trigger.Static or not Trigger.Enabled
                      end,
         },
         Type = {
@@ -4439,7 +4453,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                  return TriggerAction('Value') == 0 or not Trigger.Select
                end,
       disabled = function()
-                   return not Trigger.Enabled or Trigger.DisabledBySpec
+                   return not Trigger.Enabled
                  end,
       args = {
         AuraOperator = {
@@ -7134,6 +7148,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
         local SelectButtonName = SelectButton.Name
         local AllButton = SelectButtonName == 'All'
         local AllButtonText = SelectButtonName == 'All Text'
+        local MainMenu = MenuButtonName == 'Main'
         local Text = IsText[TablePath] ~= nil
 
         if AllButton or Text or Main:GetUB(BarType, TablePath) ~= nil then
@@ -7171,32 +7186,36 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                          -- Hide text buttons that are not needed (this is dynamic)
                          elseif Text and Main:GetUB(BarType, TablePath) == nil then
                            return true
-                         else
-                           -- Check if this is the source menu
-                           if ClipBoard.MenuButtonName == MenuButtonName and ClipBoard.BarType == BarType then
 
-                             -- Check for all text
-                             if ClipBoard.AllButtonText or AllButtonText then
+                         -- Check if this is the source menu
+                         elseif ClipBoard.MenuButtonName == MenuButtonName and ClipBoard.BarType == BarType then
+                           -- Check for all text
+                           if ClipBoard.AllButtonText or AllButtonText then
+                             return true
+                           else
+                             -- Hide all if Main
+                             if MainMenu then
                                return true
                              else
                                -- Check for same button pressed
                                return ClipBoard.SelectButtonName == SelectButtonName
                              end
+                           end
                            -- Destination menu or same menu on a different bar
+                         elseif MainMenu and ClipBoard.SelectButtonName ~= SelectButtonName then
+                           return true
+                         else
+                           -- Hide all text buttons if all text was clicked
+                           if ClipBoard.AllButtonText then
+                             return not AllButtonText
                            else
-                             -- Hide all text buttons if all text was clicked
-                             if ClipBoard.AllButtonText then
-                               return not AllButtonText
-                             else
-                               return AllButtonText
-                             end
+                             return AllButtonText
                            end
                          end
                        else
                          return true
                        end
                      end,
-            arg = {TablePath = TablePath, PasteName = SelectButtonName},
           }
 
           if SelectButtonName == 'Triggers' then
@@ -7769,13 +7788,13 @@ local function BuildAltPowerBarList(APA, Order, Name, TableName)
     order = Order,
     args = {},
     disabled = function()
-                 return Main.UnitBars.APBDisabled
+                 return not Main.UnitBars.AltPowerBar.Enabled
                end,
   }
   APA[TableName] = PowerBarList
   local PBA = PowerBarList.args
 
-  for BarID = 1, 10000 do
+  for BarID = 1, 1000 do
     local AltPowerType, MinPower, _, _, _, _, _, _, _, _, PowerName, PowerTooltip = GetAlternatePowerInfoByID(BarID)
     local ZoneName = APBUsed[BarID]
 
@@ -7785,51 +7804,40 @@ local function BuildAltPowerBarList(APA, Order, Name, TableName)
         PBA[Index] = APA.APB.args[Index]
       end
     elseif AltPowerType then
-      if AltPowerBarSearch == '' or BarID == tonumber(AltPowerBarSearch) or
-                                    strfind(strlower(PowerName),    strlower(AltPowerBarSearch)) or
-                                    strfind(strlower(PowerTooltip), strlower(AltPowerBarSearch)) or
-                                    ZoneName and strfind(strlower(ZoneName), strlower(AltPowerBarSearch)) then
-        PBA['APBUseBlizz' .. BarID] = {
-          type = 'toggle',
-          width = 'full',
-          arg = BarID,
-          name = function()
-                   if ZoneName then
-                     return format('|cff00ff00%s|r : |cffffff00%s|r (|cff00ffff%s|r)', BarID, PowerName, ZoneName)
-                   else
-                     return format('|cff00ff00%s|r : |cffffff00%s|r', BarID, PowerName)
+      PBA['APBUseBlizz' .. BarID] = {
+        type = 'toggle',
+        width = 'full',
+        arg = BarID,
+        name = function()
+                 if ZoneName then
+                   return format('|cff00ff00%s|r : |cffffff00%s|r (|cff00ffff%s|r)', BarID, PowerName, ZoneName)
+                 else
+                   return format('|cff00ff00%s|r : |cffffff00%s|r', BarID, PowerName)
+                 end
+               end,
+        desc = PowerTooltip,
+        order = function()
+                  if APBUsed[BarID] then
+                    return BarID
+                  else
+                    return BarID + 1000
+                  end
+                end,
+        hidden = function()
+                   local APBShowUsed = Main.UnitBars.APBShowUsed
+                   if AltPowerBarSearch == '' or BarID == tonumber(AltPowerBarSearch) or
+                                                 strfind(strlower(PowerName),    strlower(AltPowerBarSearch)) or
+                                                 strfind(strlower(PowerTooltip), strlower(AltPowerBarSearch)) or
+                                                 ZoneName and strfind(strlower(ZoneName), strlower(AltPowerBarSearch)) then
+                     if APBShowUsed and APBUsed[BarID] ~= nil then
+                       return false
+                     elseif not APBShowUsed then
+                       return false
+                     end
                    end
+                   return true
                  end,
-          order = function()
-                    if APBUsed[BarID] then
-                      return BarID
-                    else
-                      return BarID + 1000
-                    end
-                  end,
-          hidden = function()
-                     return APBUsed[BarID] == nil and Main.UnitBars.APBShowUsed
-                   end,
-          disabled = function()
-                       return Main.HasAltPower
-                     end,
-        }
-        PBA['Line2' .. BarID] = {
-          type = 'description',
-          name = PowerTooltip,
-          fontSize = 'medium',
-          order = function()
-                    if APBUsed[BarID] then
-                      return BarID + 0.2
-                    else
-                      return BarID + 1000.3
-                    end
-                  end,
-          hidden = function()
-                     return APBUsed[BarID] == nil and Main.UnitBars.APBShowUsed
-                   end,
-        }
-      end
+      }
     end
   end
 end
@@ -7860,21 +7868,12 @@ local function CreateAltPowerBarOptions(Order, Name)
               Main.APBUseBlizz[Info.arg] = Value
             elseif KeyName == 'Search' then
               AltPowerBarSearch = Value
-              BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
-              BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
             else
-              if APA and strfind(KeyName, 'APBDisabled') and Value then
-                APA.PowerBarList = nil
-              end
               Main.UnitBars[KeyName] = Value
             end
           end,
     disabled = function()
-                 if not Main.UnitBars.APBDisabled then
-                   BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
-                   BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
-                 end
-                 return Main.HasAltPower
+                 return not Main.UnitBars.AltPowerBar.Enabled or Main.HasAltPower
                end,
     args = {
       Description = {
@@ -7886,9 +7885,6 @@ local function CreateAltPowerBarOptions(Order, Name)
         type = 'input',
         name = 'Search',
         order = 3,
-        disabled = function()
-                     return Main.UnitBars.APBDisabled or Main.HasAltPower
-                   end,
       },
       clearSearch = {
         type = 'execute',
@@ -7898,29 +7894,21 @@ local function CreateAltPowerBarOptions(Order, Name)
         order = 4,
         func = function()
                  AltPowerBarSearch = ''
-                 BuildAltPowerBarList(APA, 100, 'Alternate Power Bar', 'APB')
-                 BuildAltPowerBarList(APA, 101, 'Use Blizzard', 'APBUseBlizz')
                  HideTooltip(true)
                end,
-        disabled = function()
-                     return Main.UnitBars.APBDisabled or Main.HasAltPower
-                   end,
       },
       APBShowUsed = {
         type = 'toggle',
         name = 'Show used bars only',
         width = 'normal',
         order = 5,
-        disabled = function()
-                     return Main.UnitBars.APBDisabled or Main.HasAltPower
-                   end,
       },
-      APBDisabled = {
+--[[      APBDisabled = {
         type = 'toggle',
         name = 'Disable',
         width = 'half',
         order = 6,
-      },
+      }, --]]
       Spacer10 = CreateSpacer(10),
     },
   }

@@ -63,7 +63,7 @@ local ComboSBar = 10
 local ComboDarkTexture = 11
 local ComboLightTexture = 12
 
-local RegionGroup = 11
+local RegionGroup = 13
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -118,8 +118,8 @@ local Groups = { -- BoxNumber, Name, ValueTypes,
                 'whole', 'Combo Points',
                 'whole', 'Anticipation Points',
                 'state', 'Active',
-                'auras', 'Auras'               }, TD},   -- 10
-  {'r', 'Region',     VTs, TDregion},  -- 11
+                'auras', 'Auras'               }, TD},   -- 12
+  {'r', 'Region',     VTs, TDregion},  -- 13
 }
 
 -- Combo layouts
