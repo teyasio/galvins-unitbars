@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 630
+GUB.DefaultUB.Version = 631
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -230,7 +230,8 @@ local DefaultAnimationType = 'alpha'
 local DefaultAnimationOutTime = 0.7
 local DefaultAnimationInTime = 0.30
 
-GUB.DefaultUB.InCombatOptionsMessage = "Can't have options opened during combat"
+GUB.DefaultUB.InCombatOptionsMessage  = "Can't have options opened during combat"
+GUB.DefaultUB.InCombatOptionsMessage2 = 'Options will open after combat ends'
 
 GUB.DefaultUB.DefaultBgTexture = DefaultBgTexture
 GUB.DefaultUB.DefaultBorderTexture = DefaultBorderTexture
@@ -395,7 +396,6 @@ GUB.DefaultUB.Default = {
     AuraListUnits = 'player',
     DebugOn = false,
     APBMoverOptionsDisabled = true,
-    APBDisabled = false,
     APBShowUsed = false,
     APBPos = {},
     APBTimerPos = {},
@@ -475,7 +475,6 @@ MergeTable(Profile.PlayerHealth, {
     AbsorbHealth = true,
     ClassColor = false,
     CombatColor = false,
-    TaggedColor = false,
   },
   Attributes = {
     Scale = 1,
@@ -3690,6 +3689,11 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 6.31
+|cff00ff00|cff00ff00Blizzards Alternate Power Bar|r will show when GUBs alt power bar is turned off.  This replaces the disable option under General -> Alt Power Bar
+|cff00ff00|cff00ff00Aura Triggers|r The time it takes to load the spells pulldown menu has been greatly reduced
+|cff00ff00|cff00ff00/gub c|r Will automatically open after combat ends
 
 Version 6.30
 |cff00ff00|cff00ff00Frames|r Extra Action Button mover added

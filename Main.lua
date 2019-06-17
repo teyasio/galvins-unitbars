@@ -200,8 +200,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- MouseOverDesc          - Mouse over tooltip displayed to drag bar.
 -- UnitBarVersion         - Current version of the mod.
 -- AlignAndSwapTooltipDesc - Tooltip to be shown when the alignment tool is active.
--- OtherEvents            - Used by UnitBarsUpdateStatus(). This will update all the bars if an Event matches this list.
--- UpdateStatusDelay      - Time in seconds before calling UnitBarsUpdateStatus() when profile has changed.  Used in ApplyProfile()
 -- AnchorOffset           - Table used when changing the Anchor size.  Used by SetAnchorSize()
 --
 -- InCombat               - True or false. If true then the player is in combat.
@@ -402,8 +400,6 @@ local PlayerClass = nil
 local PlayerStance = nil
 local PlayerSpecialization = nil
 local PlayerGUID = nil
-local UpdateStatusDelay = 5  -- time in seconds before calling UnitBarsUpdateStatus()
-local OtherEvents = {}
 local APBUsed = nil
 local APBUseBlizz = nil
 
@@ -609,11 +605,7 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'ZONE_CHANGED',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'ZONE_CHANGED_INDOORS',          GUB.UnitBarsUpdateStatus)
 
-    -- These events will always be checked even if unit is not a player.
-    OtherEvents['UNIT_FACTION'] = 1
-
     -- Rest of the events are defined at the end of each lua file for the bars.
-
   elseif EventType == 'casttracker' then
     local Flag = Action == 'register'
 
@@ -838,9 +830,9 @@ end
 function GUB.Main:DoBlizzAltPowerBar()
   local BuffTimer = nil
   local APBMoverOptionsDisabled = UnitBars.APBMoverOptionsDisabled
-  BlizzAltPowerVisible = UnitBars.APBDisabled or APBUseBlizz[AltPowerBarID] or false
+  BlizzAltPowerVisible = not UnitBars.AltPowerBar.Enabled or APBUseBlizz[AltPowerBarID] or false
 
-  -- Look for bufftimers for darkmoon faire or similar
+  -- Look for bufftimers for darkmoon fair or similar
   for TimerIndex = 1, 10 do
     BuffTimer = _G[format('BuffTimer%s', TimerIndex)]
 
@@ -1294,18 +1286,6 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
   end
 
   return r1, g1, b1, a1
-end
-
--------------------------------------------------------------------------------
--- GetGameVersion
---
--- Returns the current version of the game as an integer
---
--- Example: 725 would be 7.2.5
--------------------------------------------------------------------------------
-local function GetGameVersion()
-  local v1, v2, v3 = strsplit('.', GetBuildInfo())
-  return (tonumber(v1) or 1) * 100 +  (tonumber(v2) or 0) * 10 + (tonumber(v3) or 0)
 end
 
 -------------------------------------------------------------------------------
@@ -4223,20 +4203,6 @@ end
 -- This also updates all unitbars that are visible.
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdateStatus(Event, Unit)
-  if Unit ~= nil then
-    -- Check for other events.
-    if OtherEvents[Event] then
-      for _, UBF in ipairs(UnitBarsFE) do
-        UBF:Update()
-      end
-      return
-    end
-    -- Do nothing if the unit is not 'player'.
-    if Unit ~= 'player' then
-      return
-    end
-  end
-
   InCombat = UnitAffectingCombat('player')
   InVehicle = UnitHasVehicleUI('player')
   InPetBattle = C_PetBattles.IsInBattle()
@@ -4997,7 +4963,7 @@ end
 -- until after OnEnable()
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
-  if GetGameVersion() < 800 then
+  if select(4, GetBuildInfo()) < 80000 then
     message("Galvin's UnitBars\nThis will work on WoW 8.x or higher only")
     return
   end
@@ -5071,8 +5037,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 27 then
-    GUBData.ShowMessage = 27
+  if GUBData.ShowMessage ~= 28 then
+    GUBData.ShowMessage = 28
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
