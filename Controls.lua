@@ -2,7 +2,7 @@
 
 -- Contains custom controls.
 --
--- Autocomplete Menu  Modified from AceGUI-3.0-Spell-EditBox
+-- Aura Menu          Modified from AceGUI-3.0-Spell-EditBox
 -- Menu Button        Button thats part menu and part button. Used by triggers
 -- Flex Button        Button that can be flexible in size.  Also can be left/center/right justified.
 -- Editbox Selected   An edit box that automatically selects what's in it.
@@ -170,7 +170,7 @@ local TextButtonBorder = {
 -------------------------------------------------------------------------------
 -- LoadSpells
 --
--- Loads spells just once.  This is used for the autocomplete menu
+-- Loads spells just once.  This is used for the aura menu
 -------------------------------------------------------------------------------
 local function LoadSpells()
   if not SpellsLoaded then
@@ -208,7 +208,7 @@ end
 
 --*****************************************************************************
 --
--- Editbox for the autocomplete menu
+-- Editbox for the aura menu
 --
 --*****************************************************************************
 
@@ -301,7 +301,7 @@ end
 -------------------------------------------------------------------------------
 -- AddAuraMenuButton
 --
--- Adds a button to the autocomplete menu frame
+-- Adds a button to the aura menu frame
 --
 -- ActiveButton    Button position to add one at.
 -- FormatText      Format string
@@ -330,7 +330,7 @@ end
 -------------------------------------------------------------------------------
 -- PopulateAuraMenu
 --
--- Populates the autocomplete menu with a list of spells matching the spell name entered.
+-- Populates the aura menu with a list of spells matching the spell name entered.
 -------------------------------------------------------------------------------
 local function SortMatches(a, b)
    return SpellList[a] < SpellList[b]
@@ -439,7 +439,7 @@ end
 -------------------------------------------------------------------------------
 -- AuraMenuOnShow
 --
--- Hides the autocomplete menu editbox and restores binds, tooltips
+-- Hides the aura menu editbox and restores binds, tooltips
 -------------------------------------------------------------------------------
 local function AuraMenuOnShow(self)
   if self.EditBox:GetText() ~= '' then
@@ -450,7 +450,7 @@ end
 -------------------------------------------------------------------------------
 -- AuraMenuOnHide
 --
--- Hides the autocomplete menu editbox and restores binds, tooltips
+-- Hides the aura menu editbox and restores binds, tooltips
 -------------------------------------------------------------------------------
 local function AuraMenuOnHide(self)
 
@@ -468,7 +468,7 @@ local function AuraMenuOnHide(self)
   self.MenuFrame:Hide()
 
 
-  -- Reset all bindings set on this autocomplete menu
+  -- Reset all bindings set on this aura menu
   ClearOverrideBindings(self)
 end
 
@@ -481,7 +481,7 @@ local function EditBoxOnEnterPressed(self)
   local Widget = self.Widget
   local AuraMenuFrame = Widget.AuraMenuFrame
 
-  -- Something is selected in the autocomplete menu, use that value instead of whatever is in the input box
+  -- Something is selected in the aura menu, use that value instead of whatever is in the input box
   if AuraMenuFrame.SelectedButton then
     AuraMenuFrame.Buttons[Widget.AuraMenuFrame.SelectedButton]:Click()
     return
@@ -552,7 +552,7 @@ end
 
 --*****************************************************************************
 --
--- Editbox for the autocomplete menu
+-- Editbox for the aura menu
 -- API calls
 --
 --*****************************************************************************
@@ -635,7 +635,7 @@ end
 -------------------------------------------------------------------------------
 -- AuraMenuButtonOnEnter
 --
--- Highlights the autocomplete menu button when the mouse enters the button area
+-- Highlights the aura menu button when the mouse enters the button area
 -------------------------------------------------------------------------------
 local function AuraMenuButtonOnEnter(self)
   self.parent.SelectedButton = nil
@@ -657,7 +657,7 @@ end
 -------------------------------------------------------------------------------
 -- AuraMenuButtonOnLeave
 --
--- Highlights the autocomplete menu button when the mouse enters the button area
+-- Highlights the aura menu button when the mouse enters the button area
 -------------------------------------------------------------------------------
 local function AuraMenuButtonOnLeave(self)
   self:UnlockHighlight()
@@ -676,7 +676,7 @@ end
 -------------------------------------------------------------------------------
 -- CreateButton
 --
--- Creates a button for the autocomplete menu frame.
+-- Creates a button for the aura menu frame.
 --
 -- AuraMenuFrame  Frame the will contain the buttons
 -- EditBox        Reference to the EditBox
@@ -733,7 +733,7 @@ end
 -------------------------------------------------------------------------------
 -- AuraMenuConstructor
 --
--- Creates the widget for the edit box and autocomplete menu
+-- Creates the widget for the edit box and aura menu
 -------------------------------------------------------------------------------
 local function AuraMenuConstructor()
   local Frame = CreateFrame('Frame', nil, UIParent)
@@ -784,7 +784,7 @@ local function AuraMenuConstructor()
   MenuFrame.Scroller = Scroller
   AuraMenuFrame.Scroller = Scroller
 
-  -- Create the mass of autocomplete menu rows
+  -- Create the mass of aura menu rows
   for Index = 1, AuraMenuLines + 1 do
     Buttons[Index] = CreateButton(AuraMenuFrame, EditBox, Index)
   end
