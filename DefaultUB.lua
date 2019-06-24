@@ -3694,9 +3694,9 @@ Version 6.33
 TOC update
 
 Version 6.31
-|cff00ff00|cff00ff00Blizzards Alternate Power Bar|r will show when GUBs alt power bar is turned off.  This replaces the disable option under General -> Alt Power Bar
-|cff00ff00|cff00ff00Aura Triggers|r The time it takes to load the spells pulldown menu has been greatly reduced
-|cff00ff00|cff00ff00/gub c|r Will automatically open after combat ends
+|cff00ff00Blizzards Alternate Power Bar|r will show when GUBs alt power bar is turned off.  This replaces the disable option under General -> Alt Power Bar
+|cff00ff00Aura Triggers|r The time it takes to load the spells pulldown menu has been greatly reduced
+|cff00ff00Options|r Will automatically open after combat ends if you try to open during combat
 
 Version 6.30
 |cff00ff00|cff00ff00Frames|r Extra Action Button mover added
@@ -3713,29 +3713,21 @@ Version 6.10
 |cff00ff00Sync Fill Direction|r default on.  This will change the fill direction to fit the rotation
 |cff00ff00Clipping|r default on.  This can turn clipping off making textures stretch when filling
 
-
 Version 6.01
 |cff00ff00Conditions|r for triggers.  New operators added 'T<>', 'T=', 'P<>', and 'P='. Works like normal operators except these check talents that are active. P is for PvP talents. These are only available for Percent and Whole Number
-
 
 Version 6.00
 |cff00ff00Specializations|r for mana power and pet bars.  Now have defaults set for class or specs that always have a pet.  All other specs set to unchecked
 
-
 Version 5.72
-
 |cff00ff00Absorb Health|r added to all health bars.  Options found under 'Layout' and 'Bar'
 |cff00ff00Text|r for health and power bars.  Predicted Power, Predicted Cost, Predicted Health, and Absorb Health. Will not show if their value is zero
 
-
 Version 5.70
-
 |cff00ff00Specialization|r settings in triggers will have to be redone.  This has been recoded
 |cff00ff00Specializations|r has been added to all bars.  This is found above 'Status'. This replaces the Hide not Usable option which has been ported to the 'All' setting
 
-
 Version 5.60
-
 ** ALL CUSTOM TEXT WILL CAUSE AN ERROR
 ** You'll need to go into text options, exit custom text and create a new one.
 
@@ -3747,16 +3739,12 @@ Version 5.60
 |cff00ff00Reset options|r now has pause text, this was missing
 |cff00ff00Links|r added to 'Help'.  Has all the links to videos and websites
 
-
 Version 5.50
-
 |cff00ff00Stagger bar|r added for brewmaster monks
 |cff00ff00Copy and Paste|r can now copy between all color types
 |cff00ff00Triggers|r can now take time as an option for the Rune Bar and Stagger Bar
 
-
 Version 5.41
-
 |cff00ff00Rune Bar|r changed to reflect UI changes
 |cff00ff00Fragment bar|r replaces shard bar for destruction warlocks
 
@@ -3767,9 +3755,7 @@ Version 5.41
 |cff00ff00Test mode|r has been moved to Layout
 |cff00ff00Debug|r added to help the author track bugs from text. Can be found under General options
 
-
 Version 5.13
-
 |cff00ff00Elvui|r compatability changes made
 |cff00ff00ComboBar|r has been recoded.  Bar and Background settings will have to be redone
 
@@ -3800,5 +3786,3 @@ Version 5.13
 |cff00ff00Animation Triggers|r Bar Offset, Texture Scale, Text Font Size, and Text Font Offset
 |cff00ff00Smooth fill max time|r Sets the maximum time a smooth fill can take.  Found next to smooth fill speed
 ]]
-
-
