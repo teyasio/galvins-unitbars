@@ -1649,7 +1649,7 @@ local function SetupPullout(Widget)
   -- Setup the pullout width and height
   UserData.MaxHeight = Pullout.maxHeight
   Pullout:SetMaxHeight(188)
- -- Dropdown:SetPulloutWidth(200)
+  Widget:SetPulloutWidth(280)
 
   -- Move slider a few pixels to the left and make it easier to click
   Slider:SetHitRectInsets(-5, 0, -10, 0)
@@ -1695,6 +1695,8 @@ end
 local function DropdownSelectConstructor()
   local Widget = AceGUI:Create('Dropdown')
   Widget.type = DropdownSelectWidgetType
+
+  print('CONSTRUCT')
 
   -- methods
   local OldOnRelease = Widget.OnRelease
