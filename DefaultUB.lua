@@ -3691,7 +3691,7 @@ GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 
 Version 6.33
-TOC update
+|cff00ff00Trigger|r talents menu now has a scrollbar
 
 Version 6.31
 |cff00ff00Blizzards Alternate Power Bar|r will show when GUBs alt power bar is turned off.  This replaces the disable option under General -> Alt Power Bar
