@@ -88,6 +88,7 @@ local AddonSlashOptions = MyAddon
 local DoFunctions = {}
 local MainOptionsHideFrame = CreateFrame('Frame')
 local SwapAlignOptionsHideFrame = CreateFrame('Frame')
+local OutOfCombatFrame = CreateFrame('Frame')
 
 local SlashOptions = nil
 local OptionsToGUB = nil
@@ -850,54 +851,43 @@ local function OnHideToGUBOptions()
   Options.MainOptionsOpen = false
 end
 
-local function OpenOptions()
+local function OpenOptionsOOC()
+
   -- Hide blizz blizz options if it's opened.
   if InterfaceOptionsFrame:IsVisible() then
     InterfaceOptionsFrame:Hide()
-
     -- Hide the UI panel behind blizz options.
     HideUIPanel(GameMenuFrame)
   end
-
   Bar:SetHighlightFont('on', Main.UnitBars.HideTextHighlight)
   Options.MainOptionsOpen = true
-
   -- Open a movable options frame.
   AceConfigDialog:SetDefaultSize(AddonMainOptions, o.MainOptionsWidth, o.MainOptionsHeight)
-
   AceConfigDialog:Open(AddonMainOptions)
-
   -- Set the OnHideFrame's frame parent to AceConfigDialog's options frame.
   MainOptionsHideFrame:SetParent(AceConfigDialog.OpenFrames[AddonMainOptions].frame)
-
   -- When hidden call OnHideToGUBOptions for close.
   MainOptionsHideFrame:SetScript('OnHide', OnHideToGUBOptions)
 end
 
-local function CheckForNoCombat(Timer)
-  if not UnitAffectingCombat('player') then
-    Main:SetTimer(Timer, nil)
-    OpenOptions()
+local function OpenOptions()
+  if not Main.InCombat then
+    OpenOptionsOOC()
+  else
+    OutOfCombatFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
+    OutOfCombatFrame:SetScript('OnEvent', OpenOptionsOOC)
+    print(InCombatOptionsMessage2)
   end
 end
 
 local function CreateToGUBOptions(Order, Name, Desc)
-  local Timer = {}
-
   local ToGUBOptions = {
     type = 'execute',
     name = Name,
     order = Order,
     desc = Desc,
     func = function()
-             -- check for in combat
-             if not Main.InCombat then
-               OpenOptions()
-             else
-               Main:SetTimer(Timer, nil)
-               Main:SetTimer(Timer, CheckForNoCombat, 0.10)
-               print(InCombatOptionsMessage2)
-             end
+             OpenOptions()
            end,
   }
   return ToGUBOptions
@@ -934,7 +924,7 @@ end
 --
 -- Creates options to be used in blizz options that takes you to GUB options
 -- that can be moved.
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 local function CreateOptionsToGUB()
   local OptionsToGUB = {
     name = AddonName,
@@ -2837,6 +2827,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
   -- Value Talents
   TOA[ConditionTalent] = {
     type = 'select',
+    dialogControl = 'GUB_Dropdown_Select',
     name = function()
              return format('Talent (%s)', IsTalent or '')
            end,
@@ -2847,12 +2838,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
             local Value = tostring(Condition.Value)
             local Dropdown = nil
 
-            if IsTalent == 'PvE' then
-              Dropdown = Talents.Dropdown
-            else
-              Dropdown = Talents.PvPDropdown
-            end
-
+            Dropdown = Talents[IsTalent].Dropdown
             Value = FindMenuItem(Dropdown, Value)
 
             -- Save value as a string
@@ -2868,11 +2854,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
     set = function(Info, Value)
             local Dropdown = nil
 
-            if IsTalent == 'PvE' then
-              Dropdown = Talents.Dropdown
-            else
-              Dropdown = Talents.PvPDropdown
-            end
+            Dropdown = Talents[IsTalent].Dropdown
             Condition.Value = Dropdown[Value]
 
             -- Update bar to reflect trigger changes
@@ -2881,11 +2863,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
             BBar:Display()
           end,
     values = function()
-               if IsTalent == 'PvE' then
-                 return Talents.IconDropdown
-               else
-                 return Talents.IconPvPDropdown
-               end
+               return Talents[IsTalent].IconDropdown
              end,
     style = 'dropdown',
     hidden = function()
@@ -3509,7 +3487,6 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
                    return BBar ~= nil
                  end,
       },
-      Spacer10 = CreateSpacer(10),
       Class = {
         type = 'select',
         name = 'Class',

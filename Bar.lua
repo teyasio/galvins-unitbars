@@ -884,6 +884,18 @@ local TalentType = {
   ['P<>'] = 'PvP'
 }
 
+-- Talent Equal
+local TalentEqual = {
+  ['T='] = 'PvE',
+  ['P='] = 'PvP',
+}
+
+-- Talents Not Equal
+local TalentNotEqual = {
+  ['T<>'] = 'PvE',
+  ['P<>'] = 'PvP',
+}
+
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 --
 -- Utility
@@ -1414,7 +1426,11 @@ function BarDB:PlaySound(SoundName, Channel)
   -- No SaveSettings for sound. Since there is nothing visual to restore.
 
   if not Main.ProfileChanged and not Main.IsDead then
-    PlaySoundFile(LSM:Fetch('sound', SoundName), Channel)
+    local SoundFile = LSM:Fetch('sound', SoundName, true)
+
+    if SoundFile then
+      PlaySoundFile(SoundFile, Channel)
+    end
   end
 end
 
@@ -8031,12 +8047,13 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
             local NumConditions = #Conditions
             local Result = false
             local Active = Talents.Active
-            local PvPActive = Talents.PvPActive
 
             -- Search thru conditions to find one or more that are true.
             for ConditionIndex = 1, NumConditions do
               local Condition = Conditions[ConditionIndex]
               local Operator = Condition.Operator
+              local TE = TalentEqual[Operator]
+              local TNE = TalentNotEqual[Operator]
               local Value = Condition.Value
 
               if CompString and (
@@ -8052,10 +8069,9 @@ function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
                  CompString == nil and type(Value) == 'string' and (
 
                    -- Talents
-                   Operator == 'T='  and Active[Value]           or
-                   Operator == 'T<>' and Active[Value]    == nil or
-                   Operator == 'P='  and PvPActive[Value]        or
-                   Operator == 'P<>' and PvPActive[Value] == nil    ) then
+                   -- Talents
+                   TE  and Active[Value] or
+                   TNE and Active[Value] == nil ) then
 
                 -- dont need to check all conditions.
                 if not All then

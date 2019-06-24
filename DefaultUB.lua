@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 631
+GUB.DefaultUB.Version = 633
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3689,6 +3689,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 6.33
+TOC update
 
 Version 6.31
 |cff00ff00|cff00ff00Blizzards Alternate Power Bar|r will show when GUBs alt power bar is turned off.  This replaces the disable option under General -> Alt Power Bar

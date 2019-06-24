@@ -54,16 +54,16 @@ local C_PetBattles, C_TimerAfter,  GetShapeshiftFormID, GetSpecialization, GetSp
       C_PetBattles, C_Timer.After, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
 local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfoByID =
       C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID
-local UnitAffectingCombat, UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
-      UnitAffectingCombat, UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
+local UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
+      UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
 local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
       UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
 local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll =
       UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
 local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerBuffTimerManager, GetBuildInfo, LibStub =
       PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerBuffTimerManager, GetBuildInfo, LibStub
-local SoundKit, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1 =
-      SOUNDKIT, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1
+local SoundKit, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1, InCombatLockdown, UnitAffectingCombat =
+      SOUNDKIT, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1, InCombatLockdown, UnitAffectingCombat
 
 ------------------------------------------------------------------------------
 -- Register GUB textures with LibSharedMedia
@@ -759,7 +759,7 @@ local function InitAltPowerBar()
   FontString:SetJustifyV('MIDDLE')
   FontString:SetText('APB')
 
-
+  APBMover:ClearAllPoints()
   if next(APBPos) == nil then
     APBMover:SetPoint('CENTER', 0, 0)
   else
@@ -783,6 +783,7 @@ local function InitAltPowerBar()
   FontString:SetJustifyV('MIDDLE')
   FontString:SetText('TIMER')
 
+  APBBuffTimerMover:ClearAllPoints()
   if next(APBTimerPos) == nil then
     APBBuffTimerMover:SetPoint('CENTER', 0, -75)
   else
@@ -791,14 +792,14 @@ local function InitAltPowerBar()
 
   -- Hook secure func for alt power bars
   hooksecurefunc('PlayerBuffTimerManager_UpdateTimers', function()
-    if not UnitAffectingCombat('player') then
+    if not InCombatLockdown() then
       Main.DoBlizzAltPowerBar()
     end
   end)
 
   -- This is used to make sure the power bar can be repositioned after reload UI
   hooksecurefunc('UIParent_ManageFramePositions', function()
-    if not UnitAffectingCombat('player') then
+    if not InCombatLockdown() then
 
       local APBMoverOptionsDisabled = UnitBars.APBMoverOptionsDisabled
       PlayerPowerBarAlt:SetMovable(true)
@@ -915,7 +916,7 @@ local function InitExtraActionButton()
 
   -- Hook secure func for extra action button
   hooksecurefunc('UIParent_ManageFramePositions', function()
-    if not UnitAffectingCombat('player') then
+    if not InCombatLockdown() then
       Main.DoExtraActionButton()
     end
   end)
@@ -2677,6 +2678,7 @@ function GUB.Main:SetPredictedSpells(UnitBarF, Action, Fn)
   end
 end
 
+
 -------------------------------------------------------------------------------
 -- GetTalents
 --
@@ -2684,106 +2686,97 @@ end
 --
 -- NOTES: PvP talent table
 --   enabled            - Enable or disable talents. True if enabled.
---   selectedTalentID   - PvP talent selected.  This doesn't exist if nothing is selected
---   availableTalentIDs - Array containing a list of the PvP talents.
 --
 -- Talents data structure:
---   Talents
---     Active[Talent Name]      Talent Name is a string, if not nil then talent is in use
---     PvPActive[Talent Name]   Same as above except for PvP
---     Dropdown                 Array showing all the available talents. Used by options
---     PvPDropdown              Array showing all the available pvp talents. Used by options
+--   Talents.Active[Talent Name]   Talent Name is a string, if not nil then talent is in use
+--   Talents.PvE                   Array showing all the available talents for PvE
+--     Dropdown                    Dropdown menu used by options
+--     IconDropdown                Same as dropdown with icons
+--   Talents.PvP                   Same as above except for PvP
 -------------------------------------------------------------------------------
 function GUB.Main:GetTalents()
-  local DropdownIndex = 0
-  local Index = 0
-  local AllTalentIDs = nil -- To handle repeats for PvP talents
-
-  local DropdownDefined = true
-  local Dropdown = Talents.Dropdown
-  local PvPDropdown = Talents.PvPDropdown
-  local IconDropdown = Talents.IconDropdown
-  local IconPvPDropdown = Talents.IconPvPDropdown
-
-  if Dropdown == nil then
-    Dropdown = {}
-    IconDropdown = {}
-    PvPDropdown = {}
-    IconPvPDropdown = {}
-
-    Talents.Dropdown = Dropdown
-    Talents.IconDropdown = IconDropdown
-    Talents.PvPDropdown = PvPDropdown
-    Talents.IconPvPDropdown = IconPvPDropdown
-
-    DropdownDefined = false
-    AllTalentIDs = {}
-  end
-
   local Active = Talents.Active
-  local PvPActive = Talents.PvPActive
+  local AllTalentIDs = nil -- To handle repeats for PvP talents
 
   if Active == nil then
     Active = {}
-    PvPActive = {}
     Talents.Active = Active
-    Talents.PvPActive = PvPActive
+    Talents.PvE = {}
+    Talents.PvP = {}
   end
-
   wipe(Active)
-  wipe(PvPActive)
 
-  -- Get PvE talents
-  DropdownIndex = 0
-  for Tier = 1, 10 do
-    for Column = 1, 3 do
-      Index = Index + 1
-      local _, Name, Icon, Selected, _, _, _, _, _, _, Known  = GetTalentInfo(Tier, Column, 1)
+  for Key in pairs(Talents) do
+    if Key ~= 'Active' then
+      local DropdownIndex = 0
+      local DropdownDefined = true
 
-      if Name then
-        if Selected or Known then
-          Active[Name] = true
-        end
-        if not DropdownDefined then
-          DropdownIndex = DropdownIndex + 1
-          Dropdown[DropdownIndex] = Name
-          IconDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
-        end
-      end
-    end
-  end
+      local Dropdowns = Talents[Key]
+      local Dropdown = Dropdowns.Dropdown
+      local IconDropdown = Dropdowns
 
-  -- Get PvP talents
-  Index = 0
-  DropdownIndex = 0
-  for SlotIndex = 1, 4 do
-    -- Sometimes this returns, nil so need to check it. Why does blizzard do stuff like this.
-    local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
+      if Dropdown == nil then
+        Dropdown = {}
+        IconDropdown = {}
+        Dropdowns.Dropdown = Dropdown
+        Dropdowns.IconDropdown = IconDropdown
 
-    if SlotInfo then
-      local TalentID = SlotInfo.selectedTalentID
-      local TalentIDs = SlotInfo.availableTalentIDs
-
-      if TalentID then
-        Index = Index + 1
-        local _, Name = GetPvpTalentInfoByID(TalentID)
-
-        PvPActive[Name] = true
+        DropdownDefined = false
+        AllTalentIDs = {}
       end
 
-      if not DropdownDefined then
-        for PvPIndex = 1, #TalentIDs do
-          TalentID = TalentIDs[PvPIndex]
+      -- Get PvE talents
+      if Key == 'PvE' then
+        DropdownIndex = 0
+        for Tier = 1, 10 do
+          for Column = 1, 3 do
+            local _, Name, Icon, Selected, _, _, _, _, _, _, Known  = GetTalentInfo(Tier, Column, 1)
 
-          -- Only add if its a new talent
-          if AllTalentIDs[TalentID] == nil then
-            DropdownIndex = DropdownIndex + 1
+            if Name then
+              if Selected or Known then
+                Active[Name] = true
+              end
+              if not DropdownDefined then
+                DropdownIndex = DropdownIndex + 1
+                Dropdown[DropdownIndex] = Name
+                IconDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+              end
+            end
+          end
+        end
+      else
+        -- Get PvP talents
+        DropdownIndex = 0
+        for SlotIndex = 1, 4 do
+          -- Sometimes this returns, nil so need to check it. Why does blizzard do stuff like this.
+          local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
 
-            AllTalentIDs[TalentID] = true
-            local _, Name, Icon = GetPvpTalentInfoByID(TalentID)
+          if SlotInfo then
+            local TalentID = SlotInfo.selectedTalentID
+            local TalentIDs = SlotInfo.availableTalentIDs
 
-            PvPDropdown[DropdownIndex] = Name
-            IconPvPDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+            if TalentID then
+              local _, Name = GetPvpTalentInfoByID(TalentID)
+
+              Active[Name] = true
+            end
+
+            if not DropdownDefined then
+              for PvPIndex = 1, #TalentIDs do
+                TalentID = TalentIDs[PvPIndex]
+
+                -- Only add if its a new talent
+                if AllTalentIDs[TalentID] == nil then
+                  DropdownIndex = DropdownIndex + 1
+
+                  AllTalentIDs[TalentID] = true
+                  local _, Name, Icon = GetPvpTalentInfoByID(TalentID)
+
+                  Dropdown[DropdownIndex] = Name
+                  IconDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
+                end
+              end
+            end
           end
         end
       end

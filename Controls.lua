@@ -20,14 +20,15 @@ local LSM = Main.LSM
 local AceGUI = LibStub('AceGUI-3.0')
 
 -- localize some globals.
+local _G = _G
 local GetSpellInfo, SPELL_PASSIVE, ipairs, pairs, type, tonumber, CreateFrame, select, floor, strlower, strfind, strsplit, format, tinsert, print, sort =
       GetSpellInfo, SPELL_PASSIVE, ipairs, pairs, type, tonumber, CreateFrame, select, floor, strlower, strfind, strsplit, format, tinsert, print, sort
 local table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont =
       table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont
 local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
       ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
-local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime, SoundKit =
-      C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime, SOUNDKIT
+local C_TradeSkillUIGetTradeSkillLineForRecipe,  GetTime, SoundKit, unpack =
+      C_TradeSkillUI.GetTradeSkillLineForRecipe, GetTime, SOUNDKIT, unpack
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -71,7 +72,7 @@ local EditBoxSelectedWidgetVersion = 1
 local SpellInfoWidgetVersion = 1
 local TextButtonWidgetVersion = 1
 local MultiLineEditBoxWidgetVersion = 1
-local CheckBoxLongWidgetVersion = 1
+local DropdownSelectWidgetVersion = 1
 
 
 local EditBoxWidgetType = 'GUB_AuraMenu_Base'
@@ -82,7 +83,8 @@ local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
 local MultiLineEditBoxWidgetType = 'GUB_MultiLine_EditBox'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
 local TextButtonWidgetType = 'GUB_Text_Button'
-local CheckBoxLongWidgetType = 'GUB_CheckBox_Long'
+local SelectWidgetType = 'GUB_Dropdown_Base'
+local DropdownSelectWidgetType = 'GUB_Dropdown_Select'
 
 
 local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuOpened]]
@@ -91,6 +93,7 @@ local MenuBulletIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_Men
 
 local SpellsTimer = {}
 local SpellList = {}
+local WidgetUserData = {}
 local AuraMenuFrame = nil
 
 local AuraMenuBackdrop = {
@@ -901,7 +904,7 @@ local function SetMenuIcon(ButtonFrame, State)
     MenuIconSize = MenuArrowSize
     MenuIcon = ButtonFrame.MenuArrowClosed
     MenuArrowOpened:Hide()
-    MenuBullet:Hide()
+   MenuBullet:Hide()
   elseif State == '1' then -- arrow open
     MenuIconSize = MenuArrowSize
     MenuIcon = ButtonFrame.MenuArrowOpened
@@ -975,7 +978,6 @@ local function MenuButtonOnEnterPressed(self, ...)
   PlaySound(SoundKit.IG_MAINMENU_OPTION)
   self.Widget:Fire('OnEnterPressed', ...)
 end
-
 
 local function MenuButtonOnEnter(self)
   self:SetBackdrop(MenuButtonHighlightBorder)
@@ -1618,23 +1620,102 @@ AceGUI:RegisterWidgetType(SpellInfoWidgetType, SpellInfoConstructor, SpellInfoWi
 
 --*****************************************************************************
 --
--- CheckBoxLong
---
--- Works the same as a normal check box. Except the label can be much longer
+-- Dropdown Select. Same as pulldowns, but with a scrollbar
 --
 --*****************************************************************************
-local function CheckBoxLongConstructor()
-  local Widget = AceGUI:Create('CheckBox')
 
-  Widget.type = CheckBoxLongWidgetType
+-- Setup pullout
+local function SetupPullout(Widget)
+  local Dropdown = Widget.dropdown
+  local Pullout = Widget.pullout
+  local Slider = Pullout.slider
+  local ScrollFrame = Pullout.scrollFrame
+  local ItemFrame = Pullout.itemFrame
 
-  Widget.OnWidthSet = function() end
+  -- Store original values in userdata
+  local UserData = WidgetUserData[Widget]
+  if UserData == nil then
+    UserData = {}
+    WidgetUserData[Widget] = UserData
+  end
+  local SliderPoints = {}
 
-  Widget.SetText = function() end
+  -- Save all points
+  UserData.SliderPoints = SliderPoints
+  for PointIndex = 1, Slider:GetNumPoints() do
+    SliderPoints[PointIndex] = { Slider:GetPoint(PointIndex) }
+  end
+
+  -- Setup the pullout width and height
+  UserData.MaxHeight = Pullout.maxHeight
+  Pullout:SetMaxHeight(188)
+ -- Dropdown:SetPulloutWidth(200)
+
+  -- Move slider a few pixels to the left and make it easier to click
+  Slider:SetHitRectInsets(-5, 0, -10, 0)
+
+  UserData.SliderWidth = Slider:GetWidth()
+  Slider:SetWidth(12)
+
+  Slider:ClearAllPoints()
+  Slider:SetPoint('TOPLEFT', ScrollFrame, 'TOPRIGHT', -20, 0)
+  Slider:SetPoint('BOTTOMLEFT', ScrollFrame, 'BOTTOMRIGHT', -20, 0)
+
+  -- Lower the strata of the itemframe so the slider is easier to click
+  -- Slider frame strata was set to 'TOOLTIP'
+  UserData.ItemFrameStrata = ItemFrame:GetFrameStrata()
+  ItemFrame:SetFrameStrata('FULLSCREEN_DIALOG')
+end
+
+-- Restore pullout
+local function RestorePullout(Widget)
+  local UserData = WidgetUserData[Widget]
+  local SliderPoints = UserData.SliderPoints
+  local Pullout = Widget.pullout
+  local Slider = Pullout.slider
+
+  Slider:SetWidth(UserData.SliderWidth)
+  Slider:SetHitRectInsets(0, 0, -10, 0)
+  Slider:ClearAllPoints()
+  for PointIndex = 1, #SliderPoints do
+    Slider:SetPoint(unpack(SliderPoints[PointIndex]))
+  end
+  Pullout:SetMaxHeight(UserData.MaxHeight)
+  Pullout.itemFrame:SetFrameStrata(UserData.ItemFrameStrata)
+
+  WidgetUserData[Widget] = nil
+end
+
+-------------------------------------------------------------------------------
+-- DropdownSelectConstructor
+--
+-- This uses an existing widget, then changes it into a custom
+-- This make a menu have a scroll bar
+-------------------------------------------------------------------------------
+local function DropdownSelectConstructor()
+  local Widget = AceGUI:Create('Dropdown')
+  Widget.type = DropdownSelectWidgetType
+
+  -- methods
+  local OldOnRelease = Widget.OnRelease
+  local OldOnAcquire = Widget.OnAcquire
+
+  Widget.OnRelease = function(self, ...)
+    RestorePullout(self)
+    OldOnRelease(self, ...)
+  end
+  Widget.OnAcquire = function(self, ...)
+    -- Only call OnAcquire if there is no pullout created
+    -- This prevents two calls. Once during Create and
+    -- again when this custom control is created
+    if Widget.pullout == nil then
+      OldOnAcquire(self, ...)
+    end
+
+    SetupPullout(self)
+  end
 
   return AceGUI:RegisterAsWidget(Widget)
 end
 
-AceGUI:RegisterWidgetType(CheckBoxLongWidgetType, CheckBoxLongConstructor, CheckBoxLongWidgetVersion)
-
-
+AceGUI:RegisterWidgetType(DropdownSelectWidgetType, DropdownSelectConstructor, DropdownSelectWidgetVersion)
