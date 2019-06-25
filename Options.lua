@@ -4317,6 +4317,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
                    return Trigger.Pars[1] or ''
                  end,
           order = 17,
+          width = 'double',
           dialogControl = 'LSM30_Sound',
           values = LSMSoundDropdown,
           hidden = function()
