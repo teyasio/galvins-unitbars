@@ -1696,8 +1696,6 @@ local function DropdownSelectConstructor()
   local Widget = AceGUI:Create('Dropdown')
   Widget.type = DropdownSelectWidgetType
 
-  print('CONSTRUCT')
-
   -- methods
   local OldOnRelease = Widget.OnRelease
   local OldOnAcquire = Widget.OnAcquire
