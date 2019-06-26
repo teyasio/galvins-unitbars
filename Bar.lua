@@ -1429,7 +1429,7 @@ function BarDB:PlaySound(SoundName, Channel)
     local SoundFile = LSM:Fetch('sound', SoundName, true)
 
     if SoundFile then
-      PlaySoundFile(SoundFile, Channel)
+      pcall(PlaySoundFile, SoundFile, Channel)
     end
   end
 end
