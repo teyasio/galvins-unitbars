@@ -52,8 +52,8 @@ local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPe
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
 local C_PetBattles, C_TimerAfter,  GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
       C_PetBattles, C_Timer.After, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
-local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfoByID =
-      C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID
+local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition =
+      C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition
 local UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
       UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
 local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
