@@ -1382,7 +1382,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
   local ContentFrame = MessageBox.ContentFrame
   ContentFrame:SetSize(Width - 45, 1000)
 
-  FontString:SetText("Galvin's Unit Bars\n\n" .. '|cffffff00This list can be viewed under Help -> Changes|r' .. '\n' .. Message .. '\n')
+  FontString:SetText("Galvin's Unit Bars\n\n" .. '|cffffff00This list can be viewed under Help -> Changes|r' .. '\n\n' .. Message .. '\n')
 
   local Height = FontString:GetStringHeight()
   local Scroller = MessageBox.Scroller
@@ -3579,6 +3579,17 @@ end
 -- NOTES:  Swap and Align get ignored if both are true unless not in Float then
 --         only Swap will work.
 -------------------------------------------------------------------------------
+local function TrackMouse(TrackingFrame)
+  local x, y = GetCursorPosition()
+  local LastX, LastY = TrackingFrame.LastX, TrackingFrame.LastY
+
+  if x ~= LastX or y ~= LastY then
+    MoveFrameGetNearestFrame(TrackingFrame)
+    TrackingFrame.LastX = x
+    TrackingFrame.LastY = y
+  end
+end
+
 function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
   local Move = MoveFrames.Move
   local Type = nil
@@ -3641,11 +3652,10 @@ function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
   MoveOldSelectFrame = nil
   MoveLastSelectFrame = nil
 
-  TrackingFrame:SetParent(MoveFrame)
-  TrackingFrame:ClearAllPoints()
-  TrackingFrame:SetPoint('TOPRIGHT', MoveFrame, 'TOPLEFT')
-  TrackingFrame:SetPoint('BOTTOMLEFT', MoveFrame:GetParent(), 'TOPLEFT')
-  TrackingFrame:SetScript('OnSizeChanged', MoveFrameGetNearestFrame)
+  TrackingFrame.LastX = nil
+  TrackingFrame.LastY = nil
+  Main:SetTimer(TrackingFrame, TrackMouse, 0.01, 0)
+
   MoveFrame:StartMoving()
 end
 
@@ -3777,7 +3787,8 @@ function GUB.Main:MoveFrameStop(MoveFrames)
 
   MoveFrame:SetFrameStrata(Move.FrameStrata)
 
-  TrackingFrame:SetScript('OnSizeChanged', nil)
+  Main:SetTimer(TrackingFrame, nil)
+
   MoveFrameSetHighlightFrame(false)
   MoveFrame:StopMovingOrSizing()
 
@@ -5030,8 +5041,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 30 then
-    GUBData.ShowMessage = 30
+  if GUBData.ShowMessage ~= 33 then
+    GUBData.ShowMessage = 33
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
