@@ -212,24 +212,42 @@ end
 --
 -- Updates the stagger bar based on amount of health staggered
 --
--- Event        If nil then it wasn't called by an event.
---              True bypasses visible and isactive flags.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.StaggerBar:Update(Event)
+function Main.UnitBarsF.StaggerBar:Update()
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+  ---------------
+  -- Set IsActive
+  ---------------
+  local Stagger = UnitStagger('player') or 0
+  local MaxValue = UnitHealthMax('player')
+  local Value = 0
+
+  if MaxValue > 0 then
+    Value = Stagger / MaxValue
+  end
+
+  self.IsActive = Value > 0
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- if Hidden is true then return
+  if LastHidden and Hidden then
     return
   end
 
+  ------------
+  -- Test Mode
+  ------------
   local BBar = self.BBar
   local UB = self.UnitBar
   local PauseTime = self.PauseTime
   local Layout = UB.Layout
   local Testing = Main.UnitBars.Testing
-
-  local Stagger = UnitStagger('player') or 0
-  local MaxValue = UnitHealthMax('player')
 
   if Testing then
     local TestMode = UB.TestMode
@@ -239,6 +257,7 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
 
     PauseTime = StaggerPause
     Stagger = TestMode.StaggerPercent * MaxValue
+    Value = Stagger / MaxValue
 
     BBar:SetFillTexture(StaggerPauseBox, StaggerPauseSBar, StaggerPause / StaggerPauseTime)
 
@@ -254,11 +273,9 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
     BBar:SetValueRawFont(StaggerPauseBox, '')
   end
 
-  local Value = 0
-  if MaxValue > 0 then
-    Value = Stagger / MaxValue
-  end
-
+  -------
+  -- Draw
+  -------
   if SetLayoutChanged or self.LastValue ~= Value then
     SetLayoutChanged = false
     self.LastValue = Value
@@ -284,12 +301,6 @@ function Main.UnitBarsF.StaggerBar:Update(Event)
     BBar:SetTriggers(StaggerPauseBox, 'stagger (percent)', Stagger, MaxValue)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  self.IsActive = Value > 0
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************

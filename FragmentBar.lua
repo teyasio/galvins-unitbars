@@ -296,35 +296,54 @@ Main.UnitBarsF.FragmentBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Update the number of shards of the player
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
---              True bypasses visible and isactive flags.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
--- PowerType    Type of power the unit has.
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerType)
+function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerToken)
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+  -------------------
+  -- Check Power Type
+  -------------------
+  local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerType[PowerToken]
+  else
+    PowerType = PowerShard
+  end
+
+  -- Return if power type doesn't match that of shard
+  if PowerType == nil or PowerType ~= PowerShard then
     return
   end
 
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerShard
-
-  -- Return if not the correct powertype.
-  if PowerType ~= PowerShard then
-    return
-  end
-
-  local BBar = self.BBar
-  local UB = self.UnitBar
-  local Layout = UB.Layout
-  local FillTexture = self.FillTexture
-  local FullTexture = self.FullTexture
-
+  ---------------
+  -- Set IsActive
+  ---------------
   local ShardFragments = UnitPower('player', PowerShard, true)
   local MaxShardFragments = UnitPowerMax('player', PowerShard, true)
+
+  self.IsActive = ShardFragments ~= MaxFragmentsPerShard * 3
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
+  local UB = self.UnitBar
   local SoulShards = UnitPower('player', PowerShard)
-  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+
   local ShowFull = nil
 
   if Main.UnitBars.Testing then
@@ -337,6 +356,15 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerType)
     end
     SoulShards = floor(ShardFragments / MaxFragmentsPerShard)
   end
+
+  -------
+  -- Draw
+  -------
+  local BBar = self.BBar
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+  local Layout = UB.Layout
+  local FillTexture = self.FillTexture
+  local FullTexture = self.FullTexture
 
   -- Check for green fire if auto is set
   local GreenFire = Layout.GreenFireAuto and IsSpellKnown(WarlockGreenFire) or Layout.GreenFire
@@ -387,12 +415,6 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerType)
     BBar:SetTriggers(RegionGroup, 'soul shards', SoulShards)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  self.IsActive = SoulShards ~= 3 --ShardFragments ~= MaxFragmentsPerShard * 3
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************

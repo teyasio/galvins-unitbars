@@ -204,13 +204,28 @@ end
 -- Unit         Unit can be 'target', 'player', 'pet', etc.
 -- PowerType    Type of power the unit has.
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerType)
-  local UB = self.UnitBar
-  local Layout = UB.Layout
-  local BBar = self.BBar
+function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
+
+  -------------------
+  -- Check Power Type
+  -------------------
+  local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerType[PowerToken]
+  else
+    PowerType = PowerAlternate
+  end
+
+  -- Return if power type doesn't match that of alternate
+  if PowerType == nil or PowerType ~= PowerAlternate then
+    return
+  end
 
   -- Clear text if power bar gets hidden
   -- This needs to be done here since the bar gets hidden on this event by Main.lua
+  -- This also needs to be done before the hide check
+  local BBar = self.BBar
+
   if Event == EventPowerBarHide then
     self.AltPowerType = false
 
@@ -222,29 +237,36 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerType)
     BBar:Display()
   end
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+  ------------------------------
+  -- Set IsActive
+  -- IsActive is always set to false
+  ------------------------------
+  self.IsActive = false
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
     return
   end
 
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerAlternate
-
-  -- Return if not the correct powertype.
-  if PowerType ~= PowerAlternate then
-    return
-  end
+  ------------
+  -- Test Mode
+  ------------
+  local UB = self.UnitBar
+  local Layout = UB.Layout
 
   local BBar = self.BBar
   local TimeFrame = self.TimeFrame
-  local BarPower = UB.BarPower
-  local BarCounter = UB.BarCounter
-  local HideText = Layout.HideText
-  local HideTextCounter = Layout.HideTextCounter
 
   local UseMaxValue = nil
   local Testing = Main.UnitBars.Testing
   local TestTypeBoth = false
-  local AltTexture = nil
   local TimeFrameActive = false
 
   local AltPowerType, MinPower, _, _, _, _, _, _, _, _, PowerName, _, _, BarID = UnitAlternatePowerInfo('player')
@@ -306,6 +328,16 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerType)
     BBar:SetHidden(AltCounterBarBox, AltCounterBarTFrame, true)
     BBar:Display()
   end
+
+  -------
+  -- Draw
+  -------
+  local BarPower = UB.BarPower
+  local HideTextCounter = Layout.HideTextCounter
+  local BarCounter = UB.BarCounter
+  local HideText = Layout.HideText
+  local AltTexture = nil
+
 
   if AltPowerType then
     if not Testing then
@@ -441,12 +473,6 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerType)
       end
     end
   end
-
-  -- Set the IsActive flag to always true
-  self.IsActive = false
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************

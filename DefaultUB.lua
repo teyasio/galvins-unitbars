@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 638
+GUB.DefaultUB.Version = 640
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -80,7 +80,7 @@ GUB.DefaultUB.Version = 638
 --                          being copied is inside of a larger table that has the _DC tag.  Then it will still get deep copied.
 --   _<key name>          - Any key that starts with '_' will never get copied even if there is a _DC tag present.
 --   Name                 - Name of the bar.
---   UnitType             - Type of unit: 'player', 'pet', 'focus', 'target'
+--   UnitType             - For Health and Power bars. Type of unit: 'player', 'pet', 'focus', 'target'
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
 --   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this. Set in Main.lua
 --   ClassSpecs           - See main.lua CheckClassSpecs()
@@ -265,11 +265,11 @@ GUB.DefaultUB.TriggerTypes = {
   TypeID_CombatColor = 'combatcolor', Type_CombatColor = 'Combat Color',
   TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
 }
+
 local abs, assert, format, pairs, ipairs, type, next =
       abs, assert, format, pairs, ipairs, type, next
 local GetNumSpecializationsForClassID, GetSpecializationInfoForClassID, GetNumClasses, GetClassInfo =
       GetNumSpecializationsForClassID, GetSpecializationInfoForClassID, GetNumClasses, GetClassInfo
-
 
 -- Build spec list.  Should work at loadup
 local ClassSpecialization = {}
@@ -362,6 +362,15 @@ end
 -- Default Profile Database
 --=============================================================================
 GUB.DefaultUB.Default = {
+  -- global can be seen by any character on the same account
+  global = {
+    ShowMessage = 0,
+    APBShowUsed = true,
+    AutoExpand = true,
+    ExpandAll = false,
+    APBUsed = {},
+    APBUseBlizz = {}
+  },
   profile = {
     Point = 'CENTER',
     RelativePoint = 'CENTER',
@@ -396,7 +405,6 @@ GUB.DefaultUB.Default = {
     AuraListUnits = 'player',
     DebugOn = false,
     APBMoverOptionsDisabled = true,
-    APBShowUsed = false,
     APBPos = {},
     APBTimerPos = {},
     EABMoverOptionsDisabled = true,
@@ -426,6 +434,7 @@ local ClassSpecs = nil
 -- for empty tables
 local T = true
 local F = false
+
 
 --=============================================================================
 -- Player Health
@@ -1701,7 +1710,6 @@ ClassSpecs = {
 Profile.StaggerBar = {
   Name = 'Stagger Bar',
   OptionOrder = 10,
-  UnitType = 'player',
   Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
@@ -1904,7 +1912,6 @@ ClassSpecs = {
 Profile.AltPowerBar = {
   Name = 'Alternate Power Bar',
   OptionOrder = 11,
-  UnitType = 'player',
   Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
   x = -200,
@@ -3683,14 +3690,15 @@ LinksText[#LinksText + 1] = [[
 UI escape codes:]]
 LinksText[#LinksText + 1] = [[http://wow.gamepedia.com/UI_escape_sequences]]
 
-
 -- Message Text
 local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
-Version 6.37
-|cff00ff00Bars and boxes can be moved again|r
+Version 6.40
+|cff00ff00UI changes for the bar menu|r
+|cff00ff00Auto Expand option added|r Found at the root of each bar menu.  It will expand the menu currently selected
+|cff00ff00Expand all|r Expands all the bar menus at once.  Both these settings apply to all characters on the same account
 
 Version 6.33
 |cff00ff00Trigger|r talents menu now has a scrollbar

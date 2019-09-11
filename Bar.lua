@@ -1469,6 +1469,7 @@ end
 -- StartMoving
 -------------------------------------------------------------------------------
 local function StartMoving(self, Button)
+
   -- Check to see if we didn't move the bar.
   if not Main:UnitBarStartMoving(self.Anchor, Button) then
 
@@ -7230,6 +7231,7 @@ function BarDB:CheckTriggers()
         if not SpecEnabled then
           DisabledBySpec = false
         else
+          print('spec check', Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true))
           DisabledBySpec = not Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true)
         end
         Trigger.DisabledBySpec = DisabledBySpec

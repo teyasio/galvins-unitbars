@@ -15,7 +15,7 @@ local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerTypeHAP = Main.ConvertPowerTypeHAP
 
 -- localize some globals.
 local _, _G =
@@ -29,8 +29,8 @@ local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tr
 
 local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs =
       GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs
-local UnitName, UnitPowerType, UnitPower, UnitPowerMax =
-      UnitName, UnitPowerType, UnitPower, UnitPowerMax
+local UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax =
+      UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -52,9 +52,9 @@ local AbsorbBar = 30
 local PredictedCostBar = 40
 
 -- Powertype constants
-local PowerMana = ConvertPowerType['MANA']
-local PowerEnergy = ConvertPowerType['ENERGY']
-local PowerFocus = ConvertPowerType['FOCUS']
+local PowerMana = ConvertPowerTypeHAP['MANA']
+local PowerEnergy = ConvertPowerTypeHAP['ENERGY']
+local PowerFocus = ConvertPowerTypeHAP['FOCUS']
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -265,31 +265,42 @@ end
 -- self         UnitBarF contains the health bar to display.
 -- Event        Event that called this function.  If nil then it wasn't called by an event.
 --              True by passes visible and isactive flags.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
+-- Unit         Ignored just here for reference
 -------------------------------------------------------------------------------
 local function UpdateHealthBar(self, Event, Unit)
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
-  end
-
-  local BBar = self.BBar
+  ---------------
+  -- Set IsActive
+  ---------------
   local UB = self.UnitBar
+  Unit = UB.UnitType
   local Layout = UB.Layout
-  local Bar = UB.Bar
-  local AbsorbBarDontClip = Bar.AbsorbBarDontClip or false
 
   local CurrValue = UnitHealth(Unit)
   local MaxValue = UnitHealthMax(Unit)
   local Level = UnitLevel(Unit)
   local ScaledLevel = UnitEffectiveLevel(Unit)
   local PredictedHealing = Layout.PredictedHealth and UnitGetIncomingHeals(Unit) or 0
-  local AbsorbHealth = Layout.AbsorbHealth and UnitGetTotalAbsorbs(Unit) or 0
-  local AbsorbBarSize = Bar.AbsorbBarSize
 
-  local Name, Realm = UnitName(Unit)
-  Name = Name or ''
+  self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
+  local BBar = self.BBar
+  local AbsorbHealth = Layout.AbsorbHealth and UnitGetTotalAbsorbs(Unit) or 0
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
@@ -315,6 +326,16 @@ local function UpdateHealthBar(self, Event, Unit)
       BBar:SetFillTexture(HapBox, AbsorbBar, 0)
     end
   end
+
+  -------
+  -- Draw
+  -------
+  local Bar = UB.Bar
+  local AbsorbBarDontClip = Bar.AbsorbBarDontClip or false
+  local AbsorbBarSize = Bar.AbsorbBarSize
+
+  local Name, Realm = UnitName(Unit)
+  Name = Name or ''
 
   local ClassColor = Layout.ClassColor or false
   local CombatColor = Layout.CombatColor or false
@@ -402,29 +423,12 @@ local function UpdateHealthBar(self, Event, Unit)
     BBar:SetTriggers(1, 'scaled level', ScaledLevel)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  self.IsActive = CurrValue < MaxValue or PredictedHealing > 0
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
-function Main.UnitBarsF.PlayerHealth:Update(Event)
-  UpdateHealthBar(self, Event, 'player')
-end
-
-function Main.UnitBarsF.TargetHealth:Update(Event)
-  UpdateHealthBar(self, Event, 'target')
-end
-
-function Main.UnitBarsF.FocusHealth:Update(Event)
-  UpdateHealthBar(self, Event, 'focus')
-end
-
-function Main.UnitBarsF.PetHealth:Update(Event)
-  UpdateHealthBar(self, Event, 'pet')
-end
+Main.UnitBarsF.PlayerHealth.Update = UpdateHealthBar
+Main.UnitBarsF.TargetHealth.Update = UpdateHealthBar
+Main.UnitBarsF.FocusHealth.Update  = UpdateHealthBar
+Main.UnitBarsF.PetHealth.Update    = UpdateHealthBar
 
 -------------------------------------------------------------------------------
 -- UpdatePowerBar
@@ -433,47 +437,36 @@ end
 --
 -- self          UnitBarF contains the power bar to display.
 -- Event         Event that called this function.  If nil then it wasn't called by an event.
---               True bypasses visible and isactive flags.
--- Unit          Unit name 'player' ,'target', etc
--- PowerType2    PowerType from server or when PowerMana update is called.
---               If nil then the unit's powertype is used if nots a ManaPower bar.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
 -------------------------------------------------------------------------------
-local function UpdatePowerBar(self, Event, Unit, PowerType2)
+local function UpdatePowerBar(self, Event, Unit, PowerToken)
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
-  end
-
-  -- Convert string powertype into number.
-  PowerType2 = ConvertPowerType[PowerType2]
-
+  -------------------
+  -- Check Power Type
+  -------------------
+  local UB = self.UnitBar
   local BarType = self.BarType
+  Unit = UB.UnitType
+
   local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerTypeHAP[PowerToken]
 
-  if BarType ~= 'ManaPower' then
-    PowerType = UnitPowerType(Unit)
-    if PowerType2 ~= nil and PowerType ~= PowerType2 then
-
-      -- Return, not correct power type.
+    -- Return if power types doesn't match that of the powerbar
+    if PowerType == nil or PowerType ~= PowerMana and BarType == 'ManaPower' then
       return
     end
-
-  -- ManaPower bar can only be a mana powertype.
-  elseif PowerType2 == PowerMana then
+  elseif BarType == 'ManaPower' then
     PowerType = PowerMana
   else
-
-    -- Return, not correct power type.
-    return
+    PowerType = UnitPowerType(Unit)
   end
 
-  local BBar = self.BBar
-  local UB = self.UnitBar
-  local Bar = UB.Bar
-  local Layout = UB.Layout
-  local DLayout = DUB[BarType].Layout
-
+  ---------------
+  -- Set IsActive
+  ---------------
   local CurrValue = UnitPower(Unit, PowerType)
   local MaxValue = UnitPowerMax(Unit, PowerType)
   local Level = UnitLevel(Unit)
@@ -482,18 +475,35 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
   local PredictedPower = self.PredictedPower or 0
   local PredictedCost = self.PredictedCost or 0
 
-  local Name, Realm = UnitName(Unit)
-  Name = Name or ''
-
-  local UseBarColor = Layout.UseBarColor or false
-  local r, g, b, a = 1, 1, 1, 1
-
-  if UseBarColor then
-    local Color = Bar.Color
-    r, g, b, a = Color.r, Color.g, Color.b, Color.a
-  else
-    r, g, b, a = Main:GetPowerColor(Unit, PowerType, nil, nil, r, g, b, a)
+  local IsActive = false
+  if UnitExists(Unit) then
+    if PowerType == PowerMana or PowerType == PowerEnergy or PowerType == PowerFocus then
+      if CurrValue < MaxValue or PredictedPower > 0 or PredictedCost > 0 then
+        IsActive = true
+      end
+    else
+      IsActive = CurrValue > 0
+    end
   end
+  self.IsActive = IsActive
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
+  local BBar = self.BBar
+  local Layout = UB.Layout
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
@@ -523,6 +533,25 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
       BBar:SetFillTexture(HapBox, PredictedBar, 0)
       BBar:SetFillTexture(HapBox, PredictedCostBar, 0)
     end
+  end
+
+  -------
+  -- Draw
+  -------
+  local BarType = self.BarType
+  local Bar = UB.Bar
+
+  local Name, Realm = UnitName(Unit)
+  Name = Name or ''
+
+  local UseBarColor = Layout.UseBarColor or false
+  local r, g, b, a = 1, 1, 1, 1
+
+  if UseBarColor then
+    local Color = Bar.Color
+    r, g, b, a = Color.r, Color.g, Color.b, Color.a
+  else
+    r, g, b, a = Main:GetPowerColor(Unit, PowerType, nil, nil, r, g, b, a)
   end
 
   local Value = 0
@@ -571,44 +600,13 @@ local function UpdatePowerBar(self, Event, Unit, PowerType2)
     BBar:SetTriggers(1, 'scaled level', ScaledLevel)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  local IsActive = false
-  if PowerType == PowerMana or PowerType == PowerEnergy or PowerType == PowerFocus then
-    if CurrValue < MaxValue or PredictedPower > 0 then
-      IsActive = true
-    end
-  else
-    if CurrValue > 0 then
-      IsActive = true
-    end
-  end
-
-  self.IsActive = IsActive
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
-function Main.UnitBarsF.PlayerPower:Update(Event)
-  UpdatePowerBar(self, Event, 'player')
-end
-
-function Main.UnitBarsF.TargetPower:Update(Event)
-  UpdatePowerBar(self, Event, 'target')
-end
-
-function Main.UnitBarsF.FocusPower:Update(Event)
-  UpdatePowerBar(self, Event, 'focus')
-end
-
-function Main.UnitBarsF.PetPower:Update(Event)
-  UpdatePowerBar(self, Event, 'pet')
-end
-
-function Main.UnitBarsF.ManaPower:Update(Event)
-  UpdatePowerBar(self, Event, 'player', 'MANA')
-end
+Main.UnitBarsF.PlayerPower.Update = UpdatePowerBar
+Main.UnitBarsF.TargetPower.Update = UpdatePowerBar
+Main.UnitBarsF.FocusPower.Update  = UpdatePowerBar
+Main.UnitBarsF.PetPower.Update    = UpdatePowerBar
+Main.UnitBarsF.ManaPower.Update   = UpdatePowerBar
 
 --*****************************************************************************
 --

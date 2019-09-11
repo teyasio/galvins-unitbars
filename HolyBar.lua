@@ -145,32 +145,59 @@ Main.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Update the holy power level of the player
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
---              True bypasses visible and isactive flags.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
--- PowerType    Type of power the unit has.
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
+function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerToken)
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+  -------------------
+  -- Check Power Type
+  -------------------
+  local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerType[PowerToken]
+  else
+    PowerType = PowerHoly
+  end
+
+  -- Return if power type doesn't match that of holy
+  if PowerType == nil or PowerType ~= PowerHoly then
     return
   end
 
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerHoly
-
-  -- Return if not the correct powertype.
-  if PowerType ~= PowerHoly then
-    return
-  end
-
-  local BBar = self.BBar
+  ---------------
+  -- Set IsActive
+  ---------------
   local HolyPower = UnitPower('player', PowerHoly)
-  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
+  self.IsActive = HolyPower > 0
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
   if Main.UnitBars.Testing then
     HolyPower = self.UnitBar.TestMode.HolyPower
   end
+
+  -------
+  -- Draw
+  -------
+  local BBar = self.BBar
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   for HolyIndex = 1, MaxHolyRunes do
     if EnableTriggers then
@@ -185,12 +212,6 @@ function Main.UnitBarsF.HolyBar:Update(Event, Unit, PowerType)
     BBar:SetTriggers(RegionGroup, 'holy power', HolyPower)
     BBar:DoTriggers()
   end
-
-  -- Set this IsActive flag
-  self.IsActive = HolyPower > 0
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************

@@ -176,26 +176,51 @@ end
 --
 -- Update the number of combo points of the player
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
---              True bypasses visible and isactive flags.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
--- PowerType    Type of power the unit has.
---
--- NOTES: Normally the invisibility check is at the top.  But I need to check
---        for total boxes first. So the first BBar:Display() contains the
---        total boxes on the first call.
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerPoint
+function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
 
-  -- Return if not the correct powertype.
-  if PowerType ~= PowerPoint then
+  -------------------
+  -- Check Power Type
+  -------------------
+  local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerType[PowerToken]
+  else
+    PowerType = PowerPoint
+  end
+
+  -- Return if power type doesn't match that of combo points
+  if PowerType == nil or PowerType ~= PowerPoint then
     return
   end
 
-  local BBar = self.BBar
-  local NumPointsChanged = false
+  ---------------
+  -- Set IsActive
+  ---------------
   local ComboPoints = UnitPower('player', PowerPoint)
+
+  self.IsActive = ComboPoints > 0
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
+  local BBar = self.BBar
   local NumPoints = UnitPowerMax('player', PowerPoint)
 
   if Main.UnitBars.Testing then
@@ -216,6 +241,11 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     end
   end
 
+  -------
+  -- Draw
+  -------
+  local NumPointsChanged = false
+
   if NumPoints ~= self.NumPoints then
     self.NumPoints = NumPoints
 
@@ -225,11 +255,6 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     end
     BBar:Display()
     NumPointsChanged = true
-  end
-
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
   end
 
   local UB = self.UnitBar
@@ -279,12 +304,6 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerType)
     BBar:SetTriggers(RegionGroup, 'total points', TotalPoints)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  self.IsActive = ComboPoints > 0
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************

@@ -138,14 +138,14 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --   Created              - If nil then the bar has not been created yet, otherwise true.
 --   OldEnabled           - Current state of the bar. This is used to detect if a bar is being changed from enabled to disabled or
 --                          vice versa.  Used by SetUnitBars().
---   Visible              - True or false.  If true then the bar is visible otherwise hidden.
+--   Hidden               - True or false.  If true then the bar is hidden
 --   IsActive             - True, false, or 0.
 --                            True   The bar is considered to be doing something.
 --                            False  The bar is not active.
 --                            0      The bar is waiting to be active again.  If the flag is checked by StatusCheck() and is false.
 --                                   Then it sets it to zero.
---   IsHealth             - Is a health bar part of health and power.
---   IsPower              - Is a power bar part of health and power.
+--   IsHealth             - Is a health bar. Part of health and power.
+--   IsPower              - Is a power bar. Part of health and power.
 --   ClassSpecEnabled     - If true then the bar is enabled by CheckClassSpecs()
 --   BarType              - Mostly for debugging.  Contains the type of bar. 'PlayerHealth', 'RuneBar', etc.
 --   UnitBar              - Reference to the current UnitBar data which is the current profile.  Each time the
@@ -164,21 +164,21 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.PlayerSpecializationChanged
 --                        - If true then the player changed their specialization.
 -- Main.PlayerSpecialization
---                        - Number. Contains the current specialization of the player.
--- Main.UnitBars          - Set by SharedData()
--- Main.PlayerClass       - Set by SharedData()
--- Main.ConvertPlayerClass - Reference to ConvertPlayerClass
--- Main.PlayerPowerType   - Set by SharedData() and UnitBarsUpdateStatus()
--- Main.ConvertCombatColor - Reference to ConvertCombatColor
--- Main.PowerColorType    - Reference to PowerColorType
--- Main.ConvertPowerType  - Reference to ConvertPowerType
--- Main.InCombat          - set by UnitBarsUpdateStatus()
--- Main.IsDead            - set by UnitBarsUpdateStatus()
--- Main.HasTarget         - set by UnitBarsUpdateStatus()
--- Main.HasAltPower       - set by UnitBarsUpdateStatus()
--- Main.TrackedAurasList  - Set by SetAuraTracker()
--- Main.PlayerGUID        - Set by ShareData()
--- Main.GameVersion       - Current version of the game
+--                          - Number. Contains the current specialization of the player.
+-- Main.UnitBars            - Set by SharedData()
+-- Main.Gdata               - Set by SharedData()
+-- Main.PlayerClass         - Set by SharedData()
+-- Main.PlayerPowerType     - Set by SharedData() and UnitBarsUpdateStatus()
+-- Main.ConvertCombatColor  - Reference to ConvertCombatColor
+-- Main.ConvertPowerTypeHAP - Reference to ConvertPowerTypeHAP
+-- Main.ConvertPowerType    - Rerference to ConvertPowerType
+-- Main.InCombat            - set by UnitBarsUpdateStatus()
+-- Main.IsDead              - set by UnitBarsUpdateStatus()
+-- Main.HasTarget           - set by UnitBarsUpdateStatus()
+-- Main.HasAltPower         - set by UnitBarsUpdateStatus()
+-- Main.TrackedAurasList    - Set by SetAuraTracker()
+-- Main.PlayerGUID          - Set by ShareData()
+-- Main.GameVersion         - Current version of the game
 --
 -- Main.APBUsed           - Contains list of used power bars. Contains what minimap zone they were used in.
 --                          set by UnitBarsUpdateStatus(). Used by ShareData()
@@ -190,9 +190,11 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- Main.Talents           - Contains the table Talents
 --
--- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
--- PowerColorType         - Table used by InitializeColors()
--- ConvertPowerType       - Table to convert a string powertype into a number or back into a number.
+-- UnitBars               - Contains the currently selected profile
+-- Gdata                  - Anything stored in here can be seen by all characters on the same account
+-- ConvertPowerType       - Table to convert a string powertype into a number
+-- ConvertPowerTypeHAP    - Table used by InitializeColors()
+--                          Same as ConvertPowerType except only has power types for power bars in HAP
 -- ConvertCombatColor     - Converts combat color into a number.
 -- InitOnce               - Used by OnEnable to initialize just one time.
 -- MessageBox             - Contains the message box to show a message on screeen.
@@ -223,10 +225,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                        - Set by InitExtraActionButton()
 --
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
--- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed and back into uppercase.
---                          Also used to turn an index number into a player class.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
--- PlayerPowerType        - The current power type for the player.
+-- PlayerPowerType        - String: The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in.
 -- PlayerSpecialization   - The current specialization for the player, 0 for none.
 --
@@ -380,10 +380,10 @@ local APBBuffTimerMover = nil
 local ScanTooltip = nil
 local AuraListName = 'AuraList'
 local InitOnce = true
-local GUBData = nil
 local MessageBox = nil
 local UnitBarsParent = nil
 local UnitBars = nil
+local Gdata = nil
 
 local InCombat = false
 local InVehicle = false
@@ -489,38 +489,48 @@ local AnchorOffset = {
 }
 
 local ConvertPowerType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, COMBO_POINTS = 4, RUNIC_POWER = 6,
-  SOUL_SHARDS = 7, LUNAR_POWER = 8, ASTRAL_POWER = 8, HOLY_POWER = 9, ALTERNATE = 10,
-  MAELSTROM = 11, CHI = 12, INSANITY = 13, ARCANE_CHARGES = 16, FURY = 17, PAIN = 18,
-  [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY', [4] = 'COMBO_POINTS', [6] = 'RUNIC_POWER',
-  [7] = 'SOUL_SHARDS', [8] = 'LUNAR_POWER', [9] = 'HOLY_POWER', [10] = 'ALTERNATE', [11] = 'MAELSTROM',
-  [12] = 'CHI', [13] = 'INSANITY', [16] = 'ARCANE_CHARGES', [17] = 'FURY', [18] = 'PAIN',
-
-  -- This section used by health and power bars. See HealthPowerBar.lua
-  ['RUNIC POWER'] = 6, ['LUNAR POWER'] = 8, ['ASTRAL POWER'] = 8,
+  MANA           = 0,
+  RAGE           = 1,
+  FOCUS          = 2,
+  ENERGY         = 3,
+  COMBO_POINTS   = 4,
+  RUNIC_POWER    = 6,
+  SOUL_SHARDS    = 7,
+  LUNAR_POWER    = 8,
+  ASTRAL_POWER   = 8,
+  HOLY_POWER     = 9,
+  ALTERNATE      = 10,
+  MAELSTROM      = 11,
+  CHI            = 12,
+  INSANITY       = 13,
+  ARCANE_CHARGES = 16,
+  FURY           = 17,
+  PAIN           = 18,
 
   -- In InitializeColors() power types in foreign languages added here.
+  -- This is so CheckPredictedSpells() can find the power names in the tooltips
+  -- string = number.
+}
+
+local ConvertPowerTypeHAP = {
+  MANA           = 0,
+  RAGE           = 1,
+  FOCUS          = 2,
+  ENERGY         = 3,
+  RUNIC_POWER    = 6,
+  LUNAR_POWER    = 8,
+  MAELSTROM      = 11,
+  INSANITY       = 13,
+  FURY           = 17,
+  PAIN           = 18,
+
+  -- In InitializeColors() power types in foreign languages added here.
+  -- This is so CheckPredictedSpells() can find the power names in the tooltips
   -- string = number.
 }
 
 local ConvertCombatColor = {
   Hostile = 1, Attack = 2, Flagged = 3, Friendly = 4,
-}
-
-local PowerColorType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, RUNIC_POWER = 6, LUNAR_POWER = 8, MAELSTROM = 11,
-  INSANITY = 13, FURY = 17, PAIN = 18,
-}
-
-local ConvertPlayerClass = {
-  DEATHKNIGHT = 'Death Knight',  DEMONHUNTER = 'Demon Hunter',  DRUID  = 'Druid',  HUNTER = 'Hunter',  MAGE    = 'Mage',    MONK    = 'Monk',
-  PALADIN     = 'Paladin',       PRIEST      = 'Priest',        ROGUE  = 'Rogue',  SHAMAN = 'Shaman',  WARLOCK = 'Warlock', WARRIOR = 'Warrior',
-  ['Death Knight'] = 'DEATHKNIGHT', ['Demon Hunter'] = 'DEMONHUNTER', Druid = 'DRUID', Hunter = 'HUNTER', Mage    = 'MAGE',    Monk    = 'MONK',
-  Paladin          = 'PALADIN',     Priest           = 'PRIEST',      Rogue = 'ROGUE', Shaman = 'SHAMAN', Warlock = 'WARLOCK', Warrior = 'WARRIOR',
-
-  -- Indexed
-  'DEATHKNIGHT', 'DEMONHUNTER', 'DRUID',  'HUNTER', 'MAGE',    'MONK',
-  'PALADIN',     'PRIEST',      'ROGUE',  'SHAMAN', 'WARLOCK', 'WARRIOR'
 }
 
 DUB.FocusHealth.BarVisible  = function() return HasFocus end
@@ -532,10 +542,9 @@ DUB.ComboBar.BarVisible     = function() return PlayerClass == 'ROGUE' or
 
 -- Share with the whole addon.
 Main.LSM = LSM
-Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
+Main.ConvertPowerTypeHAP = ConvertPowerTypeHAP
 Main.ConvertCombatColor = ConvertCombatColor
-Main.ConvertPlayerClass = ConvertPlayerClass
 Main.Talents = Talents
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
@@ -563,6 +572,15 @@ do
 
       UnitBarsF[BarType] = UBFTable
       UnitBarsFE[Index] = UBFTable
+
+      local PowerType = UB.PowerType
+      if PowerType then
+        for k, v in pairs(PowerType) do
+          if ConvertPowerType[k] ~= v then
+            print(BarType, 'mismatch ', k, v)
+          end
+        end
+      end
     end
   end
 end
@@ -586,7 +604,8 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UNIT_MAXPOWER',                 GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_POWER_BAR_SHOW',           GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_POWER_BAR_HIDE',           GUB.UnitBarsUpdateStatus, 'player')
-    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'PET_UI_UPDATE',                 GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'UNIT_FACTION',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_DISABLED',         GUB.UnitBarsUpdateStatus)
@@ -634,9 +653,10 @@ end
 -------------------------------------------------------------------------------
 local function InitializeColors()
   local ConvertPowerTypeL = {}
+  local ConvertPowerTypeHAPL = {}
 
   -- Copy the power colors.
-  for PowerType, Value in pairs(PowerColorType) do
+  for PowerType, Value in pairs(ConvertPowerTypeHAP) do
     local Color = PowerBarColor[Value]
     local r, g, b = Color.r, Color.g, Color.b
 
@@ -652,19 +672,27 @@ local function InitializeColors()
     DUB.ClassColor[Class] = {r = r, g = g, b = b, a = 1}
   end
 
-  -- Add foreign language to ConvertPowerType
+  -- Add foreign language or english to ConvertPowerType
   for PowerType, Value in pairs(ConvertPowerType) do
-    if type(PowerType) == 'string' then
-      local PowerTypeL = _G[PowerType]
+    local PowerTypeL = _G[PowerType]
 
-      if PowerTypeL then
-        ConvertPowerTypeL[strupper(PowerTypeL)] = Value
-      end
-    else
-      ConvertPowerTypeL[PowerType] = Value
+    if PowerTypeL then
+      ConvertPowerTypeL[strupper(PowerTypeL)] = Value
     end
+    ConvertPowerTypeL[PowerType] = Value
   end
   ConvertPowerType = ConvertPowerTypeL
+
+  -- Add foreign language or english to ConvertPowerTypeHAP
+  for PowerType, Value in pairs(ConvertPowerTypeHAP) do
+    local PowerTypeL = _G[PowerType]
+
+    if PowerTypeL then
+      ConvertPowerTypeHAPL[strupper(PowerTypeL)] = Value
+    end
+    ConvertPowerTypeHAPL[PowerType] = Value
+  end
+  ConvertPowerTypeHAP = ConvertPowerTypeHAPL
 end
 
 --*****************************************************************************
@@ -3214,19 +3242,20 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:StatusCheck(Event)
   local UB = self.UnitBar
-  local Status = UB.Status
-  local Visible = true
-  local ClassSpecEnabled = false
-  local Spec = nil
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
   if UB.Enabled then
+    local Status = UB.Status
+    local Hide = false
+    local ClassSpecEnabled = false
+    local Spec = nil
+
     ClassSpecEnabled = Main:CheckClassSpecs(self.BarType, UB.ClassSpecs)
     self.ClassSpecEnabled = ClassSpecEnabled
 
     if not ClassSpecEnabled then
-      Visible = false
+      Hide = true
 
     -- Show bars if not locked or testing.
     elseif UnitBars.IsLocked or not UnitBars.Testing then
@@ -3237,54 +3266,50 @@ function GUB.Main:StatusCheck(Event)
         -- Check to see if the bar has an enable function and call it.
         local Fn = self.BarVisible
         if Fn then
-          Visible = Fn()
+          Hide = not Fn()
         end
-        if Visible then
+        if not Hide then
           -- Hide if the HideWhenDead status is set.
           if IsDead and Status.HideWhenDead then
-            Visible = false
+            Hide = true
           -- Hide if the player has no target.
           elseif not HasTarget and Status.HideNoTarget then
-            Visible = false
+            Hide = true
           -- Hide if in a vehicle if the HideInVehicle status is set
           elseif InVehicle and Status.HideInVehicle then
-            Visible = false
+            Hide = true
           -- Hide if in a pet battle and the HideInPetBattle status is set.
           elseif InPetBattle and Status.HideInPetBattle then
-            Visible = false
+            Hide = true
           -- Get the idle status based on HideNotActive when not in combat.
           -- If the flag is not present then it defaults to false.
           elseif not InCombat and Status.HideNotActive then
             local IsActive = self.IsActive
-            Visible = IsActive == true
+            Hide = IsActive == false
             -- if not visible then set IsActive to watch for activity.
-            if not Visible then
+            if Hide then
               self.IsActive = 0
             end
           -- Hide if not in combat with the HideNoCombat status.
           elseif not InCombat and Status.HideNoCombat then
-            Visible = false
+            Hide = true
           -- Hide if the blizzard alternate power bar is visible otherwise hide
           -- Hide if there is no active blizzard alternate power bar
           elseif Status.HideIfBlizzAltPowerVisible ~= nil then
             if not HasAltPower then
-              Visible = false
+              Hide = true
             elseif Status.HideIfBlizzAltPowerVisible then
               if BlizzAltPowerVisible then
-                Visible = false
+                Hide = true
               end
             end
           end
         end
       end
     end
+    -- Hide/show the unitbar.
+    HideUnitBar(self, Hide)
   end
-
-  -- Update the visible flag.
-  self.Visible = Visible
-
-  -- Hide/show the unitbar.
-  HideUnitBar(self, not Visible)
 end
 
 --*****************************************************************************
@@ -3654,7 +3679,7 @@ function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
 
   TrackingFrame.LastX = nil
   TrackingFrame.LastY = nil
-  Main:SetTimer(TrackingFrame, TrackMouse, 0.01, 0)
+  Main:SetTimer(TrackingFrame, TrackMouse, 0.10, 0)
 
   MoveFrame:StartMoving()
 end
@@ -4157,11 +4182,7 @@ function GUB:CheckPredictedSpells(Event)
             if Amount then
               -- Check if the power name matches the player's powertype
               -- ConvertPowerType contains current language as well.
-              local PowerType = ConvertPowerType[strtrim(PowerName)]
-
-              -- Now convert PowerType to string and back.  This will
-              -- make sure its a primary power type.
-              PowerType = PowerType and PowerColorType[ ConvertPowerType[PowerType] ]
+              local PowerType = ConvertPowerTypeHAP[strtrim(PowerName)]
 
               if PowerType then
                 local SpellInfo = PredictedSpells[SpellID]
@@ -4276,8 +4297,6 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
     if PlayerSpecializationChanged then
       UBF:SetAttr('Layout', 'EnableTriggers')
     end
-
-    UBF:StatusCheck()
     UBF:Update()
   end
   Main.PlayerSpecializationChanged = false
@@ -4516,7 +4535,6 @@ local function SetUnitBarLayout(UnitBarF, BarType)
   UnitBarF.ClassSpecEnabled = false
 
   -- Hide the unitbar.
-  UnitBarF.Visible = false
   UnitBarF.Hidden = true
   Anchor:Hide()
 
@@ -4667,7 +4685,6 @@ function GUB.Main:SetUnitBars(ProfileChanged)
       local Created = UBF.Created
 
       if Enabled then
-
         -- If the unitbar is being created for the first time or
         -- the profile was changed.  Then set layout, baroptions.
         if Created == nil then
@@ -4679,9 +4696,11 @@ function GUB.Main:SetUnitBars(ProfileChanged)
       elseif Created and not ProfileChanged then
         HideUnitBar(UBF, true)
       end
+
       if ProfileChanged and Created or JustCreated then
         SetUnitBarLayout(UBF, BarType)
       end
+
       UBF:Enable(Enabled)
     end
     UBF.OldEnabled = Enabled
@@ -4714,8 +4733,7 @@ local function ShareData()
   Main.PlayerClass = PlayerClass
   Main.PlayerPowerType = PlayerPowerType
   Main.PlayerGUID = PlayerGUID
-  Main.APBUsed = APBUsed
-  Main.APBUseBlizz = APBUseBlizz
+  Main.Gdata = Gdata
 
   -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
@@ -4993,23 +5011,6 @@ function GUB:OnEnable()
   end
   InitOnce = false
 
-  if GalvinUnitBarsData == nil then
-    GalvinUnitBarsData = {}
-  end
-  GUBData = GalvinUnitBarsData
-
-  APBUsed = GUBData.AltPowerBarUsed
-  APBUseBlizz = GUBData.APBUseBlizz
-
-  if APBUsed == nil then
-    APBUsed = {}
-    GUBData.AltPowerBarUsed = APBUsed
-  end
-  if APBUseBlizz == nil then
-    APBUseBlizz = {}
-    GUBData.APBUseBlizz = APBUseBlizz
-  end
-
   -- Add blizzards powerbar colors and class colors to defaults.
   InitializeColors()
 
@@ -5018,9 +5019,27 @@ function GUB:OnEnable()
   GUB.MainDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', GUB.DefaultUB.Default, true)
 
   UnitBars = GUB.MainDB.profile
+  Gdata = GUB.MainDB.global
+
+  -- Let ace3 handle GalvinUnitBarsData. This will only run once
+  if Gdata.ShowMessage == 0 then
+    if GalvinUnitBarsData then
+
+      -- Copy data to global profile
+      Gdata.ShowMessage = GalvinUnitBarsData.ShowMessage
+      Gdata.APBUsed     = GalvinUnitBarsData.AltPowerBarUsed
+      Gdata.APBUseBlizz = GalvinUnitBarsData.APBUseBlizz
+      Gdata.APBShowUsed = UnitBars.APBShowUsed
+    end
+  else
+    -- Delete old data since its not used any more
+    GalvinUnitBarsData = nil
+  end
+  APBUsed = Gdata.APBUsed
+  APBUseBlizz = Gdata.APBUseBlizz
 
   _, PlayerClass = UnitClass('player')
-  PlayerPowerType = UnitPowerType('player')
+  _, PlayerPowerType = UnitPowerType('player')
 
   -- Get the globally unique identifier for the player.
   PlayerGUID = UnitGUID('player')
@@ -5041,8 +5060,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 33 then
-    GUBData.ShowMessage = 33
+  if Gdata.ShowMessage ~= 34 then
+    Gdata.ShowMessage = 34
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

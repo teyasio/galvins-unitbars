@@ -133,25 +133,50 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Update the number of chi orbs of the player
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
---              True bypasses visible and isactive flags.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
--- PowerType    Type of power the unit has.
---
--- NOTES: Normally the invisibility check is at the top.  But I need to check
---        for total boxes first. So the first BBar:Display() contains the
---        total boxes on the first call.
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerChi
+function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
 
-  -- Return if not the correct powertype.
-  if PowerType ~= PowerChi then
+  -------------------
+  -- Check Power Type
+  -------------------
+  local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerType[PowerToken]
+  else
+    PowerType = PowerChi
+  end
+
+  -- Return if power type doesn't match that of chi
+  if PowerType == nil or PowerType ~= PowerChi then
     return
   end
 
-  local BBar = self.BBar
+  ---------------
+  -- Set IsActive
+  ---------------
   local ChiOrbs = UnitPower('player', PowerChi)
+
+  self.IsActive = ChiOrbs > 0
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
   local NumOrbs = UnitPowerMax('player', PowerChi)
 
   if Main.UnitBars.Testing then
@@ -170,6 +195,12 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     end
   end
 
+  -------
+  -- Draw
+  -------
+  local BBar = self.BBar
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
+
   -- Check for max chi change
   if NumOrbs ~= self.NumOrbs then
     self.NumOrbs = NumOrbs
@@ -180,13 +211,6 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     end
     BBar:Display()
   end
-
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
-  end
-
-  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   for ChiIndex = 1, MaxChiOrbs do
     BBar:ChangeTexture(ChangeChi, 'SetHiddenTexture', ChiIndex, ChiIndex > ChiOrbs)
@@ -201,12 +225,6 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerType)
     BBar:SetTriggers(RegionGroup, 'chi', ChiOrbs)
     BBar:DoTriggers()
   end
-
-  -- Set this IsActive flag
-  self.IsActive = ChiOrbs > 0
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 -------------------------------------------------------------------------------

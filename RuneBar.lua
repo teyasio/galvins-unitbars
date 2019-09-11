@@ -315,19 +315,52 @@ end
 local function OnUpdateRunes(self)
   self:SetScript('OnUpdate', nil)
 
+  ---------------
+  -- Set IsActive
+  ---------------
   local RuneBar = self.RuneBar
-  local BBar = RuneBar.BBar
-  local UB = RuneBar.UnitBar
-  local Layout = UB.Layout
+  local AnyRecharging = false
+
+  for RuneIndex = 1, MaxRunes do
+    local _, _, RuneReady = GetRuneCooldown(RuneIndex)
+
+    if RuneReady ~= nil and not RuneReady then
+      AnyRecharging = true
+    end
+  end
+
+  -- Set the IsActive flag.
+  RuneBar.IsActive = AnyRecharging
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  RuneBar:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if RuneBar.Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
   local Testing = Main.UnitBars.Testing
+  local UB = RuneBar.UnitBar
   local TestMode = UB.TestMode
-  local EnableTriggers = Layout.EnableTriggers
-  local RuneTime = TestMode.RuneTime
+  local PlayerSpecialization = Main.PlayerSpecialization
+
+  if Testing then
+    PlayerSpecialization = TestMode.BloodSpec and 1 or TestMode.FrostSpec and 2 or TestMode.UnHolySpec and 3 or 1
+  end
+
+  -------
+  -- Draw
+  -------
   local LastDuration = RuneBar.LastDuration
   local RuneOnCooldown = RuneBar.RuneOnCooldown
-  local PlayerSpecialization = Main.PlayerSpecialization
-  local CurrentTime = GetTime()
-  local AnyRecharging = false
 
   if LastDuration == nil then
     LastDuration = {}
@@ -340,9 +373,12 @@ local function OnUpdateRunes(self)
     end
   end
 
-  if Testing then
-    PlayerSpecialization = TestMode.BloodSpec and 1 or TestMode.FrostSpec and 2 or TestMode.UnHolySpec and 3 or 1
-  end
+
+  local BBar = RuneBar.BBar
+  local Layout = UB.Layout
+  local EnableTriggers = Layout.EnableTriggers
+  local RuneTime = TestMode.RuneTime
+  local CurrentTime = GetTime()
 
   -- Update textures/colors if player specialization has changed
   if RuneBar.PlayerSpecialization ~= PlayerSpecialization then
@@ -389,7 +425,6 @@ local function OnUpdateRunes(self)
       end
       RuneOnCooldown[RuneID] = RuneIndex
       LastDuration[RuneID] = Duration
-      AnyRecharging = true
       BBar:SetHiddenTexture(RuneIndex, RuneTexture, true)
     else
       DoRuneCooldown(RuneBar, 'stop', RuneIndex)
@@ -406,12 +441,6 @@ local function OnUpdateRunes(self)
     BBar:SetTriggers(RegionGroup, 'recharging', AnyRecharging)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  RuneBar.IsActive = AnyRecharging
-
-  -- Do a status check.
-  RuneBar:StatusCheck()
 end
 
 -------------------------------------------------------------------------------
@@ -427,14 +456,10 @@ end
 --         Then OnUpdate will fire on the very next frame and call UpDateRunes
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.RuneBar:Update(Event, ...)
-
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
-    return
-  end
   local OnUpdateFrame = self.OnUpdateFrame
 
   OnUpdateFrame.RuneBar = self
+  self.Event = Event
 
   -- Calling the function directly for testing creates less glitches
   if not Main.UnitBars.Testing then

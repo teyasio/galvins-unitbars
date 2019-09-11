@@ -123,33 +123,59 @@ Main.UnitBarsF.ArcaneBar.StatusCheck = GUB.Main.StatusCheck
 --
 -- Update the number of arcane charges of the player
 --
--- Event        Event that called this function.  If nil then it wasn't called by an event.
---              True bypasses visible and isactive flags.
--- Unit         Unit can be 'target', 'player', 'pet', etc.
--- PowerType    Type of power the unit has.
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
 -------------------------------------------------------------------------------
-function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerType)
+function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerToken)
 
-  -- Check if bar is not visible or has active flag waiting for activity.
-  if Event ~= true and not self.Visible and self.IsActive ~= 0 then
+  -------------------
+  -- Check Power Type
+  -------------------
+  local PowerType = nil
+  if PowerToken then
+    PowerType = ConvertPowerType[PowerToken]
+  else
+    PowerType = PowerArcane
+  end
+
+  -- Return if power type doesn't match that of arcane
+  if PowerType == nil or PowerType ~= PowerArcane then
     return
   end
 
-  PowerType = PowerType and ConvertPowerType[PowerType] or PowerArcane
-
-  -- Return if not the correct powertype.
-  if PowerType ~= PowerArcane then
-    return
-  end
-
-  local BBar = self.BBar
+  ---------------
+  -- Set IsActive
+  ---------------
   local ArcaneCharges = UnitPower('player', PowerArcane)
-  local NumCharges = UnitPowerMax('player', PowerArcane)
-  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
+  self.IsActive = ArcaneCharges > 0
+
+  --------
+  -- Check
+  --------
+  local LastHidden = self.Hidden
+  self:StatusCheck()
+  local Hidden = self.Hidden
+
+  -- If not called by an event and Hidden is true then return
+  if Event == nil and Hidden or LastHidden and Hidden then
+    return
+  end
+
+  ------------
+  -- Test Mode
+  ------------
   if Main.UnitBars.Testing then
     ArcaneCharges = self.UnitBar.TestMode.ArcaneCharges
   end
+
+  -------
+  -- Draw
+  -------
+  local BBar = self.BBar
+  local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   for ArcaneIndex = 1, MaxArcaneCharges do
     BBar:ChangeTexture(ChangeArcane, 'SetHiddenTexture', ArcaneIndex, ArcaneIndex > ArcaneCharges)
@@ -164,12 +190,6 @@ function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerType)
     BBar:SetTriggers(RegionGroup, 'arcane charges', ArcaneCharges)
     BBar:DoTriggers()
   end
-
-  -- Set the IsActive flag.
-  self.IsActive = ArcaneCharges > 0
-
-  -- Do a status check.
-  self:StatusCheck()
 end
 
 --*****************************************************************************
