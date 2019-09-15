@@ -448,20 +448,22 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   -------------------
   local UB = self.UnitBar
   local BarType = self.BarType
-  Unit = UB.UnitType
-
   local PowerType = nil
-  if PowerToken then
-    PowerType = ConvertPowerTypeHAP[PowerToken]
+  Unit = UB.UnitType
+  PowerToken = ConvertPowerTypeHAP[PowerToken] or -1
+
+  if BarType ~= 'ManaPower' then
+    PowerType = UnitPowerType(Unit)
 
     -- Return if power types doesn't match that of the powerbar
-    if PowerType == nil or PowerType ~= PowerMana and BarType == 'ManaPower' then
+    if PowerToken ~= nil and PowerToken ~= PowerType then
       return
     end
-  elseif BarType == 'ManaPower' then
+  elseif PowerToken == PowerMana then
     PowerType = PowerMana
   else
-    PowerType = UnitPowerType(Unit)
+    -- Return, not correct power type
+    return
   end
 
   ---------------
@@ -538,7 +540,6 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   -------
   -- Draw
   -------
-  local BarType = self.BarType
   local Bar = UB.Bar
 
   local Name, Realm = UnitName(Unit)

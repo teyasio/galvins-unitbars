@@ -97,7 +97,6 @@ local OptionsTreeData = {
   Root = {},
   BranchKeys = {},
   AutoExpandBarType = false,
-  Refreshed = false,
   EnableCount = 0,
 }
 
@@ -909,12 +908,12 @@ end
 --
 -- Creates and adds to an options tree. Creates a tab view on the right
 --
--- BarGroups          Table containing the tree view on the left
+-- TreeGroups         Table containing the tree view on the left
 -- BarType            This is used for the key name
 -- Name               Name that will appear in the menu tree on the left
 -- Order              Order number position in the tree
 -------------------------------------------------------------------------------
-local function AddOptionsTree(BarGroups, BarType, Order, Name, Desc)
+local function AddOptionsTree(TreeGroups, BarType, Order, Name, Desc)
   local Expanded = OptionsTreeData.Expanded
   local Gdata = Main.Gdata
   Expanded[BarType] = false
@@ -960,7 +959,7 @@ local function AddOptionsTree(BarGroups, BarType, Order, Name, Desc)
       ExpandAll = {
         type = 'toggle',
         width = 'normal',
-        name = 'Expand all',
+        name = 'Expand All',
         order = 2,
         get = function()
                 return Gdata.ExpandAll
@@ -979,21 +978,21 @@ local function AddOptionsTree(BarGroups, BarType, Order, Name, Desc)
   OptionsTreeData.Root[BarType] = OptionsTree
   OptionsTreeData.Order[BarType] = Order
   OptionsTreeData.BranchKeys[BarType] = {}
-  BarGroups[BarType] = OptionsTree
+  TreeGroups[BarType] = OptionsTree
 end
 
 -------------------------------------------------------------------------------
 -- RemoveOptionsTree
 --
 -- Removes the tree and all branches
--- And the options from BarGroups
+-- And the options from TreeGroups
 -------------------------------------------------------------------------------
-local function RemoveOptionsTree(BarGroups, BarType)
-  if BarGroups[BarType] then
+local function RemoveOptionsTree(TreeGroups, BarType)
+  if TreeGroups[BarType] then
 
     -- Remove all branches
     for TableName in pairs(OptionsTreeData.BranchKeys[BarType]) do
-      BarGroups[TableName] = nil
+      TreeGroups[TableName] = nil
     end
 
     OptionsTreeData.Root[BarType] = nil
@@ -1001,7 +1000,7 @@ local function RemoveOptionsTree(BarGroups, BarType)
     OptionsTreeData.BranchKeys[BarType] = nil
     OptionsTreeData.AutoExpandBarType = false
     OptionsTreeData.EnableCount = 0
-    BarGroups[BarType] = nil
+    TreeGroups[BarType] = nil
   end
 end
 
@@ -1042,12 +1041,12 @@ end
 --
 -- Adds a branch to the options tree
 --
--- BarGroups  Table containing the tree view on the left
+-- TreeGroups Table containing the tree view on the left
 -- BarType    Tree to add an options branch to
 -- TableName  Keyname to use
 -- Options    Options to be added
 -------------------------------------------------------------------------------
-local function AddOptionsBranch(BarGroups, BarType, TableName, Options)
+local function AddOptionsBranch(TreeGroups, BarType, TableName, Options)
   local Name = Options.name
   local Gdata = Main.Gdata
 
@@ -1076,7 +1075,7 @@ local function AddOptionsBranch(BarGroups, BarType, TableName, Options)
 
   local BranchTableName = format('%s%s', TableName, BarType)
   OptionsTreeData.BranchKeys[BarType][BranchTableName] = true
-  BarGroups[BranchTableName] = Options
+  TreeGroups[BranchTableName] = Options
 end
 
 --*****************************************************************************
@@ -3545,6 +3544,7 @@ end
 
 local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
   local UBF = UnitBarsF[BarType]
+  local ClassSpecialization = GD.ClassSpecialization
   local PlayerClass = Main.PlayerClass
   local ClassDropdown = {}
   local SelectClassDropdown = {}
@@ -3574,7 +3574,7 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
         MyClassFound = true
       end
       -- Create spec dropdown
-      local CS = GD.ClassSpecialization[ClassName]
+      local CS = ClassSpecialization[ClassName]
       local SpecList = {}
       local NumSpecs = #Specs
 
@@ -7988,8 +7988,6 @@ end
 -- TableName   Key name to store the options under
 -- Order       Position in the options list.
 -- Name        Name of the options.
---
--- NOTES: The list needs to be built over time so no lag is caused.
 -------------------------------------------------------------------------------
 local function BuildAltPowerBarList(APA, TableName, Order, Name)
   local Gdata = Main.Gdata
@@ -9015,7 +9013,7 @@ local function CreateMainOptions()
         order = 1,
         get = function(Info)
                 return Main.UnitBars[Info[#Info]]
-             end,
+              end,
         set = function(Info, Value)
                 local KeyName = Info[#Info]
 

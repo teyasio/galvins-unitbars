@@ -165,10 +165,10 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                        - If true then the player changed their specialization.
 -- Main.PlayerSpecialization
 --                          - Number. Contains the current specialization of the player.
--- Main.UnitBars            - Set by SharedData()
--- Main.Gdata               - Set by SharedData()
--- Main.PlayerClass         - Set by SharedData()
--- Main.PlayerPowerType     - Set by SharedData() and UnitBarsUpdateStatus()
+-- Main.UnitBars            - Set by ShareData()
+-- Main.Gdata               - Set by ShareData()
+-- Main.PlayerClass         - Set by ShareData()
+-- Main.PlayerPowerType     - Set by ShareData() and UnitBarsUpdateStatus()
 -- Main.ConvertCombatColor  - Reference to ConvertCombatColor
 -- Main.ConvertPowerTypeHAP - Reference to ConvertPowerTypeHAP
 -- Main.ConvertPowerType    - Rerference to ConvertPowerType
@@ -178,7 +178,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.HasAltPower         - set by UnitBarsUpdateStatus()
 -- Main.TrackedAurasList    - Set by SetAuraTracker()
 -- Main.PlayerGUID          - Set by ShareData()
--- Main.GameVersion         - Current version of the game
 --
 -- Main.APBUsed           - Contains list of used power bars. Contains what minimap zone they were used in.
 --                          set by UnitBarsUpdateStatus(). Used by ShareData()
@@ -572,15 +571,6 @@ do
 
       UnitBarsF[BarType] = UBFTable
       UnitBarsFE[Index] = UBFTable
-
-      local PowerType = UB.PowerType
-      if PowerType then
-        for k, v in pairs(PowerType) do
-          if ConvertPowerType[k] ~= v then
-            print(BarType, 'mismatch ', k, v)
-          end
-        end
-      end
     end
   end
 end
@@ -656,13 +646,21 @@ local function InitializeColors()
   local ConvertPowerTypeHAPL = {}
 
   -- Copy the power colors.
+  -- Add foreign language or english to ConvertPowerTypeHAP
   for PowerType, Value in pairs(ConvertPowerTypeHAP) do
     local Color = PowerBarColor[Value]
     local r, g, b = Color.r, Color.g, Color.b
+    local PowerTypeL = _G[PowerType]
 
     DUB.PowerColor = DUB.PowerColor or {}
     DUB.PowerColor[Value] = {r = r, g = g, b = b, a = 1}
+
+    if PowerTypeL then
+      ConvertPowerTypeHAPL[strupper(PowerTypeL)] = Value
+    end
+    ConvertPowerTypeHAPL[PowerType] = Value
   end
+  ConvertPowerTypeHAP = ConvertPowerTypeHAPL
 
   -- Copy the class colors.
   for Class, Color in pairs(RAID_CLASS_COLORS) do
@@ -682,17 +680,6 @@ local function InitializeColors()
     ConvertPowerTypeL[PowerType] = Value
   end
   ConvertPowerType = ConvertPowerTypeL
-
-  -- Add foreign language or english to ConvertPowerTypeHAP
-  for PowerType, Value in pairs(ConvertPowerTypeHAP) do
-    local PowerTypeL = _G[PowerType]
-
-    if PowerTypeL then
-      ConvertPowerTypeHAPL[strupper(PowerTypeL)] = Value
-    end
-    ConvertPowerTypeHAPL[PowerType] = Value
-  end
-  ConvertPowerTypeHAP = ConvertPowerTypeHAPL
 end
 
 --*****************************************************************************
@@ -3249,7 +3236,6 @@ function GUB.Main:StatusCheck(Event)
     local Status = UB.Status
     local Hide = false
     local ClassSpecEnabled = false
-    local Spec = nil
 
     ClassSpecEnabled = Main:CheckClassSpecs(self.BarType, UB.ClassSpecs)
     self.ClassSpecEnabled = ClassSpecEnabled
@@ -3606,9 +3592,8 @@ end
 -------------------------------------------------------------------------------
 local function TrackMouse(TrackingFrame)
   local x, y = GetCursorPosition()
-  local LastX, LastY = TrackingFrame.LastX, TrackingFrame.LastY
 
-  if x ~= LastX or y ~= LastY then
+  if x ~= TrackingFrame.LastX or y ~= TrackingFrame.LastY then
     MoveFrameGetNearestFrame(TrackingFrame)
     TrackingFrame.LastX = x
     TrackingFrame.LastY = y
@@ -3959,7 +3944,7 @@ function GUB:TrackCast(Event, Unit, CastID, SpellID)
     -- Start a new cast or delay the timeout on an existing cast.
     if CastEvent == EventCastStart  or CastEvent == EventCastDelayed then
       local _, _, _, StartTime, EndTime, _, _, _, SpellID = UnitCastingInfo('player')
-      local Duration = EndTime / 1000 - StartTime / 1000
+      local Duration = (EndTime or 0) / 1000 - (StartTime or 0) / 1000
 
       if CastEvent == EventCastStart then
         CastTracking.SpellID = SpellID

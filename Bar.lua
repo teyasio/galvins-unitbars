@@ -7231,7 +7231,6 @@ function BarDB:CheckTriggers()
         if not SpecEnabled then
           DisabledBySpec = false
         else
-          print('spec check', Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true))
           DisabledBySpec = not Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true)
         end
         Trigger.DisabledBySpec = DisabledBySpec
