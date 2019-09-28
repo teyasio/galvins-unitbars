@@ -3294,6 +3294,7 @@ function GUB.Main:StatusCheck(Event)
       end
     end
     -- Hide/show the unitbar.
+
     HideUnitBar(self, Hide)
   end
 end
@@ -5023,16 +5024,18 @@ function GUB:OnEnable()
   APBUsed = Gdata.APBUsed
   APBUseBlizz = Gdata.APBUseBlizz
 
+  -- Get player stuff
+  -- Get the globally unique identifier for the player.
   _, PlayerClass = UnitClass('player')
   _, PlayerPowerType = UnitPowerType('player')
-
-  -- Get the globally unique identifier for the player.
+  PlayerSpecialization = GetSpecialization() or 0
   PlayerGUID = UnitGUID('player')
 
   ShareData()
   Options:OnInitialize()
   InitAltPowerBar()
   InitExtraActionButton()
+  Main:GetTalents()
 
   GUB:ApplyProfile()
 

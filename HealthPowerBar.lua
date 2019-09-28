@@ -15,7 +15,7 @@ local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
-local ConvertPowerTypeHAP = Main.ConvertPowerTypeHAP
+local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
@@ -52,9 +52,9 @@ local AbsorbBar = 30
 local PredictedCostBar = 40
 
 -- Powertype constants
-local PowerMana = ConvertPowerTypeHAP['MANA']
-local PowerEnergy = ConvertPowerTypeHAP['ENERGY']
-local PowerFocus = ConvertPowerTypeHAP['FOCUS']
+local PowerMana = ConvertPowerType['MANA']
+local PowerEnergy = ConvertPowerType['ENERGY']
+local PowerFocus = ConvertPowerType['FOCUS']
 
 local GF = { -- Get function data
   TT.TypeID_ClassColor,  TT.Type_ClassColor,
@@ -450,7 +450,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   local BarType = self.BarType
   local PowerType = nil
   Unit = UB.UnitType
-  PowerToken = ConvertPowerTypeHAP[PowerToken] or -1
+  PowerToken = ConvertPowerType[PowerToken]
 
   if BarType ~= 'ManaPower' then
     PowerType = UnitPowerType(Unit)

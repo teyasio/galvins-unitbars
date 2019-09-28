@@ -1100,6 +1100,7 @@ local function OnHideToGUBOptions()
 end
 
 local function OpenOptionsOOC()
+  OutOfCombatFrame:SetScript('OnEvent', nil)
 
   -- Hide blizz blizz options if it's opened.
   if InterfaceOptionsFrame:IsVisible() then
@@ -6793,40 +6794,9 @@ local function CreateResetOptions(BarType, Order, Name)
             Main.UnitBars.Reset[Info.arg] = Value
           end,
     args = {
-      Spacer5 = CreateSpacer(5),
-      Minimize = {
-        type = 'input',
-        order = 5,
-        name = function()
-                 if Main.UnitBars.Reset.Minimize then
-                   return '+'
-                 else
-                   return '_'
-                 end
-               end,
-        width = 'half',
-        dialogControl = 'GUB_Flex_Button',
-        desc = function()
-                 if Main.UnitBars.Reset.Minimize then
-                   return 'Click to maximize'
-                 else
-                   return 'Click to minimize'
-                 end
-               end,
-        set = function()
-                 local Reset = Main.UnitBars.Reset
-
-                 Reset.Minimize = not Reset.Minimize
-                 HideTooltip(true)
-               end,
-        get = function()
-                return 'L,40'
-              end,
-      },
-      Spacer10 = CreateSpacer(10, 'half'),
       Reset = {
         type = 'execute',
-        order = 11,
+        order = 1,
         name = 'Reset',
         width = 'half',
         desc = 'Clicking this will reset the current items checked off below',
@@ -6894,11 +6864,11 @@ local function CreateResetOptions(BarType, Order, Name)
                      end
                    end,
       },
-      Spacer20 = CreateSpacer(20),
+      Spacer10 = CreateSpacer(10),
       Notes = {
         type = 'description',
         name = 'Check off what to reset',
-        order = 21,
+        order = 11,
         hidden = function()
                    return Main.UnitBars.Reset.Minimize
                  end
