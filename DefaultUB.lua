@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 642
+GUB.DefaultUB.Version = 643
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -2432,7 +2432,7 @@ MergeTable(Profile.ComboBar, {
     BorderSize = 12,
     Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
     Color = {r = 0.176, g = 0.160, b = 0.094, a = 1},
-    EnabelBorderColor = false,
+    EnableBorderColor = false,
     BorderColor = {r = 1, g = 1, b = 1, a = 1},
   },
   BackgroundCombo = {
@@ -3246,7 +3246,7 @@ MergeTable(Profile.ChiBar, {
     BorderSize = 12,
     Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
     Color = {r = 0.113, g = 0.192, b = 0.188, a = 1},
-    EnabelBorderColor = false,
+    EnableBorderColor = false,
     BorderColor = {r = 1, g = 1, b = 1, a = 1},
   },
   Background = {
