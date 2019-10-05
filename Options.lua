@@ -1203,10 +1203,11 @@ end
 -- KeyName            Name of the color table.
 -- Order              Position in the options list.
 -- Name               Name of the options.
+-- DisableFn          Disabled options based on a function
 --
 -- ColorAllOptions  Options table for the bartype.
 -------------------------------------------------------------------------------
-local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Order, Name)
+local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Order, Name, DisableFn)
   local UBF = UnitBarsF[BarType]
   local Names = UBF.Names
 
@@ -1217,7 +1218,6 @@ local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Ord
     type = 'group',
     name = Name,
     order = Order,
-    dialogInline = true,
     get = function(Info)
             local ColorIndex = tonumber(Info[#Info])
             local c = Main:GetUB(BarType, ColorPath)
@@ -1254,6 +1254,9 @@ local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Ord
                 -- Refresh colors when changing between all and normal.
                 UBF:SetAttr(TableName, KeyName)
               end,
+        disabled = function()
+                     return DisableFn and DisableFn() or false
+                   end,
       },
       ['0'] = {
         type = 'color',
@@ -1264,6 +1267,9 @@ local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Ord
         hidden = function()
                    return not Main:GetUB(BarType, ColorPath).All
                  end,
+        disabled = function()
+                     return DisableFn and DisableFn() or false
+                   end,
       },
       Spacer = CreateSpacer(3),
     },
@@ -1283,7 +1289,9 @@ local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Ord
     ColorOption.hidden = function()
                            return Main:GetUB(BarType, ColorPath).All
                          end
-
+    ColorOption.disabled = function()
+                             return DisableFn and DisableFn() or false
+                           end
     -- Add it to the options table
     CAOA[format('%s', ColorIndex)] = ColorOption
   end
@@ -1336,39 +1344,39 @@ end
 local function CreateColorAllSelectOptions(BarType, TableType, TableName, Order, Name)
   local UBF = UnitBarsF[BarType]
   local SelectedMenuButtonName = UBF.UnitBar[TableName].ColorAllSelect[TableType]
-  local MenuAllButtons = nil
+  local TabButtons = nil
 
   if BarType == 'FragmentBar' then
     if TableType == 'bar' then
-      MenuAllButtons = {
-        Color                 = { Order = 1, Width = 'half',   KeyName = 'Color',             ColorPath = '.Color',
+      TabButtons = {
+        Color                 = { KeyName = 'Color',             ColorPath = '.Color',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or UBF.GreenFire end },
-        ['Green Fire']        = { Order = 2, Width = 'normal', Keyname = 'ColorGreen',        ColorPath = '.ColorGreen',
+        ['Green Fire']        = { Keyname = 'ColorGreen',        ColorPath = '.ColorGreen',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or not UBF.GreenFire end },
       }
     end
     if TableType == 'barfull' then
-      MenuAllButtons = {
-        Color                 = { Order = 1, Width = 'half',   KeyName = 'ColorFull',         ColorPath = '.ColorFull',
+      TabButtons = {
+        Color                 = { KeyName = 'ColorFull',         ColorPath = '.ColorFull',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or UBF.GreenFire end },
-        ['Green Fire']        = { Order = 2, Width = 'normal', KeyName = 'ColorFullGreen',    ColorPath = '.ColorFullGreen',
+        ['Green Fire']        = { KeyName = 'ColorFullGreen',    ColorPath = '.ColorFullGreen',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or not UBF.GreenFire end },
       }
     end
     if TableType == 'bg' then
-      MenuAllButtons = {
-        Color                 = { Order = 1, Width = 'half',   KeyName = 'Color',             ColorPath = '.Color',
+      TabButtons = {
+        Color                 = { KeyName = 'Color',             ColorPath = '.Color',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or UBF.GreenFire end },
-        ['Green Fire']        = { Order = 2, Width = 'normal', Keyname = 'ColorGreen',        ColorPath = '.ColorGreen',
+        ['Green Fire']        = { Keyname = 'ColorGreen',        ColorPath = '.ColorGreen',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or not UBF.GreenFire end },
       }
     end
     if TableType == 'border' then
-      MenuAllButtons = {
-        Color                 = { Order = 1, Width = 'half',   KeyName = 'BorderColor',       ColorPath = '.BorderColor',
+      TabButtons = {
+        Color                 = { KeyName = 'BorderColor',       ColorPath = '.BorderColor',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or UBF.GreenFire or
                                                                 not UBF.UnitBar[TableName].EnableBorderColor end },
-        ['Green Fire']        = { Order = 2, Width = 'normal', Keyname = 'BorderColorGreen',  ColorPath = '.BorderColorGreen',
+        ['Green Fire']        = { Keyname = 'BorderColorGreen',  ColorPath = '.BorderColorGreen',
                                   DisableFn = function() return GroupDisabled(BarType, TableName, UBF) or not UBF.GreenFire or
                                                                 not UBF.UnitBar[TableName].EnableBorderColor end },
       }
@@ -1376,32 +1384,32 @@ local function CreateColorAllSelectOptions(BarType, TableType, TableName, Order,
   end
   if BarType == 'RuneBar' then
     if TableType == 'bar' then
-      MenuAllButtons = {
-        Blood                 = { Order = 1, Width = 'half',   KeyName = 'ColorBlood',        ColorPath = '.ColorBlood',
+      TabButtons = {
+        Blood                 = { KeyName = 'ColorBlood',        ColorPath = '.ColorBlood',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 1 end },
-        Frost                 = { Order = 2, Width = 'half',   KeyName = 'ColorFrost',        ColorPath = '.ColorFrost',
+        Frost                 = { KeyName = 'ColorFrost',        ColorPath = '.ColorFrost',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 2 end },
-        Unholy                = { Order = 3, Width = 'half',   KeyName = 'ColorUnholy',       ColorPath = '.ColorUnholy',
+        Unholy                = { KeyName = 'ColorUnholy',       ColorPath = '.ColorUnholy',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 3 end },
       }
     end
     if TableType == 'bg' then
-      MenuAllButtons = {
-        Blood                 = { Order = 1, Width = 'half',   KeyName = 'ColorBlood',        ColorPath = '.ColorBlood',
+      TabButtons = {
+        Blood                 = { KeyName = 'ColorBlood',        ColorPath = '.ColorBlood',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 1 end },
-        Frost                 = { Order = 2, Width = 'half',   KeyName = 'ColorFrost',        ColorPath = '.ColorFrost',
+        Frost                 = { KeyName = 'ColorFrost',        ColorPath = '.ColorFrost',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 2 end },
-        Unholy                = { Order = 3, Width = 'half',   KeyName = 'ColorUnholy',       ColorPath = '.ColorUnholy',
+        Unholy                = { KeyName = 'ColorUnholy',       ColorPath = '.ColorUnholy',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 3 end },
       }
     end
     if TableType == 'border' then
-      MenuAllButtons = {
-        Blood                 = { Order = 1, Width = 'half',   KeyName = 'BorderColorBlood',  ColorPath = '.BorderColorBlood',
+      TabButtons = {
+        Blood                 = { KeyName = 'BorderColorBlood',  ColorPath = '.BorderColorBlood',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 1 end },
-        Frost                 = { Order = 2, Width = 'half',   KeyName = 'BorderColorFrost',  ColorPath = '.BorderColorFrost',
+        Frost                 = { KeyName = 'BorderColorFrost',  ColorPath = '.BorderColorFrost',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 2 end },
-        Unholy                = { Order = 3, Width = 'half',   KeyName = 'BorderColorUnholy', ColorPath = '.BorderColorUnholy',
+        Unholy                = { KeyName = 'BorderColorUnholy', ColorPath = '.BorderColorUnholy',
                                   DisableFn = function() return UBF.PlayerSpecialization ~= 3 end },
       }
     end
@@ -1411,46 +1419,25 @@ local function CreateColorAllSelectOptions(BarType, TableType, TableName, Order,
     type = 'group',
     name = Name,
     order = Order,
-    dialogInline = true,
+    childGroups = 'tab',
     args = {},
   }
 
   local Args = ColorAllSelectOptions.args
 
-  Args.MenuLine = {
-    type = 'header',
-    name = '',
-    order = 10,
-    width = 'full',
-  }
-
   -- Create the menu buttons
-  for MenuButtonName, MenuButton in pairs(MenuAllButtons) do
-    Args[MenuButtonName] = {
-      type = 'input',
-      order = MenuButton.Order,
-      name = function()
-               if SelectedMenuButtonName == MenuButtonName then
-                   return format('%s:2', MenuButtonName)
-                 else
-                   return format('%s', MenuButtonName)
-                 end
-               end,
-      width = MenuButton.Width,
-      dialogControl = 'GUB_Menu_Button',
-      set = function()
-              SelectedMenuButtonName = MenuButtonName
-              -- Save selection
-              UBF.UnitBar[TableName].ColorAllSelect[TableType] = SelectedMenuButtonName
-            end,
-    }
-    -- Create color group
-    local ColorAllOptions = CreateColorAllOptions(BarType, TableName, TableName .. MenuButton.ColorPath, MenuButton.KeyName, 100, '')
-    ColorAllOptions.hidden = function()
-                               return SelectedMenuButtonName ~= MenuButtonName
+  for TabName, TabButton in pairs(TabButtons) do
+    local DisableFn = TabButton.DisableFn
+    local ColorAllOptions = CreateColorAllOptions(BarType, TableName, TableName .. TabButton.ColorPath, TabButton.KeyName, 100, TabName, DisableFn)
+
+    ColorAllOptions.name = function()
+                             if DisableFn() then
+                               return TabName
+                             else
+                               return TabName .. ' *'
                              end
-    ColorAllOptions.disabled = MenuButton.DisableFn
-    Args[MenuButtonName .. '_Group'] = ColorAllOptions
+                           end
+    Args[TabName] = ColorAllOptions
   end
 
   return ColorAllSelectOptions
@@ -1472,6 +1459,7 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
 
   local BackdropOptions = {
     type = 'group',
+    childGroups = 'tab',
     name = function()
              local Tag = ''
              if BarType == 'FragmentBar' and TableName ~= 'Region' then
@@ -1486,108 +1474,111 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
            end,
     order = Order,
     args = {
-      DisableGroup = {
+      General = {
         type = 'group',
-        name = '',
-        dialogInline = true,
+        name = 'General',
         order = 1,
-        disabled = function()
-                     return GroupDisabled(BarType, TableName, UBF)
-                   end,
+        get = function(Info)
+                local KeyName = Info[#Info]
+                local Value = UBF.UnitBar[TableName][KeyName]
+
+                if KeyName ~= 'EnableBorderColor' and strfind(KeyName, 'Color') then
+                  return Value.r, Value.g, Value.b, Value.a
+                else
+                  return Value
+                end
+              end,
+        set = function(Info, Value, g, b, a)
+                local KeyName = Info[#Info]
+
+                if KeyName == 'EnableBorderColor' then
+                  UBF.UnitBar[TableName][KeyName] = Value
+                  if BarType == 'FragmentBar' then
+
+                    UBF:SetAttr(TableName, 'BorderColor')
+                    UBF:SetAttr(TableName, 'BorderColorGreen')
+                  elseif BarType == 'RuneBar' then
+
+                    UBF:SetAttr(TableName, 'BorderColorBlood')
+                    UBF:SetAttr(TableName, 'BorderColorFrost')
+                    UBF:SetAttr(TableName, 'BorderColorUnholy')
+                  else
+                    UBF:SetAttr(TableName, 'BorderColor')
+                  end
+
+                elseif strfind(KeyName, 'Color') then
+                  local c = UBF.UnitBar[TableName][KeyName]
+
+                  c.r, c.g, c.b, c.a = Value, g, b, a
+                  UBF:SetAttr(TableName, KeyName)
+                else
+                  UBF.UnitBar[TableName][KeyName] = Value
+                  UBF:SetAttr(TableName, KeyName)
+                end
+              end,
         args = {
-          General = {
-            type = 'group',
-            name = 'General',
-            dialogInline = true,
+          BorderTexture = {
+            type = 'select',
+            name = 'Border',
             order = 1,
-            get = function(Info)
-                    local KeyName = Info[#Info]
-                    local Value = UBF.UnitBar[TableName][KeyName]
-
-                    if KeyName ~= 'EnableBorderColor' and strfind(KeyName, 'Color') then
-                      return Value.r, Value.g, Value.b, Value.a
-                    else
-                      return Value
-                    end
-                  end,
-            set = function(Info, Value, g, b, a)
-                    local KeyName = Info[#Info]
-
-                    if KeyName == 'EnableBorderColor' then
-                      UBF.UnitBar[TableName][KeyName] = Value
-                      if BarType == 'FragmentBar' then
-
-                        UBF:SetAttr(TableName, 'BorderColor')
-                        UBF:SetAttr(TableName, 'BorderColorGreen')
-                      elseif BarType == 'RuneBar' then
-
-                        UBF:SetAttr(TableName, 'BorderColorBlood')
-                        UBF:SetAttr(TableName, 'BorderColorFrost')
-                        UBF:SetAttr(TableName, 'BorderColorUnholy')
-                      else
-                        UBF:SetAttr(TableName, 'BorderColor')
-                      end
-
-                    elseif strfind(KeyName, 'Color') then
-                      local c = UBF.UnitBar[TableName][KeyName]
-
-                      c.r, c.g, c.b, c.a = Value, g, b, a
-                      UBF:SetAttr(TableName, KeyName)
-                    else
-                      UBF.UnitBar[TableName][KeyName] = Value
-                      UBF:SetAttr(TableName, KeyName)
-                    end
-                  end,
-            args = {
-              BorderTexture = {
-                type = 'select',
-                name = 'Border',
-                order = 1,
-                dialogControl = 'LSM30_Border',
-                values = LSMBorderDropdown,
-              },
-              BgTexture = {
-                type = 'select',
-                name = 'Background',
-                order = 2,
-                dialogControl = 'LSM30_Background',
-                values = LSMBackgroundDropdown,
-              },
-              Spacer10 = CreateSpacer(10),
-              BgTile = {
-                type = 'toggle',
-                name = 'Tile Background',
-                order = 11,
-              },
-              BgTileSize = {
-                type = 'range',
-                name = 'Background Tile Size',
-                order = 12,
-                disabled = function()
-                             return not UBF.UnitBar[TableName].BgTile
-                           end,
-                min = o.UnitBarBgTileSizeMin,
-                max = o.UnitBarBgTileSizeMax,
-                step = 1,
-              },
-              Spacer20 = CreateSpacer(20),
-              BorderSize = {
-                type = 'range',
-                name = 'Border Thickness',
-                order = 21,
-                min = o.UnitBarBorderSizeMin,
-                max = o.UnitBarBorderSizeMax,
-                step = 2,
-              },
-            },
+            dialogControl = 'LSM30_Border',
+            values = LSMBorderDropdown,
+            disabled = function()
+                         return GroupDisabled(BarType, TableName, UBF)
+                       end,
+          },
+          BgTexture = {
+            type = 'select',
+            name = 'Background',
+            order = 2,
+            dialogControl = 'LSM30_Background',
+            values = LSMBackgroundDropdown,
+            disabled = function()
+                         return GroupDisabled(BarType, TableName, UBF)
+                       end,
+          },
+          Spacer10 = CreateSpacer(10),
+          BgTile = {
+            type = 'toggle',
+            name = 'Tile Background',
+            order = 11,
+            disabled = function()
+                         return GroupDisabled(BarType, TableName, UBF)
+                       end,
+          },
+          BgTileSize = {
+            type = 'range',
+            name = 'Background Tile Size',
+            order = 12,
+            disabled = function()
+                         return not UBF.UnitBar[TableName].BgTile
+                       end,
+            min = o.UnitBarBgTileSizeMin,
+            max = o.UnitBarBgTileSizeMax,
+            step = 1,
+            disabled = function()
+                         return GroupDisabled(BarType, TableName, UBF)
+                       end,
+          },
+          Spacer20 = CreateSpacer(20),
+          BorderSize = {
+            type = 'range',
+            name = 'Border Thickness',
+            order = 21,
+            min = o.UnitBarBorderSizeMin,
+            max = o.UnitBarBorderSizeMax,
+            step = 2,
+            disabled = function()
+                         return GroupDisabled(BarType, TableName, UBF)
+                       end,
           },
         },
       },
     },
   }
 
-  local BackdropArgs = BackdropOptions.args.DisableGroup.args
-  local GeneralArgs = BackdropArgs.General.args
+  local BackdropArgs = BackdropOptions.args
+  local GeneralArgs = BackdropOptions.args.General.args
 
   if TableName ~= 'Region' then
     if UBD[TableName].EnableBorderColor ~= nil then
@@ -1596,6 +1587,9 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         type = 'toggle',
         name = 'Enable Border Color',
         order = 32,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       }
     end
     -- Fragment bar options
@@ -1663,7 +1657,6 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
   BackdropArgs.Padding = {
     type = 'group',
     name = 'Padding',
-    dialogInline = true,
     order = 10,
     get = function(Info)
             local Padding = UBF.UnitBar[TableName].Padding
@@ -1700,7 +1693,10 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         set = function(Info, Value)
                 UBF.UnitBar[TableName].PaddingAll = Value
               end,
-        desc = 'Change padding with one value'
+        desc = 'Change padding with one value',
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Spacer = CreateSpacer(2),
       All = {
@@ -1713,6 +1709,9 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Left = {
         type = 'range',
@@ -1724,6 +1723,9 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Right = {
         type = 'range',
@@ -1735,6 +1737,9 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Top = {
         type = 'range',
@@ -1746,6 +1751,9 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Bottom = {
         type = 'range',
@@ -1757,6 +1765,9 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
     },
   }
@@ -1781,7 +1792,6 @@ local function CreateAbsorbOptions(BarType, Order, Name)
   local AbsorbOptions = {
     type = 'group',
     name = Name,
-    dialogInline = true,
     order = Order,
     get = function(Info)
             return UBF.UnitBar.Bar[Info[#Info]]
@@ -1865,7 +1875,6 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
   BarSizeOptions = {
     type = 'group',
     name = Name,
-    dialogInline = true,
     order = Order,
     get = function(Info)
             SetSize()
@@ -1890,6 +1899,9 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
                 UBF.UnitBar[TableName].Advanced = Value
                 SetSize()
               end,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Width = {
         type = 'range',
@@ -1898,6 +1910,9 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
         desc = 'Slide or click anywhere on the slider to change the width',
         width = 'full',
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Height = {
         type = 'range',
@@ -1906,6 +1921,9 @@ local function CreateBarSizeOptions(BarType, TableName, Order, Name)
         desc = 'Slide or click anywhere on the slider to change the height',
         width = 'full',
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
     },
   }
@@ -1931,6 +1949,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
 
   local BarOptions = {
     type = 'group',
+    childGroups = 'tab',
     name = function()
              local Tag = ''
              if BarType == 'FragmentBar' and TableName ~= 'Region' then
@@ -1945,53 +1964,41 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
            end,
     order = Order,
     args = {
-      DisableGroup = {
+      General = {
         type = 'group',
-        name = '',
-        dialogInline = true,
+        name = 'General',
         order = 1,
-        disabled = function()
-                     return GroupDisabled(BarType, TableName, UBF)
-                   end,
-        args = {
-          General = {
-            type = 'group',
-            name = 'General',
-            dialogInline = true,
-            order = 1,
-            get = function(Info)
-                    local KeyName = Info[#Info]
+        get = function(Info)
+                local KeyName = Info[#Info]
 
-                    if strfind(KeyName, 'Color') then
-                      local c = UBF.UnitBar[TableName][KeyName]
+                if strfind(KeyName, 'Color') then
+                  local c = UBF.UnitBar[TableName][KeyName]
 
-                      return c.r, c.g, c.b, c.a
-                    else
-                      return UBF.UnitBar[TableName][KeyName]
-                    end
-                  end,
-            set = function(Info, Value, g, b, a)
-                    local KeyName = Info[#Info]
+                  return c.r, c.g, c.b, c.a
+                else
+                  return UBF.UnitBar[TableName][KeyName]
+                end
+              end,
+        set = function(Info, Value, g, b, a)
+                local KeyName = Info[#Info]
 
 
-                    if strfind(KeyName, 'Color') then
-                      local c = UBF.UnitBar[TableName][KeyName]
+                if strfind(KeyName, 'Color') then
+                  local c = UBF.UnitBar[TableName][KeyName]
 
-                      c.r, c.g, c.b, c.a = Value, g, b, a
-                      UBF:SetAttr(TableName, KeyName)
-                    else
-                      UBF.UnitBar[TableName][KeyName] = Value
-                      UBF:SetAttr(TableName, KeyName)
-                    end
-                  end,
-            args = {},
-          },
-        },
+                  c.r, c.g, c.b, c.a = Value, g, b, a
+                  UBF:SetAttr(TableName, KeyName)
+                else
+                  UBF.UnitBar[TableName][KeyName] = Value
+                  UBF:SetAttr(TableName, KeyName)
+                end
+              end,
+        args = {},
       },
     },
   }
 
-  local BarArgs = BarOptions.args.DisableGroup.args
+  local BarArgs = BarOptions.args
   local GeneralArgs = BarArgs.General.args
 
   -- Normal health and power bar.
@@ -2002,6 +2009,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       order = 1,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
+      disabled = function()
+                   return GroupDisabled(BarType, TableName, UBF)
+                 end,
     }
 
     GeneralArgs.Spacer2 = CreateSpacer(2, 'half')
@@ -2014,6 +2024,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         name = 'Color',
         hasAlpha = true,
         order = 3,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       }
       -- Only for power bars
       if UBD.Layout.UseBarColor ~= nil then
@@ -2119,6 +2132,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       order = 21,
       dialogControl = 'LSM30_Statusbar',
       values = LSMStatusBarDropdown,
+      disabled = function()
+                   return GroupDisabled(BarType, TableName, UBF)
+                 end,
     }
   end
 
@@ -2220,6 +2236,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       name = 'Sync Fill Direction',
       order = 31,
       desc = 'Fill direction changes based on rotation',
+      disabled = function()
+                   return GroupDisabled(BarType, TableName, UBF)
+                 end,
     }
   end
 
@@ -2233,6 +2252,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       name = 'Clipping',
       order = 33,
       desc = 'Texture is clipped instead of being stretched',
+      disabled = function()
+                   return GroupDisabled(BarType, TableName, UBF)
+                 end,
     }
   end
   GeneralArgs.Spacer34 = CreateSpacer(34)
@@ -2259,6 +2281,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       min = o.UnitBarRotationMin,
       max = o.UnitBarRotationMax,
       step = 90,
+      disabled = function()
+                   return GroupDisabled(BarType, TableName, UBF)
+                 end,
     }
   end
 
@@ -2284,10 +2309,10 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   end
   BarArgs.BoxSize = CreateBarSizeOptions(BarType, TableName, 10, 'Bar Size')
 
+
   BarArgs.Padding = {
     type = 'group',
     name = 'Padding',
-    dialogInline = true,
     order = 10,
     get = function(Info)
             local KeyName = Info[#Info]
@@ -2324,7 +2349,10 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         set = function(Info, Value)
                 UBF.UnitBar[TableName].PaddingAll = Value
               end,
-        desc = 'Change padding with one value'
+        desc = 'Change padding with one value',
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Spacer = CreateSpacer(2),
       All = {
@@ -2337,6 +2365,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Left = {
         type = 'range',
@@ -2348,6 +2379,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Right = {
         type = 'range',
@@ -2359,6 +2393,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Top = {
         type = 'range',
@@ -2370,6 +2407,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
       Bottom = {
         type = 'range',
@@ -2381,6 +2421,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
         min = o.UnitBarPaddingMin,
         max = o.UnitBarPaddingMax,
         step = 1,
+        disabled = function()
+                     return GroupDisabled(BarType, TableName, UBF)
+                   end,
       },
     },
   }
@@ -2414,7 +2457,6 @@ local function CreateTextFontOptions(BarType, TableName, UBF, TLA, Texts, TextLi
              Bar:SetHighlightFont(BarType, Main.UnitBars.HideTextHighlight, TextLine)
              return 'Font'
            end,
-    dialogInline = true,
     order = Order + 1,
     get = function(Info)
             return Text[Info[#Info]]
@@ -2655,7 +2697,6 @@ local function CreateTextValueOptions(UBF, TLA, DUBTexts, Texts, TextLine, Order
     type = 'group',
     name = 'Value',
     order = Order,
-    dialogInline = true,
     get = function(Info)
             local KeyName = Info[#Info]
             local ValueIndex = Info.arg
@@ -2831,6 +2872,7 @@ local function AddTextLineOptions(BarType, TableName, UBF, TOA, DUBTexts, Texts,
     type = 'group',
     name = format('Text Line %s', TextLine),
     order = TextLine,
+    childGroups = 'tab',
     args = {},
   }
 
@@ -5269,7 +5311,6 @@ local function CreateTestModeOptions(BarType, Order, Name)
   local TestModeOptions = {
     type = 'group',
     name = Name,
-    dialogInline = true,
     order = Order,
     get = function(Info)
             return UBF.UnitBar.TestMode[Info[#Info]]
@@ -5405,30 +5446,23 @@ local function CreateTestModeOptions(BarType, Order, Name)
     }
   end
   if UBD.TestMode.BloodSpec ~= nil then
-    TestModeArgs.DeathKnightSpecGroup = {
-      type = 'group',
-      name = '',
-      order = 200,
-      args = {
-        BloodSpec = {
-          type = 'toggle',
-          name = 'Blood',
-          width = 'half',
-          order = 1,
-        },
-        FrostSpec = {
-          type = 'toggle',
-          name = 'Frost',
-          width = 'half',
-          order = 2,
-        },
-        UnHolySpec = {
-          type = 'toggle',
-          name = 'Unholy',
-          width = 'half',
-          order = 3,
-        },
-      },
+    TestModeArgs.BloodSpec = {
+      type = 'toggle',
+      name = 'Blood',
+      width = 'half',
+      order = 1,
+    }
+    TestModeArgs.FrostSpec = {
+      type = 'toggle',
+      name = 'Frost',
+      width = 'half',
+      order = 2,
+    }
+    TestModeArgs.UnHolySpec = {
+      type = 'toggle',
+      name = 'Unholy',
+      width = 'half',
+      order = 3,
     }
   end
   if UBD.TestMode.RuneTime ~= nil then
@@ -6127,11 +6161,11 @@ local function CreateLayoutOptions(BarType, Order, Name)
     type = 'group',
     name = Name,
     order = Order,
+    childGroups = 'tab',
     args = {
       General = {
         type = 'group',
         name = 'General',
-        dialogInline = true,
         order = 2,
         get = function(Info)
                 return UBF.UnitBar.Layout[Info[#Info]]

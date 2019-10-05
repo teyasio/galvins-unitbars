@@ -1,0 +1,10 @@
+lightweight tag c504da3a73a83ad6f10a102477bec069d1fc015b 6.41-release
+Author:	teyasio <teyasio@comcast.net>
+Date:	Sun Sep 15 01:26:37 2019 -0400
+
+commit c504da3a73a83ad6f10a102477bec069d1fc015b
+Author: teyasio <teyasio@comcast.net>
+Date:   Sun Sep 15 01:26:37 2019 -0400
+
+    PowerBars should display the correct powertype
+
