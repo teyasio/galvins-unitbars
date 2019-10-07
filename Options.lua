@@ -7068,128 +7068,121 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                    ['Text2'] = 1, ['Text2.1'] = 1, ['Text2.2'] = 1, ['Text2.3'] = 1, ['Text2.4'] = 1 } -- Stagger Pause Timer Text
 
   MenuButtons = MenuButtons or { -- Include means that these menu items will be usable during copy paste.
-    ['Main'] = { Order = 1, Width = 'half',
-      { Name = 'All',                  Width = 'half',   All = false, TablePath = '',                                   },  -- 1
-      { Name = 'Spec',                 Width = 'half',   All = true,  TablePath = 'ClassSpecs',                         },  -- 2
-      { Name = 'Status',               Width = 'half',   All = true,  TablePath = 'Status',                             },  -- 3
-      { Name = 'Layout',               Width = 'half',   All = true,  TablePath = 'Layout',                             },  -- 4
-      { Name = 'Region',               Width = 'half',   All = true,  TablePath = 'Region',                             },  -- 5
-      { Name = 'Attributes',           Width = 'normal', All = true,  TablePath = 'Attributes',                         }}, -- 6
+    ['Main'] = { Order = 1,
+      { Name = 'All',                  All = false, TablePath = '',                                   },  -- 1
+      { Name = 'Specialization',       All = true,  TablePath = 'ClassSpecs',                         },  -- 2
+      { Name = 'Status',               All = true,  TablePath = 'Status',                             },  -- 3
+      { Name = 'Attributes',           All = true,  TablePath = 'Attributes',                         },  -- 4
+      { Name = 'Layout',               All = true,  TablePath = 'Layout',                             },  -- 5
+      { Name = 'Region',               All = true,  TablePath = 'Region',                             }}, -- 6
 
-    ['Background'] = { Order = 2, Width = 'normal',
-      { Name = 'Background',           Width = 'normal', All = true,  TablePath = 'Background',                         },  -- 1
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BackgroundCombo',                    },  -- 2
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BackgroundAnticipation',             },  -- 3
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BackgroundShard',                    },  -- 4
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BackgroundEmber',                    },  -- 5
-      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BackgroundStagger',                  },  -- 6
-      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BackgroundPause',                    },  -- 7
-      { Name = 'Power',                Width = 'half',   All = false, TablePath = 'BackgroundPower',                    },  -- 8
-      { Name = 'Counter',              Width = 'half',   All = false, TablePath = 'BackgroundCounter',                  }}, -- 9
+    ['Background'] = { Order = 2,
+      { Name = 'Background',           All = true,  TablePath = 'Background',                         },  -- 1
+      { Name = 'Combo',                All = false, TablePath = 'BackgroundCombo',                    },  -- 2
+      { Name = 'Anticipation',         All = false, TablePath = 'BackgroundAnticipation',             },  -- 3
+      { Name = 'Shard',                All = false, TablePath = 'BackgroundShard',                    },  -- 4
+      { Name = 'Ember',                All = false, TablePath = 'BackgroundEmber',                    },  -- 5
+      { Name = 'Stagger',              All = false, TablePath = 'BackgroundStagger',                  },  -- 6
+      { Name = 'Pause',                All = false, TablePath = 'BackgroundPause',                    },  -- 7
+      { Name = 'Power',                All = false, TablePath = 'BackgroundPower',                    },  -- 8
+      { Name = 'Counter',              All = false, TablePath = 'BackgroundCounter',                  }}, -- 9
 
-    ['Bar'] = { Order = 3, Width = 'half',
-      { Name = 'Bar',                  Width = 'half',   All = true,  TablePath = 'Bar',                                },  -- 1
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BarCombo',                           },  -- 2
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BarAnticipation',                    },  -- 3
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BarShard',                           },  -- 4
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BarEmber',                           },  -- 5
-      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BarStagger',                         },  -- 6
-      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BarPause',                           },  -- 7
-      { Name = 'Power',                Width = 'half',   All = false, TablePath = 'BarPower',                           },  -- 8
-      { Name = 'Counter',              Width = 'half',   All = false, TablePath = 'BarCounter',                         }}, -- 9
+    ['Bar'] = { Order = 3,
+      { Name = 'Bar',                  All = true,  TablePath = 'Bar',                                },  -- 1
+      { Name = 'Combo',                All = false, TablePath = 'BarCombo',                           },  -- 2
+      { Name = 'Anticipation',         All = false, TablePath = 'BarAnticipation',                    },  -- 3
+      { Name = 'Shard',                All = false, TablePath = 'BarShard',                           },  -- 4
+      { Name = 'Ember',                All = false, TablePath = 'BarEmber',                           },  -- 5
+      { Name = 'Stagger',              All = false, TablePath = 'BarStagger',                         },  -- 6
+      { Name = 'Pause',                All = false, TablePath = 'BarPause',                           },  -- 7
+      { Name = 'Power',                All = false, TablePath = 'BarPower',                           },  -- 8
+      { Name = 'Counter',              All = false, TablePath = 'BarCounter',                         }}, -- 9
 
-    ['Region Color'] = { Order = 4, Width = 'normal', Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
-      { Name = 'Background',           Width = 'normal', All = true,  TablePath = 'Region.Color',                       },  -- 1
-      { Name = 'Border',               Width = 'half',   All = true,  TablePath = 'Region.BorderColor',                 }}, -- 2
+    ['Region Color'] = { Order = 4, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
+      { Name = 'Background',           All = true,  TablePath = 'Region.Color',                       },  -- 1
+      { Name = 'Border',               All = true,  TablePath = 'Region.BorderColor',                 }}, -- 2
 
-    ['Background Color'] = { Order = 5, Width = 'normal', Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
-      { Name = 'Background Color',     Width = 'normal', All = true,  TablePath = 'Background.Color',                   },  -- 1
-      { Name = 'Border Color',         Width = 'normal', All = true,  TablePath = 'Background.BorderColor',             },  -- 2
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BackgroundCombo.Color',              },  -- 3
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BackgroundAnticipation.Color',       },  -- 4
-      { Name = 'Combo Border',         Width = 'normal', All = false, TablePath = 'BackgroundCombo.BorderColor',        },  -- 5
-      { Name = 'Anticipation Border',  Width = 'normal', All = false, TablePath = 'BackgroundAnticipation.BorderColor', },  -- 6
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BackgroundShard.Color',              },  -- 7
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BackgroundEmber.Color',              },  -- 8
-      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = 'BackgroundShard.ColorGreen',         },  -- 9
-      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = 'BackgroundEmber.ColorGreen',         },  -- 10
-      { Name = 'Shard Border',         Width = 'normal', All = false, TablePath = 'BackgroundShard.BorderColor',        },  -- 11
-      { Name = 'Ember Border',         Width = 'normal', All = false, TablePath = 'BackgroundEmber.BorderColor',        },  -- 12
-      { Name = 'Shard Border [Green]', Width = 'normal', All = false, TablePath = 'BackgroundShard.BorderColorGreen',   },  -- 13
-      { Name = 'Ember Border [Green]', Width = 'normal', All = false, TablePath = 'BackgroundEmber.BorderColorGreen',   },  -- 14
-      { Name = 'Blood',                Width = 'half',   All = false, TablePath = 'Background.ColorBlood',              },  -- 15
-      { Name = 'Frost',                Width = 'half',   All = false, TablePath = 'Background.ColorFrost',              },  -- 16
-      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = 'Background.ColorUnholy',             },  -- 17
-      { Name = 'Blood Border',         Width = 'normal', All = false, TablePath = 'Background.BorderColorBlood',        },  -- 18
-      { Name = 'Frost Border',         Width = 'normal', All = false, TablePath = 'Background.BorderColorFrost',        },  -- 19
-      { Name = 'Unholy Border',        Width = 'normal', All = false, TablePath = 'Background.BorderColorUnholy',       },  -- 20
-      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BackgroundStagger.Color',            },  -- 21
-      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BackgroundPause.Color',              },  -- 22
-      { Name = 'Stagger Border',       Width = 'normal', All = false, TablePath = 'BackgroundStagger.BorderColor',      },  -- 23
-      { Name = 'Pause Border',         Width = 'normal', All = false, TablePath = 'BackgroundPause.BorderColor',        },  -- 24
-      { Name = 'Power',                Width = 'half',   All = false, TablePath = 'BackgroundPower.Color',              },  -- 25
-      { Name = 'Counter',              Width = 'half',   All = false, TablePath = 'BackgroundCounter.Color',            },  -- 26
-      { Name = 'Power Border',         Width = 'normal', All = false, TablePath = 'BackgroundPower.BorderColor',        },  -- 27
-      { Name = 'Counter Border',       Width = 'normal', All = false, TablePath = 'BackgroundCounter.BorderColor',      }}, -- 28
+    ['Background Color'] = { Order = 5, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
+      { Name = 'Background Color',     All = true,  TablePath = 'Background.Color',                   },  -- 1
+      { Name = 'Border Color',         All = true,  TablePath = 'Background.BorderColor',             },  -- 2
+      { Name = 'Combo',                All = false, TablePath = 'BackgroundCombo.Color',              },  -- 3
+      { Name = 'Anticipation',         All = false, TablePath = 'BackgroundAnticipation.Color',       },  -- 4
+      { Name = 'Combo Border',         All = false, TablePath = 'BackgroundCombo.BorderColor',        },  -- 5
+      { Name = 'Anticipation Border',  All = false, TablePath = 'BackgroundAnticipation.BorderColor', },  -- 6
+      { Name = 'Shard',                All = false, TablePath = 'BackgroundShard.Color',              },  -- 7
+      { Name = 'Ember',                All = false, TablePath = 'BackgroundEmber.Color',              },  -- 8
+      { Name = 'Shard [Green]',        All = false, TablePath = 'BackgroundShard.ColorGreen',         },  -- 9
+      { Name = 'Ember [Green]',        All = false, TablePath = 'BackgroundEmber.ColorGreen',         },  -- 10
+      { Name = 'Shard Border',         All = false, TablePath = 'BackgroundShard.BorderColor',        },  -- 11
+      { Name = 'Ember Border',         All = false, TablePath = 'BackgroundEmber.BorderColor',        },  -- 12
+      { Name = 'Shard Border [Green]', All = false, TablePath = 'BackgroundShard.BorderColorGreen',   },  -- 13
+      { Name = 'Ember Border [Green]', All = false, TablePath = 'BackgroundEmber.BorderColorGreen',   },  -- 14
+      { Name = 'Blood',                All = false, TablePath = 'Background.ColorBlood',              },  -- 15
+      { Name = 'Frost',                All = false, TablePath = 'Background.ColorFrost',              },  -- 16
+      { Name = 'Unholy',               All = false, TablePath = 'Background.ColorUnholy',             },  -- 17
+      { Name = 'Blood Border',         All = false, TablePath = 'Background.BorderColorBlood',        },  -- 18
+      { Name = 'Frost Border',         All = false, TablePath = 'Background.BorderColorFrost',        },  -- 19
+      { Name = 'Unholy Border',        All = false, TablePath = 'Background.BorderColorUnholy',       },  -- 20
+      { Name = 'Stagger',              All = false, TablePath = 'BackgroundStagger.Color',            },  -- 21
+      { Name = 'Pause',                All = false, TablePath = 'BackgroundPause.Color',              },  -- 22
+      { Name = 'Stagger Border',       All = false, TablePath = 'BackgroundStagger.BorderColor',      },  -- 23
+      { Name = 'Pause Border',         All = false, TablePath = 'BackgroundPause.BorderColor',        },  -- 24
+      { Name = 'Power',                All = false, TablePath = 'BackgroundPower.Color',              },  -- 25
+      { Name = 'Counter',              All = false, TablePath = 'BackgroundCounter.Color',            },  -- 26
+      { Name = 'Power Border',         All = false, TablePath = 'BackgroundPower.BorderColor',        },  -- 27
+      { Name = 'Counter Border',       All = false, TablePath = 'BackgroundCounter.BorderColor',      }}, -- 28
 
-    ['Bar Color'] = { Order = 6, Width = 'normal', Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
-      { Name = 'Bar Color',            Width = 'normal', All = true,  TablePath = 'Bar.Color',                          },  -- 1
-      { Name = 'Predicted',            Width = 'normal', All = true,  TablePath = 'Bar.PredictedColor',                 },  -- 2
-      { Name = 'Predicted Cost',       Width = 'normal', All = true,  TablePath = 'Bar.PredictedCostColor',             },  -- 3
-      { Name = 'Absorb Health',        Width = 'normal', All = true,  TablePath = 'Bar.AbsorbColor',                    },  -- 4
-      { Name = 'Combo',                Width = 'half',   All = false, TablePath = 'BarCombo.Color',                     },  -- 5
-      { Name = 'Anticipation',         Width = 'normal', All = false, TablePath = 'BarAnticipation.Color',              },  -- 6
-      { Name = 'Shard',                Width = 'half',   All = false, TablePath = 'BarShard.Color',                     },  -- 7
-      { Name = 'Ember',                Width = 'half',   All = false, TablePath = 'BarEmber.Color',                     },  -- 8
-      { Name = 'Shard (full)',         Width = 'normal', All = false, TablePath = 'BarShard.ColorFull',                 },  -- 9
-      { Name = 'Ember (full)',         Width = 'normal', All = false, TablePath = 'BarEmber.ColorFull',                 },  -- 10
-      { Name = 'Shard [Green]',        Width = 'normal', All = false, TablePath = 'BarShard.ColorGreen',                },  -- 11
-      { Name = 'Ember [Green]',        Width = 'normal', All = false, TablePath = 'BarEmber.ColorGreen',                },  -- 12
-      { Name = 'Shard (full) [Green]', Width = 'normal', All = false, TablePath = 'BarShard.ColorFullGreen',            },  -- 13
-      { Name = 'Ember (full) [Green]', Width = 'normal', All = false, TablePath = 'BarEmber.ColorFullGreen',            },  -- 14
-      { Name = 'Blood',                Width = 'half',   All = false, TablePath = 'Bar.ColorBlood',                     },  -- 15
-      { Name = 'Frost',                Width = 'half',   All = false, TablePath = 'Bar.ColorFrost',                     },  -- 16
-      { Name = 'Unholy',               Width = 'half',   All = false, TablePath = 'Bar.ColorUnholy',                    },  -- 17
-      { Name = 'Stagger',              Width = 'half',   All = false, TablePath = 'BarStagger.Color',                   },  -- 18
-      { Name = 'Pause',                Width = 'half',   All = false, TablePath = 'BarPause.Color',                     },  -- 19
-      { Name = 'Power',                Width = 'half',   All = false, TablePath = 'BarPower.Color',                     },  -- 20
-      { Name = 'Counter',              Width = 'half',   All = false, TablePath = 'BarCounter.Color',                   }}, -- 21
+    ['Bar Color'] = { Order = 6, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
+      { Name = 'Bar Color',            All = true,  TablePath = 'Bar.Color',                          },  -- 1
+      { Name = 'Predicted',            All = true,  TablePath = 'Bar.PredictedColor',                 },  -- 2
+      { Name = 'Predicted Cost',       All = true,  TablePath = 'Bar.PredictedCostColor',             },  -- 3
+      { Name = 'Absorb Health',        All = true,  TablePath = 'Bar.AbsorbColor',                    },  -- 4
+      { Name = 'Combo',                All = false, TablePath = 'BarCombo.Color',                     },  -- 5
+      { Name = 'Anticipation',         All = false, TablePath = 'BarAnticipation.Color',              },  -- 6
+      { Name = 'Shard',                All = false, TablePath = 'BarShard.Color',                     },  -- 7
+      { Name = 'Ember',                All = false, TablePath = 'BarEmber.Color',                     },  -- 8
+      { Name = 'Shard (full)',         All = false, TablePath = 'BarShard.ColorFull',                 },  -- 9
+      { Name = 'Ember (full)',         All = false, TablePath = 'BarEmber.ColorFull',                 },  -- 10
+      { Name = 'Shard [Green]',        All = false, TablePath = 'BarShard.ColorGreen',                },  -- 11
+      { Name = 'Ember [Green]',        All = false, TablePath = 'BarEmber.ColorGreen',                },  -- 12
+      { Name = 'Shard (full) [Green]', All = false, TablePath = 'BarShard.ColorFullGreen',            },  -- 13
+      { Name = 'Ember (full) [Green]', All = false, TablePath = 'BarEmber.ColorFullGreen',            },  -- 14
+      { Name = 'Blood',                All = false, TablePath = 'Bar.ColorBlood',                     },  -- 15
+      { Name = 'Frost',                All = false, TablePath = 'Bar.ColorFrost',                     },  -- 16
+      { Name = 'Unholy',               All = false, TablePath = 'Bar.ColorUnholy',                    },  -- 17
+      { Name = 'Stagger',              All = false, TablePath = 'BarStagger.Color',                   },  -- 18
+      { Name = 'Pause',                All = false, TablePath = 'BarPause.Color',                     },  -- 19
+      { Name = 'Power',                All = false, TablePath = 'BarPower.Color',                     },  -- 20
+      { Name = 'Counter',              All = false, TablePath = 'BarCounter.Color',                   }}, -- 21
 
-    ['Text'] = { Order = 7, Width = 'half', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
-      { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = 'Text',                               },  -- 1
-      { Name  = 'Text 1',              Width = 'half',   All = false, TablePath = 'Text.1',                             },  -- 2
-      { Name  = 'Text 2',              Width = 'half',   All = false, TablePath = 'Text.2',                             },  -- 3
-      { Name  = 'Text 3',              Width = 'half',   All = false, TablePath = 'Text.3',                             },  -- 4
-      { Name  = 'Text 4',              Width = 'half',   All = false, TablePath = 'Text.4',                             }}, -- 5
+    ['Text'] = { Order = 7, Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
+      { Name  = 'All Text',            All = true,  TablePath = 'Text',                               },  -- 1
+      { Name  = 'Text 1',              All = false, TablePath = 'Text.1',                             },  -- 2
+      { Name  = 'Text 2',              All = false, TablePath = 'Text.2',                             },  -- 3
+      { Name  = 'Text 3',              All = false, TablePath = 'Text.3',                             },  -- 4
+      { Name  = 'Text 4',              All = false, TablePath = 'Text.4',                             }}, -- 5
 
-    ['Text (pause)'] = { Order = 8, Width = 'normal', BarType = 'StaggerBar', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
-      { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = 'Text2',                              },  -- 1
-      { Name  = 'Text 1',              Width = 'half',   All = false, TablePath = 'Text2.1',                            },  -- 2
-      { Name  = 'Text 2',              Width = 'half',   All = false, TablePath = 'Text2.2',                            },  -- 3
-      { Name  = 'Text 3',              Width = 'half',   All = false, TablePath = 'Text2.3',                            },  -- 4
-      { Name  = 'Text 4',              Width = 'half',   All = false, TablePath = 'Text2.4',                            }}, -- 5
+    ['Text (pause)'] = { Order = 8, BarType = 'StaggerBar', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
+      { Name  = 'All Text',            All = true,  TablePath = 'Text2',                              },  -- 1
+      { Name  = 'Text 1',              All = false, TablePath = 'Text2.1',                            },  -- 2
+      { Name  = 'Text 2',              All = false, TablePath = 'Text2.2',                            },  -- 3
+      { Name  = 'Text 3',              All = false, TablePath = 'Text2.3',                            },  -- 4
+      { Name  = 'Text 4',              All = false, TablePath = 'Text2.4',                            }}, -- 5
 
-    ['Text (counter)'] = { Order = 8, Width = 'normal', BarType = 'AltPowerBar', Include = { ['Text'] = 1, ['Text (counter)'] = 1 },
-      { Name  = 'All Text',            Width = 'half',   All = true,  TablePath = 'Text2',                              },  -- 1
-      { Name  = 'Text 1',              Width = 'half',   All = false, TablePath = 'Text2.1',                            },  -- 2
-      { Name  = 'Text 2',              Width = 'half',   All = false, TablePath = 'Text2.2',                            },  -- 3
-      { Name  = 'Text 3',              Width = 'half',   All = false, TablePath = 'Text2.3',                            },  -- 4
-      { Name  = 'Text 4',              Width = 'half',   All = false, TablePath = 'Text2.4',                            }}, -- 5
+    ['Text (counter)'] = { Order = 8, BarType = 'AltPowerBar', Include = { ['Text'] = 1, ['Text (counter)'] = 1 },
+      { Name  = 'All Text',            All = true,  TablePath = 'Text2',                              },  -- 1
+      { Name  = 'Text 1',              All = false, TablePath = 'Text2.1',                            },  -- 2
+      { Name  = 'Text 2',              All = false, TablePath = 'Text2.2',                            },  -- 3
+      { Name  = 'Text 3',              All = false, TablePath = 'Text2.3',                            },  -- 4
+      { Name  = 'Text 4',              All = false, TablePath = 'Text2.4',                            }}, -- 5
 
-    ['Triggers'] = { Order = 9, Width = 'half',
-      { Name = 'Triggers',             Width = 'half',   All = true,  TablePath = 'Triggers',                           }}, -- 1
+    ['Triggers'] = { Order = 9,
+      { Name = 'Triggers',             All = true,  TablePath = 'Triggers',                           }}, -- 1
   }
 
   local CopyPasteOptions = {
     type = 'group',
-    name = function()
-             if ClipBoard then
-               return format('|cffffff00%s - %s [ %s ]|r', ClipBoard.BarName or '', ClipBoard.MenuButtonName, ClipBoard.SelectButtonName)
-             else
-               return Name
-             end
-           end,
-    dialogInline = true,
+    name = Name,
     order = Order,
     confirm = function(Info)
                 local Name = Info[#Info]
@@ -7273,11 +7266,17 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
 
   local Args = CopyPasteOptions.args
 
-  Args.MenuLine = {
-    type = 'header',
-    name = '',
-    order = 20,
-    width = 'full',
+  Args.CopyName = {
+    type = 'description',
+    fontSize = 'medium',
+    name = function()
+             if ClipBoard then
+               return format('|cffffff00%s - %s [ %s ]|r', ClipBoard.BarName or '', ClipBoard.MenuButtonName, ClipBoard.SelectButtonName)
+             else
+               return ' '
+             end
+           end,
+    order = 1,
   }
 
   -- Create clear button
@@ -7314,20 +7313,11 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
     end
 
     if Found and (MenuButton.BarType == nil or MenuButton.BarType == BarType) then
-
-      -- Create the menu button
+      local GA = {}
       Args[MenuButtonName] = {
-        type = 'input',
+        type = 'group',
         order = MenuButton.Order,
-        name = function()
-                 if SelectedMenuButtonName == MenuButtonName then
-                   return format('%s:2', MenuButtonName)
-                 else
-                   return format('%s', MenuButtonName)
-                 end
-               end,
-        width = MenuButton.Width,
-        dialogControl = 'GUB_Menu_Button',
+        name = MenuButtonName,
         disabled = function()
                      if ClipBoard ~= nil then
                        if ClipBoard.MenuButtonName ~= MenuButtonName then
@@ -7341,23 +7331,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                      end
                      return false
                    end,
-        set = function()
-                SelectedMenuButtonName = MenuButtonName
-              end,
-        get = function() end,
-      }
-
-      -- Create the group
-      local GA = {}
-
-      Args[MenuButtonName .. '_Group'] = {
-        type = 'group',
-        name = '',
-        order = 21,
-        hidden = function()
-                   return SelectedMenuButtonName ~= MenuButtonName
-                 end,
-        args = GA,
+        args = GA
       }
 
       -- Create the select buttons
@@ -7373,7 +7347,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
           GA[MenuButtonName .. SelectButtonName] = {
             type = 'execute',
             name =  SelectButtonName,
-            width = SelectButton.Width,
+            width = 'full',
             order = SelectIndex,
             hidden = function()
                        return Text and Main:GetUB(BarType, TablePath) == nil or ClipBoard ~= nil
@@ -7391,7 +7365,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
           GA['Paste' .. MenuButtonName .. SelectButtonName] = {
             type = 'execute',
             name = format('Paste %s', SelectButtonName),
-            width = 'normal',
+            width = 'full',
             order = SelectIndex,
             hidden = function()
                        if ClipBoard then
@@ -7441,7 +7415,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
             GA.AppendTriggers = {
               type = 'execute',
               name = 'Append Triggers',
-              width = 'normal',
+              width = 'full',
               order = 30,
               hidden = function()
                          return ClipBoard == nil or ClipBoard.BarType == BarType
@@ -7490,7 +7464,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
   AddTabGroup(BarType, 2, 'Status',         false, CreateStatusOptions(BarType, 2, 'Status') )
   AddTabGroup(BarType, 3, 'Attr',           false, UBD.Attributes and CreateAttributeOptions(BarType, 3, 'Attributes') or nil )
   AddTabGroup(BarType, 4, 'Reset',          false, CreateResetOptions(BarType, 4, 'Reset') )
-  AddTabGroup(BarType, 5, 'Copy and Paste', true,  CreateCopyPasteOptions(BarType, 5, ' ') )
+  AddTabGroup(BarType, 5, 'Copy and Paste', false,  CreateCopyPasteOptions(BarType, 5, 'Copy and Paste') )
 
   -- Add layout options if they exist.
   if UBD.Layout then
