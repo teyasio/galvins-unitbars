@@ -37,6 +37,7 @@ local UnitPower, UnitPowerMax =
 local MaxChiOrbs = 6
 local ExtraChiOrbStart = 5
 local Display = false
+local TotalBoxes = false
 local NamePrefix = 'Chi '
 
 -- Powertype constants
@@ -137,7 +138,29 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 -- Unit          Ignored just here for reference
 -- PowerToken    String: PowerType in caps: MANA RAGE, etc
 --               If nil then the units powertype is used instead
+--
+-- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
+--        The bar must get the number of boxes set correctly before the first BarDB:Display()
+--        This is only for bars that have a variable amount of boxes
 -------------------------------------------------------------------------------
+local function SetTotalBoxes(self, NumOrbs)
+  local BBar = self.BBar
+
+  if NumOrbs == nil then
+    NumOrbs = UnitPowerMax('player', PowerChi)
+  end
+
+  if NumOrbs ~= self.NumOrbs then
+    self.NumOrbs = NumOrbs
+
+    -- Change the number of boxes in the bar.
+    for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
+      BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
+    end
+    BBar:Display()
+  end
+end
+
 function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
 
   -------------------
@@ -202,15 +225,7 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   -- Check for max chi change
-  if NumOrbs ~= self.NumOrbs then
-    self.NumOrbs = NumOrbs
-
-    -- Change the number of boxes in the bar.
-    for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
-      BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
-    end
-    BBar:Display()
-  end
+  SetTotalBoxes(self, NumOrbs)
 
   for ChiIndex = 1, MaxChiOrbs do
     BBar:ChangeTexture(ChangeChi, 'SetHiddenTexture', ChiIndex, ChiIndex > ChiOrbs)
@@ -324,6 +339,12 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
 
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
+
+  -- Need to set total boxes before the first BBar:Update()
+  if not TotalBoxes then
+    SetTotalBoxes(self)
+    TotalBoxes = true
+  end
 
   if Main.UnitBars.Testing then
     self:Update()

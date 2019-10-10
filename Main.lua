@@ -2113,7 +2113,6 @@ end
 --          Moves the anchor position on its current point or a new point.
 -------------------------------------------------------------------------------
 function GUB.Main:SetAnchorPoint(Anchor, x, y)
-
   local UB = Anchor.UnitBar
   local AnchorPointFrame = Anchor.AnchorPointFrame
 
@@ -2186,7 +2185,6 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
     Width = Anchor._Width or 0.1
     Height = Anchor._Height or 0.1
   end
-
 
   -- Need to scale width and height since size is based on ScaleFrame.
   Width = Width * Scale
