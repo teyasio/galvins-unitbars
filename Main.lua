@@ -268,10 +268,12 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --   SpellID                       The spell being cast
 --   CastID                        Unit ID for the current spell cast.
 --
--- CastEvent                   - Filters out the events that are being looked for.
+-- CastTrackerEvent            - Filters out the events that are being looked for.
 --                                 EventCastStart
 --                                 EventCastStop
 --                                 EventCastFailed
+--                                 EventCastSucceeded
+--                                 EventCastDelayed
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------

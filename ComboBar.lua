@@ -173,18 +173,9 @@ local function SetAnticipationAlpha(UnitBarF, BBar, BoxNumber, TextureNumber, Ac
 end
 
 -------------------------------------------------------------------------------
--- Update    UnitBarsF function
+-- SetTotalBoxes
 --
--- Update the number of combo points of the player
---
--- Event         Event that called this function.  If nil then it wasn't called by an event.
--- Unit          Ignored just here for reference
--- PowerToken    String: PowerType in caps: MANA RAGE, etc
---               If nil then the units powertype is used instead
---
--- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
---        The bar must get the number of boxes set correctly before the first BarDB:Display()
---        This is only for bars that have a variable amount of boxes
+-- Changes the number of boxes based on the unit max
 -------------------------------------------------------------------------------
 local function SetTotalBoxes(self, NumPoints)
   local NumPointsChanged = false
@@ -208,6 +199,20 @@ local function SetTotalBoxes(self, NumPoints)
   return NumPointsChanged
 end
 
+-------------------------------------------------------------------------------
+-- Update    UnitBarsF function
+--
+-- Update the number of combo points of the player
+--
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
+--
+-- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
+--        The bar must get the number of boxes set correctly before the first BarDB:Display()
+--        This is only for bars that have a variable amount of boxes
+-------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
 
   -------------------

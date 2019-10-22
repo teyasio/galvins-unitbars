@@ -212,6 +212,8 @@ end
 -- true       Turn on predicted cost otherwise turn it off.
 -------------------------------------------------------------------------------
 local function SetPredictedCost(UnitBarF, Action)
+  UnitBarF.BBar:SetHiddenTexture(HapBox, PredictedCostBar, not Action)
+
   if Action then
     Main:SetCastTracker(UnitBarF, 'fn', Casting)
 
@@ -236,6 +238,8 @@ end
 -- true       Turn on predicted power otherwise turn it off.
 -------------------------------------------------------------------------------
 local function SetPredictedPower(UnitBarF, Action)
+  UnitBarF.BBar:SetHiddenTexture(HapBox, PredictedBar, not Action)
+
   if Action then
     Main:SetPredictedSpells(UnitBarF, 'on', PredictedSpells)
     Main:SetCastTracker(UnitBarF, 'fn', Casting)
@@ -459,7 +463,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
     if PowerToken ~= nil and PowerToken ~= PowerType then
       return
     end
-  elseif PowerToken == PowerMana then
+  elseif PowerToken == nil or PowerToken == PowerMana then
     PowerType = PowerMana
   else
     -- Return, not correct power type
@@ -693,19 +697,11 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     -- More layout
     if DLayout.PredictedPower ~= nil then
-      BBar:SO('Layout', 'PredictedPower', function(v)
-        BBar:SetHiddenTexture(HapBox, PredictedBar, not v)
-        SetPredictedPower(self, v)
-        Update = true
-      end)
+      BBar:SO('Layout', 'PredictedPower', function(v) SetPredictedPower(self, v) Update = true end)
     end
 
     if DLayout.PredictedCost ~= nil then
-      BBar:SO('Layout', 'PredictedCost', function(v)
-        BBar:SetHiddenTexture(HapBox, PredictedCostBar, not v)
-        SetPredictedCost(self, v)
-        Update = true
-      end)
+      BBar:SO('Layout', 'PredictedCost', function(v) SetPredictedCost(self, v) Update = true end)
     end
 
     BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(HapBox, HapTFrame, v) end)

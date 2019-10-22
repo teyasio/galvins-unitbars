@@ -130,18 +130,9 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- Update    UnitBarsF function
+-- SetTotalBoxes
 --
--- Update the number of chi orbs of the player
---
--- Event         Event that called this function.  If nil then it wasn't called by an event.
--- Unit          Ignored just here for reference
--- PowerToken    String: PowerType in caps: MANA RAGE, etc
---               If nil then the units powertype is used instead
---
--- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
---        The bar must get the number of boxes set correctly before the first BarDB:Display()
---        This is only for bars that have a variable amount of boxes
+-- Changes the number of boxes based on the unit max
 -------------------------------------------------------------------------------
 local function SetTotalBoxes(self, NumOrbs)
   local BBar = self.BBar
@@ -161,6 +152,20 @@ local function SetTotalBoxes(self, NumOrbs)
   end
 end
 
+-------------------------------------------------------------------------------
+-- Update    UnitBarsF function
+--
+-- Update the number of chi orbs of the player
+--
+-- Event         Event that called this function.  If nil then it wasn't called by an event.
+-- Unit          Ignored just here for reference
+-- PowerToken    String: PowerType in caps: MANA RAGE, etc
+--               If nil then the units powertype is used instead
+--
+-- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
+--        The bar must get the number of boxes set correctly before the first BarDB:Display()
+--        This is only for bars that have a variable amount of boxes
+-------------------------------------------------------------------------------
 function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
 
   -------------------
