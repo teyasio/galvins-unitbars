@@ -37,7 +37,8 @@ local UnitPower, UnitPowerMax =
 local MaxChiOrbs = 6
 local ExtraChiOrbStart = 5
 local Display = false
-local TotalBoxes = false
+local Updated = false
+local OnUpdateFrame = CreateFrame('Frame')
 local NamePrefix = 'Chi '
 
 -- Powertype constants
@@ -130,29 +131,6 @@ Main.UnitBarsF.ChiBar.StatusCheck = GUB.Main.StatusCheck
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- SetTotalBoxes
---
--- Changes the number of boxes based on the unit max
--------------------------------------------------------------------------------
-local function SetTotalBoxes(self, NumOrbs)
-  local BBar = self.BBar
-
-  if NumOrbs == nil then
-    NumOrbs = UnitPowerMax('player', PowerChi)
-  end
-
-  if NumOrbs ~= self.NumOrbs then
-    self.NumOrbs = NumOrbs
-
-    -- Change the number of boxes in the bar.
-    for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
-      BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
-    end
-    BBar:Display()
-  end
-end
-
--------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
 -- Update the number of chi orbs of the player
@@ -161,10 +139,6 @@ end
 -- Unit          Ignored just here for reference
 -- PowerToken    String: PowerType in caps: MANA RAGE, etc
 --               If nil then the units powertype is used instead
---
--- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
---        The bar must get the number of boxes set correctly before the first BarDB:Display()
---        This is only for bars that have a variable amount of boxes
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
 
@@ -205,7 +179,14 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   ------------
   -- Test Mode
   ------------
+  local UB = self.UnitBar
   local NumOrbs = UnitPowerMax('player', PowerChi)
+  local NoMaxPower = NumOrbs == 0
+
+  if not Updated or NoMaxPower then
+    NumOrbs = UB.MaxPower or NumOrbs
+    Updated = true
+  end
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
@@ -230,7 +211,18 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   -- Check for max chi change
-  SetTotalBoxes(self, NumOrbs)
+  if NumOrbs ~= self.NumOrbs then
+    self.NumOrbs = NumOrbs
+    if not NoMaxPower then
+      UB.MaxPower = NumOrbs
+    end
+
+    -- Change the number of boxes in the bar.
+    for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
+      BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
+    end
+    BBar:Display()
+  end
 
   for ChiIndex = 1, MaxChiOrbs do
     BBar:ChangeTexture(ChangeChi, 'SetHiddenTexture', ChiIndex, ChiIndex > ChiOrbs)
@@ -345,18 +337,15 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  -- Need to set total boxes before the first BBar:Update()
-  if not TotalBoxes then
-    SetTotalBoxes(self)
-    TotalBoxes = true
-  end
-
-  if Main.UnitBars.Testing then
+  if not Updated or Main.UnitBars.Testing then
     self:Update()
     Display = true
   end
 
-  if Display then
+  -- Because Display() calls SetAnchorSize() which then calls SetAnchorPoint().
+  -- This can't be called until after the bar with correct orbs has been drawn.
+  -- This insures the anchor point doesn't move
+  if Updated and Display then
     BBar:Display()
     Display = false
   end

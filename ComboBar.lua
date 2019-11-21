@@ -43,8 +43,8 @@ local UnitPower, UnitPowerMax =
 local MaxComboPoints = 11
 local ExtraComboPointStart = 6
 local Display = false
+local Updated = false
 local Update = false
-local TotalBoxes = false
 local NamePrefix = 'Combo '
 local NamePrefix2 = 'Point '
 
@@ -173,33 +173,6 @@ local function SetAnticipationAlpha(UnitBarF, BBar, BoxNumber, TextureNumber, Ac
 end
 
 -------------------------------------------------------------------------------
--- SetTotalBoxes
---
--- Changes the number of boxes based on the unit max
--------------------------------------------------------------------------------
-local function SetTotalBoxes(self, NumPoints)
-  local NumPointsChanged = false
-  local BBar = self.BBar
-
-  if NumPoints == nil then
-    NumPoints = UnitPowerMax('player', PowerPoint)
-  end
-
-  if NumPoints ~= self.NumPoints then
-    self.NumPoints = NumPoints
-
-    -- Change the number of boxes in the bar.
-    for Index, Hidden in pairs(ComboLayout[NumPoints] or ComboLayout[5]) do
-      BBar:SetHidden(Index, nil, Hidden)
-    end
-    BBar:Display()
-    NumPointsChanged = true
-  end
-
-  return NumPointsChanged
-end
-
--------------------------------------------------------------------------------
 -- Update    UnitBarsF function
 --
 -- Update the number of combo points of the player
@@ -208,10 +181,6 @@ end
 -- Unit          Ignored just here for reference
 -- PowerToken    String: PowerType in caps: MANA RAGE, etc
 --               If nil then the units powertype is used instead
---
--- Notes: SetTotalBoxes() is needed so that a bar is properly position after logging in.
---        The bar must get the number of boxes set correctly before the first BarDB:Display()
---        This is only for bars that have a variable amount of boxes
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
 
@@ -253,7 +222,14 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   -- Test Mode
   ------------
   local BBar = self.BBar
+  local UB = self.UnitBar
   local NumPoints = UnitPowerMax('player', PowerPoint)
+  local NoMaxPower = NumPoints == 0
+
+  if not Updated or NoMaxPower then
+    NumPoints = UB.MaxPower or NumPoints
+    Updated = true
+  end
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
@@ -276,7 +252,21 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   -------
   -- Draw
   -------
-  local NumPointsChanged = SetTotalBoxes(self, NumPoints)
+  local NumPointsChanged = false
+
+  if NumPoints ~= self.NumPoints then
+    self.NumPoints = NumPoints
+    if not NoMaxPower then
+      UB.MaxPower = NumPoints
+    end
+
+    -- Change the number of boxes in the bar.
+    for Index, Hidden in pairs(ComboLayout[NumPoints] or ComboLayout[5]) do
+      BBar:SetHidden(Index, nil, Hidden)
+    end
+    BBar:Display()
+    NumPointsChanged = true
+  end
 
   local UB = self.UnitBar
   local InactiveAnticipationAlpha = UB.Layout.InactiveAnticipationAlpha
@@ -439,19 +429,16 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  -- Need to set total boxes before the first BBar:Update()
-  if not TotalBoxes then
-    SetTotalBoxes(self)
-    TotalBoxes = true
-  end
-
-  if Update or Main.UnitBars.Testing then
+  if not Updated or Update or Main.UnitBars.Testing then
     self:Update()
     Update = false
     Display = true
   end
 
-  if Display then
+  -- Because Display() calls SetAnchorSize() which then calls SetAnchorPoint().
+  -- This can't be called until after the bar with correct orbs has been drawn.
+  -- This insures the anchor point doesn't move
+  if Updated and Display then
     BBar:Display()
     Display = false
   end

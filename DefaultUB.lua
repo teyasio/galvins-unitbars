@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 647
+GUB.DefaultUB.Version = 648
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -86,6 +86,8 @@ GUB.DefaultUB.Version = 647
 --   ClassSpecs           - See main.lua CheckClassSpecs()
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
+--   MaxPower             - Used by bars that are not power bars and can have variable max power.
+--                          This insures the anchor point doesn't move when logging back in.
 --   Status               - Table that contains a list of flags marked as true or false.
 --                          If a flag is found true then a statuscheck will be done to see what the
 --                          bar should do. Flags with a higher priority override flags with a lower.
@@ -2374,6 +2376,7 @@ Profile.ComboBar = {
   ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 195,
+  MaxPower = false,
 }
 MergeTable(Profile.ComboBar, {
   Status = {
@@ -3194,6 +3197,7 @@ Profile.ChiBar = {
   ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 69,
+  MaxPower = false,
 }
 MergeTable(Profile.ChiBar, {
   Status = {

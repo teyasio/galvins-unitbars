@@ -2693,7 +2693,6 @@ function GUB.Main:SetPredictedSpells(UnitBarF, Action, Fn)
   end
 end
 
-
 -------------------------------------------------------------------------------
 -- GetTalents
 --
