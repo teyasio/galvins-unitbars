@@ -2777,9 +2777,7 @@ local function StopAnimation(AGroup, ReverseAnimation)
 
           -- Restore anchor
           if Object.IsAnchor then
-            -- Restore the animation frame to be the same size as the anchor
-         --   OnObject:ClearAllPoints()
-         --   OnObject:SetAllPoints()
+            -- AnimationFrame needs no restorting. Leave here for reference
           end
           OnObject:SetScale(1)
         end
@@ -3085,13 +3083,7 @@ local function PlayAnimation(AGroup, ...)
 
         -- Object is Anchor
         if Object.IsAnchor then
-
-          -- Make the AnimationFrame centered. Restore this on a StopAnimation
-          local Width, Height = OnObject:GetParent():GetSize()
---          print('>>', Width, Height)
---          OnObject:ClearAllPoints()
- --         OnObject:SetSize(Width, Height)
-  --        OnObject:SetPoint('CENTER')
+          -- AnimationFrame is already centered.  Leave this here for reference
         end
         OnObject:SetScale(0.01)
         AGroup:SetScript('OnUpdate', OnObjectScale)
