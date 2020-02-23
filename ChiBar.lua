@@ -37,7 +37,7 @@ local UnitPower, UnitPowerMax =
 local MaxChiOrbs = 6
 local ExtraChiOrbStart = 5
 local Display = false
-local Updated = false
+local Update = false
 local OnUpdateFrame = CreateFrame('Frame')
 local NamePrefix = 'Chi '
 
@@ -181,12 +181,6 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   ------------
   local UB = self.UnitBar
   local NumOrbs = UnitPowerMax('player', PowerChi)
-  local NoMaxPower = NumOrbs == 0
-
-  if not Updated or NoMaxPower then
-    NumOrbs = UB.MaxPower or NumOrbs
-    Updated = true
-  end
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
@@ -211,11 +205,8 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   local EnableTriggers = self.UnitBar.Layout.EnableTriggers
 
   -- Check for max chi change
-  if NumOrbs ~= self.NumOrbs then
+  if NumOrbs > 0 and NumOrbs ~= self.NumOrbs then
     self.NumOrbs = NumOrbs
-    if not NoMaxPower then
-      UB.MaxPower = NumOrbs
-    end
 
     -- Change the number of boxes in the bar.
     for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
@@ -337,15 +328,13 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if not Updated or Main.UnitBars.Testing then
+  if Update or Main.UnitBars.Testing then
     self:Update()
+    Update = false
     Display = true
   end
 
-  -- Because Display() calls SetAnchorSize() which then calls SetAnchorPoint().
-  -- This can't be called until after the bar with correct orbs has been drawn.
-  -- This insures the anchor point doesn't move
-  if Updated and Display then
+  if Display then
     BBar:Display()
     Display = false
   end

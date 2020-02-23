@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 648
+GUB.DefaultUB.Version = 649
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -3197,7 +3197,6 @@ Profile.ChiBar = {
   ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 69,
-  MaxPower = false,
 }
 MergeTable(Profile.ChiBar, {
   Status = {
@@ -3699,6 +3698,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 6.49
+|cff00ff00Anchor|r setting in attributes has been reset to "TOPLEFT" due to code changes to how anchors work.  This is to fix the bar shifting bug
+
 Version 6.40
 |cff00ff00UI changes for the bar menu|r
 |cff00ff00Auto Expand option added|r Found at the root of each bar menu.  It will expand the menu currently selected

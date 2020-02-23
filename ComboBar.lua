@@ -43,7 +43,6 @@ local UnitPower, UnitPowerMax =
 local MaxComboPoints = 11
 local ExtraComboPointStart = 6
 local Display = false
-local Updated = false
 local Update = false
 local NamePrefix = 'Combo '
 local NamePrefix2 = 'Point '
@@ -224,12 +223,6 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   local BBar = self.BBar
   local UB = self.UnitBar
   local NumPoints = UnitPowerMax('player', PowerPoint)
-  local NoMaxPower = NumPoints == 0
-
-  if not Updated or NoMaxPower then
-    NumPoints = UB.MaxPower or NumPoints
-    Updated = true
-  end
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
@@ -254,11 +247,8 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   -------
   local NumPointsChanged = false
 
-  if NumPoints ~= self.NumPoints then
+  if NumPoints > 0 and NumPoints ~= self.NumPoints then
     self.NumPoints = NumPoints
-    if not NoMaxPower then
-      UB.MaxPower = NumPoints
-    end
 
     -- Change the number of boxes in the bar.
     for Index, Hidden in pairs(ComboLayout[NumPoints] or ComboLayout[5]) do
@@ -429,16 +419,13 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
   -- Do the option.  This will call one of the options above or all.
   BBar:DoOption(TableName, KeyName)
 
-  if not Updated or Update or Main.UnitBars.Testing then
+  if Update or Main.UnitBars.Testing then
     self:Update()
     Update = false
     Display = true
   end
 
-  -- Because Display() calls SetAnchorSize() which then calls SetAnchorPoint().
-  -- This can't be called until after the bar with correct orbs has been drawn.
-  -- This insures the anchor point doesn't move
-  if Updated and Display then
+  if Display then
     BBar:Display()
     Display = false
   end

@@ -6986,9 +6986,15 @@ local function CreateAttributeOptions(BarType, Order, Name)
 
             if KeyName == 'FrameStrata' then
               Value = ConvertFrameStrata[Value]
+            else
+              UBF.UnitBar.Attributes[KeyName] = Value
+
+              if KeyName == 'AnchorPoint' then
+                Main:SetAnchorPoint(UBF.Anchor)
+              else
+                UBF:SetAttr('Attributes', KeyName)
+              end
             end
-            UBF.UnitBar.Attributes[KeyName] = Value
-            UBF:SetAttr('Attributes', KeyName)
           end,
     args = {
       Scale = {

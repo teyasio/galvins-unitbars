@@ -1276,10 +1276,10 @@ end
 --        Return values are not scaled.
 --
 -- returns:
---   Left     < 0 then outside the parent frame.
---   Top      > 0 then outside the parent frame.
+--   OffsetX  < 0 then outside the parent frame.
+--   OffsetY  > 0 then outside the parent frame.
 --   width    Total width that covers the child frames.
---   height   Total height that covers the child drames.
+--   height   Total height that covers the child frames.
 -------------------------------------------------------------------------------
 local function GetBoundsRect(ParentFrame, Frames)
   local Left = nil
@@ -2641,7 +2641,7 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
     if GroupType == 'parent' or Type == 'move' or Type == 'offset' or Type == 'fontsize' or Type == 'texturescale' then
       AGroup = CreateFrame('Frame'):CreateAnimationGroup()
       if Object.IsAnchor then
-        OnObject = Object.AnchorPointFrame
+        OnObject = Object.AnimationFrame
       else
         OnObject = Object
       end
@@ -2773,13 +2773,13 @@ local function StopAnimation(AGroup, ReverseAnimation)
 
       elseif Type == 'scale' then
         Object:SetScale(1)
-
         if OnObject then
 
           -- Restore anchor
           if Object.IsAnchor then
-            Object.IsScaling = false
-            Main:SetAnchorPoint(Object, 'UB')
+            -- Restore the animation frame to be the same size as the anchor
+         --   OnObject:ClearAllPoints()
+         --   OnObject:SetAllPoints()
           end
           OnObject:SetScale(1)
         end
@@ -3084,11 +3084,14 @@ local function PlayAnimation(AGroup, ...)
       if OnObject then
 
         -- Object is Anchor
-        -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
         if Object.IsAnchor then
-          Object.IsScaling = true
-          OnObject:ClearAllPoints()
-          OnObject:SetPoint('CENTER')
+
+          -- Make the AnimationFrame centered. Restore this on a StopAnimation
+          local Width, Height = OnObject:GetParent():GetSize()
+--          print('>>', Width, Height)
+--          OnObject:ClearAllPoints()
+ --         OnObject:SetSize(Width, Height)
+  --        OnObject:SetPoint('CENTER')
         end
         OnObject:SetScale(0.01)
         AGroup:SetScript('OnUpdate', OnObjectScale)
@@ -3372,7 +3375,7 @@ function BarDB:Display()
       -- Offset unitbar so the boxes don't move. Shift bar to the left and up based on borderpadding.
       -- Skip offsetting when switching to floating mode first time.
       if not FloatFirstTime then
-        Main:SetAnchorSize(Anchor, Width, Height, OffsetX + BorderPadding * -1, OffsetY + BorderPadding)
+        Main:SetAnchorSize(Anchor, Width, Height, OffsetX + BorderPadding * -1, OffsetY + BorderPadding, true)
         SetSize = false
       end
     else
