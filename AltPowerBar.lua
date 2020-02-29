@@ -481,15 +481,6 @@ end
 --
 --*****************************************************************************
 
-------------------------------------------------------------------------------
--- EnableMouseClicks
---
--- This will enable or disable mouse clicks for the alt power bar.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.AltPowerBar:EnableMouseClicks(Enable)
-  self.BBar:EnableMouseClicks(0, nil, Enable)
-end
-
 -------------------------------------------------------------------------------
 -- SetAttr
 --
@@ -603,8 +594,8 @@ function GUB.AltPowerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont('Text2', AltCounterBarBox)
 
   -- Enable tooltip
-  BBar:SetTooltip(AltPowerBarBox, nil, UB.Name .. ' (Power)')
-  BBar:SetTooltip(AltCounterBarBox, nil, UB.Name .. ' (Counter)')
+  BBar:SetTooltipBox(AltPowerBarBox, UB.Name .. ' (Power)')
+  BBar:SetTooltipBox(AltCounterBarBox, UB.Name .. ' (Counter)')
 
   -- Show the textures, but not the frames
   BBar:SetHiddenTexture(AltPowerBarBox, AltPowerSBar, false)

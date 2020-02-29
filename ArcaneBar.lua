@@ -199,21 +199,6 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks    UnitBarsF function
---
--- This will enable or disbable mouse clicks for the arcane bar.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.ArcaneBar:EnableMouseClicks(Enable)
-  local BBar = self.BBar
-
-  -- Enable/disable for border.
-  BBar:EnableMouseClicksRegion(Enable)
-
-  -- ENable/disable for box mode
-  BBar:EnableMouseClicks(0, nil, Enable)
-end
-
--------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the arcanebar.
@@ -349,7 +334,7 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
     local Name = NamePrefix .. Groups[ArcaneIndex][2]
 
-    BBar:SetTooltip(ArcaneIndex, nil, Name)
+    BBar:SetTooltipBox(ArcaneIndex, Name)
     Names[ArcaneIndex] = Name
   end
 

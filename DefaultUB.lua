@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 650
+GUB.DefaultUB.Version = 652
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -20,10 +20,10 @@ GUB.DefaultUB.Version = 650
 -- RelativePoint          - Relative point of UIParent for UnitBarsParent.
 -- Px, Py                 - The current location of the UnitBarsParent on the screen.
 -- EnableClass            - Boolean. If true all unitbars get enabled for your class only.
--- IsGrouped              - Boolean. If true all unitbars get dragged as one object.
+-- Grouped                - Boolean. If true all unitbars get dragged as one object.
 --                                         If false each unitbar can be dragged by its self.
--- IsLocked               - Boolean. If true all unitbars can not be clicked on.
--- IsClamped              - Boolean. If true all frames can't be moved off screen.
+-- Locked                 - Boolean. If true all unitbars can not be clicked on.
+-- Clamped                - Boolean. If true all frames can't be moved off screen.
 -- Testing                - Boolean. If true the bars are currently in test mode.
 -- BarFillFPS             - Controls the frame rate of statusbar fill animation for timer bars and smooth fill.
 --                          Higher values use more cpu.
@@ -86,8 +86,6 @@ GUB.DefaultUB.Version = 650
 --   ClassSpecs           - See main.lua CheckClassSpecs()
 --
 --   x, y                 - Current location of the Anchor relative to the UnitBarsParent.
---   MaxPower             - Used by bars that are not power bars and can have variable max power.
---                          This insures the anchor point doesn't move when logging back in.
 --   Status               - Table that contains a list of flags marked as true or false.
 --                          If a flag is found true then a statuscheck will be done to see what the
 --                          bar should do. Flags with a higher priority override flags with a lower.
@@ -378,11 +376,16 @@ GUB.DefaultUB.Default = {
     RelativePoint = 'CENTER',
     Px = 0,
     Py = 0,
+    Show = false,
     EnableClass = true,
-    IsGrouped = false,
-    IsLocked = false,
-    IsClamped = true,
+    Grouped = false,
+    Locked = false,
+    Clamped = true,
     Testing = false,
+    HideTooltipsWhenLocked = false,
+    HideTooltipsWhenNotLocked = false,
+
+
     BarFillFPS = 60,
     Align = false,
     Swap = false,
@@ -393,7 +396,6 @@ GUB.DefaultUB.Default = {
     AlignSwapOffsetY = 0,
     HidePlayerFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
     HideTargetFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
-    HideTooltips = false,
     HideTooltipsDesc = false,
     HideTextHighlight = false,
     AlignAndSwapEnabled = true,
@@ -2376,7 +2378,6 @@ Profile.ComboBar = {
   ClassSpecs = SetClassSpecs(ClassSpecs),
   x = 0,
   y = 195,
-  MaxPower = false,
 }
 MergeTable(Profile.ComboBar, {
   Status = {
@@ -3698,6 +3699,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 6.51
+|cff00ff00Bars and Tooltips|r has Changed. You'll need to redo these settings found in General -> Main
+
 Version 6.49
 |cff00ff00Anchor|r setting in attributes has been reset to "TOPLEFT" due to code changes to how anchors work.  This is to fix the bar shifting bug
 

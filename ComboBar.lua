@@ -314,21 +314,6 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks    UnitBarsF function
---
--- This will enable or disbable mouse clicks for the combo bar.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.ComboBar:EnableMouseClicks(Enable)
-  local BBar = self.BBar
-
-  -- Enable/disable for border.
-  BBar:EnableMouseClicksRegion(Enable)
-
-  -- ENable/disable for box mode
-  BBar:EnableMouseClicks(0, nil, Enable)
-end
-
--------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the combo bar.
@@ -473,7 +458,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
       BBar:SetShowHideFnTexture(ComboIndex, ComboLightTexture, SetAnticipationAlpha)
     end
 
-    BBar:SetTooltip(ComboIndex, nil, Name)
+    BBar:SetTooltipBox(ComboIndex, Name)
     Names[ComboIndex] = Name
   end
 

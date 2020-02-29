@@ -476,21 +476,6 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks    UnitBarsF function
---
--- This will enable or disbale mouse clicks for the rune icons.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.RuneBar:EnableMouseClicks(Enable)
-  local BBar = self.BBar
-
-  -- Enable/disable for border.
-  BBar:EnableMouseClicksRegion(Enable)
-
-  -- ENable/disable for box mode
-  BBar:EnableMouseClicks(0, nil, Enable)
-end
-
--------------------------------------------------------------------------------
 -- SetAttr
 --
 -- Sets different parts of the runebar.
@@ -705,7 +690,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
     local Name = Groups[RuneIndex][2]
     Names[RuneIndex] = Name
-    BBar:SetTooltip(RuneIndex, nil, Name)
+    BBar:SetTooltipBox(RuneIndex, Name)
   end
 
   BBar:SetTooltipRegion(UB.Name .. ' - Region')

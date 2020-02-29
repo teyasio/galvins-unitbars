@@ -371,15 +371,6 @@ local function SetLayout(BBar, UB)
   SetLayoutChanged = true
 end
 
-------------------------------------------------------------------------------
--- EnableMouseClicks
---
--- This will enable or disable mouse clicks for the stagger and pause bars.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.StaggerBar:EnableMouseClicks(Enable)
-  self.BBar:EnableMouseClicks(0, nil, Enable)
-end
-
 -------------------------------------------------------------------------------
 -- SetAttr
 --
@@ -512,8 +503,8 @@ function GUB.StaggerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont('Text2', StaggerPauseBox)
 
   -- Enable tooltip
-  BBar:SetTooltip(StaggerBarBox, nil, UB.Name)
-  BBar:SetTooltip(StaggerPauseBox, nil, 'Pause Timer')
+  BBar:SetTooltipBox(StaggerBarBox, UB.Name)
+  BBar:SetTooltipBox(StaggerPauseBox, 'Pause Timer')
 
   -- Show the bars.
   BBar:SetHidden(StaggerBarBox, StaggerBarTFrame, false)

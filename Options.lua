@@ -1012,6 +1012,7 @@ end
 --
 -- BarType               The menu tree of bartype
 -- Order                 Order in the tabs
+-- Name                  Used if DialogInline is true
 -- DialogInline          true or false
 -- Options               Options group
 -------------------------------------------------------------------------------
@@ -3642,12 +3643,15 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar)
 
   local SpecOptions = {
     type = 'group',
-    dialogInline = true,
+ -- dialogInline = true,
     name = function()
              MarkMenuSpec(ClassDropdown, SelectClassDropdown, GetClassSpecsTable(BarType, ClassSpecsTP))
              return 'Specialization'
            end,
     order = Order,
+    disabled = function()
+                 return Main.UnitBars.Show or Main.UnitBars.Testing
+               end,
     get = function(Info, Index)
             ClassSpecs = GetClassSpecsTable(BarType, ClassSpecsTP)
             local KeyName = Info[#Info]
@@ -5210,9 +5214,12 @@ local function CreateStatusOptions(BarType, Order, Name)
 
   local StatusOptions = {
     type = 'group',
-    name = 'Status',
-    dialogInline = true,
+    name = Name,
+--  dialogInline = true,
     order = Order,
+    disabled = function()
+                 return Main.UnitBars.Show or Main.UnitBars.Testing
+               end,
     get = function(Info)
             return UBF.UnitBar.Status[Info[#Info]]
           end,
@@ -5293,6 +5300,43 @@ local function CreateStatusOptions(BarType, Order, Name)
   end
 
   return StatusOptions
+end
+
+-------------------------------------------------------------------------------
+-- CreateShowOptions
+--
+-- Creates a tab that holds options related to hiding and showing the bar
+--
+-- Subfunction of CreateUnitBarOptions
+--
+-- BarType       The options being created for.
+-- Order         Where the options appear on screen.
+-- Name          Name of the options.
+-------------------------------------------------------------------------------
+local function CreateShowOptions(BarType, Order, Name)
+  local UBF = UnitBarsF[BarType]
+  local UBD = DUB[BarType]
+
+  local ShowOptions = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    childGroups = 'tab',
+    args = {
+      Notes = {
+        type = 'description',
+        order = 1,
+        name = '|cff00ff00Disabled because Show Bars or Test Mode option is enabled|r',
+        hidden = function()
+                   return not Main.UnitBars.Show and not Main.UnitBars.Testing
+                 end,
+      },
+      SpecOptions = CreateSpecOptions(BarType, 10, 'ClassSpecs'), -- ClassSpecs is a table path
+      StatusOptions = CreateStatusOptions(BarType, 20, 'Status'),
+    }
+  }
+
+  return ShowOptions
 end
 
 -------------------------------------------------------------------------------
@@ -7466,11 +7510,10 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
 
   -- Create the options root tree and tab groups
   AddOptionsTree(BarGroups, BarType, Order, Name, Desc)
-  AddTabGroup(BarType, 1, 'Spec',           false, CreateSpecOptions(BarType, 1, 'ClassSpecs') )
-  AddTabGroup(BarType, 2, 'Status',         false, CreateStatusOptions(BarType, 2, 'Status') )
+  AddTabGroup(BarType, 1, 'Show',           false, CreateShowOptions(BarType, 1, 'Show') )
   AddTabGroup(BarType, 3, 'Attr',           false, UBD.Attributes and CreateAttributeOptions(BarType, 3, 'Attributes') or nil )
   AddTabGroup(BarType, 4, 'Reset',          false, CreateResetOptions(BarType, 4, 'Reset') )
-  AddTabGroup(BarType, 5, 'Copy and Paste', false,  CreateCopyPasteOptions(BarType, 5, 'Copy and Paste') )
+  AddTabGroup(BarType, 5, 'Copy and Paste', false, CreateCopyPasteOptions(BarType, 5, 'Copy and Paste') )
 
   -- Add layout options if they exist.
   if UBD.Layout then
@@ -8977,6 +9020,12 @@ end
 --
 -- Returns the main options table.
 -------------------------------------------------------------------------------
+local HideTooltipsDropdown = {
+  Always        = 'Always',
+  WhenLocked    = 'When Locked',
+  WhenNotLocked = 'When not Locked',
+}
+
 local function CreateMainOptions()
   MainOptions = {
     name = AddonName,
@@ -9009,7 +9058,7 @@ local function CreateMainOptions()
                 end
 
                 -- Update align and swap bar location if needed if clamped cause bar to go off screen.
-                if KeyName == 'IsClamped' and not Main.UnitBars.Align and Options.AlignSwapOptionsOpen then
+                if KeyName == 'Clamped' and not Main.UnitBars.Align and Options.AlignSwapOptionsOpen then
                   Options:RefreshAlignSwapOptions()
                 end
               end,
@@ -9019,58 +9068,104 @@ local function CreateMainOptions()
             name = 'Main',
             order = 1,
             args = {
-              Layout = {
+              Bars = {
+                name = 'Bars',
                 type = 'group',
-                name = 'Layout',
                 order = 1,
                 dialogInline = true,
                 args = {
-                  IsLocked = {
+                  Locked = {
                     type = 'toggle',
-                    name = 'Lock Bars',
+                    name = 'Lock',
                     order = 1,
                     desc = 'Prevent bars from being dragged around',
                   },
-                  IsClamped = {
+                  Show = {
+                    type = 'toggle',
+                    name = 'Show',
+                    order = 2,
+                    desc = "Shows all bars even if they shouldn't be shown",
+                  },
+                  Testing = {
+                    type = 'toggle',
+                    name = 'Test Mode',
+                    order = 3,
+                    desc = 'All bars will be displayed using fixed values',
+                  },
+                },
+              },
+              Tooltips = {
+                type = 'group',
+                name = 'Hide Tooltips',
+                order = 2,
+                dialogInline = true,
+                args = {
+                  HideTooltipsWhenLocked = {
+                    type = 'toggle',
+                    name = 'Locked',
+                    desc = 'Tooltips will be hidden when bars are locked',
+                    order = 1,
+                  },
+                  HideTooltipsWhenNotLocked = {
+                    type = 'toggle',
+                    name = 'Not Locked',
+                    desc = 'Tooltips will be hidden when bars are not locked',
+                    order = 2,
+                  },
+                  HideTooltipsDesc = {
+                    type = 'toggle',
+                    name = 'Description',
+                    order = 10,
+                    desc = 'Turns off the description in tooltips when bars are not locked',
+                  },
+                  HideLocationInfo = {
+                    type = 'toggle',
+                    name = 'Location Info',
+                    order = 11,
+                    desc = 'Turns off the location information for bars and boxes in tooltips when bars are not locked',
+                  },
+                },
+              },
+              Layout = {
+                type = 'group',
+                name = 'Other',
+                order = 3,
+                dialogInline = true,
+                args = {
+                  Clamped = {
                     type = 'toggle',
                     name = 'Screen Clamp',
-                    order = 2,
+                    order = 1,
                     desc = 'Prevent bars from going off the screen',
                   },
-                  IsGrouped = {
+                  Grouped = {
                     type = 'toggle',
                     name = 'Group Drag',
-                    order = 3,
+                    order = 2,
                     desc = 'Drag all the bars as one instead of one at a time',
                   },
                   AlignAndSwapEnabled = {
                     type = 'toggle',
                     name = 'Enable Align & Swap',
-                    order = 4,
+                    order = 3,
                     desc = 'If unchecked, right clicking a unitbar will not open align and swap',
                   },
                   HideTextHighlight = {
                     type = 'toggle',
                     name = 'Hide Text Highlight',
-                    order = 5,
+                    order = 4,
                     desc = 'Text will not be highlighted when options is opened',
                   },
                   HighlightDraggedBar = {
                     type = 'toggle',
                     name = 'Highlight Dragged Bar',
-                    order = 6,
+                    order = 5,
                     desc = 'The bar being dragged will show a box around it',
-                  },
-                  Testing = {
-                    type = 'toggle',
-                    name = 'Test Mode',
-                    order = 7,
-                    desc = 'All bars will be displayed using fixed values',
                   },
                   BarFillFPS = {
                     type = 'range',
                     name = 'Bar Fill FPS',
-                    order = 8,
+                    order = 6,
                     desc = 'Change the frame rate of smooth fill and timer bars. Higher values will reduce choppyness, but will consume more cpu',
                     min = o.BarFillFPSMin,
                     max = o.BarFillFPSMax,
@@ -9078,36 +9173,10 @@ local function CreateMainOptions()
                   },
                 },
               },
-              Tooltips = {
-                name = 'Tooltips',
-                type = 'group',
-                order = 2,
-                dialogInline = true,
-                args = {
-                  HideTooltips = {
-                    type = 'toggle',
-                    name = 'Hide Tooltips',
-                    order = 1,
-                    desc = 'Turns off mouse over tooltips when bars are not locked',
-                  },
-                  HideTooltipsDesc = {
-                    type = 'toggle',
-                    name = 'Hide Tooltips Desc',
-                    order = 2,
-                    desc = 'Turns off the description in mouse over tooltips when bars are not locked',
-                  },
-                  HideLocationInfo = {
-                    type = 'toggle',
-                    name = 'Hide Location Info',
-                    order = 3,
-                    desc = 'Turns off the location information for bars and boxes in mouse over tooltips when bars are not locked',
-                  },
-                },
-              },
               Animation = {
                 name = 'Animation',
                 type = 'group',
-                order = 3,
+                order = 4,
                 dialogInline = true,
                 args = {
                   ReverseAnimation = {
@@ -9446,7 +9515,7 @@ end
 -------------------------------------------------------------------------------
 local function OnHideAlignSwapOptions(self)
   self:SetScript('OnHide', nil)
-  self.OptionFrame:SetClampedToScreen(self.IsClamped)
+  self.OptionFrame:SetClampedToScreen(self.Clamped)
   self.OptionFrame = nil
 
   Options.AlignSwapOptionsOpen = false
@@ -9464,7 +9533,7 @@ function GUB.Options:OpenAlignSwapOptions(Anchor)
     SwapAlignOptionsHideFrame:SetParent(OptionFrame)
 
     SwapAlignOptionsHideFrame:SetScript('OnHide', OnHideAlignSwapOptions)
-    SwapAlignOptionsHideFrame.IsClamped = OptionFrame:IsClampedToScreen() and true or false
+    SwapAlignOptionsHideFrame.Clamped = OptionFrame:IsClampedToScreen() and true or false
     SwapAlignOptionsHideFrame.OptionFrame = OptionFrame
     OptionFrame:SetClampedToScreen(true)
 

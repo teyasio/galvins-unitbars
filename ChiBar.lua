@@ -231,21 +231,6 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
 end
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks    UnitBarsF function
---
--- This will enable or disbable mouse clicks for the chi bar.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.ChiBar:EnableMouseClicks(Enable)
-  local BBar = self.BBar
-
-  -- Enable/disable for border.
-  BBar:EnableMouseClicksRegion(Enable)
-
-  -- ENable/disable for box mode
-  BBar:EnableMouseClicks(0, nil, Enable)
-end
-
--------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the chibar.
@@ -370,7 +355,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
     end
     local Name = NamePrefix .. Groups[ChiIndex][2]
 
-    BBar:SetTooltip(ChiIndex, nil, Name)
+    BBar:SetTooltipBox(ChiIndex, Name)
     Names[ChiIndex] = Name
   end
 

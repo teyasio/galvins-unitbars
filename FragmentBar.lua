@@ -424,21 +424,6 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks    UnitBarsF function
---
--- This will enable or disbable mouse clicks for the shard bar.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.FragmentBar:EnableMouseClicks(Enable)
-  local BBar = self.BBar
-
-  -- Enable/disable for border.
-  BBar:EnableMouseClicksRegion(Enable)
-
-  -- Enable/disable for box mode
-  BBar:EnableMouseClicks(0, nil, Enable)
-end
-
--------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the shardbar.
@@ -687,7 +672,7 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
     local Name = NamePrefix .. Groups[ShardIndex][2]
 
-    BBar:SetTooltip(ShardIndex, nil, Name)
+    BBar:SetTooltipBox(ShardIndex, Name)
     Names[ShardIndex] = Name
   end
 

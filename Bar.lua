@@ -47,6 +47,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --     Hidden                        If true the region is hidden.
 --     Anchor                        Reference to the UnitBarF.Anchor.  Used for Mouse interaction.
 --     BarDB                         BarDB.  Reference to the Bar database.  Used for mouse interaction
+--     EnableDrag                    true or false. If true then the Region can be dragged
 --     Name                          Name for the tooltip.  Used for tooltip, dragging.
 --     Backdrop                      Table containing the backdrop. Set by GetBackDrop()
 --
@@ -90,6 +91,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
 --   BF                              Reference to boxframe.  Used for tooltip, dragging.
+--   EnableDrag                      true or false. If true then the box frame can be dragged
 --   Backdrop                        Table containing the backdrop.
 --   TextData                        This gets added by CreateFont()
 --
@@ -100,10 +102,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --   Hidden                          If true then the textureframe is hidden.
 --   Textures[]                      Textures contained in TextureFrame.
 --   ValueTime                       Used by SetValueTime()
---   Anchor                          Reference to the UnitBarF.Anchor.  Used for tooltip, dragging.
 --   MaxFrameLevel                   Contains the max frame level used by its children
---   BarDB                           BarDB.  Reference to the Bar database.  Used for tooltip, dragging.
---   BF                              Reference to boxframe.  Used for tooltip, dragging.
 --   BorderFrame                     Contains the backdrop. Child of TextureFrame
 --     Backdrop                        Table containing the backdrop.
 --     AGroup                          Contains the animation group for offsetting.
@@ -1395,6 +1394,7 @@ local function BoxInfo(Frame)
     local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
     local BoxX, BoxY = 0, 0
 
+    -- Is this a boxframe?
     if Frame.BF then
       local BF = Frame.BF
       BoxX, BoxY = GetRect(BF)
@@ -1540,55 +1540,105 @@ local function StopMoving(self)
 end
 
 -------------------------------------------------------------------------------
--- EnableMouseClicksRegion
+-- EnableDragRegion
 --
--- Allows the region to interact with the mouse.
+-- Allows the region to be dragged with the mouse
 --
--- Enable     if true then the region can be clicked and moved.
+-- Enable     true or false. Enables or disables mouse dragging
 -------------------------------------------------------------------------------
-function BarDB:EnableMouseClicksRegion(Enable)
+function BarDB:EnableDragRegion(Enable)
   local Region = self.Region
 
-  if Region:GetScript('OnMouseDown') == nil then
-    Region.Anchor = self.Anchor
-    Region.BarDB = self
+  Region.Anchor = self.Anchor
+  Region.BarDB = self
 
+  if Enable then
     Region:SetScript('OnMouseDown', StartMoving)
     Region:SetScript('OnMouseUp', StopMoving)
     Region:SetScript('OnHide', StopMoving)
+  else
+    Region:SetScript('OnMouseDown', nil)
+    Region:SetScript('OnMouseUp', nil)
+    Region:SetScript('OnHide', nil)
   end
   Region:EnableMouse(Enable)
+  Region:SetMouseClickEnabled(Enable)
+  Region.EnableDrag = Enable
 end
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks
+-- EnableDragBox
 --
--- Allows the boxframe or textureframe to interact with the mouse.
+-- Allows the box frame to be dragged with the mouse
 --
--- BoxNumber            BoxFrame to enable for mouse.
--- TextureFrameNumber   If not nil then TextureFrame will be used instead.
--- Enable               If true thne the frame can interact with the mouse.
+-- BoxNumber            BoxFrame to drag
+-- Enable               true or false. Enables or disables mouse dragging
 -------------------------------------------------------------------------------
-function BarDB:EnableMouseClicks(BoxNumber, TextureFrameNumber, Enable)
+function BarDB:EnableDragBox(BoxNumber, Enable)
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
-    local Frame = nil
 
-    if TextureFrameNumber then
-      Frame = BoxFrame.TextureFrames[TextureFrameNumber]
+    BoxFrame.Anchor = self.Anchor
+    BoxFrame.BarDB = self
+    BoxFrame.BF = BoxFrame
+
+    if Enable then
+      BoxFrame:SetScript('OnMouseDown', StartMoving)
+      BoxFrame:SetScript('OnMouseUp', StopMoving)
+      BoxFrame:SetScript('OnHide', StopMoving)
     else
-      Frame = BoxFrame
+      BoxFrame:SetScript('OnMouseDown', nil)
+      BoxFrame:SetScript('OnMouseUp', nil)
+      BoxFrame:SetScript('OnHide', nil)
     end
-    if Frame:GetScript('OnMouseDown') == nil then
-      Frame.Anchor = self.Anchor
-      Frame.BarDB = self
-      Frame.BF = BoxFrame
+    BoxFrame:EnableMouse(Enable)
+    BoxFrame:SetMouseClickEnabled(Enable)
+    BoxFrame.EnableDrag = Enable
+  until LastBox
+end
 
-      Frame:SetScript('OnMouseDown', StartMoving)
-      Frame:SetScript('OnMouseUp', StopMoving)
-      Frame:SetScript('OnHide', StopMoving)
+-------------------------------------------------------------------------------
+-- EnableTooltipsRegion
+--
+-- Enable or disable tooltips for the region
+--
+-- Enable               true or false. Enables or disables mouse dragging
+-------------------------------------------------------------------------------
+function BarDB:EnableTooltipsRegion(Enable)
+  local Region = self.Region
+  local EnableDrag = Region.EnableDrag
+
+  if Enable then
+    Region:SetScript('OnEnter', ShowTooltip)
+    Region:SetScript('OnLeave', HideTooltip)
+  else
+    Region:SetScript('OnEnter', nil)
+    Region:SetScript('OnLeave', nil)
+  end
+  Region:SetMouseClickEnabled(EnableDrag)
+end
+
+-------------------------------------------------------------------------------
+-- EnableTooltipsBox
+--
+-- Enable or disable tooltips for the box frame
+--
+-- BoxNumber            BoxFrame to drag
+-- Enable               true or false. Enables or disables mouse dragging
+-------------------------------------------------------------------------------
+function BarDB:EnableTooltipsBox(BoxNumber, Enable)
+  repeat
+    local BoxFrame = NextBox(self, BoxNumber)
+    local EnableDrag = BoxFrame.EnableDrag
+
+    if Enable then
+      BoxFrame:SetScript('OnEnter', ShowTooltip)
+      BoxFrame:SetScript('OnLeave', HideTooltip)
+    else
+      BoxFrame:SetScript('OnEnter', nil)
+      BoxFrame:SetScript('OnLeave', nil)
     end
-    Frame:EnableMouse(Enable)
+    BoxFrame:SetMouseClickEnabled(EnableDrag)
   until LastBox
 end
 
@@ -1606,14 +1656,10 @@ function BarDB:SetTooltipRegion(Name)
 
   Region.BarDB = self
   Region.Name = Name
-  if Region:GetScript('OnEnter') == nil then
-    Region:SetScript('OnEnter', ShowTooltip)
-    Region:SetScript('OnLeave', HideTooltip)
-  end
 end
 
 -------------------------------------------------------------------------------
--- SetTooltip
+-- SetTooltipBox
 --
 -- Set tooltips to be shown on a boxframe or texture frame.
 --
@@ -1623,23 +1669,13 @@ end
 --
 -- NOTES: The name is set to the boxframe.
 -------------------------------------------------------------------------------
-function BarDB:SetTooltip(BoxNumber, TextureFrameNumber, Name)
+function BarDB:SetTooltipBox(BoxNumber, Name)
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
-    local Frame = nil
 
-    if TextureFrameNumber then
-      Frame = BoxFrame.TextureFrames[TextureFrameNumber]
-    else
-      Frame = BoxFrame
-    end
-    Frame.BarDB = self
-    Frame.BF = BoxFrame
+    BoxFrame.BarDB = self
+    BoxFrame.BF = BoxFrame
     BoxFrame.Name = Name
-    if Frame:GetScript('OnEnter') == nil then
-      Frame:SetScript('OnEnter', ShowTooltip)
-      Frame:SetScript('OnLeave', HideTooltip)
-    end
   until LastBox
 end
 

@@ -221,21 +221,6 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- EnableMouseClicks    UnitBarsF function
---
--- This will enable or disbable mouse clicks for the holy bar.
--------------------------------------------------------------------------------
-function Main.UnitBarsF.HolyBar:EnableMouseClicks(Enable)
-  local BBar = self.BBar
-
-  -- Enable/disable for border.
-  BBar:EnableMouseClicksRegion(Enable)
-
-  -- ENable/disable for box mode
-  BBar:EnableMouseClicks(0, nil, Enable)
-end
-
--------------------------------------------------------------------------------
 -- SetAttr    UnitBarsF function
 --
 -- Sets different parts of the holybar.
@@ -369,7 +354,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
      -- Set and save the name for tooltips for box mode.
     local Name = NamePrefix .. Groups[HolyIndex][2]
 
-    BBar:SetTooltip(HolyIndex, nil, Name)
+    BBar:SetTooltipBox(HolyIndex, Name)
 
     Names[HolyIndex] = Name
   end
