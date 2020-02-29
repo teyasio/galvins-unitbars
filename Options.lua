@@ -9020,12 +9020,6 @@ end
 --
 -- Returns the main options table.
 -------------------------------------------------------------------------------
-local HideTooltipsDropdown = {
-  Always        = 'Always',
-  WhenLocked    = 'When Locked',
-  WhenNotLocked = 'When not Locked',
-}
-
 local function CreateMainOptions()
   MainOptions = {
     name = AddonName,
@@ -9100,13 +9094,13 @@ local function CreateMainOptions()
                 order = 2,
                 dialogInline = true,
                 args = {
-                  HideTooltipsWhenLocked = {
+                  HideTooltipsLocked = {
                     type = 'toggle',
                     name = 'Locked',
                     desc = 'Tooltips will be hidden when bars are locked',
                     order = 1,
                   },
-                  HideTooltipsWhenNotLocked = {
+                  HideTooltipsNotLocked = {
                     type = 'toggle',
                     name = 'Not Locked',
                     desc = 'Tooltips will be hidden when bars are not locked',

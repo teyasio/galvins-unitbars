@@ -3568,9 +3568,13 @@ local function MoveFrameGetNearestFrame(TrackingFrame)
   end
 
   if MoveSelectFrame == nil and not UnitBars.HideLocationInfo and not UnitBars.HideTooltipsDesc then
-    local x, y = Bar:GetRect(MoveFrame)
+    local Locked = UnitBars.Locked
 
-    Main:ShowTooltip(MoveFrame, false, '', format('%d, %d', floor(x + 0.5), floor(y + 0.5)))
+    if not (UnitBars.HideTooltipsLocked and Locked or UnitBars.HideTooltipsNotLocked and not Locked) then
+      local x, y = Bar:GetRect(MoveFrame)
+
+      Main:ShowTooltip(MoveFrame, false, '', format('%d, %d', floor(x + 0.5), floor(y + 0.5)))
+    end
   end
 end
 
@@ -4408,7 +4412,7 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
   local ATOFrame = Options.ATOFrame
   local HideTooltips = UnitBars.HideTooltips
   local Locked = UnitBars.Locked
-  local EnableTooltips = not (UnitBars.HideTooltipsWhenLocked and Locked or UnitBars.HideTooltipsWhenNotLocked and not Locked)
+  local EnableTooltips = not (UnitBars.HideTooltipsLocked and Locked or UnitBars.HideTooltipsNotLocked and not Locked)
   local Clamped = UnitBars.Clamped
   local AnimationOutTime = UnitBars.AnimationOutTime
   local AnimationInTime = UnitBars.AnimationInTime
@@ -5046,8 +5050,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 36 then
-    Gdata.ShowMessage = 36
+  if Gdata.ShowMessage ~= 37 then
+    Gdata.ShowMessage = 37
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

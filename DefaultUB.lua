@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 652
+GUB.DefaultUB.Version = 653
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -41,7 +41,8 @@ GUB.DefaultUB.Version = 652
 --                           2 -- show
 -- HideTargetFrame        - Same as above.
 --
--- HideTooltips           - Boolean. If true tooltips are not shown when mousing over unlocked bars.
+-- HideTooltipsLocked     - Boolean. If true tooltips are not shown when mousing over locked bars.
+-- HideTooltipsNotLocked  - Boolean. If true tooltips are not shown when mousing over unlocked bars.
 -- HideTooltipsDesc       - Boolean. If true the descriptions inside the tooltips will not be shown when mousing over
 -- HideTextHighlight      - Boolean. If true then text frames will not be highlighted when the options are opened.
 -- AlignAndSwapEnabled    - Boolean. If true then align and swap can be accessed, otherwise cant be.
@@ -382,10 +383,10 @@ GUB.DefaultUB.Default = {
     Locked = false,
     Clamped = true,
     Testing = false,
-    HideTooltipsWhenLocked = false,
-    HideTooltipsWhenNotLocked = false,
-
-
+    HideTooltipsLocked = false,
+    HideTooltipsNotLocked = false,
+    HideTooltipsDesc = false,
+    HideLocationInfo = false,
     BarFillFPS = 60,
     Align = false,
     Swap = false,
@@ -396,10 +397,8 @@ GUB.DefaultUB.Default = {
     AlignSwapOffsetY = 0,
     HidePlayerFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
     HideTargetFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
-    HideTooltipsDesc = false,
     HideTextHighlight = false,
     AlignAndSwapEnabled = true,
-    HideLocationInfo = false,
     ReverseAnimation = true,
     AnimationType = 'alpha',
     AnimationInTime = DefaultAnimationInTime,
@@ -3699,7 +3698,7 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
-Version 6.51
+Version 6.53
 |cff00ff00Bars and Tooltips|r has Changed. You'll need to redo these settings found in General -> Main
 
 Version 6.49
