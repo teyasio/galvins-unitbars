@@ -4583,6 +4583,7 @@ local function CreateUnitBar(UnitBarF, BarType)
     -- Create the animation frame.
     local AnimationFrame = CreateFrame('Frame', nil, Anchor)
     AnimationFrame:SetPoint('CENTER')
+    AnimationFrame:SetSize(1, 1)
 
     -- Create the alpha frame.
     local AlphaFrame = CreateFrame('Frame', nil, AnimationFrame)
