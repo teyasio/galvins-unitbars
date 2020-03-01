@@ -3567,13 +3567,15 @@ local function MoveFrameGetNearestFrame(TrackingFrame)
     end
   end
 
-  if MoveSelectFrame == nil and not UnitBars.HideLocationInfo and not UnitBars.HideTooltipsDesc then
+  if MoveSelectFrame == nil and not UnitBars.HideLocationInfo then
     local Locked = UnitBars.Locked
 
     if not (UnitBars.HideTooltipsLocked and Locked or UnitBars.HideTooltipsNotLocked and not Locked) then
       local x, y = Bar:GetRect(MoveFrame)
 
-      Main:ShowTooltip(MoveFrame, false, '', format('%d, %d', floor(x + 0.5), floor(y + 0.5)))
+      GameTooltip:SetOwner(MoveFrame, 'ANCHOR_TOPRIGHT')
+      GameTooltip:AddLine(format('%d, %d', floor(x + 0.5), floor(y + 0.5)), 1, 1, 1)
+      GameTooltip:Show()
     end
   end
 end

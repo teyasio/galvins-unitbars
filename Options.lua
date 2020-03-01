@@ -5326,7 +5326,7 @@ local function CreateShowOptions(BarType, Order, Name)
       Notes = {
         type = 'description',
         order = 1,
-        name = '|cff00ff00Disabled because Show Bars or Test Mode option is enabled|r',
+        name = '|cff00ff00Disabled because Show or Test Mode option is enabled|r',
         hidden = function()
                    return not Main.UnitBars.Show and not Main.UnitBars.Testing
                  end,
@@ -9110,13 +9110,13 @@ local function CreateMainOptions()
                     type = 'toggle',
                     name = 'Description',
                     order = 10,
-                    desc = 'Turns off the description in tooltips when bars are not locked',
+                    desc = 'Turns off the description in tooltips',
                   },
                   HideLocationInfo = {
                     type = 'toggle',
                     name = 'Location Info',
                     order = 11,
-                    desc = 'Turns off the location information for bars and boxes in tooltips when bars are not locked',
+                    desc = 'Turns off the location information for bars and boxes in tooltips',
                   },
                 },
               },
