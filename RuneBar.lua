@@ -373,7 +373,6 @@ local function OnUpdateRunes(self)
     end
   end
 
-
   local BBar = RuneBar.BBar
   local Layout = UB.Layout
   local EnableTriggers = Layout.EnableTriggers
@@ -396,44 +395,49 @@ local function OnUpdateRunes(self)
     local RuneID = SortedRunes[RuneIndex]
     local StartTime, Duration, RuneReady = GetRuneCooldown2(RuneID)
 
-    if not RuneReady then
-      local LD = LastDuration[RuneID]
-      local ROC = RuneOnCooldown[RuneID]
+    -- If StartTime is nil that means GetRuneCooldown() return all nils.
+    -- This happens during a zone change. Caused when hearthing while
+    -- some of the runes are still on cooldown
+    if StartTime then
+      if not RuneReady then
+        local LD = LastDuration[RuneID]
+        local ROC = RuneOnCooldown[RuneID]
 
-      -- Fresh timers always start from the bottom first due to sorting
-      if not ROC then
+        -- Fresh timers always start from the bottom first due to sorting
+        if not ROC then
 
-        -- Clear bar of any previous timer
-        DoRuneCooldown(RuneBar, 'stop', RuneIndex)
-        DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
-
-      -- Refresh only if rune moved or if its a dark rune. Since dark runes
-      -- start times can change. This is done so stutter don't happen
-      -- on bar animations.
-      -- Dark rune is when the StartTime >= CurrentTime
-      elseif ROC ~= RuneIndex or StartTime >= CurrentTime or Testing then
-
-        -- Clear bar if dark rune
-        if StartTime > CurrentTime then
+          -- Clear bar of any previous timer
           DoRuneCooldown(RuneBar, 'stop', RuneIndex)
-        end
-        DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
+          DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
 
-      -- Change speed of rune due to haste changing.
-      elseif LD ~= false and LD ~= Duration then
-        DoRuneCooldown(RuneBar, 'change', RuneIndex, StartTime, Duration)
+        -- Refresh only if rune moved or if its a dark rune. Since dark runes
+        -- start times can change. This is done so stutter don't happen
+        -- on bar animations.
+        -- Dark rune is when the StartTime >= CurrentTime
+        elseif ROC ~= RuneIndex or StartTime >= CurrentTime or Testing then
+
+          -- Clear bar if dark rune
+          if StartTime > CurrentTime then
+            DoRuneCooldown(RuneBar, 'stop', RuneIndex)
+          end
+          DoRuneCooldown(RuneBar, 'start', RuneIndex, StartTime, Duration)
+
+        -- Change speed of rune due to haste changing.
+        elseif LD ~= false and LD ~= Duration then
+          DoRuneCooldown(RuneBar, 'change', RuneIndex, StartTime, Duration)
+        end
+        RuneOnCooldown[RuneID] = RuneIndex
+        LastDuration[RuneID] = Duration
+        BBar:SetHiddenTexture(RuneIndex, RuneTexture, true)
+      else
+        DoRuneCooldown(RuneBar, 'stop', RuneIndex)
+        LastDuration[RuneID] = false
+        RuneOnCooldown[RuneID] = false
+        BBar:SetHiddenTexture(RuneIndex, RuneTexture, false)
       end
-      RuneOnCooldown[RuneID] = RuneIndex
-      LastDuration[RuneID] = Duration
-      BBar:SetHiddenTexture(RuneIndex, RuneTexture, true)
-    else
-      DoRuneCooldown(RuneBar, 'stop', RuneIndex)
-      LastDuration[RuneID] = false
-      RuneOnCooldown[RuneID] = false
-      BBar:SetHiddenTexture(RuneIndex, RuneTexture, false)
-    end
-    if EnableTriggers then
-      BBar:SetTriggers(RuneIndex, 'recharging', not RuneReady)
+      if EnableTriggers then
+        BBar:SetTriggers(RuneIndex, 'recharging', not RuneReady)
+      end
     end
   end
 

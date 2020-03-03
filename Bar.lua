@@ -2634,7 +2634,8 @@ function BarDB:SetValueTime(BoxNumber, StartTime, Duration, Direction, Fn)
 
       Main:SetTimer(ValueTime, SetValueTimer, 0.01, WaitTime)
     else
-      -- StartTime = Fn
+      -- Check if Fn is nil. If so then StartTime is the callback
+      StartTime = Fn or StartTime
       StartTime(self.UnitBarF, self, BN, 0, true)
     end
   until LastBox
