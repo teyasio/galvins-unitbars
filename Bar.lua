@@ -328,22 +328,22 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --                      This is used to help display the text frame boxes when options is opened.
 --
 -- TextData
---   Multi              Can support more than one text line.
---   BarType            Type of bar that created the fontstring.
---   TextFrames         Contains one or more frames used by the fontstrings.
---     LastX
---     LastY            For animation. Contains the last position set by an offset trigger.  SetOffsetFont()
---     AGroup           Animation for offsetting text.
---   PercentFn          Function used to calculate percentages from CurrentValue and MaximumValue.
---   Texts[]            Reference to the current Text data found in UnitBars[BarType].Text
---     ErrorMessage     Used to pass back format error message in custom mode to the options UI. Created by ParseLayoutFont()
---     SampleText       Same as above except for valid formatted text.  Shows a sample of what it'll look like. Created by ParseLayoutFont()
---   TextTableName      Contains the name of the table being used for text. UnitBars[BarType][TextTableName]
---   ValueLayouts[]     Array containing parsed layouts.  This sets the order the layouts are shown. Created by ParseLayoutFont()
+--   Multi                Can support more than one text line.
+--   BarType              Type of bar that created the fontstring.
+--   TextFrames[TextLine] Contains one or more frames used by the fontstrings.
+--   PercentFn            Function used to calculate percentages from CurrentValue and MaximumValue.
+--   Texts[]              Reference to the current Text data found in UnitBars[BarType].Text
+--     ErrorMessage       Used to pass back format error message in custom mode to the options UI. Created by ParseLayoutFont()
+--     SampleText         Same as above except for valid formatted text.  Shows a sample of what it'll look like. Created by ParseLayoutFont()
+--   TextTableName        Contains the name of the table being used for text. UnitBars[BarType][TextTableName]
+--   ValueLayouts[]       Array containing parsed layouts.  This sets the order the layouts are shown. Created by ParseLayoutFont()
 --
--- TextData[TextLine]   Array used to store the fontstring for each textline
---   LastSize           For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
---   AGroup             Animation for changing text size.
+-- TextData[TextLine]     Array used to store the fontstring for each textline
+--   LastSize             For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
+--   LastX
+--   LastY                For animation. Contains the last position set by an offset trigger.  SetOffsetFont()
+--   AGroupSSF            Animation for changing text size. Used by SetSizeFont()
+--   AGroupOSF            Animation for changing the offset. Used by SetOffsetFont()
 --
 --
 -- Parsed Layouts data structure
@@ -6294,26 +6294,26 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
     -- Check for fontstrings
     if TextData then
       local Text = Texts[TextLine]
-      local TF = TextData.TextFrames[TextLine]
+      local FontString = TextData[TextLine]
 
-      if TF and Text then
-        local AGroup = TF.AGroup
+      if FontString and Text then
+        local AGroup = FontString.AGroupOSF
         local IsPlaying = AGroup and AGroup:IsPlaying() or false
         local Ox = Text.OffsetX
         local Oy = Text.OffsetY
 
         if AnimateSpeedTrigger then
-          local LastX = TF.LastX or 0
-          local LastY = TF.LastY or 0
+          local LastX = FontString.LastX or 0
+          local LastY = FontString.LastY or 0
 
           if OffsetX ~= LastX or OffsetY ~= LastY then
-            TF.LastX = OffsetX
-            TF.LastY = OffsetY
+            FontString.LastX = OffsetX
+            FontString.LastY = OffsetY
 
             -- Create animation if not found
             if AGroup == nil then
-              AGroup = GetAnimation(self, TF, 'children', 'move')
-              TF.AGroup = AGroup
+              AGroup = GetAnimation(self, FontString, 'children', 'move')
+              FontString.AGroupOSF = AGroup
             end
 
             if IsPlaying then
@@ -6332,12 +6332,12 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
             local Distance = sqrt(DistanceX * DistanceX + DistanceY * DistanceY)
 
             local Duration = GetSpeedDuration(Distance, AnimateSpeedTrigger)
-            PlayAnimation(AGroup, Duration, Text.FontPosition, Frame, Text.Position, FromX, FromY, ToX, ToY)
+            PlayAnimation(AGroup, Duration, Text.FontAnchorPosition, Frame, Text.FontBarPosition, FromX, FromY, ToX, ToY)
 
           -- offset hasn't changed
           elseif not IsPlaying then
-            TF:ClearAllPoints()
-            TF:SetPoint(Text.FontPosition, Frame, Text.Position, Ox + OffsetX, Oy + OffsetY)
+            FontString:ClearAllPoints()
+            FontString:SetPoint(Text.FontAnchorPosition, Frame, Text.FontBarPosition, Ox + OffsetX, Oy + OffsetY)
           end
         else
           -- Non animated trigger call or called outside of triggers or trigger disabled.
@@ -6346,12 +6346,12 @@ function BarDB:SetOffsetFont(BoxNumber, TextLine, OffsetX, OffsetY)
           end
           -- This will get called if changing profiles cause UndoTriggers() will get called.
           if CalledByTrigger or Main.ProfileChanged then
-            TF.LastX = OffsetX or 0
-            TF.LastY = OffsetY or 0
+            FontString.LastX = OffsetX or 0
+            FontString.LastY = OffsetY or 0
           end
 
-          TF:ClearAllPoints()
-          TF:SetPoint(Text.FontPosition, Frame, Text.Position, Ox + (OffsetX or 0), Oy + (OffsetY or 0))
+          FontString:ClearAllPoints()
+          FontString:SetPoint(Text.FontAnchorPosition, Frame, Text.FontBarPosition, Ox + (OffsetX or 0), Oy + (OffsetY or 0))
         end
       end
     end
@@ -6401,7 +6401,7 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
       local Text = Texts[TextLine]
 
       if FontString and Text then
-        local AGroup = FontString.AGroup
+        local AGroup = FontString.AGroupSSF
         local IsPlaying = AGroup and AGroup:IsPlaying() or false
         local OSize = Text.FontSize
 
@@ -6414,7 +6414,7 @@ function BarDB:SetSizeFont(BoxNumber, TextLine, Size)
             -- Create animation if not found
             if AGroup == nil then
               AGroup = GetAnimation(self, FontString, 'children', 'fontsize')
-              FontString.AGroup = AGroup
+              FontString.AGroupSSF = AGroup
             end
             if IsPlaying then
               LastSize = StopAnimation(AGroup)
@@ -6616,7 +6616,8 @@ local function ParseLayoutFont(TextData)
                       ErrorMessage = Msg
                     else
                       ValueOrder[OrderIndex] = ValueIndex
-                      FormatStrings[ValueIndex] = FormatString
+                      -- make sure \n works
+                      FormatStrings[ValueIndex] = gsub(FormatString, '\\n', '\n' )
                       StartIndex = Index
                     end
                   end
@@ -6754,10 +6755,12 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
       TextFrame:SetBackdrop(FrameBorder)
       TextFrame:SetBackdropBorderColor(1, 1, 1, 0)
 
-      TextFrames[Index] = TextFrame
       FontString = TextFrame:CreateFontString()
 
-      FontString:SetAllPoints()
+      TextFrame:ClearAllPoints()
+      TextFrame:SetAllPoints(FontString)
+
+      TextFrames[Index] = TextFrame
       TextData[Index] = FontString
     end
 
@@ -6771,9 +6774,8 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
     FontString:SetJustifyV(Text.FontVAlign)
     FontString:SetShadowOffset(Text.ShadowOffset, -Text.ShadowOffset)
 
-    -- Position the font by moving textframe.
+    -- Position the font by moving the font.
     self:SetOffsetFont(BoxNumber, Index)
-    TextFrame:SetSize(Text.Width, Text.Height)
 
     -- Set the text frame to be on top.
     TextFrame:SetFrameLevel(MaxFrameLevel)
@@ -6795,10 +6797,10 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
   -- Erase font string data no longer used.
   for Index = 1, 10 do
     if Texts[Index] == nil then
-      local TD = TextData[Index]
+      local FontString = TextData[Index]
 
-      if TD then
-        TD:SetText('')
+      if FontString then
+        FontString:SetText('')
       end
     end
   end

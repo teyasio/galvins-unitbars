@@ -1828,6 +1828,19 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
     end
   elseif Ver == 12 then
     SourceUB[KeyFound].AnchorPoint = 'TOPLEFT'
+  elseif Ver == 13 then
+    -- Convert FontAnchorPosition Position
+    local Text = SourceUB[KeyFound]
+
+    for Index = 1, #Text do
+      local TS = Text[Index]
+
+      TS.FontAnchorPosition = TS.FontPosition
+      TS.FontBarPosition = TS.Position
+
+      TS.FontPosition = nil
+      TS.Position = nil
+    end
   end
 end
 
@@ -1855,7 +1868,6 @@ local function ConvertUnitBarData(Ver)
 
     {Action = 'custom',    Source = '',                                 '=Text'},
   }
-
   local ConvertUBData2 = {
     {Action = 'movetable', Source = 'Region.BackdropSettings',         Dest = 'Region',              'Padding'},
     {Action = 'movetable', Source = 'Background.BackdropSettings',     Dest = 'Background',          'Padding'},
@@ -1865,15 +1877,12 @@ local function ConvertUnitBarData(Ver)
     {Action = 'move', Source = 'Background.BackdropSettings',          Dest = 'Background',          'BgTexture', 'BdTexture:BorderTexture',
                                                                                                      '=BgTile', 'BgTileSize', 'BdSize:BorderSize'},
   }
-
   local ConvertUBData345 = {
     {Action = 'custom',    Source = '',                                 '=Triggers'},
   }
-
   local ConvertUBData6 = {
     {Action = 'custom',    Source = '',                                 '=BoxOrder', '=Text', '=Triggers'},
   }
-
   local ConvertUBData7 = {
     {Action = 'custom',    Source = '',                                 '=Text'},
   }
@@ -1902,6 +1911,9 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData12 = {
     {Action = 'custom',    Source = '',                                 '=Attributes'},
   }
+  local ConvertUBData13 = {
+    {Action = 'custom',    Source = '',                                 '=Text', '=Text2'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1929,6 +1941,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData11
   elseif Ver == 12 then
     ConvertUBData = ConvertUBData12
+  elseif Ver == 13 then
+    ConvertUBData = ConvertUBData13
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -2802,7 +2816,7 @@ end
 -- Shows all escapes codes in a string.
 -------------------------------------------------------------------------------
 function GUB.Main:PrintRaw(Text)
-  print(gsub(Text, '|', '||'))
+  print(format('%q', Text))
 end
 
 -------------------------------------------------------------------------------
@@ -4941,6 +4955,9 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 649 then -- 6.49
     ConvertUnitBarData(12)
   end
+  if Ver == nil or Ver < 660 then -- 6.60
+    ConvertUnitBarData(13)
+  end
 
   -- Make sure profile is accurate.
   FixUnitBars()
@@ -5053,8 +5070,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 37 then
-    Gdata.ShowMessage = 37
+  if Gdata.ShowMessage ~= 42 then
+    Gdata.ShowMessage = 42
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

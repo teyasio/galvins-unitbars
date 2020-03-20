@@ -2481,23 +2481,6 @@ local function CreateTextFontOptions(BarType, TableName, UBF, TLA, Texts, TextLi
         style = 'dropdown',
         values = FontStyleDropdown,
         },
-      Spacer10 = CreateSpacer(10),
-      Width = {
-        type = 'range',
-        name = 'Field Width',
-        order = 11,
-        min = o.FontFieldWidthMin,
-        max = o.FontFieldWidthMax,
-        step = 1,
-      },
-      Height = {
-        type = 'range',
-        name = 'Field Height',
-        order = 12,
-        min = o.FontFieldHeightMin,
-        max = o.FontFieldHeightMax,
-        step = 1,
-      },
       Spacer20 = CreateSpacer(20),
       FontSize = {
         type = 'range',
@@ -2508,42 +2491,51 @@ local function CreateTextFontOptions(BarType, TableName, UBF, TLA, Texts, TextLi
         step = 1,
       },
       Spacer30 = CreateSpacer(30),
-      Location = {
+      Anchor = {
         type = 'group',
-        name = 'Location',
+        name = 'Anchor',
         dialogInline = true,
         order = 31,
         args = {
+          FontAnchorPosition = {
+            type = 'select',
+            name = 'Position',
+            order = 11,
+            style = 'dropdown',
+            desc = 'Change the anchor position of the font frame',
+            values = PositionDropdown,
+          },
+          FontBarPosition = {
+            type = 'select',
+            name = "To Bar's",
+            order = 12,
+            style = 'dropdown',
+            desc = 'Location of the font frame around the bar',
+            values = PositionDropdown,
+          },
+        },
+      },
+      Alignment = {
+        type = 'group',
+        name = 'Alignment |cffffff00(only works when \\n is used)|r',
+        dialogInline = true,
+        order = 32,
+        args = {
           FontHAlign = {
             type = 'select',
-            name = 'Horizontal Alignment',
+            name = 'Horizontal',
+            desc = 'Text location within the font frame',
             order = 1,
             style = 'dropdown',
             values = FontHAlignDropdown,
           },
           FontVAlign = {
             type = 'select',
-            name = 'Vertical Alignment',
+            name = 'Vertical',
+            desc = 'Text location within the font frame',
             order = 2,
             style = 'dropdown',
             values = FontVAlignDropdown,
-          },
-          Spacer10 = CreateSpacer(10),
-          Position = {
-            type = 'select',
-            name = 'Position',
-            order = 11,
-            style = 'dropdown',
-            desc = 'Location of the font around the bar',
-            values = PositionDropdown,
-          },
-          FontPosition = {
-            type = 'select',
-            name = 'Font Position',
-            order = 12,
-            style = 'dropdown',
-            desc = 'Change the anchor position of the font',
-            values = PositionDropdown,
           },
         },
       },
@@ -2743,7 +2735,7 @@ local function CreateTextValueOptions(UBF, TLA, DUBTexts, Texts, TextLine, Order
     args = {
       Message = {
         type = 'description',
-        name = 'Custom Layout - use "))" for ")", "%%" for "%", or "|||" for "|" in the format string',
+        name = 'Custom Layout: "))" = ")", "%%" = "%", or "|||" = "|" in the format string\n                               "\\n" for new line',
         order = 1,
         hidden = function()
                    return not Text.Custom
