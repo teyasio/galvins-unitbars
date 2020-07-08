@@ -10,20 +10,15 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
+local GetTime, floor =
+      GetTime, floor
 local UnitAlternatePowerInfo, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, UnitAlternatePowerTextureInfo =
       UnitAlternatePowerInfo, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, UnitAlternatePowerTextureInfo
 local UnitPower, UnitPowerMax, CreateFrame =
@@ -46,11 +41,7 @@ local PowerAlternate = ConvertPowerType['ALTERNATE']
 local AltPowerTypeCounter = 4
 
 -- Not all of these are used atm.
-local AltColorFrame = 0
-local AltColorBackground = 1
 local AltColorFill = 2
-local AltColorSpark = 3
-local AltColorFlash = 4
 
 -- Alt power bar texture constants
 local AltPowerBarBox = 1
@@ -61,71 +52,51 @@ local AltCounterBarTFrame = 1
 local AltPowerSBar = 10
 local AltCounterSBar = 20
 
-local ChangeAltPower = 30
-
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfoPower = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '', AltPowerBarTFrame },
+  { OT.BackgroundBorderColor, 2,  '', AltPowerBarTFrame },
+  { OT.BackgroundBackground,  3,  '', AltPowerBarTFrame },
+  { OT.BackgroundColor,       4,  '', AltPowerBarTFrame },
+  { OT.BarTexture,            5,  '', AltPowerSBar      },
+  { OT.BarColor,              6,  '', AltPowerSBar      },
+  { OT.BarOffset,             7,  '', AltPowerBarTFrame },
+  { OT.TextFontColor,         8,  ''                    },
+  { OT.TextFontOffset,        9,  ''                    },
+  { OT.TextFontSize,          10, ''                    },
+  { OT.TextFontType,          11, ''                    },
+  { OT.TextFontStyle,         12, ''                    },
+  { OT.Sound,                 13, ''                    },
 }
 
-local TDPower = { -- Trigger data alt power
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             AltPowerBarTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        AltPowerBarTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         AltPowerBarTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              AltPowerBarTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   AltPowerSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     AltPowerSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    AltPowerBarTFrame },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoCounter = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '', AltCounterBarTFrame },
+  { OT.BackgroundBorderColor, 2,  '', AltCounterBarTFrame },
+  { OT.BackgroundBackground,  3,  '', AltCounterBarTFrame },
+  { OT.BackgroundColor,       4,  '', AltCounterBarTFrame },
+  { OT.BarTexture,            5,  '', AltCounterSBar      },
+  { OT.BarColor,              6,  '', AltCounterSBar      },
+  { OT.BarOffset,             7,  '', AltCounterBarTFrame },
+  { OT.TextFontColor,         8,  ''                      },
+  { OT.TextFontOffset,        9,  ''                      },
+  { OT.TextFontSize,          10, ''                      },
+  { OT.TextFontType,          11, ''                      },
+  { OT.TextFontStyle,         12, ''                      },
+  { OT.Sound,                 13, ''                      },
 }
 
-local TDCounter = { -- Trigger data alt counter
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             AltCounterBarTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        AltCounterBarTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         AltCounterBarTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              AltCounterBarTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   AltCounterSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     AltCounterSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    AltCounterBarTFrame },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
-}
-
-local VTPower = {'whole',   'Power',
-                 'percent', 'Power (percent)',
-                 'string',  'Power Name',
-                 'whole',   'Bar ID',
-                 'auras',   'Auras'             }
-local VTCounter = {'whole',  'Counter',
-                   'whole',  'Current Counter',
-                   'whole',  'Maximum Counter',
-                   'float',  'Time',
-                   'string', 'Power Name',
-                   'whole',  'Bar ID',
-                   'auras',  'Auras'            }
-
-local AltPowerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, 'Power', VTPower, TDPower}, -- 1
-  {2, 'Counter', VTCounter, TDCounter},     -- 2
+local GroupsInfoPower = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole',   'Power',
+    'percent', 'Power (percent)',
+    'whole',   'Counter',
+    'whole',   'Current Counter',
+    'whole',   'Maximum Counter',
+    'decimal', 'Counter Time',
+    'text',    'Power Name',
+    'whole',   'Bar ID',
+  },
+  {1, 'Power',   ObjectsInfoPower},   -- 1
+  {2, 'Counter', ObjectsInfoCounter}, -- 2
 }
 
 -------------------------------------------------------------------------------
@@ -181,7 +152,7 @@ local function DoAltTimer(TimeFrame)
       end
             -- Check triggers
       if Layout.EnableTriggers then
-        BBar:SetTriggers(AltCounterBarBox, 'time', TimeLeft)
+        BBar:SetTriggers('Counter Time', TimeLeft)
         BBar:DoTriggers()
       end
     end
@@ -209,7 +180,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
   -------------------
   -- Check Power Type
   -------------------
-  local PowerType = nil
+  local PowerType
   if PowerToken then
     PowerType = ConvertPowerType[PowerToken]
   else
@@ -264,7 +235,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
   local BBar = self.BBar
   local TimeFrame = self.TimeFrame
 
-  local UseMaxValue = nil
+  local UseMaxValue
   local Testing = Main.UnitBars.Testing
   local TestTypeBoth = false
   local TimeFrameActive = false
@@ -312,7 +283,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
 
       -- Do time here for triggers during testing
       if Layout.EnableTriggers then
-        BBar:SetTriggers(AltCounterBarBox, 'time', AltPowerTime)
+        BBar:SetTriggers('Counter Time', AltPowerTime)
         BBar:DoTriggers()
       end
     else
@@ -336,7 +307,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
   local HideTextCounter = Layout.HideTextCounter
   local BarCounter = UB.BarCounter
   local HideText = Layout.HideText
-  local AltTexture = nil
+  local AltTexture
 
 
   if AltPowerType then
@@ -385,9 +356,8 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
     end
 
     local UseBarColor = Layout.UseBarColor or false
-    local BarColor = Bar.Color
-    local r, g, b, a = 1, 1, 1, 1
-    local r1, g1, b1, a1 = 1, 1, 1, 1
+    local r, g, b, a
+    local r1, g1, b1, a1
 
     -- Use bar color if there is no active alternate power bar.
     if UseBarColor or AltPowerType2 == nil then
@@ -396,7 +366,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
       local Color = BarCounter.Color
       r1, g1, b1, a1 = Color.r, Color.g, Color.b, Color.a
     else
-      local TimeIndex = nil
+      local TimeIndex
       if TimeFrameActive then
         TimeIndex = 1
       end
@@ -422,10 +392,10 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
 
       -- Check triggers
       if Layout.EnableTriggers then
-        BBar:SetTriggers(AltPowerBarBox, 'power', CurrValue)
-        BBar:SetTriggers(AltPowerBarBox, 'power (percent)', CurrValue, MaxValue)
-        BBar:SetTriggers(AltPowerBarBox, 'power name', PowerName)
-        BBar:SetTriggers(AltPowerBarBox, 'bar id', BarID)
+        BBar:SetTriggers('Power', CurrValue)
+        BBar:SetTriggers('Power (percent)', CurrValue, MaxValue)
+        BBar:SetTriggers('Power Name', PowerName)
+        BBar:SetTriggers('Bar ID', BarID)
         BBar:DoTriggers()
       end
     end
@@ -464,11 +434,11 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
       end
       -- Check triggers
       if Layout.EnableTriggers then
-        BBar:SetTriggers(AltCounterBarBox, 'counter', CurrValue)
-        BBar:SetTriggers(AltCounterBarBox, 'current counter', CurrValue)
-        BBar:SetTriggers(AltCounterBarBox, 'maximum counter', MaxValue)
-        BBar:SetTriggers(AltCounterBarBox, 'power name', PowerName)
-        BBar:SetTriggers(AltCounterBarBox, 'bar id', BarID)
+        BBar:SetTriggers('Counter', CurrValue)
+        BBar:SetTriggers('Current Counter', CurrValue)
+        BBar:SetTriggers('Maximum Counter', MaxValue)
+        BBar:SetTriggers('Power Name', PowerName)
+        BBar:SetTriggers('Bar ID', BarID)
         BBar:DoTriggers()
       end
     end
@@ -505,7 +475,7 @@ function Main.UnitBarsF.AltPowerBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',    function(v) BBar:EnableTriggers(v, AltPowerGroups) end)
+    BBar:SO('Layout', 'EnableTriggers',    function(v) BBar:EnableTriggers(v, GroupsInfoPower) end)
     BBar:SO('Layout', 'HideText',          function(v) BBar:SetValueRawFont(AltPowerBarBox, '') Update = true end)
     BBar:SO('Layout', 'ReverseFill',       function(v) BBar:SetFillReverseTexture(AltPowerBarBox, AltPowerSBar, v)
                                                        BBar:SetFillReverseTexture(AltCounterBarBox, AltCounterSBar, v) Update = true end)

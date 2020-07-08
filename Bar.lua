@@ -10,26 +10,24 @@
 local MyAddon, GUB = ...
 
 local DUB = GUB.DefaultUB.Default.profile
+local DefaultUB = GUB.DefaultUB
+
 local Main = GUB.Main
 local Options = GUB.Options
-local TT = GUB.DefaultUB.TriggerTypes
-local TexturePath = GUB.DefaultUB.TexturePath
 
 local LSM = Main.LSM
-local Talents = Main.Talents
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
-      IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe
+local abs, max, floor, ceil, sqrt,      mhuge =
+      abs, max, floor, ceil, math.sqrt, math.huge
+local strfind, strmatch, strsub, strtrim, strsplit, strlower, strupper, format, gsub =
+      strfind, strmatch, strsub, strtrim, strsplit, strlower, strupper, format, gsub
+local GetTime, ipairs, pairs, pcall, print, select, tonumber, tostring, tremove, type, unpack =
+      GetTime, ipairs, pairs, pcall, print, select, tonumber, tostring, tremove, type, unpack
+local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
+      IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -73,7 +71,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --       Texture[]                   An array containing all the texture/statusbars for the texture frame.
 --
 --   Settings                        Used by triggers to keep track of the original settings for each frame/texture.
---   Groups                          Used by triggers.  Used to keep track of triggers.
+--   TriggerData                     See triggers below.  Nil if Triggers are not enabled
 --
 --   AGroups                         Used by animation to keep track of animation groups. Created by GetAnimation() in SetAnimationBar()
 --   AGroup                          Used to play animation when showing or hiding the bar. Created by GetAnimation() in SetAnimationBar()
@@ -179,15 +177,19 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --
 --  Upvalues                         Used by bars.lua
 --
---    RotationPoint                  Used by Display() to rotate the bar.
---    BoxFrames                      Used by NextBox() for iteration.
---    DoOptionData                   Reusable table for passing back information. Used by DoOption().
---    ParValues                      Contains the parameter data passed to SetValueFont()
---    ParValuesTest                  Contains test data to create sample text used by ParseLayoutFont()
---    ValueLayout                    Converts value types into format strings.
---    ValueLayoutTest                Used to test each formatted string. Used by ParseLayoutFont()
---    ValueLayoutTag                 Converts value names into shorter names.  Used by ParseLayoutFont()
---    LastSBF[]                      Used by CreateTexture()
+--    RotationPoint                    Used by Display() to rotate the bar.
+--    BoxFrames                        Used by NextBox() for iteration.
+--    DoOptionData                     Reusable table for passing back information. Used by DoOption().
+--    ParValues                        Contains the parameter data passed to SetValueFont()
+--    ParValuesTest                    Contains test data to create sample text used by ParseLayoutFont()
+--    ValueLayout                      Converts value types into format strings.
+--    ValueLayoutTest                  Used to test each formatted string. Used by ParseLayoutFont()
+--    ValueLayoutTag                   Converts value names into shorter names.  Used by ParseLayoutFont()
+--    GetValueLayout                   Converts value type to a format string. Used by GetLayoutFont()
+--    FrameBorder                      Used to show a border around font text. Used by UpdateFont()
+--    AnchorPointWord                  Displays anchor point in text when moving bars around. Used by BoxInfo()
+--
+--    LastSBF[]                        Used by CreateTexture()
 --
 --  RotationPoint data structure
 --
@@ -361,154 +363,145 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 -------------------------------------------------------------------------------
 -- Triggers
 --
--- TypeIDfn                        Table of function names. Converts a type ID to a function name.
---                                 If the boxnumber is nil then Region is appended to the function name.
--- TypeIDGetfn                     Table of get functions.  Converts a get function type id to a function.
+--  InputValueTypesCheck             Checks the value type of the InputValue. Used by EnableTriggers()
+--  DebuffTypesCheck                 Used to build code for checking debuff magic types in CreateTriggerAuraCode()
+--  TriggerObjectTypes[Type]         Types of triggers. Border, border color, font color, etc
+--  TriggerMenuItems[Type]           This table is used to build the menus to pick what you are changing in the options
+--  TriggerFns[Type]                 BarDB function to call to modify the bar object based on the Trigger Type
+--  TriggerCanAnimate[Type]          Flags if the particular trigger type support animation
+--  TriggerColorFnTypes[]            Types for color functions
+--  TriggerColorFns[]                References to the functions based on ColorFnTypes
+--  TriggerConvertColorIndex[]       Converts index into a color type or vise versa
+--  TriggerConvertRegionBackdrop[]   Converts between region and backdrop type IDs
 --
--- TypeIDCanAnimate                Table containing which TypeIDs support animation.
+--  Settings data structure
+--  Settings[Bar function name]      Hash table using the function name that it was called by to store
+--    [BoxNumber:Number]             BoxNumber:Number is stored as a string.
+--                                     BoxNumber: -1 means region. otherwise boxnumber staritng from 1
+--                                     Number:    -1 means no BoxNumber and Number
+--      Par[]                        Array containing the parameters for the settings
 --
--- CalledByTrigger                 true or false. if true then the function was called out side of the trigger system.
--- AnimateSpeedTrigger             if not nil then the trigger is animated.  This contains the speed of the animation.
+--  TriggerData
+--    ActiveTriggers                           Contains reference to triggers that will be used during combat
+--    ActiveBoxesAll[BoxNumber]                true or false. Used by the 'ALL' options.  This tells which boxes are active
+--    ActiveObjects[BoxNumber][ObjectTypeID]   Objects actively being used. Contains the trigger index that last used the object
+--                                             Used by DoTriggers(), CheckTriggers() and EnableTriggers()
+--                                               0 : means no trigger modified that object so restore it
+--                                              -1 : means restored.  Can't be restored till its used again first
 --
--- Settings data structure.
--- Settings[Bar function name]     Hash table using the function name that it was called by to store.
---                                 Used by SaveSettings() and RestoreSettings().
---   Setting[ID]                   Array using an ID to store the parameters under.
---                                 ID is two numbers combined into one.
---     Par[]                       Array containing the parameters for the settings.
+--    InputValueTypes[]                        string: Type of input value:
+--                                               'state'     Trigger can support state (boolean)
+--                                               'whole'     Trigger can support whole numbers (integers)
+--                                               'decimal'   Trigger can support floating point numbers
+--                                               'percent'   Trigger can support percentages
+--                                               'text'      Trigger can support strings
+--    InputValueNames[]                        string: Name of the input value
+--    InputValueNamesDropdown[]                Array: Used by trigger options
+--    InputValues[InputName]                   This keeps track of the values set thru SetTriggers(). InputName is the name used in SetTriggers()
 --
--- Groups structure.
-
--- Groups
---   Triggers                               Reference to triggers stored in the profile.
---   SortedTriggers                         Reference to triggers that are sorted and enabled only.
---   AuraTriggers                           Reference to triggers that are auras and enabled only.
---   LastValues[Object]                     Hash table. Uses Object = Objects[TypeIndex] as the index.
---
---   VirtualGroupList[VirtualGroupNumber]   hash table of virtual groups for any group thats using a box number.
---                                          This is nil if there's no virtual groups.
---                                          This only contains data if there was a virtual group defined.
---     [GroupNumber]                        Contains the virtual group based on each virtual group.
---        Hidden                            True or false.  If true the virtual group is hidden, otherwise visible.
---        BoxNumber                         Boxnumber that the virtual group is using.
---        Objects[TypeIndex]                Objects copied from Groups[VirtualGroupNumber]
---          Group                           Points back to [GroupNumber]
---          Virtual                         Number.  Tag so that UndoTriggers() knows its a virtual object.
---
--- Groups[GroupNumber]
---   Name                          Name of the group.
---   Hidden                        True or false. If true the group is hidden, otherwise visible. Used by virtual triggers.
---   VirtualGroupNumber            If not 0 then this group has a virtual trigger in its place.  The number is the virtual trigger group.
---   GroupType                     Group type
---                                 'b' for boxes.
---                                 'a' for all. Can match any group that has a numerical boxnumber.  Also will match virtual groups.
---                                 'r' for region.  Group will not use boxes.
---                                 'v' for virtual.  A virtual group has to be shown with HideVirtualGroupTriggers() first.
---                                                   Once that is done then the virtual group works like a normal group.
---   BoxNumber                     Box number of the bar or type.  Either > 0 for boxes or -1 if not.
---
---   TriggersInGroup               Contains the amount of triggers in the group.
---   ValueTypeIDs[]                Array of the value type IDs. Has reverse lookup.
---   ValueTypes[]                  Array of names for the value type IDs. Name can be anything. Appears in option menus.
---   RValueTypes[]                 Reverse lookup of ValueTypes[].  Hash table is in lowercase.
---   TypeIDs[]                     Array The ID of Type. Has reverse lookup.
---   Types[]                       Array Name of Type.  Name can be anything. Appears in option menus.
---   RTypes[]                      Reverse lookup of Types[]. Hash table is in lowercase.
---
---   Objects[TypeIndex]            TypeIndex comes from TypeID and Type
---     OneTime[Trigger]            Hash table based off trigger, aura trigger, and static trigger for index.
---                                 If true then the object executed once, otherwise false for haven't executed yet
---     CanAnimate                  true or false. If true then the object can use animation.
---     Group                       Parent reference to Groups[GroupNumber]
---     TexN[]                      Array of texture number or texture frame number.
---                                 If nil then the object doesn't use textures.
---     Function                    Function to call based on TypeIndex.
---     FunctionName                Name of Function.
---     Restore                     If true and theres no active triggers using this object.  Then it'll restore to its original state.
---                                 Otherwise false.
---
---     GetFnTypeIDs[]              Array that contains the IDs of each function type. Has reverse lookup.
---     GetFnTypes[]                Array that contains the name of each function type.  Name can be anything. Appears in option menus.
---     GetFn[GetFnTypeID]          Returns the get function based on Get function type ID.
---                                 NOTE: These 3 tables will not exist if there is no get function.
---
---     ------------------------    Values below here are added/modified after.
---     Trigger                     = false no trigger using this object.  Otherwise contains a reference to the trigger.
---     AuraTrigger                 = false no aura trigger using this object. Otherwise contains a reference to the aura trigger.
---     StaticTrigger               Trigger is static. Otherwise nil.  Reference to trigger using this as static.
+--    GroupsDropdown                Pulldown menu contains the name of each group. Used by options
+--    Groups[Index]
+--      Name                        Name of the group. Usually this is the name of each box, like Rune 1, Rune 2, etc
+--      BoxNumber                   Number of box or -1 for region
+--      Type                        Type of group.
+--                                    b   : Standard box 1 to 5 etc
+--                                    r   : Region
+--                                    a   : All boxes get changed
+--                                    aa  : All active boxes get changed
+--                                    ai  : All inactive boxes get changed
+--      ObjectsDropdown[]           Pulldown menu contains the name of each object. Used by options
+--      IndexObjectTypeID[]         Converts Index from ObjectDropdown into a type id. Used by options
+--      ObjectTypeTypeID[]          Converts ObjectType into ObjectTypeID. This contains the first Type found in the objects
+--      Objects[TypeID]             Object Type ID
+--        Index                     Used by options
+--        CanAnimate                true or false. If true then the object can use animation.
+--        TexN[]                    Array of texture number or texture frame number.
+--                                  If nil then the object doesn't use textures.
+--        Fn                        Function to call
 --
 --
--- Trigger structure.
+--                                  That are active. This is used by DoTriggers()
 --
---   HideTabs                      true or false.  Used by options to hide empty tabs.
---   MenuSync                      true or false.  If true all triggers use ActionSync instead of Action
---   ActionSync                    Same table as Action.  Except this is used when MenuSync is true
+-- Triggers                          Array: Contains all the triggers created by the user
+--   Static                          if true the trigger is always on
+--   Disabled                        if true the trigger is not active
+--   SpecEnabled                     If true then specializations are used by this trigger
+--   OneTime                         number or false. A trigger can only execute once, then has to reactivate, Unless false.
+--                                   Used by DoTriggers() and CheckTriggers()
+--   Name                            Name of the trigger
+--   GroupNumber                     GroupNumber in TriggerData.Groups[GroupNumber]
+--   ObjectTypeID                    string: Tells which object is being used
+--   Par1, Par2, Par3, Par4          Paramater data used in calling different functions
+--                                   The type is variable based on what kind of function
+--                                   is being used
+--   ColorFnType                     Type of color function being used. Used by options and CheckTriggers()
+--   ColorUnit                       string: Used for color triggers. Contains the unit
+--   TextLine                        0 for all text lines or contains the current text line. If nil then the trigger is not using text.
+--   CanAnimate                      true or false.  If true then the trigger can animate.
+--   Animate                         true or false. if true then the trigger will animate
+--   AnimateSpeed                    Speed to play the animation at.
+--   OffsetAll                       true or false. Used for bar offset size.  By options.
+--   ColorFn                         Color function
+--   BarFn                           Bar Function to call to make changes to the bar
 --
--- Triggers[]                      Non sequential array containing the triggers.
---   Enabled                       true or false.  If enabled then trigger works.
---   Static                        true or false.  If true trigger is always on, otherwise false.
---   SpecEnabled                   true or false.  If true then specializations are used by this trigger.
---   DisabledBySpec                true or false.  If true then this trigger was disabled based on the specialization settings.
---   ClassSpecs                    specialization settings. See CheckClassSpecs() in Main.lua
+--   AurasOn                         true or false: Auras are either disabled or no aura options created
+--   ConditionsOn                    true or false: Conditions are either disabled or no condition options created
+--   ActiveAuras                     true or false: Auras was found to be active based on options
 --
---   GroupNumber                   Number to assign 1 or more triggers under. Group numbers must be contiguous.
+--   Conditions
+--     Disabled                      if true all conditions are ignored
+--     All                           if true then all conditions need to be true, otherwise just one
+--     [Index]                       Array: Contains 0 or more conditions. 0 is reserved as the default
+--        InputValueName             Name of the input being used
+--        Operator                   Condition operator.  This changes based on the type of the InputValueName
+--        Value                      Can be string, number, boolean.  Based on the type of the InputValueName
 --
---   HideAuras                     True or false.  if true auras are hidden in options.
---   Name                          Name of the trigger in options.
+--   Talents
+--     Disabled                      if true then all talents are ignored
+--     All                           if true then all talents need to be found, otherwise just one
+--     [Index]
+--       SpellID                     The Spell ID of the talent
+--       Equal                       if true then the talent has to match, otherwise has to not match
+--       IsPvP                       if true then the talent is for PvP otherwise PvE
+--       Minimized                   if true then the options are mostly hidden to save space
 --
---   ValueTypeID                   'state'     Trigger can support state
---                                 'whole'     Trigger can support whole numbers (integers).
---                                 'float'     Trigger can support floating point numbers.
---                                 'percent'   Trigger can support percentages.
---                                 'text'      Trigger can support strings.
---                                 'auras'     Trigger can support a buff or debuff.
+--   Auras
+--     Disabled                      if true all auras are ignored
+--     All                           if true then all auras need to be true, otherwise just one
+--     [Index]
+--       Minimized                   if true then the options are mostly hidden to save space
+--       Inverse                     if true then the matching for the whole aura is reversed. Good for looking for inactive auras
+--       Units[Index]                table: One or more units: player, target, focus, etc
+--         'player'                  default, there will always be a default
+--       SpellID                     SpellID of the aura. 0 means matches any aura
+--       Own                         Number. Multi toggle:
+--                                     0  Aura can be cast by the player or anyone else
+--                                     1  Aura must be cast by the player
+--                                     2  Aura must be cast by someone else
 --
---   ValueType                     Describes what the value type is in english.
+--       Type                        Type of buff. Multi toggle:
+--                                     0  Aura can be a buff or debuff
+--                                     1  Aura must be a buff
+--                                     2  Aura must be a debuff
+--       StackOperator               Operator for the number of stacks of the aura
+--       Stacks                      Number of stacks the aura has or 0 for no stacks
+--                                     each aura can match any of the debuff types to become true
+--                                     each aura type can be true or false
 --
---   TypeID                        Defines what type of barfunction. See DefaultUB.lua
+--       CheckDebuffTypes            If true then the debuffs below will be checked
+--       <debuff types>              Each of the debuff types can be true or false
+--                                   if true then the aura has to match that debuff type
+--                                   just one debuff type needs to match to be true
+--       Curse
+--       Disease
+--       Enrage
+--       Magic
+--       Poison
 --
---   Type                          Name that describes the type that will appear in option menus
---
---   GetFnTypeID                   Identifier for the type of GetFunction. 'none' if no function is specified.
---
---   Pars[1 to 4]                  Array containing elements passed to the SetFunction.
---   GetPars[1 to 4]               Array containing elements passed to the GetFunction.
---
---   CanAnimate                    true or false.  If true then the trigger can animate.
---   Animate                       true or false. if true then the trigger will animate
---   AnimateSpeed                  Speed to play the animation at.
---
---   AuraOperator                  and' or 'or'. Used by auras only.
---   State                         True or False. Used when ValueTypeID = 'state'
---                                   If true then a trigger is the current state.
---                                   If false then its not in that state.
---
---   Conditions.All                True or False.  If true then all conditions have to be true, otherwise just one.
---   Conditions[]                  Contains one or more conditions. Not used by Aura or Static.
---     OrderNumber                 Used by options. This is updated in CheckTriggers()
---                                 This is used to keep track of where the conditions are displayed in the options.
---     Operator                    can be '<', '>', '<=', '>=', '==', '<>', 'T=', 'T<>', 'P=', 'P<>'
---     Value                       Value to trigger off of.
---
---   Auras[SpellID]
---     Unit                        Unit that the aura is being searched.
---     StackOperator               Operator to be compared based on stacks for the aura.
---     Stacks                      Number of stacks compare with StackOperator.
---     Own                         true or false.  If true then the aura was created by you.
---
---   -----------------     Values below this line are always created/modified during CheckTriggers() or Options.
---   Action[MenuButton]            Contains the currently active menu button.
---     0                           Menu is closed
---     1                           Menu is opened
---   OrderNumber                   Used by options
---   Index                         Current position in the Triggers array.
---   OneTime                       Tag. if not nil then the trigger only executes once, then has to reset. Otherwise can run many times.
---   TypeIndex                     Based on TypeID and Type.
---   GroupNumbers                  Array of group numbers that box number of zero would match. Otherwise nil
---   Virtual                       true or false.  If true trigger belongs to a virtual group, otherwise normal.
---   TextLine                      0 for all text lines or contains the current text line. If nil then the trigger is not using text.
---   Select                        true or false. Only one trigger per group can be selected.
---   OffsetAll                     true or false. Used for bar offset size.  By options.
+-- If a triggers ObjectType can't be found.  That trigger is deleted.  If a condition
+-- is using an Input Value Name that's not found.  That condition gets deleted.
+-- Both of these things are done since if a trigger is copied to another bar.  That
+-- bar may not have the same exact object or inputname
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -650,15 +643,14 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 local DragObjectMouseOverDesc = 'Modifier + right mouse button to drag this object'
 
 local BarDB = {}
-local Args = {}
 local BarTextData = {}
 
 local DoOptionData = {}
 local CalledByTrigger = false
-local AnimateSpeedTrigger = nil
+local AnimateSpeedTrigger
 local MaxTextLines = 4
 
-local BoxFrames = nil
+local BoxFrames
 local NextBoxFrame = 0
 local LastBox = true
 
@@ -707,36 +699,208 @@ local RotationPoint = {
            CORNER = {Point = 'BOTTOMLEFT',  ParentPoint = 'TOPLEFT'    }},
 }
 
-local TypeIDfn = {
-  [TT.TypeID_BackgroundBorder]      = 'SetBackdropBorder',
-  [TT.TypeID_BackgroundBorderColor] = 'SetBackdropBorderColor',
-  [TT.TypeID_BackgroundBackground]  = 'SetBackdrop',
-  [TT.TypeID_BackgroundColor]       = 'SetBackdropColor',
-  [TT.TypeID_BarTexture]            = 'SetTexture',
-  [TT.TypeID_BarColor]              = 'SetColorTexture',
-  [TT.TypeID_TextureScale]          = 'SetScaleAllTexture',
-  [TT.TypeID_BarOffset]             = 'SetOffsetTextureFrame',
-  [TT.TypeID_TextFontColor]         = 'SetColorFont',
-  [TT.TypeID_TextFontOffset]        = 'SetOffsetFont',
-  [TT.TypeID_TextFontSize]          = 'SetSizeFont',
-  [TT.TypeID_TextFontType]          = 'SetTypeFont',
-  [TT.TypeID_TextFontStyle]         = 'SetStyleFont',
-  [TT.TypeID_Sound]                 = 'PlaySound',
+local TriggerObjectTypes = {
+  BackgroundBorder      = 'border',
+  BackgroundBorderColor = 'bordercolor',
+  BackgroundBackground  = 'background',
+  BackgroundColor       = 'backgroundcolor',
+  BarTexture            = 'bartexture',
+  BarColor              = 'bartexturecolor',
+  TextureScale          = 'texturescale',
+  BarOffset             = 'baroffset',
+  TextFontColor         = 'fontcolor',
+  TextFontOffset        = 'fontoffset',
+  TextFontSize          = 'fontsize',
+  TextFontType          = 'fonttype',
+  TextFontStyle         = 'fontstyle',
+  RegionBorder          = 'regionborder',
+  RegionBorderColor     = 'regionbordercolor',
+  RegionBackground      = 'regionbackground',
+  RegionBackgroundColor = 'regionbackgroundcolor',
+  Sound                 = 'sound',
+}
+GUB.Bar.TriggerObjectTypes = TriggerObjectTypes
+local OT = TriggerObjectTypes
+
+local TriggerMenuItems = {
+  [OT.BackgroundBorder     ] = 'BG: Border',
+  [OT.BackgroundBorderColor] = 'BG: Border Color',
+  [OT.BackgroundBackground ] = 'BG: Background',
+  [OT.BackgroundColor      ] = 'BG: Background Color',
+  [OT.BarTexture           ] = 'Bar: Texture',
+  [OT.BarColor             ] = 'Bar: Color',
+  [OT.TextureScale         ] = 'Texture Scale',
+  [OT.BarOffset            ] = 'Bar: Offset',
+  [OT.TextFontColor        ] = 'Text: Font Color',
+  [OT.TextFontOffset       ] = 'Text: Font Offset',
+  [OT.TextFontSize         ] = 'Text: Font Size',
+  [OT.TextFontType         ] = 'Text: Font Type',
+  [OT.TextFontStyle        ] = 'Text: Font Style',
+  [OT.RegionBorder         ] = 'Region: Border',
+  [OT.RegionBorderColor    ] = 'Region: Border Color',
+  [OT.RegionBackground     ] = 'Region: Background',
+  [OT.RegionBackgroundColor] = 'Region: Background Color',
+  [OT.Sound                ] = 'Sound',
+}
+
+local TriggerFns = {
+  [OT.BackgroundBorder     ] = 'SetBackdropBorder',
+  [OT.BackgroundBorderColor] = 'SetBackdropBorderColor',
+  [OT.BackgroundBackground ] = 'SetBackdrop',
+  [OT.BackgroundColor      ] = 'SetBackdropColor',
+  [OT.BarTexture           ] = 'SetTexture',
+  [OT.BarColor             ] = 'SetColorTexture',
+  [OT.TextureScale         ] = 'SetScaleAllTexture',
+  [OT.BarOffset            ] = 'SetOffsetTextureFrame',
+  [OT.TextFontColor        ] = 'SetColorFont',
+  [OT.TextFontOffset       ] = 'SetOffsetFont',
+  [OT.TextFontSize         ] = 'SetSizeFont',
+  [OT.TextFontType         ] = 'SetTypeFont',
+  [OT.TextFontStyle        ] = 'SetStyleFont',
+  [OT.RegionBorder         ] = 'SetBackdropBorderRegion',
+  [OT.RegionBorderColor    ] = 'SetBackdropBorderColorRegion',
+  [OT.RegionBackground     ] = 'SetBackdropRegion',
+  [OT.RegionBackgroundColor] = 'SetBackdropColorRegion',
+  [OT.Sound                ] = 'PlaySound',
 }
 
 -- For animation functions
-local TypeIDCanAnimate = {
-  [TT.TypeID_TextureScale]          = true,
-  [TT.TypeID_BarOffset]             = true,
-  [TT.TypeID_TextFontOffset]        = true,
-  [TT.TypeID_TextFontSize]          = true,
+local TriggerCanAnimate = {
+  [OT.TextureScale         ] = true,
+  [OT.BarOffset            ] = true,
+  [OT.TextFontOffset       ] = true,
+  [OT.TextFontSize         ] = true,
 }
 
-local TypeIDGetfn = {
-  [TT.TypeID_ClassColor]  = Main.GetClassColor,
-  [TT.TypeID_PowerColor]  = Main.GetPowerColor,
-  [TT.TypeID_CombatColor] = Main.GetCombatColor,
-  [TT.TypeID_TaggedColor] = Main.GetTaggedColor,
+-- Convert 6.60 trigger type to ObjectType
+local Trigger660TypeObjectType = {
+  ['bg border'               ] = OT.BackgroundBorder,
+  ['bg border color'         ] = OT.BackgroundBorderColor,
+  ['bg background'           ] = OT.BackgroundBackground,
+  ['bg background color'     ] = OT.BackgroundColor,
+  ['bar texture'             ] = OT.BarTexture,
+  ['bar color'               ] = OT.BarColor,
+  ['texture scale'           ] = OT.TextureScale,
+  ['bar offset'              ] = OT.BarOffset,
+  ['text font color'         ] = OT.TextFontColor,
+  ['text font offset'        ] = OT.TextFontOffset,
+  ['text font size'          ] = OT.TextFontSize,
+  ['text font type'          ] = OT.TextFontType,
+  ['text font style'         ] = OT.TextFontStyle,
+  ['region border'           ] = OT.RegionBorder,
+  ['region border color'     ] = OT.RegionBorderColor,
+  ['region background'       ] = OT.RegionBackground,
+  ['region background color' ] = OT.RegionBackgroundColor,
+  ['sound'                   ] = OT.Sound,
+}
+
+-- Convert 6.60 trigger type to ObjectTypeID
+local Trigger660TypeOldTypeID = {
+
+  -- Health bar
+  ['bar texture (predicted...)'] = OT.BarTexture .. ':7',
+  ['bar color (predicted...)'  ] = OT.BarColor   .. ':8',
+  ['bar texture (cost)'        ] = OT.BarTexture .. ':9',
+  ['bar color (cost)'          ] = OT.BarColor   .. ':10',
+
+  -- fragment bar
+  ['bg border  [ shard ]'          ] = OT.BackgroundBorder .. ':1',
+  ['bg border  [ ember ]'          ] = OT.BackgroundBorder .. ':2',
+  ['bg border color  [ shard ]'    ] = OT.BackgroundBorderColor .. ':3',
+  ['bg border color  [ ember ]'    ] = OT.BackgroundBorderColor .. ':4',
+  ['bg background  [ shard ]'      ] = OT.BackgroundBackground .. ':5',
+  ['bg background  [ ember ]'      ] = OT.BackgroundBackground .. ':6',
+  ['bg background color  [ shard ]'] = OT.BackgroundColor .. ':7',
+  ['bg background color  [ ember ]'] = OT.BackgroundColor .. ':8',
+  ['bar texture  [ shard ]'        ] = OT.BarTexture .. ':9',
+  ['bar texture  [ ember ]'        ] = OT.BarTexture .. ':10',
+  ['bar texture (full)  [ shard ]' ] = OT.BarTexture .. ':11',
+  ['bar texture (full)  [ ember ]' ] = OT.BarTexture .. ':12',
+  ['bar color  [ shard ]'          ] = OT.BarColor .. ':13',
+  ['bar color  [ ember ]'          ] = OT.BarColor .. ':14',
+  ['bar color (full)  [ shard ]'   ] = OT.BarColor .. ':15',
+  ['bar color (full)  [ ember ]'   ] = OT.BarColor .. ':16',
+  ['bar offset  [ shard ]'         ] = OT.BarOffset .. ':17',
+  ['bar offset  [ ember ]'         ] = OT.BarOffset .. ':18',
+
+  -- stagger vbar,
+  ['bar texture (continued)'       ] = OT.BarTexture .. ':6',
+  ['bar color (continued)'         ] = OT.BarColor .. ':7',
+}
+
+local Trigger660IsAll = {
+  ComboBar    = {[12] = 7},
+  ArcaneBar   = {[5]  = 5},
+  ChiBar      = {[7]  = 7},
+  FragmentBar = {[6]  = 6},
+  HolyBar     = {[6]  = 6},
+  RuneBar     = {[7]  = 7},
+  ShardBar    = {[6]  = 6},
+}
+
+local Trigger660Region = {
+  ComboBar    = {[13] = 10},
+  ArcaneBar   = {[6]  = 8 },
+  ChiBar      = {[8]  = 10},
+  FragmentBar = {[7]  = 9 },
+  HolyBar     = {[7]  = 9 },
+  RuneBar     = {[8]  = 10},
+  ShardBar    = {[7]  = 9 },
+}
+
+local Trigger660ValueType = {
+  AltPowerBar = { ['Counter Time']        = 'Counter Time'           },
+  ComboBar    = { ['Total Points']        = 'Combo Points'           },
+  FragmentBar = { ['Fragments']           = 'Fragments %s',
+                  ['Fragments (percent)'] = 'Fragments %s (percent)' },
+  RuneBar     = { ['Recharging']          = 'Recharging %s',
+                  ['Time']                = 'Time %s'                }
+}
+
+local TriggerColorFnTypes = {
+  ClassColor  = 'GetClassColor',
+  PowerColor  = 'GetPowerColor',
+  CombatColor = 'GetCombatColor',
+  TaggedColor = 'GetTaggedColor',
+}
+
+local TriggerColorFns = {
+  [TriggerColorFnTypes.ClassColor ] = Main.GetClassColor,
+  [TriggerColorFnTypes.PowerColor ] = Main.GetPowerColor,
+  [TriggerColorFnTypes.CombatColor] = Main.GetCombatColor,
+  [TriggerColorFnTypes.TaggedColor] = Main.GetTaggedColor,
+}
+
+GUB.Bar.TriggerConvertColorIndex = {
+  [1] = TriggerColorFnTypes.ClassColor,
+  [2] = TriggerColorFnTypes.PowerColor,
+  [3] = TriggerColorFnTypes.CombatColor,
+  [4] = TriggerColorFnTypes.TaggedColor,
+  [5] = '',
+  [TriggerColorFnTypes.ClassColor ] = 1,
+  [TriggerColorFnTypes.PowerColor ] = 2,
+  [TriggerColorFnTypes.CombatColor] = 3,
+  [TriggerColorFnTypes.TaggedColor] = 4,
+  ['']                              = 5,
+}
+
+local TriggerConvertRegionBackdrop = {
+  [OT.RegionBorder         ] = OT.BackgroundBorder,
+  [OT.RegionBorderColor    ] = OT.BackgroundBorderColor,
+  [OT.RegionBackground     ] = OT.BackgroundBackground,
+  [OT.RegionBackgroundColor] = OT.BackgroundColor,
+  [OT.BackgroundBorder     ] = OT.RegionBorder,
+  [OT.BackgroundBorderColor] = OT.RegionBorderColor,
+  [OT.BackgroundBackground ] = OT.RegionBackground,
+  [OT.BackgroundColor      ] = OT.RegionBackgroundColor,
+}
+
+GUB.Bar.TriggerColorPulldown = {
+  'Class Color',   -- 1
+  'Power Color',   -- 2
+  'Combat Color',  -- 3
+  'Tagged Color',  -- 4
+  'None',          -- 5
 }
 
 local AnimationType = {
@@ -876,23 +1040,20 @@ local AnchorPointWord = {
   CENTER = 'Center'
 }
 
-local TalentType = {
-  ['T=']  = 'PvE',
-  ['T<>'] = 'PvE',
-  ['P=']  = 'PvP',
-  ['P<>'] = 'PvP'
+local InputValueTypesCheck = {
+  state   = 1,
+  whole   = 1,
+  decimal = 1,
+  percent = 1,
+  text    = 1,
 }
 
--- Talent Equal
-local TalentEqual = {
-  ['T='] = 'PvE',
-  ['P='] = 'PvP',
-}
-
--- Talents Not Equal
-local TalentNotEqual = {
-  ['T<>'] = 'PvE',
-  ['P<>'] = 'PvP',
+local DebuffTypesCheck = {
+  'Curse',      -- 1
+  'Disease',    -- 2
+  'Enrage',     -- 3
+  'Magic',      -- 4
+  'Poison',     -- 5
 }
 
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -968,7 +1129,6 @@ local function RestoreBackdrops(Frame)
 
     for Index = 1, select('#', ...) do
       local Frame = select(Index, ...)
-      local Found = true
 
       if not RestoreBackdrop(Frame:GetChildren()) then
 
@@ -1037,21 +1197,23 @@ end
 --
 -- Saves parameters from set a set function. Used for triggers.
 --
--- Usage:    SaveSettings(BarDB, FunctionName, BoxNumber, TexN, ...)
---           SaveSettings(BarDB, FunctionName, nil, nil, ...)
+-- Usage:    SaveSettings(BarDB, BarFnName, BoxNumber, TexN, ...)
+--           SaveSettings(BarDB, BarFnName, nil, nil, ...)
 --
 -- BarDB            Contains the settings.
--- FunctionName     Name of function.
--- BoxNumber        If 0 then settings are saved under all boxes. Otherwise > 0.
--- TexN             Texture number or texture frame number or text line.
+-- BarFnName        string: Bar function to call
+-- BoxNumber        If 0 then settings are saved under all boxes. Otherwise > 0
+--                  If -1, then no boxnumber or number is used. Used for Region
+-- Number           Texture number or texture frame number or text line.
 -- ...              Paramater data to save.
 --
 -- This only saves if the set function wasn't called by a trigger.
---
--- NOTE ****** If the ID formula is changed make sure to change the 1809 constant
---             in RestoreSettings.
 -------------------------------------------------------------------------------
-local function SaveSettings(BarDB, FunctionName, BoxNumber, TexN, ...)
+local function SaveSettings(BarDB, BarFnName, BoxNumber, Number, ...)
+  if BarFnName == nil or BarDB[BarFnName] == nil then
+    assert(false, 'SaveSettings - function not found or nil')
+  end
+
   if not CalledByTrigger then
     local Settings = BarDB.Settings
 
@@ -1059,16 +1221,16 @@ local function SaveSettings(BarDB, FunctionName, BoxNumber, TexN, ...)
       Settings = {}
       BarDB.Settings = Settings
     end
-    local Setting = Settings[FunctionName]
+    local Setting = Settings[BarFnName]
 
     if Setting == nil then
       Setting = {}
-      Settings[FunctionName] = Setting
+      Settings[BarFnName] = Setting
     end
 
-    if BoxNumber == nil and TexN == nil then
+    if BoxNumber == nil and Number == nil then
       BoxNumber = -1
-      TexN = -1
+      Number = -1
     end
 
     local BoxNumberStart = BoxNumber
@@ -1081,15 +1243,14 @@ local function SaveSettings(BarDB, FunctionName, BoxNumber, TexN, ...)
     end
 
     for BoxNumber = BoxNumberStart, NumBoxes do
-      -- Should never have to use anything even close to 190 or -10.
-      local ID = (BoxNumber + 10) * 200 + TexN + 10
-      local Par = Setting[ID]
+      local ID = BoxNumber .. ':' .. Number
+      local Pars = Setting[ID]
 
-      if Par == nil then
+      if Pars == nil then
         Setting[ID] = {...}
       else
         for Index = 1, select('#', ...) do
-          Par[Index] = select(Index, ...)
+          Pars[Index] = select(Index, ...)
         end
       end
     end
@@ -1102,41 +1263,65 @@ end
 -- Calls a function with the same settings that it was last called outside
 -- of the trigger system.
 --
--- Usage:    RestoreSettings(BarDB, FunctionName, BoxNumber, TexN)
---           RestoreSettings(BarDB, FunctionName, BoxNumber)
---           RestoreSettings(BarDB, FunctionName)
+-- Usage:    RestoreSettings(BarDB, BarFnName, BoxNumber, Number)
+--             Restore just the BoxNumber and Number under this function
+--
+--           RestoreSettings(BarDB, BarFnName, BoxNumber)
+--             Restore everything matching BoxNumber under this function
+--
+--           RestoreSettings(BarDB, BarFnName)
+--             Restore just this function
+--
+--           RestoreSettings(BarDB) This will restore everything
+--             Restore Everything
 --
 -- BarDB          Contains the settings.
--- FunctionName   Function to call. Must exist in settings.
--- BoxNumber      Box to restore in the bar. If nil or can specify -1 for nil. Then TexN is ignored. Cant use 0.
--- TexN           Texture number or texture frame number or text line. If nil then matches all textures
+-- BarFn          Bar function to call. Must exist in settings.
+-- BoxNumber      Box to restore in the bar. If nil or can specify -1 for nil. Then Number is ignored. Cant use 0.
+-- Number         Texture number or texture frame number or text line. If nil then matches all textures
 --                under BoxNumber.
 -------------------------------------------------------------------------------
-local function RestoreSettings(BarDB, FunctionName, BoxNumber, TexN)
+local function RestoreSettings(BarDB, BarFnName, BoxNumber, Number)
   local Settings = BarDB.Settings
 
   if Settings then
-    local Setting = Settings[FunctionName]
+    -- Check for full restore
+    if BarFnName == nil then
+      for BarFnName, Setting in pairs(Settings) do
+        for Location, Pars in pairs(Setting) do
+          local BarFn = BarDB[BarFnName]
 
-    if Setting then
-      local Fn = BarDB[FunctionName]
+          BoxNumber, Number = strsplit(':', Location)
+          BoxNumber = tonumber(BoxNumber)
+          Number = tonumber(Number)
 
-      if Fn then
+          if BoxNumber == -1 then
+            BarFn(BarDB, unpack(Pars))
+          else
+            BarFn(BarDB, BoxNumber, Number, unpack(Pars))
+          end
+        end
+      end
+    else
+      local Setting = Settings[BarFnName]
+
+      if Setting then
+        local BarFn = BarDB[BarFnName]
+
         if BoxNumber == nil or BoxNumber == -1 then
+          BarFn(BarDB, unpack(Setting['-1:-1']))
 
-          -- If ID formula is changed then 1809 (-1, -1) will be wrong.
-          Fn(BarDB, unpack(Setting[1809]))
-
-        elseif TexN ~= nil then
-          Fn(BarDB, BoxNumber, TexN, unpack(Setting[ (BoxNumber + 10) * 200 + TexN + 10 ]) )
+        elseif Number ~= nil then
+          BarFn(BarDB, BoxNumber, Number, unpack(Setting[ format('%s:%s', BoxNumber, Number) ]) )
 
         else
-          for ID, Par in pairs(Setting) do
-            local BN = floor(ID / 200) - 10
-            local TN = ID % 200 - 10
+          for ID, Pars in pairs(Setting) do
+            local BN, Number = strsplit(':', ID)
+            BN = tonumber(BN)
+            Number = tonumber(Number)
 
             if BoxNumber == BN then
-              Fn(BarDB, BN, TN, unpack(Par))
+              BarFn(BarDB, BN, Number, unpack(Pars))
             end
           end
         end
@@ -1281,14 +1466,14 @@ end
 --   height   Total height that covers the child frames.
 -------------------------------------------------------------------------------
 local function GetBoundsRect(ParentFrame, Frames)
-  local Left = nil
-  local Right = nil
-  local Top = nil
-  local Bottom = nil
-  local LastLeft = nil
-  local LastRight = nil
-  local LastTop = nil
-  local LastBottom = nil
+  local Left
+  local Right
+  local Top
+  local Bottom
+  local LastLeft
+  local LastRight
+  local LastTop
+  local LastBottom
   local FirstFrame = true
 
   -- For some reason ParentFrame:GetLeft() doesn't work right unless
@@ -1349,8 +1534,7 @@ end
 -- points again
 -------------------------------------------------------------------------------
 local function SetFrames(ParentFrame, Frames, OffsetX, OffsetY)
-  local SetParent = false
-  local PointFrame = nil
+  local PointFrame
   local NumFrames = #Frames
 
   -- get all the points for each boxframe that will be relative to parent frame.
@@ -1392,12 +1576,11 @@ local function BoxInfo(Frame)
     local UB = BarDB.Anchor.UnitBar
     local AnchorPoint = AnchorPointWord[UB.Attributes.AnchorPoint]
     local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
-    local BoxX, BoxY = 0, 0
 
     -- Is this a boxframe?
     if Frame.BF then
       local BF = Frame.BF
-      BoxX, BoxY = GetRect(BF)
+      local BoxX, BoxY = GetRect(BF)
       BoxX, BoxY = floor(BoxX + 0.5), floor(BoxY + 0.5)
 
       return format('Bar - %s (%d, %d)  Box (%d, %d)', AnchorPoint, BarX, BarY, BoxX, BoxY)
@@ -1520,8 +1703,8 @@ local function StopMoving(self)
           end
 
           -- Find the box index numbers first.
-          local Index1 = nil
-          local Index2 = nil
+          local Index1
+          local Index2
           for Index = 1, NumBoxes do
             local BoxIndex = BoxOrder[Index]
 
@@ -1927,7 +2110,7 @@ end
 local function StatusBarOrientTextures(SBF)
   for Index = 1, #SBF do
     local Texture = SBF[Index]
-    local PointTexture = nil
+    local PointTexture
     local Overlap = Texture._Overlap or false
 
     if Overlap then
@@ -1936,12 +2119,8 @@ local function StatusBarOrientTextures(SBF)
       PointTexture = Texture._PointTexture
     end
 
-    local SBF = Texture._SBF
-    local Width = SBF._Width
-    local Height = SBF._Height
     local OffsetX = Texture._OffsetX
     local OffsetY = Texture._OffsetY
-    local TaggedToTexture = nil
 
     -- Inherit if first texture
     local T = Texture._FirstTexture or Texture
@@ -2239,7 +2418,7 @@ local function StatusBarDoTag(Type, Texture, Linked, Overlap, ...)
   end
   local SBF = Texture._SBF
   local PointTexture = Texture
-  local TaggedTextures = nil
+  local TaggedTextures
 
   if Linked then
     if Texture._LinkedTaggedTextures then
@@ -2351,9 +2530,6 @@ end
 -- NOTES: Must specify the first texture in the tag list
 -------------------------------------------------------------------------------
 local function StatusBarClearTag(Texture)
-  local SBF = Texture._SBF
-  local Found = false
-
   local Found, Found2 = ClearTags(Texture._LinkedTaggedTextures), ClearTags(Texture._TaggedTextures)
 
   Texture._LinkedTaggedTextures = nil
@@ -2434,7 +2610,7 @@ local function StatusBarCreateTexture(SBF, Sublayer, Action)
     assert(false, format('StatusBarCreateTexture - Invalid Sublayer: 1 to %s', #ConvertSublayer))
   end
 
-  local Texture = nil
+  local Texture
   if Action == 'spark' then
     Texture = SBF._SparkFrame:CreateTexture(nil, 'ARTWORK', nil, Sublayer)
     Texture:SetBlendMode('ADD')
@@ -2547,7 +2723,7 @@ end
 -------------------------------------------------------------------------------
 local function SetValueTimer(ValueTime)
   local TimeElapsed = GetTime() - ValueTime.StartTime
-  local Time = 0
+  local Time
 
   -- Wait until the start time is reached
   if TimeElapsed < ValueTime.Duration then
@@ -2558,6 +2734,7 @@ local function SetValueTimer(ValueTime)
     end
 
     -- Truncate to 1 decimal place
+    -- This way only calling Fn 10 times per second
     Time = Time - Time % 0.1
     if Time ~= ValueTime.LastTime then
       ValueTime.LastTime = Time
@@ -2611,14 +2788,11 @@ function BarDB:SetValueTime(BoxNumber, StartTime, Duration, Direction, Fn)
     if Duration > 0 then
       local CurrentTime = GetTime()
       local WaitTime = 0
-      local TimeElapsed = 0
 
       StartTime = StartTime and StartTime or CurrentTime
 
       if StartTime > CurrentTime then
         WaitTime = StartTime - CurrentTime
-      else
-        TimeElapsed = CurrentTime - StartTime
       end
 
       -- Set up the paramaters.
@@ -2672,8 +2846,7 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
 
   -- Create if not found.
   if AGroup == nil then
-    local Animation = nil
-    local OnObject = nil
+    local OnObject
 
     if GroupType == 'parent' or Type == 'move' or Type == 'offset' or Type == 'fontsize' or Type == 'texturescale' then
       AGroup = CreateFrame('Frame'):CreateAnimationGroup()
@@ -2970,9 +3143,9 @@ local function PlayAnimation(AGroup, ...)
   local Object = AGroup.Object
   local Type = AGroup.Type
   local OnObject = AGroup.OnObject
-  local Direction = nil
-  local OffsetX = nil
-  local OffsetY = nil
+  local Direction
+  local OffsetX
+  local OffsetY
   local Duration = 0
   local FromValue = 0
   local ToValue = 0
@@ -3269,8 +3442,8 @@ function BarDB:Display()
   local RegionEnabled = self.RegionEnabled
 
   local BoxFrameIndex = 0
-  local FirstBF = nil
-  local LastBF = nil
+  local FirstBF
+  local LastBF
 
   local RP = RotationPoint[Rotation]
   local Point = RP[Justify].Point
@@ -4220,7 +4393,6 @@ function BarDB:SetScaleTextureFrame(BoxNumber, TextureFrameNumber, Scale)
 
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
-    local Textures = TextureFrame.Textures
 
     local Point, RelativeFrame, RelativePoint, OffsetX, OffsetY = TextureFrame:GetPoint()
     local OldScale = TextureFrame:GetScale()
@@ -4229,6 +4401,7 @@ function BarDB:SetScaleTextureFrame(BoxNumber, TextureFrameNumber, Scale)
     TextureFrame:SetPoint(Point, RelativeFrame, RelativePoint, OffsetX * OldScale / Scale, OffsetY * OldScale / Scale)
 
     --[[
+    local Textures = TextureFrame.Textures
     if Textures then
       for TextureNumber, Texture in pairs(Textures) do
         if Texture.Type == 'texture' then
@@ -4549,10 +4722,7 @@ function BarDB:SetBackdropColorTexture(BoxNumber, TextureNumber, r, g, b, a)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    local Frame = Texture.Frame
-    local Backdrop = GetBackdrop(Frame)
-
-    Frame:SetBackdropColor(r, g, b, a)
+    Texture.Frame:SetBackdropColor(r, g, b, a)
   until LastBox
 end
 
@@ -4572,9 +4742,7 @@ function BarDB:SetBackdropBorderColorTexture(BoxNumber, TextureNumber, r, g, b, 
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-
     local Frame = Texture.Frame
-    local Backdrop = GetBackdrop(Frame)
 
     Frame:SetBackdropBorderColor(r, g, b, a)
 
@@ -5723,9 +5891,6 @@ end
 --          Must be 1,2,3.  You can create them out of order so long as there's no holes.
 -------------------------------------------------------------------------------
 function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
-  local Type = nil
-  local BaseFrameLevel = FrameLevel
-
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrames = BoxFrame.TextureFrames
@@ -5800,8 +5965,8 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, Textu
     local ScaleFrame = TextureFrame.ScaleFrame
     local Frames = TextureFrame.SizeFrame.Frames
     local MaxFrameLevel = TextureFrame.MaxFrameLevel
-    local Texture = nil
-    local Frame = nil
+    local Texture
+    local Frame
 
     -- Create a statusbar or texture.
     if TextureType == nil  or TextureType == 'statusbar' then
@@ -6115,7 +6280,7 @@ local FontGetValue = {}
   FontGetValue['unitnamerealm'] = SetNameData
 
   local function SetLevelData(ParValues, Value, ValueType)
-    local UnitLevelScaled = nil
+    local UnitLevelScaled
     local Level = ParValues.level
     local ScaledLevel = ParValues.level2
 
@@ -6185,7 +6350,6 @@ function BarDB:SetValueFont(BoxNumber, ...)
   local Frame = self.BoxFrames[BoxNumber]
 
   local TextData = Frame.TextData
-  local TextFrame = TextData.TextFrame
   local MaxPar = select('#', ...)
   local Index = 1
 
@@ -6556,14 +6720,13 @@ local function ParseLayoutFont(TextData)
 
     if Layout ~= '' then
       local StartIndex = 1
-      local Index = 1
-      local ValueIndex = nil
+      local Index
+      local ValueIndex
       local ErrorMessage = ''
-      local LeftBracket = ''
-      local Tag = ''
+      local LeftBracket
       local OrderIndex = 0
-      local ReturnOK = nil
-      local Msg = nil
+      local ReturnOK
+      local Msg
 
       repeat
         OrderIndex = OrderIndex + 1
@@ -6651,11 +6814,10 @@ end
 --   Layout       String containing the new layout.
 -------------------------------------------------------------------------------
 local function GetLayoutFont(ValueNames, ValueTypes)
-  local LastName = nil
+  local LastName
   local Sep = ''
-  local Space = ''
+  local Space
   local Layout = ''
-  local Tag = ''
   local SepFlag = false
   local ValueIndex = 0
   local MaxValueNames = 0
@@ -6671,7 +6833,8 @@ local function GetLayoutFont(ValueNames, ValueTypes)
     if Name ~= 'none' then
 
       -- Check for valid tag
-      Tag = ValueLayoutTag[ValueNames[NameIndex]]
+      local Tag = ValueLayoutTag[ValueNames[NameIndex]]
+
       if Tag then
         ValueIndex = ValueIndex + 1
         Tag = Tag .. NameIndex .. '('
@@ -6723,7 +6886,6 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
   local TextTableName = TextData.TextTableName
   local Texts = self.UnitBarF.UnitBar[TextTableName]
 
-  local DefaultTextSettings = UBD[TextTableName][1]
   local Multi = UBD[TextTableName]._Multi
 
   TextData.Texts = Texts
@@ -6736,7 +6898,7 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
     local Text = Texts[Index]
     local TextFrame = TextFrames[Index]
     local Color = Text.Color
-    local c = nil
+    local c
     local ColorAll = Color.All
 
     -- Colorall dont exist then fake colorall.
@@ -6885,7 +7047,7 @@ function BarDB:SO(TableName, KeyName, Fn)
   end
 
   -- Search for existing table name
-  local Option = nil
+  local Option
   local NumOptions = #Options
 
   for Index = 1, NumOptions do
@@ -7033,94 +7195,267 @@ end
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -------------------------------------------------------------------------------
+-- SetTriggersActive
+--
+-- Sets which box is currently active or inactive.  This is used by
+-- the ALL option
+-------------------------------------------------------------------------------
+function BarDB:SetTriggersActive(BoxNumber, Active)
+  self.TriggerData.ActiveBoxesAll[BoxNumber] = Active
+end
+
+-------------------------------------------------------------------------------
+-- SetTriggers
+--
+-- InputName       Name of the input defined by the bar, also appears in options
+-- Value           boolean, number, string.  Must be a number when using MaxValue
+-- MaxValue        Only used when dealing with perecent
+-------------------------------------------------------------------------------
+function BarDB:SetTriggers(InputName, Value, MaxValue)
+
+  -- Check inputname
+  if self.TriggerData.InputValueNames[InputName] == nil then
+    assert(false, 'SetTriggers - Invalid InputName: ' .. InputName)
+  end
+
+  -- Check for percentage
+  if MaxValue ~= nil then
+    if MaxValue == 0 then
+      Value = 0
+    else
+      Value = ceil(Value / MaxValue * 100)
+    end
+  end
+  self.TriggerData.InputValues[InputName] = Value
+end
+
+-------------------------------------------------------------------------------
 -- UndoTriggers
 --
 -- Undoes triggers as if they never existed.
 -------------------------------------------------------------------------------
-local function UndoTriggers(BarDB)
+function BarDB:UndoTriggers(Triggers)
+  -- Set CallbyTrigger true so there's no recursion
   CalledByTrigger = true
+  RestoreSettings(self)
+  CalledByTrigger = false
+end
+local UndoTriggers = BarDB.UndoTriggers
 
-  local Groups = BarDB.Groups
+-------------------------------------------------------------------------------
+-- CheckTriggersAuras
+--
+-- Subfunction of CheckTriggers()
+--
+-- NOTES: Upvalues named Input mean they came from the game
+-------------------------------------------------------------------------------
+function BarDB:CheckTriggersAuras()
+  local ActiveTriggers = self.TriggerData.ActiveTriggers
+  local AuraTrackersData = Main.AuraTrackersData
 
-  if Groups then
-    local LastValues = Groups.LastValues
+  for TriggerIndex = 1, #ActiveTriggers do
+    local ActiveTrigger = ActiveTriggers[TriggerIndex]
+    local Auras = ActiveTrigger.Auras
+    local All = Auras.All
+    local BreakLoop = false
+    local Result
 
-    for Object in pairs(LastValues) do
-      local Group = Object.Group
+    for AuraIndex = 1, #Auras do
+      local Aura = Auras[AuraIndex]
+      local SpellID = Aura.SpellID
+      local Units = Aura.Units
 
-      RestoreSettings(BarDB, Object.FunctionName, Group.BoxNumber)
+      for UnitIndex = 1, #Units do
+        local Unit = Units[UnitIndex]
+        -- Unit must exist for valid results
+        local InputAuras = UnitExists(Unit) and AuraTrackersData[Unit]
+        Result = false
 
-      Object.Trigger = nil
-      Object.AuraTrigger = nil
-      Object.StaticTrigger = nil
-      Object.Restore = false
-      Object.OneTime = {}
+        if InputAuras then
+          local Own = Aura.Own
+          local Stacks = Aura.Stacks
+          local StackOperator = Aura.StackOperator
+          local Type = Aura.Type
+          local CheckDebuffTypes = Aura.CheckDebuffTypes
+          local InputAura
+          local InputActive
+          local InputStacks
+          local InputOwn
+          local InputType
 
-      if Object.Virtual then
-        Group.Hidden = true
-      else
-        Group.Hidden = false
+          if SpellID > 0 then
+            InputAura = InputAuras[SpellID]
+            if InputAura then
+              InputActive = InputAura.Active
+              InputStacks = InputAura.Stacks
+              InputOwn = InputAura.Own
+              InputType = InputAura.Type
+            end
+          else
+            -- NO spell ID, check any spell
+            -- Check for buff or debuffs
+            -- Type:  1 = buff      2 = debuff
+            if Type == 1 then
+              InputAuras = InputAuras.HELPFUL
+              InputType = 1
+            elseif Type == 2 then
+              InputAuras = InputAuras.HARMFUL
+              InputType = 2
+            end
+            InputActive = InputAuras.Active
+            InputStacks = InputAuras.Stacks
+            InputOwn = InputAuras.Own
+          end
+
+          -- Aura must be active
+          if InputActive then
+            -- Check stacks
+            Result = StackOperator == '<'  and InputStacks <  Stacks or
+                     StackOperator == '>'  and InputStacks >  Stacks or
+                     StackOperator == '<=' and InputStacks <= Stacks or
+                     StackOperator == '>=' and InputStacks >= Stacks or
+                     StackOperator == '='  and InputStacks == Stacks or
+                     StackOperator == '<>' and InputStacks ~= Stacks or false
+
+            -- Own:  0 = option not selected. 1 = own     2 = not own
+            Result = Result and ( Own == 0 or InputOwn == (Own == 1) ) and
+                                ( Type == 0 or InputType == Type )
+            if Result then
+              -- Check debuff   1 = buff    2 = debuff    0 = both
+              if CheckDebuffTypes and Aura.Type ~= 1 and InputType ~= 1 then
+                if SpellID > 0 then
+                  Result = Aura[InputAura.DebuffType] or false
+                else
+                  -- Check debuff for any aura
+                  local InputDebuffTypes = InputAuras.DebuffTypes
+                  local NumDebuffTypesCheck = #DebuffTypesCheck
+                  Result = false
+
+                  for DebuffIndex = 1, NumDebuffTypesCheck do
+                    local DebuffTypeCheck = DebuffTypesCheck[DebuffIndex]
+
+                    -- Check to see if debuff type option is selected
+                    if Aura[DebuffTypeCheck] and InputDebuffTypes[DebuffTypeCheck] then
+                      Result = true
+                      break
+                    end
+                  end
+                end
+              end
+            end
+          end
+          -- Invert result
+          if Aura.Inverse then
+            Result = not Result
+          end
+        end
+        if not All then
+          -- Stop checking if one aura is true
+          if Result then
+            BreakLoop = true
+            break
+          end
+        -- Stop checking if one aura if false
+        elseif not Result then
+          BreakLoop = true
+          break
+        end
       end
+      if BreakLoop then
+        break
+      end
+    end
+    ActiveTrigger.ActiveAuras = Result
+  end
+end
 
-      LastValues[Object] = nil
+-------------------------------------------------------------------------------
+-- CheckTriggersTalents
+--
+-- Sunfunction of CheckTriggers()
+--
+-- Match the talents and sets OrderNumber for options
+--
+-- NOTES: Upvalues named Input mean they came from the game
+-------------------------------------------------------------------------------
+local function CheckTriggersTalents(Trigger, InputTalents)
+  local Talents = Trigger.Talents
+  local All = Talents.All
+  local Result = true
+
+  for TalentIndex = 1, #Talents do
+    local Talent = Talents[TalentIndex]
+    local SpellID = Talent.SpellID
+    local Match = Talent.Match
+    local InputTalent = InputTalents[SpellID]
+
+    if type(SpellID) == 'number' and SpellID > 0 and (Match and InputTalent or not Match and InputTalent == nil) then
+      Result = true
+    else
+      Result = false
+    end
+    if not All then
+      -- Stop checking if one talent is true
+      if Result then
+        break
+      end
+    -- Stop checking if one talent is false
+    elseif not Result then
+      break
     end
   end
 
-  CalledByTrigger = false
+  return Result
 end
 
 -------------------------------------------------------------------------------
 -- CheckTriggers
 --
--- Removes or modifies triggers to best fit the groups. Also filters
--- triggers into sorted, static, and auras.
+-- Creates and checks triggers
+--
+-- Action       'default'  if the type ID is not found it'll set it the default
+--                         ID that is found first
 -------------------------------------------------------------------------------
-local function FindLowestValue(Conditions)
-  local LowestValue = nil
-
-  for TriggerIndex = 1, #Conditions do
-    local Value = Conditions[TriggerIndex].Value
-
-    -- if string just return 1 and stop here.
-    if type(Value) == 'string' then
-      return 1
-    elseif LowestValue == nil or Value < LowestValue then
-      LowestValue = Value
-    end
-  end
-
-  return LowestValue
-end
-
-local function SortTriggers(a, b)
-  return FindLowestValue(a.Conditions) < FindLowestValue(b.Conditions)
-end
-
-function BarDB:CheckTriggers()
-  local Groups = self.Groups
+function BarDB:CheckTriggers(Action)
+  local UnitBarF = self.UnitBarF
   local BarType = self.BarType
-  local VirtualGroupList = Groups.VirtualGroupList
-  local Triggers = Groups.Triggers
-  local LastValues = {}
-  local OrderNumbers = {}
-  local SortedTriggers = {}
-  local AuraTriggers = {}
-  local GroupNumbers = {}
-  local Units = {}
-  local AllDeleted = true
+  local Triggers = UnitBarF.UnitBar.Triggers
+  local TriggerData = self.TriggerData
+  local Groups = TriggerData.Groups
+  local InputValueNamesDropdown = TriggerData.InputValueNamesDropdown
+  local InputValueNames = TriggerData.InputValueNames
+  local InputValueTypes = TriggerData.InputValueTypes
+  local Units = ''
+  local TrackTalents = false
   local TriggerIndex = 1
-  local PlayerClass = Main.PlayerClass
-  local ClassSpecs = DUB[self.BarType].ClassSpecs
-  local PlayerSpecialization = Main.PlayerSpecialization
 
   -- Undo triggers first
   UndoTriggers(self)
+
+  local ActiveTriggers = {}
+  TriggerData.ActiveTriggers = ActiveTriggers
+
+  -- Reset Active
+  local ActiveBoxesAll = TriggerData.ActiveBoxesAll
+  local ActiveObjects = TriggerData.ActiveObjects
+
+  for BoxNumber, ActiveObject in pairs(ActiveObjects) do
+    ActiveObjects[BoxNumber] = {}
+    if BoxNumber > 0 then
+      ActiveBoxesAll[BoxNumber] = false
+    end
+  end
+
+  -- Turn on TalentTracking for the talenttracking data
+  Main:SetTalentTracker(UnitBarF, 'fn', function() end)
+  local TalentTrackersData = Main.TalentTrackersData
+  local InputTalents = TalentTrackersData.Active
+  local InputTalentsSpellIDs = TalentTrackersData.SpellIDs
 
   while TriggerIndex <= #Triggers do
     local Trigger = Triggers[TriggerIndex]
     local GroupNumber = Trigger.GroupNumber
     local Group = Groups[GroupNumber]
-    local DeleteTrigger = true
 
     -- Group not found, so put it in group 1.
     if Group == nil then
@@ -7131,667 +7466,422 @@ function BarDB:CheckTriggers()
       Group = Groups[GroupNumber]
     end
 
-    -- Delete trigger if groupnumber not found.
-    if Group then
-      -- delete trigger if typeID and type not found in group.
-      local TypeIndex = Group.RTypes[strlower(Trigger.Type)] or Group.TypeIDs[Trigger.TypeID] or 0
+    local Objects = Group.Objects
+    local ObjectTypeID = Trigger.ObjectTypeID
 
-      if TypeIndex > 0 then
-        DeleteTrigger = false
-        AllDeleted = false
+    -- set default
+    if ObjectTypeID == '' then
+      ObjectTypeID = Group.IndexObjectTypeID[1]
+    end
+    local ObjectType = strsplit(':', ObjectTypeID, 2)
 
-        local TypeID = Group.TypeIDs[TypeIndex]
-        Trigger.TypeID = TypeID
-        Trigger.Type = strlower(Group.Types[TypeIndex])
-        Trigger.TypeIndex = TypeIndex
+    -- if not found then get the first Type that matches in
+    -- list of objects
+    if Objects[ObjectTypeID] == nil then
+      local ObjectTypeTypeID = Group.ObjectTypeTypeID
 
-        local Object = Group.Objects[TypeIndex]
-        local ValueTypeIDs = Group.ValueTypeIDs
-        local ValueTypeID = Trigger.ValueTypeID
-        local Operator = Trigger.Operator
-        local GroupType = Group.GroupType
-
-        -- Only want sound triggers firing once so its not annoying.
-        if TypeID == 'sound' then
-          Trigger.OneTime = 1
-        else
-          Trigger.OneTime = nil
-        end
-
-        -- Modify value types.
-        local ValueTypeIndex = Group.RValueTypes[strlower(Trigger.ValueType)] or ValueTypeIDs[ValueTypeID] or 0
-
-        if ValueTypeIndex == 0 then
-          ValueTypeIndex = 1
-        end
-        local ValueTypeID = ValueTypeIDs[ValueTypeIndex]
-        Trigger.ValueTypeID = ValueTypeID
-        Trigger.ValueType = strlower(Group.ValueTypes[ValueTypeIndex])
-
-        -- Check conditions.
-        local Conditions = Trigger.Conditions
-
-        for ConditionIndex = 1, #Conditions do
-          local Condition = Conditions[ConditionIndex]
-          local Operator = Condition.Operator
-          local Value = Condition.Value
-
-          -- If talent operator found, must change type to string
-          if ValueTypeID == 'string' then
-
-            if Operator ~= '<>' and Operator ~= '=' then
-              Condition.Operator = '='
-            end
-            Value = tostring(Value)
-
-          -- Only change if not a talent operator
-          elseif TalentType[Operator] == nil then
-            Value = tonumber(Value) or 0
-          end
-          Condition.Value = Value
-          Condition.OrderNumber = ConditionIndex
-        end
-
-        -- Set Animation data if theres animation
-        local AnimateSpeed = Trigger.AnimateSpeed
-
-        Trigger.CanAnimate = Object.CanAnimate or false
-
-        -- Validate get function type ID
-        -- For now get function is used for color.
-        local GetFnTypeID = Trigger.GetFnTypeID or 'none'
-
-        if GetFnTypeID ~= 'none' then
-          local GetFn = Object.GetFn
-
-          if GetFn and GetFn[GetFnTypeID] == nil then
-            GetFnTypeID = 'none'
-          end
-        end
-        Trigger.GetFnTypeID = GetFnTypeID
-        Trigger.Index = TriggerIndex
-
-        -- Set virtual tag
-        Trigger.Virtual = GroupType == 'v'
-
-        local OrderNumber = (OrderNumbers[GroupNumber] or 0) + 1
-
-        Trigger.OrderNumber = OrderNumber
-        OrderNumbers[GroupNumber] = OrderNumber
-
-        -- Check for text
-        if strfind(TypeID, 'font') then
-          Trigger.TextLine = Trigger.TextLine or 1
-        else
-          Trigger.TextLine = nil
-        end
-
-        -- Filter triggers into static, sorted, and auras.
-        local GroupNumbers = nil
-
-        -- Check for all
-        if GroupType == 'a' then
-          GroupNumbers = {}
-
-          -- Create group numbers table for all
-          for GN = 1, #Groups do
-            local Group = Groups[GN]
-            local BoxNumber = Group.BoxNumber
-            local Obj = Group.Objects[TypeIndex]
-
-            if Obj and BoxNumber > 0 then
-              GroupNumbers[GN] = 1
-            end
-          end
-          Trigger.GroupNumbers = GroupNumbers
-        else
-          Trigger.GroupNumbers = nil
-        end
-
-        -- Check specializations
-        local DisabledBySpec = true
-        local SpecEnabled = Trigger.SpecEnabled
-
-        if not SpecEnabled then
-          DisabledBySpec = false
-        else
-          DisabledBySpec = not Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true)
-        end
-        Trigger.DisabledBySpec = DisabledBySpec
-
-        if Trigger.Enabled and not DisabledBySpec then
-          if Trigger.Static then
-            if GroupNumbers then
-
-              -- apply to all groups
-              for GN in pairs(GroupNumbers) do
-                local Obj = Groups[GN].Objects[TypeIndex]
-
-                LastValues[Obj] = 1
-                Obj.StaticTrigger = Trigger
-              end
-
-              -- Apply to all virtual groups
-              if VirtualGroupList then
-                for _, VirtualGroups in pairs(VirtualGroupList) do
-                  for _, VirtualGroup in pairs(VirtualGroups) do
-                    local VirtualObj = VirtualGroup.Objects[TypeIndex]
-
-                    LastValues[VirtualObj] = 1
-                    VirtualObj.StaticTrigger = Trigger
-                  end
-                end
-              end
-            else
-              -- apply non virtual trigger to one group
-              if GroupType ~= 'v' then
-                LastValues[Object] = 1
-                Object.StaticTrigger = Trigger
-              end
-
-              -- Apply virtual trigger to one virtual group
-              if GroupType == 'v' and VirtualGroupList then
-                for _, VirtualGroup in pairs(VirtualGroupList[GroupNumber]) do
-                  local VirtualObj = VirtualGroup.Objects[TypeIndex]
-
-                  LastValues[VirtualObj] = 1
-                  VirtualObj.StaticTrigger = Trigger
-                end
-              end
-            end
-          -- Build a unit list, fix missing values
-          elseif ValueTypeID == 'auras' then
-            local Auras = Trigger.Auras
-
-            AuraTriggers[#AuraTriggers + 1] = Trigger
-            if Auras == nil then
-              Auras = {}
-              Trigger.Auras = Auras
-            else
-              for SpellID, Aura in pairs(Auras) do
-                Units[Aura.Unit] = 1
-
-                -- Fix missing values
-                if Aura.NotActive == nil then
-                  Aura.NotActive = false
-                end
-              end
-            end
-          else
-            SortedTriggers[#SortedTriggers + 1] = Trigger
-          end
-        end
+      -- Find first object type in the objecttypeID list
+      ObjectTypeID = ObjectTypeTypeID[ObjectType]
+      if ObjectTypeID == nil then
+        -- Convert between region and background types
+        ObjectTypeID = ObjectTypeTypeID[ TriggerConvertRegionBackdrop[ObjectType] ]
       end
     end
+    local Object = Objects[ObjectTypeID]
 
-    if DeleteTrigger then
-      tremove(Triggers, TriggerIndex)
-    else
+    if Action and Action == 'default' and Object == nil then
+      ObjectTypeID = Group.IndexObjectTypeID[1]
+      Object = Objects[ObjectTypeID]
+      -- need to set pars to nil to force a default
+      Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4 = nil, nil, nil, nil
+    end
+
+    -- if still not found then delete trigger
+    if Object then
+      -- Do display stuff
+
+      Trigger.ObjectTypeID = ObjectTypeID
+      ObjectType = strsplit(':', ObjectTypeID, 2)
+      Trigger.ObjectType = ObjectType
+      Trigger.BarFn = Object.Fn
+      Trigger.CanAnimate = Object.CanAnimate or false
+
+      local Disabled = Trigger.Disabled
+      local Static = Trigger.Static
+      local Talents = Trigger.Talents
+      local Auras = Trigger.Auras
+      local Conditions = Trigger.Conditions
+      local TalentsDisabled = Talents.Disabled
+
+      -- Par Defaults
+      if Trigger.Par1 == nil then
+        local Par1, Par2, Par3, Par4 = Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4
+
+        if ObjectType == OT.BackgroundBorder or ObjectType == OT.RegionBorder then
+          Par1 = DefaultUB.DefaultBorderTexture
+        elseif (ObjectType == OT.BackgroundBackground or ObjectType == OT.RegionBackground) then
+          Par1 = DefaultUB.DefaultBgTexture
+        elseif ObjectType == OT.BarTexture then
+          Par1 = DefaultUB.DefaultStatusBarTexture
+        elseif ObjectType == OT.TextureScale then
+          Par1 = 1
+        elseif ObjectType == OT.BarOffset then
+          Par1, Par2, Par3, Par4 = 0, 0, 0, 0
+        elseif strfind(ObjectType, 'color') then
+          Par1, Par2, Par3, Par4 = 1, 1, 1, 1
+        elseif ObjectType == OT.TextFontOffset then
+          Par1, Par2 = 0, 0
+        elseif ObjectType == OT.TextFontSize then
+          Par1 = 0
+        elseif ObjectType == OT.TextFontType then
+          Par1 = DefaultUB.DefaultFontType
+        elseif ObjectType == OT.TextFontStyle then
+          Par1 = 'NONE'
+        elseif ObjectType == OT.Sound then
+          Par1 = DefaultUB.DefaultSound
+          Par2 = DefaultUB.DefaultSoundChannel
+        end
+        Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4 = Par1, Par2, Par3, Par4
+      end
+
+      if strfind(ObjectType, 'color') then
+        Trigger.ColorFn = TriggerColorFns[Trigger.ColorFnType]
+
+        if Trigger.ColorUnit == '' then
+          Trigger.ColorUnit = 'player'
+        end
+      else
+        Trigger.ColorFn = nil
+      end
+
+      -- Sound
+      if strfind(ObjectType, 'sound') then
+        Trigger.OneTime = 0
+      else
+        Trigger.OneTime = false
+      end
+
+      -- Text
+      if strfind(ObjectType, 'font') then
+        Trigger.TextLine = Trigger.TextLine or 1
+      else
+        Trigger.TextLine = false
+      end
+
+      -- Conditions. Delete any conditions if the InputValueName is not found
+      local ConditionIndex = 1
+
+      while ConditionIndex <= #Conditions do
+        local Condition = Conditions[ConditionIndex]
+        local InputValueName = Condition.InputValueName
+
+        -- Set default since ''
+        if InputValueName == '' then
+          Condition.InputValueName = InputValueNamesDropdown[1]
+
+        elseif InputValueNames[InputValueName] == nil then
+          tremove(Conditions, ConditionIndex)
+        else
+          ConditionIndex = ConditionIndex + 1
+        end
+      end
+
+      for ConditionIndex = 1, #Conditions do
+        local Condition = Conditions[ConditionIndex]
+        local Operator = Condition.Operator
+        local Value = Condition.Value
+        local InputValueName = Condition.InputValueName
+        local InputValueType = InputValueTypes[InputValueName]
+
+        if InputValueTypesCheck[InputValueType] then
+          if InputValueType ~= 'state' then
+            -- string
+            if InputValueType == 'text' then
+              if Operator ~= '<>' and Operator ~= '=' then
+                Condition.Operator = '='
+              end
+              Value = type(Value) ~= 'string' and '' or Value
+
+            -- numbers
+            elseif type(Value) ~= 'number' then
+              Value = tonumber(Value) or 0
+            end
+          else
+            -- boolean
+            Condition.Operator = '='
+            if type(Value) ~= 'boolean' then
+              Value = true
+            end
+          end
+        end
+        Condition.InputValueName = InputValueName
+        Condition.Value = Value
+        Condition.OrderNumber = ConditionIndex
+      end
+
+      -- Auras
+      for AuraIndex = 1, #Auras do
+        local Aura = Auras[AuraIndex]
+        local SpellID = Aura.SpellID
+        local Stacks = Aura.Stacks
+        local AuraUnits = Aura.Units
+
+        if type(SpellID) ~= 'number' then
+          Aura.SpellID = 0
+        end
+        if type(Stacks) ~= 'number' then
+          Aura.Stacks = tonumber(Stacks) or 0
+        end
+
+        if not Auras.Disabled then
+          for UnitIndex = 1, #AuraUnits do
+            local AuraUnit = gsub( (AuraUnits[UnitIndex] or '') , '[%c%p%s]', '')
+
+            -- Remove if blank or is just all numbers. Must start with a letter
+            if AuraUnit == '' then
+              tremove(AuraUnits, UnitIndex)
+            else
+              AuraUnits[UnitIndex] = AuraUnit
+
+              -- Only add to Units if the trigger is not static and not disabled
+              if not Disabled and not Static then
+                Units = Units .. ' ' .. AuraUnit
+              end
+            end
+          end
+        end
+        if #AuraUnits == 0 then
+          AuraUnits[1] = 'player'
+        end
+
+        Aura.OrderNumber = AuraIndex
+        Aura.Own = tonumber(Aura.Own) or 0
+      end
+
+      -- Talents
+      for TalentIndex = 1, #Talents do
+        local Talent = Talents[TalentIndex]
+        local SpellID = Talent.SpellID
+
+        -- If SpellID is a string, that means it was from a converted from an earlier version
+        -- Try to convery to a spellID, if fail then skip incase its from a different class
+        if type(SpellID) == 'string' then
+          SpellID = InputTalentsSpellIDs[SpellID] or SpellID
+        else
+          SpellID = tonumber(Talent.SpellID) or 0
+        end
+
+        Talent.SpellID = SpellID
+        Talent.OrderNumber = TalentIndex
+      end
+
+      if not Disabled and not Static and not TalentsDisabled and #Talents > 0 then
+        TrackTalents = true
+      end
+
+      Trigger.AurasOn      = not Auras.Disabled      and #Auras > 0
+      Trigger.ConditionsOn = not Conditions.Disabled and #Conditions > 0
+
+      Trigger.ActiveAuras = false
+
+      if not Disabled then
+        if Static or ( not Trigger.SpecEnabled or Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true) ) and
+                     ( TalentsDisabled or CheckTriggersTalents(Trigger, InputTalents)                    )     then
+          ActiveTriggers[#ActiveTriggers + 1] = Trigger
+        end
+      end
       TriggerIndex = TriggerIndex + 1
+    else
+      -- Delete trigger
+      tremove(Triggers, TriggerIndex)
     end
   end
 
-  -- Set number of triggers per group.
-  for GroupNumber = 1, #Groups do
-    Groups[GroupNumber].TriggersInGroup = OrderNumbers[GroupNumber] or 0
-  end
-
-  if #Triggers > 0 then
-    sort(SortedTriggers, SortTriggers)
-  end
-  Groups.SortedTriggers = SortedTriggers
-  Groups.AuraTriggers = AuraTriggers
-  Groups.LastValues = LastValues
-
-  -- units exist so turn on the aura tracker.
-  if next(Units) then
-    local St = ''
-    for Unit in pairs(Units) do
-      St = St .. Unit .. ' '
-    end
-    Main:SetAuraTracker(self.UnitBarF, 'fn', function(TrackedAurasList)
-                                               self:SetAuraTriggers(TrackedAurasList)
-                                             end)
-    Main:SetAuraTracker(self.UnitBarF, 'units', Main:StringSplit(' ', St))
+  if TrackTalents then
+    Main:SetTalentTracker(UnitBarF, 'fn', function()
+                                            self:CheckTriggers()
+                                            self:DoTriggers()
+                                          end)
   else
-    Main:SetAuraTracker(self.UnitBarF, 'off')
+    Main:SetTalentTracker(UnitBarF, 'off')
   end
+
+  Units = strtrim(Units)
+  if Units ~= '' then
+    Main:SetAuraTracker(UnitBarF, 'fn', function()
+                                          self:CheckTriggersAuras()
+                                          self:DoTriggers()
+                                        end)
+    Main:SetAuraTracker(UnitBarF, 'units', Main:StringSplit(' ', Units))
+  else
+    Main:SetAuraTracker(UnitBarF, 'off')
+  end
+
+  self:CheckTriggersAuras()
 end
 
 -------------------------------------------------------------------------------
 -- EnableTriggers
 --
--- Enables or disabled triggers. Also creates the groups.
+-- Enables or disabled triggers
 --
+-- GroupInfo structure.          Contains info to build the trigger data
 --
--- Enable                        true or false.  If true then groups will be created.  And triggers turned on.
---                               if false then groups are destroyed and triggers turned off.  Turning off triggers
---                               doesn't delete them.
+--   ValueNames[]                This contains the type and inputvalue name pairs
+--     [1] = type                  type: See the top of this file for InputValue types
+--     [2] = name                  The name of the input value
 --
--- TriggerGroups[GroupNumber]    GroupNumber must be sequential. Starts from 1.
---   [1]                         'r' for region.
---                               'a' for all. Will match any groups that have a box number.
---                               'v' for virtual.
---   [2]                         Name of the group.  This is usually the name of the box.
---                               If name is empty ('') then it will use BoxFrames[BoxNumber].Name
---
---   [3][]                       Array containing the valueTypeIDs and ValueTypes. In pairs of 2.
---      [1]                      ValueTypeID
---      [2]                      ValueType
---
---   [4][]                       Array containing data for the group.
---     [1]                       TypeID
---     [2]                       Type
---     [3 and up]                Contains texture numbers or texture frame numbers. Nil if not needed.
---
---     GF                        Add get functions.  This will appear as a sub menu under Type. This is when
---                               You want a trigger to get a value from somewhere else and use it.
---                               Each GetFn is paired up in 2s. So 1 to 2, 3 to 4, 5 to 6, and so on.
---       GF[1]                   GetFnTypeID      Indentifier for the type of GetFunction (used for color)
---                                                This is used to determin what get function to call.
---       GF[2]                   GetFnType        Name that appears in the menus. (used for color)
---     FN                        String. Optional, when you need to use a different function than what the Type uses.
---                               EclipseBar.lua uses this. Old EclipseBar code needs to be looked up for an example.
---   [5][]                       Array containing the groups being used by the virtual group.  Only
---                               if TriggerGroups[1] = 'v'
---
--- NOTES: When using 'a' for all.  The textures and texture numbers dont actually get used. Instead the group
---        in that slot gets used instead.
---        When using 'v' for virtual.  The textures do get used from the virtual trigger.  But they get displayed
---        in groups place.
+--   [1+] = [GroupIndex]         Table containing table name, box name, and objects info
+--     [1] = Group Type            number   : Boxnumber of the box for the bar
+--                                 'r'      : Region
+--                                 'a'      : Triggers will change ALL boxes
+--                                 'aa'     : Triggers will only change active boxes
+--                                 'ai'     : Triggers will only change inactive boxes
+--     [2] = Group Name          string: Name of the group. Usually after a box in the bar or the bar its self
+--     [3] = ObjectsInfo         Contains info about what is being changed
+--       [1]  = Type               Type. Color, texture, text.  This is used to help build the option menus.
+--       [2]  = ID                 Number: This is combined with Type to create a uniqie entry
+--       [3]  = Text               String: This gets added to the existing menu item for this type
+--       [4+] = TextureNumber      1 or more texture numbers. This is the actual texture that gets modified
 -------------------------------------------------------------------------------
-function BarDB:EnableTriggers(Enable, TriggerGroups)
-  if Enable then
-    local Groups = self.Groups
-    local Triggers = self.UnitBarF.UnitBar.Triggers
+function BarDB:EnableTriggers(Enable, GroupsInfo)
+  local Triggers = self.UnitBarF.UnitBar.Triggers
+  local TriggerData = self.TriggerData
 
+  if Enable then
     -- Check if triggers was reset thru reset options
-    if Groups and Main.Reset and Triggers[1] == nil then
+    -- If old trigger data exists, an undo needs to be done first
+    if TriggerData and Main.Reset and #Triggers == 0 then
       UndoTriggers(self)
-      self.Groups = nil
-      Groups = nil
+      self.TriggerData = nil
+      TriggerData = nil
     end
 
-    -- Groups is nil then create
-    if Groups == nil then
-      local VirtualGroupList = {}
+    if TriggerData == nil then
+      TriggerData = {}
+      local InputValueNames = {}
+      local ValueNames = GroupsInfo.ValueNames
+      local InputValueTypes = {}
+      local InputValueNamesDropdown = {}
+      local Groups = {}
+      local GroupsDropdown = {}
+      local ActiveObjects = {}
+      local DropdownIndex = 1
 
-      Groups = {}
-      Groups.LastValues = {}
+      for BoxNumber = -1, self.NumBoxes do
+        if BoxNumber ~= 0 then
+          ActiveObjects[BoxNumber] = {}
+        end
+      end
 
-      for GroupNumber, TriggerGroup in ipairs(TriggerGroups) do
+      -- Input value names
+      for ValueIndex = 1, #ValueNames, 2 do
+        local InputValueName = ValueNames[ValueIndex + 1]
+        local InputValueType = ValueNames[ValueIndex]
+
+        if InputValueTypesCheck[InputValueType] == nil then
+          assert(false, 'EnableTriggers - Invalid ValueName Type: ' .. InputValueType)
+        end
+
+        InputValueTypes[InputValueName] = InputValueType
+        InputValueNames[InputValueName] = 1
+
+        InputValueNamesDropdown[DropdownIndex] = InputValueName
+        DropdownIndex = DropdownIndex + 1
+      end
+      TriggerData.ActiveTriggers = {}
+      TriggerData.ActiveObjects = ActiveObjects
+      TriggerData.ActiveBoxesAll = {}
+      TriggerData.InputValueTypes = InputValueTypes
+      TriggerData.InputValueNames = InputValueNames
+      TriggerData.InputValueNamesDropdown = InputValueNamesDropdown
+      TriggerData.InputValues = {}
+
+      TriggerData.Groups = Groups
+      TriggerData.GroupsDropdown = GroupsDropdown
+
+      -- do boxes, region, any etc
+      for GroupIndex = 1, #GroupsInfo do
+        local GroupInfo = GroupsInfo[GroupIndex]
         local Group = {}
-        local ValueTypeIDs = {}
-        local ValueTypes = {}
-        local RValueTypes = {}
-        local TypeIDs = {}
-        local Types = {}
-        local RTypes = {}
-        local Objects = {}
-        local GroupType = TriggerGroup[1]
         local BoxNumber = -1
-        local Name = TriggerGroup[2]
+        local GroupType = GroupInfo[1]
+        local GroupName = GroupInfo[2]
+
+        if type(GroupType) ~= 'number' and GroupType ~= 'r' and
+           GroupType ~= 'a' and GroupType ~= 'aa' and GroupType ~= 'ai' then
+          assert(false, 'EnableTriggers - Invalid GroupType: ' .. GroupType)
+        end
 
         if type(GroupType) == 'number' then
           BoxNumber = GroupType
           GroupType = 'b'
         end
 
-        Groups[GroupNumber] = Group
-        Group.VirtualGroupNumber = 0
-        Group.Hidden = false
+        Groups[GroupIndex] = Group
+        Group.Name = GroupName
         Group.BoxNumber = BoxNumber
-        Group.GroupType = GroupType
-        Group.ValueTypeIDs = ValueTypeIDs
-        Group.ValueTypes = ValueTypes
-        Group.RValueTypes = RValueTypes
-        Group.TypeIDs = TypeIDs
-        Group.Types = Types
-        Group.RTypes = RTypes
+        Group.Type = GroupType
+        GroupsDropdown[GroupIndex] = GroupName
+
+        -- Objects
+        local ObjectTypeTypeID = {}
+        local Objects = {}
+        local ObjectsDropdown = {}
+        local IndexObjectTypeID = {}
+
+        Group.ObjectTypeTypeID = ObjectTypeTypeID
         Group.Objects = Objects
+        Group.ObjectsDropdown = ObjectsDropdown
+        Group.IndexObjectTypeID = IndexObjectTypeID
 
-        if Name == '' then
-          Group.Name = self.BoxFrames[BoxNumber].Name
-        else
-          Group.Name = Name
-        end
-
-        -- Set value types.
-        local VT = TriggerGroup[3]
-        local Index = 0
-
-        for ValueIndex = 1, #VT, 2 do
-          Index = Index + 1
-          local ValueTypeID = VT[ValueIndex]
-          local ValueType = VT[ValueIndex + 1]
-
-          ValueTypeIDs[Index] = ValueTypeID
-          ValueTypes[Index] = ValueType
-
-          -- Reverse lookup
-          ValueTypeIDs[ValueTypeID] = Index
-          RValueTypes[strlower(ValueType)] = Index
-        end
-
-        -- create object.
-        for TypeIndex, TG in ipairs(TriggerGroup[4]) do
+        local ObjectsInfo = GroupInfo[3]
+        for ObjectsIndex = 1, #ObjectsInfo do
+          local ObjectInfo = ObjectsInfo[ObjectsIndex]
           local Object = {}
-          local TypeID = TG[1]
-          local Type = TG[2]
+          local ObjectType = ObjectInfo[1]
+          local ObjectTypeID = format('%s:%s', ObjectType, ObjectInfo[2])
+          local TexN = {}
 
-          Object.Group = Group
-          Object.OneTime = {}
+          IndexObjectTypeID[ObjectsIndex] = ObjectTypeID
+          Objects[ObjectTypeID] = Object
+          if ObjectTypeTypeID[ObjectType] == nil then
+            ObjectTypeTypeID[ObjectType] = ObjectTypeID
+          end
 
-          Objects[TypeIndex] = Object
+          -- Set object name plus additional text to dropdown
+          ObjectsDropdown[ObjectsIndex] = TriggerMenuItems[ObjectType] .. ObjectInfo[3]
 
-          TypeIDs[TypeIndex] = TypeID
-          Types[TypeIndex] = Type
-
-          -- Reverse lookup
-          TypeIDs[TypeID] = TypeIndex
-          RTypes[strlower(Type)] = TypeIndex
-
-          -- Are there textures?
-          if TG[3] then
-            local TexN = {}
-
+          -- Get texture data
+          for TextureIndex = 4, #ObjectInfo do
+            TexN[TextureIndex - 3] = ObjectInfo[TextureIndex]
+          end
+          if #TexN > 0 then
             Object.TexN = TexN
-
-            -- Set texture number or texture frame numbers.
-            for Index = 3, #TG do
-              TexN[Index - 2] = TG[Index]
-            end
           end
-
-          -- set the function name if FN is not defined.
-          local FunctionName = nil
-
-          if TG.FN then
-            FunctionName = TG.FN
-          else
-            FunctionName = TypeIDfn[TypeID]
-            if GroupType == 'r' and TypeID ~= 'sound' then
-              FunctionName = format('%s%s', FunctionName, 'Region')
-            end
-          end
-
-          Object.Function = self[FunctionName]
-          Object.FunctionName = FunctionName
-
-          -- For animation
-          Object.CanAnimate = TypeIDCanAnimate[TypeID] or false
-
-          Object.Restore = false
-
-          -- set function data
-          local GF = TG.GF
-
-          if GF then
-            local GetFnTypeIDs = {}
-            local GetFnTypes = {}
-            local GetFn = {}
-
-            Object.GetFnTypeIDs = GetFnTypeIDs
-            Object.GetFnTypes = GetFnTypes
-            Object.GetFn = GetFn
-
-            local GetFnIndex = 0
-            for Index = 1, #GF, 2 do
-              local GetFnTypeID = GF[Index]
-              local GetFnType = GF[Index + 1]
-
-              GetFnIndex = GetFnIndex + 1
-
-              GetFnTypeIDs[GetFnIndex] = GetFnTypeID
-              GetFnTypes[GetFnIndex] = GetFnType
-              GetFn[GetFnTypeID] = TypeIDGetfn[GetFnTypeID]
-
-              -- Add reverse lookup
-              GetFnTypeIDs[GetFnTypeID] = GetFnIndex
-            end
-            -- do this for option menus.
-            GetFnTypes[#GetFnTypes + 1] = 'None'
-            GetFnTypeIDs['none'] = #GetFnTypes
-          end
-        end
-
-        if GroupType == 'v' then
-          local VirtualGroups = {}
-          VirtualGroupList[GroupNumber] = VirtualGroups
-
-          for VirtualGroupIndex = 5, #TriggerGroup do
-            VirtualGroups[TriggerGroup[VirtualGroupIndex]] = {}
-          end
-        end
-      end
-
-      -- Build virtual groups
-      if next(VirtualGroupList) then
-        Groups.VirtualGroupList = VirtualGroupList
-
-        for VirtualGroupNumber, VirtualGroups in pairs(VirtualGroupList) do
-          for GroupNumber, VirtualGroup in pairs(VirtualGroups) do
-            local Group = Groups[GroupNumber]
-            local BoxNumber = Group.BoxNumber
-
-            -- only include groups that use boxes
-            if BoxNumber > 0 then
-              local VirtualObjects = {}
-
-              VirtualGroup.Hidden = true
-              VirtualGroup.Name = Group.Name
-              VirtualGroup.BoxNumber = BoxNumber
-              VirtualGroup.Objects = VirtualObjects
-
-              for Key, Object in pairs(Groups[VirtualGroupNumber].Objects) do
-                local Table = {}
-                local GroupCopy = Object.Group
-
-                Object.Group = nil
-
-                -- Copy virtual group object
-                Main:CopyTableValues(Object, Table, true)
-
-                Object.Group = GroupCopy
-
-                -- Point Group in virtual object to the group.
-                Table.Group = VirtualGroup
-                Table.Virtual = 1
-
-                VirtualObjects[Key] = Table
-              end
-            end
-          end
+          Object.Fn = self[ TriggerFns[ObjectType] ]
+          Object.CanAnimate = TriggerCanAnimate[ObjectType] or false
+          Object.Index = ObjectsIndex
         end
       end
     end
-    -- Reference and check triggers if something changed.
-    if self.Groups == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerSpecializationChanged then
-      self.Groups = Groups
-      Groups.Triggers = Triggers
+
+    if self.TriggerData == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerSpecializationChanged then
+      self.Triggers = Triggers
+      self.TriggerData = TriggerData
       self:CheckTriggers()
     end
-  else
+  elseif self.TriggerData then
     -- disable triggers
-    Main:SetAuraTracker(self.UnitBarF, 'off')
 
     UndoTriggers(self)
-    self.Groups = nil
+
+    local UnitBarF = self.UnitBarF
+    Main:SetAuraTracker(UnitBarF, 'off')
+    Main:SetTalentTracker(UnitBarF, 'off')
+
+    self.TriggerData = nil
   end
-end
-
--------------------------------------------------------------------------------
--- CompTriggers
---
--- Checks if a trigger is compatable with another group
---
--- Trigger      Trigger to test.
--- GroupNumber  Group number being tested against
---
--- returns
---   false      If the trigger is not compatable. Otherwise true.
--------------------------------------------------------------------------------
-function BarDB:CompTriggers(Trigger, GroupNumber)
-  local Group = self.Groups[GroupNumber]
-
-  local TypeIndex = Group.RTypes[strlower(Trigger.Type)] or Group.TypeIDs[Trigger.TypeID] or 0
-
-  return TypeIndex > 0
-end
-
--------------------------------------------------------------------------------
--- CreateDefaultTriggers
---
--- GroupNumber     Creates a trigger thats compatable with this group number.
---
--- returns
---   Trigger       Newly created default trigger
--------------------------------------------------------------------------------
-function BarDB:CreateDefaultTriggers(GroupNumber)
-  local Group = self.Groups[GroupNumber]
-  local Trigger = {}
-
-  Main:CopyTableValues(DUB[self.BarType].Triggers.Default, Trigger, true)
-
-  if not self:CompTriggers(Trigger, GroupNumber) then
-    Trigger.TypeID = Group.TypeIDs[1]
-    Trigger.Type = strlower(Group.Types[1])
-  end
-
-  Trigger.GroupNumber = GroupNumber
-
-  if Trigger.ValueTypeID == '' then
-    Trigger.ValueTypeID = Group.ValueTypeIDs[1]
-  end
-  if Trigger.ValueType == '' then
-    Trigger.ValueType = strlower(Group.ValueTypes[1])
-  end
-
-  return Trigger
-end
-
--------------------------------------------------------------------------------
--- InsertTriggers
---
--- Trigger   Trigger being inserted
--- Index     Trigger position to insert at. If index is nil then trigger gets
---           added to the end.
--------------------------------------------------------------------------------
-function BarDB:InsertTriggers(Trigger, Index)
-  local Triggers = self.Groups.Triggers
-
-  if Index == nil then
-    Triggers[#Triggers + 1] = Trigger
-  else
-    tinsert(Triggers, Index, Trigger)
-  end
-
-  self:CheckTriggers()
-end
-
--------------------------------------------------------------------------------
--- RemoveTriggers
---
--- Index     Trigger to delete.
--------------------------------------------------------------------------------
-function BarDB:RemoveTriggers(Index)
-  tremove(self.Groups.Triggers, Index)
-
-  self:CheckTriggers()
-end
-
--------------------------------------------------------------------------------
--- SwapTriggers
---
--- Source, Dest    Swaps triggers with source and dest.  Also checks for group numbers
---
--- returns
---   true          If the triggers were swapped across groups. otherwise false
--------------------------------------------------------------------------------
-function BarDB:SwapTriggers(Source, Dest)
-  local Triggers = self.Groups.Triggers
-  local SourceIndex = Source.Index
-  local DestIndex = Dest.Index
-  local SourceGroupNumber = Source.GroupNumber
-  local DestGroupNumber = Dest.GroupNumber
-  local GroupSwap = false
-
-  Triggers[SourceIndex], Triggers[DestIndex] = Triggers[DestIndex], Triggers[SourceIndex]
-
-  -- Check cross group swap
-  if SourceGroupNumber ~= DestGroupNumber then
-    Source.GroupNumber = DestGroupNumber
-    Dest.GroupNumber = SourceGroupNumber
-    GroupSwap = true
-  end
-
-  self:CheckTriggers()
-
-  return GroupSwap
-end
-
--------------------------------------------------------------------------------
--- MoveTriggers
---
--- Source       Trigger to move. Deletes source after move.
--- GroupNumber  Group number to assign trigger.
--- Index        Position to move trigger to. If nil then adds at the end
---
--- returns
---   Trigger    Newly created copy of the Source.
--------------------------------------------------------------------------------
-function BarDB:MoveTriggers(Source, GroupNumber, Index)
-  local Triggers = self.Groups.Triggers
-  local SourceIndex = Source.Index
-  local Trigger = {}
-
-  Main:CopyTableValues(Source, Trigger, true)
-
-  if Index == nil then
-    Triggers[#Triggers + 1] = Trigger
-  else
-    tinsert(Triggers, Index, Trigger)
-
-    -- Check if index has to be offset by 1.
-    if Index <= Source.Index then
-      SourceIndex = SourceIndex + 1
-    end
-  end
-  Trigger.GroupNumber = GroupNumber
-
-  tremove(Triggers, SourceIndex)
-
-  self:CheckTriggers()
-
-  return Trigger
-end
-
--------------------------------------------------------------------------------
--- CopyTriggers
---
--- Source       Trigger to copy.
--- GroupNumber  Group number to assign trigger.
--- Index        Position to copy trigger to. If nil then adds at the end
---
--- returns
---   Trigger    Newly created copy of the Source.
--------------------------------------------------------------------------------
-function BarDB:CopyTriggers(Source, GroupNumber, Index)
-  local Triggers = self.Groups.Triggers
-  local Trigger = {}
-
-  Main:CopyTableValues(Source, Trigger, true)
-
-  if Index == nil then
-    Triggers[#Triggers + 1] = Trigger
-  else
-    tinsert(Triggers, Index, Trigger)
-  end
-  Trigger.GroupNumber = GroupNumber
-
-  self:CheckTriggers()
-
-  return Trigger
 end
 
 -------------------------------------------------------------------------------
@@ -7819,465 +7909,349 @@ function BarDB:AppendTriggers(SourceBarType)
     Triggers[#Triggers + 1] = Trigger
   end
 
-  -- Cant do check triggers here.
+  -- Cant do check triggers here
 end
 
 -------------------------------------------------------------------------------
--- SetSelectTrigger
+-- DoTriggerConditions
 --
--- Sets one trigger in a group to be selected. Used by options
+-- Subfunction of DoTriggers()
 --
--- GroupNumber   Group to select a trigger under.
--- Index         Trigger to select.
+-- Returns true or false
 -------------------------------------------------------------------------------
-function BarDB:SetSelectTrigger(GroupNumber, Index)
-  local Triggers = self.Groups.Triggers
+local function DoTriggerConditions(TriggerData, Conditions)
+  local InputValues = TriggerData.InputValues
+  local InputValueTypes = TriggerData.InputValueTypes
+  local All = Conditions.All
+  local Result
 
-  for TriggerIndex = 1, #Triggers do
-    local Trigger = Triggers[TriggerIndex]
+  for ConditionIndex = 1, #Conditions do
+    local Condition = Conditions[ConditionIndex]
+    local InputValueName = Condition.InputValueName
+    local InputValue = InputValues[InputValueName]
 
-    if Trigger.GroupNumber == GroupNumber then
-      if Trigger.Index == Index then
-        Trigger.Select = not Trigger.Select
-      else
-        Trigger.Select = false
+    -- InputValue can be nill if that particular value hasn't been set yet
+    -- So skip if nil
+    if InputValue then
+      local Operator = Condition.Operator
+      local Value = Condition.Value
+
+      Result = false
+
+      if InputValueTypes[InputValueName] == 'text' then
+        if Operator == '='  and strfind(strlower(InputValue), strlower(Value), 1, true) or
+           Operator == '<>' and strfind(strlower(InputValue), strlower(Value), 1, true) == nil then
+          Result = true
+        end
+      elseif Operator == '<'  and InputValue <  Value or
+             Operator == '>'  and InputValue >  Value or
+             Operator == '<=' and InputValue <= Value or
+             Operator == '>=' and InputValue >= Value or
+             Operator == '='  and InputValue == Value or
+             Operator == '<>' and InputValue ~= Value    then
+        Result = true
       end
-    end
-  end
-end
--------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
--- SetAuraTriggers
---
--- Called by AuraUpdate()
--------------------------------------------------------------------------------
-local function SetAuraTrigger(Execute, LastValues, Object, Trigger)
-  local Change = false
-
-  if Execute then
-    LastValues[Object] = 1
-    Object.AuraTrigger = Trigger
-    return true
-
-  elseif Object.AuraTrigger == Trigger then
-    Object.OneTime[Trigger] = false
-    Object.AuraTrigger = false
-    return true
-
-  end
-  return false
-end
-
-function BarDB:SetAuraTriggers(TrackedAurasList)
-  local Groups = self.Groups
-  local AuraTriggers = Groups.AuraTriggers
-  local LastValues = Groups.LastValues
-  local Change = false
-
-  for Index = 1, #AuraTriggers do
-    local Trigger = AuraTriggers[Index]
-    local Auras = Trigger.Auras
-    local Operator = Trigger.AuraOperator
-    local NumAuras = 0
-    local NumFound = 0
-
-    for SpellID, Aura in pairs(Auras) do
-      NumAuras = NumAuras + 1
-
-      local StackOperator = Aura.StackOperator
-      local TrackedAuras = TrackedAurasList[Aura.Unit]
-      local TrackedAura = TrackedAuras and TrackedAuras[SpellID]
-
-      if Aura.NotActive then
-        if TrackedAura == nil or not TrackedAura.Active then
-          NumFound = NumFound + 1
-          if Operator == 'or' then
-            break
-          end
-        elseif Operator == 'and' then
+      if not All then
+        -- Stop checking if one condition is true
+        if Result then
           break
         end
-      elseif TrackedAura and TrackedAura.Active then
-        local StackOperator = Aura.StackOperator
-        local Stacks = Aura.Stacks
-        local TrackedAuraStacks = TrackedAura.Stacks
-        local Own = Aura.Own or false
-
-        if (Own and TrackedAura.Own or not Own) and
-           (StackOperator == '<'  and TrackedAuraStacks <  Stacks or
-            StackOperator == '>'  and TrackedAuraStacks >  Stacks or
-            StackOperator == '<=' and TrackedAuraStacks <= Stacks or
-            StackOperator == '>=' and TrackedAuraStacks >= Stacks or
-            StackOperator == '='  and TrackedAuraStacks == Stacks or
-            StackOperator == '<>' and TrackedAuraStacks ~= Stacks   ) then
-          NumFound = NumFound + 1
-          if Operator == 'or' then -- dont need to check all on 'or'
-            break
-          end
-        elseif Operator == 'and' then
-          break
-        end
-      elseif Operator == 'and' then -- need to stop since it's 'and'
+      -- Stop checking if one condition is false
+      elseif not Result then
         break
       end
     end
-
-    local GroupNumbers = Trigger.GroupNumbers
-    local Execute = NumFound > 0 and ( Operator == 'or' or Operator == 'and' and NumFound == NumAuras )
-
-    local TypeIndex = Trigger.TypeIndex
-    local VirtualGroupList = Groups.VirtualGroupList
-
-    if GroupNumbers then
-
-      for GN in pairs(GroupNumbers) do
-        local Group = Groups[GN]
-        local VirtualGroupNumber = Group.VirtualGroupNumber
-
-        -- Do virtual
-        if VirtualGroupNumber ~= 0 then
-          if SetAuraTrigger(Execute, LastValues, VirtualGroupList[VirtualGroupNumber][GN].Objects[TypeIndex], Trigger) then
-            Change = true
-          end
-        end
-
-        -- Do normal
-        if SetAuraTrigger(Execute, LastValues, Groups[GN].Objects[TypeIndex], Trigger) then
-          Change = true
-        end
-      end
-    elseif Trigger.Virtual then
-      for _, VirtualGroup in pairs(VirtualGroupList[Trigger.GroupNumber]) do
-        if SetAuraTrigger(Execute, LastValues, VirtualGroup.Objects[TypeIndex], Trigger) then
-          Change = true
-        end
-      end
-    elseif SetAuraTrigger(Execute, LastValues, Groups[Trigger.GroupNumber].Objects[TypeIndex], Trigger) then
-      Change = true
-    end
   end
 
-  -- Only call do triggers if theres something to change.
-  if Change then
-    self:DoTriggers()
-
-    -- Since auras dont get called thru self:update().  A display call has to be done here.
-    self:Display()
-  end
-end
-
--------------------------------------------------------------------------------
--- SetTriggers
---
--- Usage:  SetTriggers(GroupNumber, ValueType, CompValue)
---         SetTriggers(GroupNumber, ValueType, CurrValue, MaxValue)
---         SetTriggers(GroupNumber, ValueType, true or false)
---         SetTriggers(GroupNumber, 'off', ValueType or nil)
---
--- GroupNumber       Triggers belonging to this group will get executed.
--- ValueType         Type of value. must be lower case. If nil then matches by GroupNumber only.
---                   nil only works with 'off' option.
--- CompValue         Value that each trigger will be compared against.
---                   otherwise this can be nil.
--- CurrValue
--- MaxValue          If these are set then the trigger will work with a percentage.
--- true or false     Matches true or false with the state of the triggers.
--- 'off'             Any trigger matching ValueType will be turned off.  Not case sensitive.
--------------------------------------------------------------------------------
-local function SetTrigger(Execute, LastValues, Object, Trigger)
-  local Change = false
-
-  if Execute then
-    LastValues[Object] = 1
-    Object.Trigger = Trigger
-
-  elseif Object.Trigger == Trigger then
-    Object.OneTime[Trigger] = false
-    Object.Trigger = false
-  end
-end
-
-function BarDB:SetTriggers(GroupNumber, p2, p3, p4)
-  local Groups = self.Groups
-
-  if Groups then
-    local Off = false
-    local ValueType = nil
-    local CompValue = nil
-    local CompState = nil
-    local CompString = nil
-
-    if p2 == 'off' then
-      Off = true
-      ValueType = p3
-    else
-      ValueType = p2
-
-      -- Check for string.
-      if type(p3) == 'string' then
-        CompString = p3
-
-      -- Check for compare state.
-      elseif type(p3) == 'boolean' then
-        CompState = p3
-
-      -- Check for Current value and max value
-      elseif p4 then
-        if p4 == 0 then
-          CompValue = 0
-        else
-          CompValue = ceil(p3 / p4 * 100)
-        end
-      else
-        -- Whole number or float.
-        CompValue = p3
-      end
-    end
-    local Group = Groups[GroupNumber]
-    local GroupType = Group.GroupType
-
-    if GroupType == 'v' then
-      assert(false, 'Group can not be type: virtual')
-    elseif GroupType == 'a' then
-      assert(false, 'Group can not be type: all')
-    end
-
-    local VirtualGroupNumber = Group.VirtualGroupNumber
-    local SortedTriggers = Groups.SortedTriggers
-    local LastValues = Groups.LastValues
-    local VirtualGroupList = Groups.VirtualGroupList
-    local Objects = Group.Objects
-
-    for Index = 1, #SortedTriggers do
-      local Trigger = SortedTriggers[Index]
-      local Virtual = Trigger.Virtual
-      local GroupNumbers = Trigger.GroupNumbers
-      local TriggerGroupNumber = Trigger.GroupNumber
-
-      if Virtual and VirtualGroupNumber == TriggerGroupNumber or
-         not Virtual and ( GroupNumbers and GroupNumbers[GroupNumber] or GroupNumber == TriggerGroupNumber ) then
-        local TriggerValueType = Trigger.ValueType
-
-        if ( Off and ValueType == nil or TriggerValueType == ValueType ) or ( not Off and TriggerValueType == ValueType ) then
-          local Execute = nil
-
-          -- Check for state.
-          if CompState ~= nil then
-            Execute = not Off and CompState == Trigger.State
-
-          elseif not Off then
-            local Conditions = Trigger.Conditions
-            local All = Conditions.All
-            local NumConditions = #Conditions
-            local Result = false
-            local Active = Talents.Active
-
-            -- Search thru conditions to find one or more that are true.
-            for ConditionIndex = 1, NumConditions do
-              local Condition = Conditions[ConditionIndex]
-              local Operator = Condition.Operator
-              local TE = TalentEqual[Operator]
-              local TNE = TalentNotEqual[Operator]
-              local Value = Condition.Value
-
-              if CompString and (
-                   Operator == '='  and strfind(strlower(CompString), strlower(Value), 1, true) or
-                   Operator == '<>' and strfind(strlower(CompString), strlower(Value), 1, true) == nil ) or
-                 CompString == nil and tonumber(Value) ~= nil and (
-                   Operator == '<'  and CompValue <  Value or
-                   Operator == '>'  and CompValue >  Value or
-                   Operator == '<=' and CompValue <= Value or
-                   Operator == '>=' and CompValue >= Value or
-                   Operator == '='  and CompValue == Value or
-                   Operator == '<>' and CompValue ~= Value    ) or
-                 CompString == nil and type(Value) == 'string' and (
-
-                   -- Talents
-                   -- Talents
-                   TE  and Active[Value] or
-                   TNE and Active[Value] == nil ) then
-
-                -- dont need to check all conditions.
-                if not All then
-                  Result = true
-                  break
-                -- All conditions are true
-                elseif ConditionIndex == NumConditions then
-                  Result = true
-                end
-              -- dont need to keep checking since all would have to match.
-              elseif All then
-                break
-              end
-            end
-            Execute = not Off and Result
-          end
-          local TriggerTypeIndex = Trigger.TypeIndex
-
-          -- Apply 'all' triggers to virtual as well.
-          if VirtualGroupNumber ~= 0 and ( Virtual or GroupNumbers ) then
-            local Object = VirtualGroupList[VirtualGroupNumber][GroupNumber].Objects[TriggerTypeIndex]
-
-            SetTrigger(Execute, LastValues, Object, Trigger)
-          end
-
-          -- Do normal triggers.
-          if not Virtual or GroupNumbers then
-            SetTrigger(Execute, LastValues, Objects[TriggerTypeIndex], Trigger)
-          end
-        end
-      end
-    end
-  end
-end
-
--------------------------------------------------------------------------------
--- HideVirtualGroupTriggers
---
--- Hide or shows a virtual group at groupnumber.
---
--- VirtualGroupNumber   Virtual group.
--- Hide                 If true then the group is hidden otherwise shown.
--- GroupNumber          Location of the normal group.
--------------------------------------------------------------------------------
-function BarDB:HideVirtualGroupTriggers(VirtualGroupNumber, Hidden, GroupNumber)
-  CalledByTrigger = true
-
-  local Groups = self.Groups
-  local VirtualGroupList = Groups.VirtualGroupList
-  local VirtualGroup = VirtualGroupList[VirtualGroupNumber][GroupNumber]
-  local Group = Groups[GroupNumber]
-
-  if Groups[VirtualGroupNumber].GroupType ~= 'v' then
-    assert(false, format('Group "%s" must be virtual', Group.Name))
-  end
-  local BoxNumber = Group.BoxNumber
-
-  Group.Hidden = not Hidden
-  VirtualGroup.Hidden = Hidden
-
-  if Hidden then
-    -- Clear the normal group.
-    for _, Object in pairs(Group.Objects) do
-      RestoreSettings(self, Object.FunctionName, BoxNumber)
-    end
-
-    Group.VirtualGroupNumber = 0
-  else
-    -- clear the virtual group.
-    for _, Object in pairs(VirtualGroup.Objects) do
-      RestoreSettings(self, Object.FunctionName, BoxNumber)
-    end
-
-    Group.VirtualGroupNumber = VirtualGroupNumber
-  end
-
-  CalledByTrigger = false
+  return Result
 end
 
 -------------------------------------------------------------------------------
 -- DoTriggers
 --
--- Executes triggers done by SetTriggers()
+-- Executes triggers based on talents, auras, conditions, etc
 -------------------------------------------------------------------------------
 function BarDB:DoTriggers()
-  CalledByTrigger = true
+  local TriggerData = self.TriggerData
+  local ActiveTriggers = TriggerData.ActiveTriggers
+  local ActiveObjects = TriggerData.ActiveObjects
+  local ActiveBoxesAll = TriggerData.ActiveBoxesAll
+  local NumBoxes = self.NumBoxes
+  local OTSound = OT.Sound
 
-  local Groups = self.Groups
-  local LastValues = Groups.LastValues
+  local Groups = TriggerData.Groups
 
-  local DebugCount = 0
-  local LastCount = 0
-
-  for Object in pairs(LastValues) do
-    local Group = Object.Group
+  for TriggerIndex = 1, #ActiveTriggers do
+    local ActiveTrigger = ActiveTriggers[TriggerIndex]
+    local Group = Groups[ActiveTrigger.GroupNumber]
+    local Type = Group.Type
     local BoxNumber = Group.BoxNumber
-    local Hidden = Group.Hidden
-    local Trigger = nil
+    local ObjectTypeID = ActiveTrigger.ObjectTypeID
 
-    -- Get trigger
-    if Object.AuraTrigger then
-      Trigger = Object.AuraTrigger
-    elseif Object.Trigger then
-      Trigger = Object.Trigger
-    else
-      Trigger = Object.StaticTrigger
+    -- Check active status
+    local Active = ActiveTrigger.Static or
+                   ( not ActiveTrigger.AurasOn      or ActiveTrigger.ActiveAuras   ) and
+                   ( not ActiveTrigger.ConditionsOn or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
+
+    if not Active then
+      if ActiveTrigger.OneTime then
+        ActiveTrigger.OneTime = 0
+      end
     end
 
-    -- Execute trigger
-    if Trigger then
-      local OneTime = Object.OneTime[Trigger]
+    if Type == 'a' or Type == 'aa' or Type == 'ai' then
+      for BoxNumber = 1, NumBoxes do
+        local ActiveBoxAll = ActiveBoxesAll[BoxNumber]
 
-      if Trigger.OneTime == nil or ( OneTime == nil or not OneTime ) then
-        Object.OneTime[Trigger] = true
-
-        local OneTime = Trigger.OneTime
-
-        if not Hidden then
-          local Fn = Object.Function
-          local AnimateSpeed = Trigger.AnimateSpeed
-          local Pars = Trigger.Pars
-          local GetFnTypeID = Trigger.GetFnTypeID
-          local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
-
-          AnimateSpeedTrigger = Trigger.CanAnimate and Trigger.Animate and Trigger.AnimateSpeed or nil
-
-          -- Do get function
-          if GetFnTypeID ~= 'none' then
-            local GetFn = Object.GetFn
-
-            if GetFn then
-              local GetPars = Trigger.GetPars
-
-              -- use nil as first par to fill in 'self'.
-              p1, p2, p3, p4 = Object.GetFn[GetFnTypeID](nil, GetPars[1], GetPars[2], GetPars[3], GetPars[4],
-                                                                      p1,         p2,         p3,         p4 )
-            end
-          end
-          local TexN = Object.TexN
-
-          if TexN == nil then
-            local TextLine = Trigger.TextLine
-
-            -- Check to see if its a text object
-            if TextLine then
-
-              -- Do all text lines
-              if TextLine == 0 then
-                for TextLine = 1, MaxTextLines do
-                  Fn(self, BoxNumber, TextLine, p1, p2, p3, p4)
-                end
-              else
-                Fn(self, BoxNumber, TextLine, p1, p2, p3, p4)
-              end
-            else
-              Fn(self, p1, p2, p3, p4)
-            end
-          else
-            local Fn = Object.Function
-
-            -- Do textures.
-            for Index = 1, #TexN do
-              Fn(self, BoxNumber, TexN[Index], p1, p2, p3, p4)
-            end
-          end
-
-          -- Animation must be deactivated.
-          AnimateSpeedTrigger = nil
+        if Active and
+           ( Type == 'a' or
+             Type == 'aa' and ActiveBoxAll or
+             Type == 'ai' and not ActiveBoxAll ) then
+          ActiveObjects[BoxNumber][ObjectTypeID] = TriggerIndex
         end
-        Object.Restore = true
       end
-
-    -- no triggers executed so restore the object to its original settings
-    elseif Object.Restore then
-      Object.Restore = false
-
-      if not Hidden then
-        RestoreSettings(self, Object.FunctionName, BoxNumber)
-      end
+    elseif Active then
+      ActiveObjects[BoxNumber][ObjectTypeID] = TriggerIndex
     end
   end
 
+  -- Do functions
+  CalledByTrigger = true
+
+  for BoxNumber = -1, NumBoxes do
+    if BoxNumber ~= 0 then
+      local ActiveObject = ActiveObjects[BoxNumber]
+
+      for ObjectTypeID, TriggerIndex in pairs(ActiveObject) do
+        if TriggerIndex == 0 then
+          local ObjectType = strsplit(':', ObjectTypeID, 2)
+
+          -- Set to -1 so it don't keep restoring until used again first
+          ActiveObject[ObjectTypeID] = -1
+
+          if ObjectType ~= OTSound then
+            RestoreSettings(self, TriggerFns[ObjectType], BoxNumber)
+          end
+
+        elseif TriggerIndex > 0 then
+          local ActiveTrigger = ActiveTriggers[TriggerIndex]
+          local BarFn = ActiveTrigger.BarFn
+          local OneTime = ActiveTrigger.OneTime
+
+          ActiveObject[ObjectTypeID] = 0
+
+          if not OneTime or OneTime == 0 then
+            if OneTime then
+              ActiveTrigger.OneTime = 1
+            end
+
+            AnimateSpeedTrigger = ActiveTrigger.CanAnimate and ActiveTrigger.Animate and ActiveTrigger.AnimateSpeed or nil
+
+            local p1, p2, p3, p4 = ActiveTrigger.Par1, ActiveTrigger.Par2, ActiveTrigger.Par3, ActiveTrigger.Par4
+            local ColorFn = ActiveTrigger.ColorFn
+            local TextLine = ActiveTrigger.TextLine
+
+            -- Do color
+            if ColorFn then
+              -- use nil as first par to fill in 'self'
+              p1, p2, p3, p4 = ColorFn(nil, ActiveTrigger.ColorUnit, nil, nil, nil, p1, p2, p3, p4)
+            end
+
+            if TextLine then
+              -- Do all text lines
+              if TextLine == 0 then
+                for TextLineIndex = 1, MaxTextLines do
+                  BarFn(self, BoxNumber, TextLineIndex, p1, p2, p3, p4)
+                end
+              else
+                -- Single text line
+                BarFn(self, BoxNumber, TextLine, p1, p2, p3, p4)
+              end
+            else
+              local TexN = Groups[ActiveTrigger.GroupNumber].Objects[ObjectTypeID].TexN
+
+              -- Do textures
+              if TexN then
+                for Index = 1, #TexN do
+                  BarFn(self, BoxNumber, TexN[Index], p1, p2, p3, p4)
+                end
+              else
+                -- Do sound or color
+                BarFn(self, p1, p2, p3, p4)
+              end
+            end
+
+            AnimateSpeedTrigger = nil
+          end
+        end
+      end
+    end
+  end
   CalledByTrigger = false
 end
+
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--
+-- Trigger Convert functions
+--
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-------------------------------------------------------------------------------
+-- ConvertTriggers
+--
+-- Converts triggers from version 6.60
+--
+-- Used by ConvertCustom() from Main.lua
+--
+-- Notes: No need to delete old keys since the cleaner will take care of it
+-------------------------------------------------------------------------------
+
+--[[  X = no code written to convert this yet
+
+  *   Enabled = true,
+  *   Static = false,
+  -   SpecEnabled = false,
+  -   DisabledBySpec = false,
+  *   ClassSpecs = SetClassSpecs(ClassSpecs, false),
+  -   HideAuras = false,
+  *   OffsetAll = true,
+  -   Action = {Type = 1},
+  *   Name = '',
+
+  *   GroupNumber = 1,
+  -   OrderNumber = 0,
+  -   TypeID = 'bartexturecolor',
+  *   Type = 'bar color',
+  -   ValueTypeID = '',
+  -   ValueType = '',
+  *   CanAnimate = false,
+  *   Animate = false,
+  *   AnimateSpeed = 0.01,
+  -   State = true,
+  -   AuraOperator = 'or',
+  X   Conditions = { All = false, {Operator = '>', Value = 0} },
+  X   Pars = {},
+  *   GetFnTypeID = 'none',
+  *   GetPars = {},
+]]
+
+function GUB.Bar:ConvertTriggers(BarType, Triggers)
+  local TriggerIsAll = Trigger660IsAll[BarType]
+  local TriggerRegion = Trigger660Region[BarType]
+  local TriggerValueType = Trigger660ValueType[BarType]
+
+  for TriggerIndex = 1, #Triggers do
+    local Trigger = Triggers[TriggerIndex]
+    local Type = Trigger.Type
+    local ObjectType = Trigger660TypeObjectType[Type] -- Convert old to new
+    local GroupNumber = Trigger.GroupNumber
+    local ValueTypeID = Trigger.ValueTypeID
+    local Pars = Trigger.Pars
+    local Conditions = {}
+    local Talents = {}
+    local Auras = {}
+
+    -- If no object type then try to convert to a specified object type id
+    if ObjectType == nil then
+      Trigger.ObjectTypeID = Trigger660TypeOldTypeID[Type]
+    else
+      -- Fake object type ID and let CheckTriggers parse it out
+      Trigger.ObjectType = ObjectType
+      Trigger.ObjectTypeID = ObjectType .. ':0'
+    end
+
+    -- Convert group numbers
+    -- Check for All and Region
+    local GroupNumberAll = TriggerIsAll and TriggerIsAll[GroupNumber]
+    if GroupNumberAll then
+      if ValueTypeID == 'state' then
+        if Trigger.State then
+          GroupNumber = GroupNumberAll + 1
+        else
+          GroupNumber = GroupNumberAll + 2
+        end
+      end
+    else
+      GroupNumber = TriggerRegion and TriggerRegion[GroupNumber] or GroupNumber
+    end
+
+    -- Convert conditions and talents
+    if ValueTypeID ~= 'auras' then
+      -- Capitalize the first character in each word for InputValueName
+      local InputValueName = gsub(' ' .. Trigger.ValueType, '%W%l', strupper):sub(2)
+      local ConditionsOld = Trigger.Conditions
+      local ConditionsOldAll = ConditionsOld.All
+
+      InputValueName = gsub(InputValueName, 'Percent', 'percent')
+      InputValueName = TriggerValueType and TriggerValueType[InputValueName] or InputValueName
+      Conditions.All = ConditionsOldAll
+      Conditions.Disabled = false
+      Talents.All = ConditionsOldAll
+
+      for ConditionIndex = 1, #ConditionsOld do
+        local ConditionOld = ConditionsOld[ConditionIndex]
+        local Operator = ConditionOld.Operator
+
+        -- Check for talents
+        if Operator == 'T=' or Operator == 'T<>' or
+           Operator == 'P=' or Operator == 'P<>'    then
+          local Talent = {}
+
+          Talent.SpellID = ConditionOld.Value
+          Talent.Match = Operator == 'T=' or Operator == 'P=' or false
+          Talent.IsPvP = Operator == 'P=' or Operator == 'P<>' or false
+          Talent.Minimized = false
+          Talents[#Talents + 1] = Talent
+        else
+          -- normal condition
+          local Condition = {}
+          local Value
+
+          Condition.Operator = ConditionOld.Operator
+          if ValueTypeID == 'state' then
+            Value = Trigger.State
+          else
+            Value = ConditionOld.Value
+          end
+          Condition.Value = Value
+
+          -- Do inputvaluename for groups
+          if strfind(InputValueName, '%s', 1, true) then
+            Condition.InputValueName = format(InputValueName, GroupNumber)
+          else
+            Condition.InputValueName = InputValueName
+          end
+          Conditions[#Conditions + 1] = Condition
+        end
+      end
+
+    elseif ValueTypeID == 'auras' then
+      local AurasOld = Trigger.Auras
+      Auras.All = Trigger.AuraOperator == 'and' or false
+
+      for SpellID, AuraOld in pairs(AurasOld) do
+        local Aura = {}
+
+        Aura.SpellID = SpellID
+        Aura.Units = {AuraOld.Unit}
+        Aura.StackOperator = AuraOld.StackOperator
+        Aura.Stacks = AuraOld.Stacks
+        Aura.Own = AuraOld.Own and 1 or 0
+        Aura.Inverse = AuraOld.NotActive
+
+        Auras[#Auras + 1] = Aura
+      end
+    end
+
+    Trigger.Conditions = #Conditions > 0 and Conditions or nil
+    Trigger.Talents = #Talents > 0 and Talents or nil
+    Trigger.Auras = #Auras > 0 and Auras or nil
+
+    -- Convert disabled
+    Trigger.Disabled = not Trigger.Enabled
+    Trigger.GroupNumber = GroupNumber
+
+    Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4 = Pars[1], Pars[2], Pars[3], Pars[4]
+  end
+end
+

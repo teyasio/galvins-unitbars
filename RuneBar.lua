@@ -10,18 +10,13 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
+local GetTime, strfind, format, sort, print =
+      GetTime, strfind, format, sort, print
 local GetRuneCooldown, CreateFrame =
       GetRuneCooldown, CreateFrame
 
@@ -41,7 +36,7 @@ local MaxRunes = 6
 local Display = false
 local Update = false
 local SortedRunes = {1, 2, 3, 4, 5, 6}
-local RuneCooldownRuneBar = nil
+local RuneCooldownRuneBar
 local OneHour = 3600
 
 local BarMode = 1
@@ -53,61 +48,57 @@ local RuneSBar = 10
 local RuneTexture = 20
 local RuneEmptyTexture = 21
 
-local RegionGroup = 8
-
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '', BarMode     },
+  { OT.BackgroundBorderColor, 2,  '', BarMode     },
+  { OT.BackgroundBackground,  3,  '', BarMode     },
+  { OT.BackgroundColor,       4,  '', BarMode     },
+  { OT.BarTexture,            5,  '', RuneSBar    },
+  { OT.BarColor,              6,  '', RuneSBar    },
+  { OT.BarOffset,             7,  '', BarMode     },
+  { OT.TextureScale,          8,  '', AllTextures },
+  { OT.TextFontColor,         9,  ''              },
+  { OT.TextFontOffset,        10, ''              },
+  { OT.TextFontSize,          11, ''              },
+  { OT.TextFontType,          12, ''              },
+  { OT.TextFontStyle,         13, ''              },
+  { OT.Sound,                 14, ''              },
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BarMode },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BarMode,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BarMode },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BarMode,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            RuneSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,              RuneSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BarMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoRegion = { -- type, id, additional text
+  { OT.RegionBorder,          1, '' },
+  { OT.RegionBorderColor,     2, '' },
+  { OT.RegionBackground,      3, '' },
+  { OT.RegionBackgroundColor, 4, '' },
+  { OT.Sound,                 5, '' },
 }
 
-local TDregion = { -- Trigger data for region
-  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
-  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
-    GF = GF },
-  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
-  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
-    GF = GF },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
-}
-
-local VTs = {'state', 'Recharging',
-             'float', 'Time',
-             'auras', 'Auras'      }
-local VTsNoTime = {'state', 'Recharging',
-                  'auras', 'Auras'      }
-
-local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Rune 1',    VTs, TD},  -- 1
-  {2,   'Rune 2',    VTs, TD},  -- 2
-  {3,   'Rune 3',    VTs, TD},  -- 3
-  {4,   'Rune 4',    VTs, TD},  -- 4
-  {5,   'Rune 5',    VTs, TD},  -- 5
-  {6,   'Rune 6',    VTs, TD},  -- 6
-  {'a', 'All',       VTs, TD},  -- 7
-  {'r', 'Region',    VTsNoTime, TDregion},  -- 8
+local GroupsInfo = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'state',   'Any Recharging',
+    'state',   'Recharging 1',
+    'state',   'Recharging 2',
+    'state',   'Recharging 3',
+    'state',   'Recharging 4',
+    'state',   'Recharging 5',
+    'state',   'Recharging 6',
+    'decimal', 'Time 1',
+    'decimal', 'Time 2',
+    'decimal', 'Time 3',
+    'decimal', 'Time 4',
+    'decimal', 'Time 5',
+    'decimal', 'Time 6',
+  },
+  {1,    'Rune 1',             ObjectsInfo},       -- 1
+  {2,    'Rune 2',             ObjectsInfo},       -- 2
+  {3,    'Rune 3',             ObjectsInfo},       -- 3
+  {4,    'Rune 4',             ObjectsInfo},       -- 4
+  {5,    'Rune 5',             ObjectsInfo},       -- 5
+  {6,    'Rune 6',             ObjectsInfo},       -- 6
+  {'a',  'All',                ObjectsInfo},       -- 7
+  {'aa', 'All Recharging',     ObjectsInfo},       -- 8
+  {'ai', 'All not Recharging', ObjectsInfo},       -- 9
+  {'r',  'Region',             ObjectsInfoRegion}, -- 10
 }
 
 local RuneCooldownFillTexture = {
@@ -165,7 +156,7 @@ local function GetRuneCooldown2(RuneID)
 
     if TestMode.RuneOnCooldown >= RuneID then
 
-      -- Use a 10 hour clock to simulate a test cooldown
+      -- Use a 1 hour clock to simulate a test cooldown
       StartTime = CurrentTime - OneHour * RuneTime
       Duration = OneHour
       RuneReady = RuneTime == 0
@@ -197,7 +188,7 @@ local function DoRuneTime(UnitBarF, BBar, BoxNumber, Time, Done)
       BBar:SetValueFont(BoxNumber, 'time', Time)
     end
     if Layout.EnableTriggers then
-      BBar:SetTriggers(BoxNumber, 'time', Time)
+      BBar:SetTriggers('Time ' .. BoxNumber, Time)
       BBar:DoTriggers()
     end
   else
@@ -227,7 +218,6 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
   local Layout = UB.Layout
   local BBar = RuneBar.BBar
   local RuneFlag = Layout.RuneMode
-  local ModeBar = strfind(RuneFlag, 'bar')
   local RuneMode = strfind(RuneFlag, 'rune')
   local BarSpark = Layout.BarSpark
 
@@ -245,11 +235,15 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
     -- stop text timer
     if not Layout.HideText then
       BBar:SetValueTime(RuneIndex, DoRuneTime)
+      if Main.UnitBars.Testing then
+        BBar:SetTriggers('Time ' .. RuneIndex, 0)
+        BBar:DoTriggers()
+      end
     end
   end
 
   if Action ~= 'stop' then
-    local TestDuration = nil
+    local TestDuration
     if Main.UnitBars.Testing then
       TestDuration = (GetTime() - StartTime) / OneHour
     end
@@ -260,7 +254,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
           BBar:SetFillTexture(RuneIndex, RuneSBar, TestDuration, BarSpark)
 
           if Layout.EnableTriggers then
-            BBar:SetTriggers(RuneIndex, 'time', TestDuration * 10)
+            BBar:SetTriggers('Time ' .. RuneIndex, 10 * (1 - UB.TestMode.RuneTime))
             BBar:DoTriggers()
            end
         else
@@ -285,7 +279,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
     -- Start the text timer
     if Main.UnitBars.Testing then
       if not Layout.HideText then
-        BBar:SetValueFont(RuneIndex, 'time', 10 * UB.TestMode.RuneTime)
+        BBar:SetValueFont(RuneIndex, 'time', 10 * (1 - UB.TestMode.RuneTime))
       end
     else
       BBar:SetValueTime(RuneIndex, StartTime, Duration, -1, DoRuneTime)
@@ -353,6 +347,7 @@ local function OnUpdateRunes(self)
   local PlayerSpecialization = Main.PlayerSpecialization
 
   if Testing then
+    AnyRecharging = TestMode.RuneOnCooldown > 0
     PlayerSpecialization = TestMode.BloodSpec and 1 or TestMode.FrostSpec and 2 or TestMode.UnHolySpec and 3 or 1
   end
 
@@ -376,7 +371,6 @@ local function OnUpdateRunes(self)
   local BBar = RuneBar.BBar
   local Layout = UB.Layout
   local EnableTriggers = Layout.EnableTriggers
-  local RuneTime = TestMode.RuneTime
   local CurrentTime = GetTime()
 
   -- Update textures/colors if player specialization has changed
@@ -436,13 +430,13 @@ local function OnUpdateRunes(self)
         BBar:SetHiddenTexture(RuneIndex, RuneTexture, false)
       end
       if EnableTriggers then
-        BBar:SetTriggers(RuneIndex, 'recharging', not RuneReady)
+        BBar:SetTriggers('Recharging ' .. RuneIndex, not RuneReady)
+        BBar:SetTriggersActive(RuneIndex, not RuneReady)
       end
     end
   end
-
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'recharging', AnyRecharging)
+    BBar:SetTriggers('Any Recharging', AnyRecharging)
     BBar:DoTriggers()
   end
 end
@@ -496,7 +490,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'EnableTriggers', function(v) BBar:EnableTriggers(v, GroupsInfo) Update = true end)
     BBar:SO('Layout', 'RuneMode',       function(v)
       BBar:SetHidden(0, BarMode, true)
       BBar:SetHidden(0, RuneMode, true)
@@ -661,7 +655,6 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxRunes)
 
   local Names = {}
-  local Name = nil
 
   BBar:CreateTextureFrame(0, BarMode, 1)
     BBar:CreateTexture(0, BarMode, RuneSBar, 'statusbar')
@@ -692,7 +685,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
         BBar:SetCooldownSwipeColorTexture(RuneIndex, RuneTexture, 0, 0, 0, 0)
         BBar:SetCooldownDrawEdge(RuneIndex, RuneTexture, false)
 
-    local Name = Groups[RuneIndex][2]
+    local Name = GroupsInfo[RuneIndex][2]
     Names[RuneIndex] = Name
     BBar:SetTooltipBox(RuneIndex, Name)
   end

@@ -10,23 +10,17 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
-local LSM = Main.LSM
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
+local floor, strfind, pairs, print =
+      floor, strfind, pairs, print
 local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs =
       GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs
 local UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax =
@@ -56,59 +50,47 @@ local PowerMana = ConvertPowerType['MANA']
 local PowerEnergy = ConvertPowerType['ENERGY']
 local PowerFocus = ConvertPowerType['FOCUS']
 
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '',                HapTFrame        },
+  { OT.BackgroundBorderColor, 2,  '',                HapTFrame        },
+  { OT.BackgroundBackground,  3,  '',                HapTFrame        },
+  { OT.BackgroundColor,       4,  '',                HapTFrame        },
+  { OT.BarTexture,            5,  '',                StatusBar        },
+  { OT.BarColor,              6,  '',                StatusBar        },
+  { OT.BarTexture,            7,  ' (predicted...)', PredictedBar     },
+  { OT.BarColor,              8,  ' (predicted...)', PredictedBar     },
+  { OT.BarTexture,            9,  ' (cost)',         PredictedCostBar },
+  { OT.BarColor,              10, ' (cost)',         PredictedCostBar },
+  { OT.BarOffset,             11, '',                HapTFrame        },
+  { OT.TextFontColor,         12, ''                                  },
+  { OT.TextFontOffset,        13, ''                                  },
+  { OT.TextFontSize,          14, ''                                  },
+  { OT.TextFontType,          15, ''                                  },
+  { OT.TextFontStyle,         16, ''                                  },
+  { OT.Sound,                 17, ''                                  },
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             HapTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        HapTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         HapTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              HapTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (predicted...)', PredictedBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (predicted...)',   PredictedBar,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (cost)', PredictedCostBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (cost)',   PredictedCostBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    HapTFrame },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local GroupsInfoHealth = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole',   'Health',
+    'percent', 'Health (percent)',
+    'whole',   'Predicted Health',
+    'whole',   'Absorb Health',
+    'whole',   'Unit Level',
+    'whole',   'Scaled Level',
+  },
+  {1, 'Health', ObjectsInfo}, -- 1
 }
-
-local HealthVTs = {'whole',   'Health',
-                   'percent', 'Health (percent)',
-                   'whole',   'Predicted Health',
-                   'whole',   'Absorb Health',
-                   'whole',   'Unit Level',
-                   'whole',   'Scaled Level',
-                   'auras',   'Auras'            }
-local PowerVTs = {'whole',   'Power',
-                  'percent', 'Power (percent)',
-                  'whole',   'Predicted Power',
-                  'whole',   'Predicted Cost',
-                  'whole',   'Unit Level',
-                  'whole',   'Scaled Level',
-                  'auras',   'Auras'           }
-
-local HealthGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, '', HealthVTs, TD}, -- 1
-}
-local PowerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, '', PowerVTs, TD}, -- 1
+local GroupsInfoPower = { -- BoxNumber, Name, ValueTypes,
+  ValueNames = {
+    'whole',   'Power',
+    'percent', 'Power (percent)',
+    'whole',   'Predicted Power',
+    'whole',   'Predicted Cost',
+    'whole',   'Unit Level',
+    'whole',   'Scaled Level',
+  },
+  {1, 'Power', ObjectsInfo}, -- 1
 }
 
 -------------------------------------------------------------------------------
@@ -151,7 +133,7 @@ local function Casting(UnitBarF, SpellID, Message)
   UnitBarF.PredictedCost = 0
 
   if Message == 'start' then
-    local BarPowerType = nil
+    local BarPowerType
 
     if UnitBarF.BarType == 'ManaPower' then
       BarPowerType = PowerMana
@@ -365,7 +347,6 @@ local function UpdateHealthBar(self, Event, Unit)
   local Value = 0
   local AbsorbValue = 0
   local PredictedValue = 0
-  local Clip = false
 
   if MaxValue > 0 then
     Value = CurrValue / MaxValue
@@ -382,7 +363,6 @@ local function UpdateHealthBar(self, Event, Unit)
     -- with smooth fill
     if AbsorbBarDontClip and AbsorbHealth > 0 and Total > 1 then
       Value = Value - (Total - 1)
-      Clip = true
     end
   end
 
@@ -419,12 +399,12 @@ local function UpdateHealthBar(self, Event, Unit)
 
   -- Check triggers
   if UB.Layout.EnableTriggers then
-    BBar:SetTriggers(1, 'health', CurrValue)
-    BBar:SetTriggers(1, 'health (percent)', CurrValue, MaxValue)
-    BBar:SetTriggers(1, 'predicted health', PredictedHealing)
-    BBar:SetTriggers(1, 'absorb health', AbsorbHealth)
-    BBar:SetTriggers(1, 'unit level', Level)
-    BBar:SetTriggers(1, 'scaled level', ScaledLevel)
+    BBar:SetTriggers('Health', CurrValue)
+    BBar:SetTriggers('Health (percent)', CurrValue, MaxValue)
+    BBar:SetTriggers('Predicted Health', PredictedHealing)
+    BBar:SetTriggers('Absorb Health', AbsorbHealth)
+    BBar:SetTriggers('Unit Level', Level)
+    BBar:SetTriggers('Scaled Level', ScaledLevel)
     BBar:DoTriggers()
   end
 end
@@ -452,7 +432,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   -------------------
   local UB = self.UnitBar
   local BarType = self.BarType
-  local PowerType = nil
+  local PowerType
   Unit = UB.UnitType
   PowerToken = ConvertPowerType[PowerToken]
 
@@ -597,12 +577,12 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
 
   -- Check triggers
   if UB.Layout.EnableTriggers then
-    BBar:SetTriggers(1, 'power', CurrValue)
-    BBar:SetTriggers(1, 'power (percent)', CurrValue, MaxValue)
-    BBar:SetTriggers(1, 'predicted power', PredictedPower)
-    BBar:SetTriggers(1, 'predicted cost', PredictedCost)
-    BBar:SetTriggers(1, 'unit level', Level)
-    BBar:SetTriggers(1, 'scaled level', ScaledLevel)
+    BBar:SetTriggers('Power', CurrValue)
+    BBar:SetTriggers('Power (percent)', CurrValue, MaxValue)
+    BBar:SetTriggers('Predicted Power', PredictedPower)
+    BBar:SetTriggers('Predicted Cost', PredictedCost)
+    BBar:SetTriggers('Unit Level', Level)
+    BBar:SetTriggers('Scaled Level', ScaledLevel)
     BBar:DoTriggers()
   end
 end
@@ -627,9 +607,7 @@ Main.UnitBarsF.ManaPower.Update   = UpdatePowerBar
 HapFunction('SetAttr', function(self, TableName, KeyName)
   local BBar = self.BBar
   local BarType = self.BarType
-  local UB = self.UnitBar
   local UBD = DUB[BarType]
-  local Layout = UB.Layout
   local DLayout = UBD.Layout
   local DBar = UBD.Bar
 
@@ -644,9 +622,9 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     BBar:SO('Layout', 'EnableTriggers', function(v)
       if strfind(BarType, 'Power') then
-        BBar:EnableTriggers(v, PowerGroups)
+        BBar:EnableTriggers(v, GroupsInfoPower)
       else
-        BBar:EnableTriggers(v, HealthGroups)
+        BBar:EnableTriggers(v, GroupsInfoHealth)
       end
       Update = true
     end)

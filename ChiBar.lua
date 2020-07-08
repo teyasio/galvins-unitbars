@@ -10,22 +10,15 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local UnitPower, UnitPowerMax =
-      UnitPower, UnitPowerMax
+local ipairs, UnitPower, UnitPowerMax =
+      ipairs, UnitPower, UnitPowerMax
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -38,8 +31,6 @@ local MaxChiOrbs = 6
 local ExtraChiOrbStart = 5
 local Display = false
 local Update = false
-local OnUpdateFrame = CreateFrame('Frame')
-local NamePrefix = 'Chi '
 
 -- Powertype constants
 local PowerChi = ConvertPowerType['CHI']
@@ -56,53 +47,41 @@ local ChiSBar = 10
 local ChiDarkTexture = 20
 local ChiLightTexture = 21
 
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1, '', BoxMode     },
+  { OT.BackgroundBorderColor, 2, '', BoxMode     },
+  { OT.BackgroundBackground,  3, '', BoxMode     },
+  { OT.BackgroundColor,       4, '', BoxMode     },
+  { OT.BarTexture,            5, '', ChiSBar     },
+  { OT.BarColor,              6, '', ChiSBar     },
+  { OT.BarOffset,             7, '', BoxMode     },
+  { OT.TextureScale,          8, '', AllTextures },
+  { OT.Sound,                 9, '', Sound       }
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,                BoxMode },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,           BoxMode,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,            BoxMode },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,                 BoxMode,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                      ChiSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                        ChiSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                       BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                    AllTextures },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoRegion = { -- type, id, additional text
+  { OT.RegionBorder,          1, '' },
+  { OT.RegionBorderColor,     2, '' },
+  { OT.RegionBackground,      3, '' },
+  { OT.RegionBackgroundColor, 4, '' },
+  { OT.Sound,                 5, '' },
 }
 
-local TDregion = { -- Trigger data for region
-  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
-  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
-    GF = GF },
-  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
-  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
-    GF = GF },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
-}
-
-local RegionGroup = 8
-
-local VTs = {'whole', 'Chi',
-             'auras', 'Auras'}
-local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Orb 1',    VTs, TD}, -- 1
-  {2,   'Orb 2',    VTs, TD}, -- 2
-  {3,   'Orb 3',    VTs, TD}, -- 3
-  {4,   'Orb 4',    VTs, TD}, -- 4
-  {5,   'Orb 5',    VTs, TD}, -- 5
-  {6,   'Orb 6',    VTs, TD}, -- 6
-  {'a', 'All', {'whole', 'Chi',
-                'state', 'Active',
-                'auras', 'Auras'  }, TD}, -- 7
-  {'r', 'Region',   VTs, TDregion}, -- 8
+local GroupsInfo = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole', 'Chi',
+    'whole', 'Maximum Chi',
+  },
+  {1,    'Chi Orb 1',    ObjectsInfo},       -- 1
+  {2,    'Chi Orb 2',    ObjectsInfo},       -- 2
+  {3,    'Chi Orb 3',    ObjectsInfo},       -- 3
+  {4,    'Chi Orb 4',    ObjectsInfo},       -- 4
+  {5,    'Chi Orb 5',    ObjectsInfo},       -- 5
+  {6,    'Chi Orb 6',    ObjectsInfo},       -- 6
+  {'a',  'All',          ObjectsInfo},       -- 7
+  {'aa', 'All Active',   ObjectsInfo},       -- 8
+  {'ai', 'All Inactive', ObjectsInfo},       -- 9
+  {'r',  'Region',       ObjectsInfoRegion}, -- 10
 }
 
 local ChiData = {
@@ -145,7 +124,7 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   -------------------
   -- Check Power Type
   -------------------
-  local PowerType = nil
+  local PowerType
   if PowerToken then
     PowerType = ConvertPowerType[PowerToken]
   else
@@ -179,7 +158,6 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
   ------------
   -- Test Mode
   ------------
-  local UB = self.UnitBar
   local NumOrbs = UnitPowerMax('player', PowerChi)
 
   if Main.UnitBars.Testing then
@@ -219,13 +197,13 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
     BBar:ChangeTexture(ChangeChi, 'SetHiddenTexture', ChiIndex, ChiIndex > ChiOrbs)
 
     if EnableTriggers then
-      BBar:SetTriggers(ChiIndex, 'active', ChiIndex <= ChiOrbs)
-      BBar:SetTriggers(ChiIndex, 'chi', ChiOrbs)
+      BBar:SetTriggersActive(ChiIndex, ChiIndex <= ChiOrbs)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'chi', ChiOrbs)
+    BBar:SetTriggers('Chi', ChiOrbs)
+    BBar:SetTriggers('Maximum Chi', NumOrbs)
     BBar:DoTriggers()
   end
 end
@@ -242,7 +220,7 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Display = true end)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, GroupsInfo) Display = true end)
     BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
@@ -353,7 +331,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
       BBar:SetAtlasTexture(ChiIndex, TextureNumber, CD.AtlasName)
       BBar:SetSizeTexture(ChiIndex, TextureNumber, CD.Width, CD.Height)
     end
-    local Name = NamePrefix .. Groups[ChiIndex][2]
+    local Name = GroupsInfo[ChiIndex][2]
 
     BBar:SetTooltipBox(ChiIndex, Name)
     Names[ChiIndex] = Name

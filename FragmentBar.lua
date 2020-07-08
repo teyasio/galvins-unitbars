@@ -10,22 +10,17 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local UnitPower, UnitPowerMax, IsSpellKnown =
-      UnitPower, UnitPowerMax, IsSpellKnown
+local floor, pairs, ipairs, type, format, print =
+      floor, pairs, ipairs, type, format, print
+local UnitPower, IsSpellKnown =
+      UnitPower, IsSpellKnown
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -42,7 +37,6 @@ local MaxSoulShards = 5
 local MaxFragmentsPerShard = 10
 local Display = false
 local Update = false
-local NamePrefix = 'Soul '
 
 local WarlockGreenFire = WARLOCK_GREEN_FIRE
 
@@ -88,92 +82,80 @@ local GreenEmberFullTexture = 82
 local BarOffsetX = 0
 local BarOffsetY = 0.5
 
-local RegionGroup = 7
-
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
-}
-
-local TD = { -- Trigger data
+local ObjectsInfo = { -- type, id, additional menu text, textures
   -- BACKGROUND border
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder .. '  [ Shard ]',      BoxMode },
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder .. '  [ Ember ]',      BoxModeEmber },
+  { OT.BackgroundBorder,      1,  '  [ Shard ]',        BoxMode                                    },
+  { OT.BackgroundBorder,      2,  '  [ Ember ]',        BoxModeEmber                               },
 
   -- BACKGROUND border color
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor .. '  [ Shard ]', BoxMode,
-    GF = GF },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor .. '  [ Ember ]', BoxModeEmber,
-    GF = GF },
+  { OT.BackgroundBorderColor, 3,  '  [ Shard ]',        BoxMode                                    },
+  { OT.BackgroundBorderColor, 4,  '  [ Ember ]',        BoxModeEmber                               },
 
   -- BG BACKGROUND
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground .. '  [ Shard ]',  BoxMode },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground .. '  [ Ember ]',  BoxModeEmber },
+  { OT.BackgroundBackground,  5,  '   [ Shard ]',       BoxMode                                    },
+  { OT.BackgroundBackground,  6,  '   [ Ember ]',       BoxModeEmber                               },
 
   -- BACKGROUND color
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor .. '  [ Shard ]',       BoxMode,
-    GF = GF },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor .. '  [ Ember ]',       BoxModeEmber,
-    GF = GF },
+  { OT.BackgroundColor,       7,  '   [ Shard ]',       BoxMode                                    },
+  { OT.BackgroundColor,       8,  '   [ Ember ]',       BoxModeEmber                               },
 
   -- BAR texture
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. '  [ Shard ]',            ShardFillSBar },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. '  [ Ember ]',            EmberFillSBar },
+  { OT.BarTexture,            9,  '   [ Shard ]',       ShardFillSBar                              },
+  { OT.BarTexture,            10, '   [ Ember ]',       EmberFillSBar                              },
 
   -- BAR texture full
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (full)  [ Shard ]',     ShardFullSBar },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (full)  [ Ember ]',     EmberFullSBar },
+  { OT.BarTexture,            11, ' (full)  [ Shard ]', ShardFullSBar                              },
+  { OT.BarTexture,            12, ' (full)  [ Ember ]', EmberFullSBar                              },
 
   -- BAR color
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. '  [ Shard ]',              ShardFillSBar,
-    GF = GF },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. '  [ Ember ]',              EmberFillSBar,
-    GF = GF },
+  { OT.BarColor,              13, '  [ Shard ]',        ShardFillSBar                              },
+  { OT.BarColor,              14, '  [ Ember ]',        EmberFillSBar                              },
 
   -- BAR color full
   -- Shard
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Shard ]',       ShardFullSBar,
-    GF = GF },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (full)  [ Ember ]',       EmberFullSBar,
-    GF = GF },
+  { OT.BarColor,              15, ' (full)  [ Shard ]', ShardFullSBar                              },
+  { OT.BarColor,              16, ' (full)  [ Ember ]', EmberFullSBar                              },
 
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Shard ]',             BoxMode },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset .. '  [ Ember ]',             BoxModeEmber },
+  { OT.BarOffset,             17, '  [ Shard ]',        BoxMode                                    },
+  { OT.BarOffset,             18, '  [ Ember ]',        BoxModeEmber                               },
 
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,                           ShardAllTexture, EmberAllTexture,
-                                                                                     GreenShardAllTexture, GreenEmberAllTexture },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+  { OT.TextureScale,          19, '',                   ShardAllTexture, EmberAllTexture,
+                                                        GreenShardAllTexture, GreenEmberAllTexture },
+  { OT.Sound,                 20, ''                                                               }
 }
 
-local TDregion = { -- Trigger data for region
-  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
-  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
-    GF = GF },
-  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
-  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
-    GF = GF },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoRegion = { -- type, id, additional text
+  { OT.RegionBorder,          1, '' },
+  { OT.RegionBorderColor,     2, '' },
+  { OT.RegionBackground,      3, '' },
+  { OT.RegionBackgroundColor, 4, '' },
+  { OT.Sound,                 5, '' },
 }
 
-local VTs = {'whole',   'Soul Shards',
-             'whole',   'Fragments',
-             'percent', 'Fragments (percent)',
-             'auras',   'Auras'                }
-
-local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Shard 1',    VTs, TD}, -- 1
-  {2,   'Shard 2',    VTs, TD}, -- 2
-  {3,   'Shard 3',    VTs, TD}, -- 3
-  {4,   'Shard 4',    VTs, TD}, -- 4
-  {5,   'Shard 5',    VTs, TD}, -- 5
-  {'a', 'All', {'whole',   'Soul Shards',
-                'whole',   'Fragments',
-                'percent', 'Fragments (percent)',
-                'state',   'Active',
-                'auras',   'Auras'                }, TD},   -- 6
-  {'r', 'Region',     VTs, TDregion},  -- 7
+local GroupsInfo = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole',   'Soul Shards',
+    'whole',   'Total Fragments',
+    'whole',   'Fragments 1',
+    'whole',   'Fragments 2',
+    'whole',   'Fragments 3',
+    'whole',   'Fragments 4',
+    'whole',   'Fragments 5',
+    'percent', 'Fragments 1 (percent)',
+    'percent', 'Fragments 2 (percent)',
+    'percent', 'Fragments 3 (percent)',
+    'percent', 'Fragments 4 (percent)',
+    'percent', 'Fragments 5 (percent)',
+  },
+  {1,    'Soul Shard 1',  ObjectsInfo},       -- 1
+  {2,    'Soul Shard 2',  ObjectsInfo},       -- 2
+  {3,    'Soul Shard 3',  ObjectsInfo},       -- 3
+  {4,    'Soul Shard 4',  ObjectsInfo},       -- 4
+  {5,    'Soul Shard 5',  ObjectsInfo},       -- 5
+  {'a',  'All',           ObjectsInfo},       -- 6
+  {'aa', 'All Active',    ObjectsInfo},       -- 7
+  {'ai', 'All Inactive',  ObjectsInfo},       -- 8
+  {'r',  'Region',        ObjectsInfoRegion}, -- 9
 }
 
   --local EmberTexture = [[Interface\PlayerFrame\Warlock-DestructionUI]],
@@ -306,7 +288,7 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerToken)
   -------------------
   -- Check Power Type
   -------------------
-  local PowerType = nil
+  local PowerType
   if PowerToken then
     PowerType = ConvertPowerType[PowerToken]
   else
@@ -322,7 +304,6 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerToken)
   -- Set IsActive
   ---------------
   local ShardFragments = UnitPower('player', PowerShard, true)
-  local MaxShardFragments = UnitPowerMax('player', PowerShard, true)
 
   self.IsActive = ShardFragments ~= MaxFragmentsPerShard * 3
 
@@ -344,16 +325,13 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerToken)
   local UB = self.UnitBar
   local SoulShards = UnitPower('player', PowerShard)
 
-  local ShowFull = nil
+  local ShowFull
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
 
     ShowFull = TestMode.ShowFull
     ShardFragments = TestMode.ShardFragments
-    if MaxShardFragments == 0 then
-      MaxShardFragments = MaxSoulShards * MaxFragmentsPerShard
-    end
     SoulShards = floor(ShardFragments / MaxFragmentsPerShard)
   end
 
@@ -398,21 +376,15 @@ function Main.UnitBarsF.FragmentBar:Update(Event, Unit, PowerToken)
     ShardFragments2 = ShardFragments2 - MaxFragmentsPerShard
 
     if EnableTriggers then
-      BBar:SetTriggers(ShardIndex, 'active', ShardIndex <= SoulShards)
-      BBar:SetTriggers(ShardIndex, 'soul shards', SoulShards)
-      BBar:SetTriggers(ShardIndex, 'fragments', Value * MaxFragmentsPerShard) -- because value between 0 and 1
-      BBar:SetTriggers(ShardIndex, 'fragments (percent)', Value * MaxFragmentsPerShard, MaxFragmentsPerShard)
-
-      -- Base off of the current fragments
-      if ShardIndex - 1 == SoulShards then
-        BBar:SetTriggers(RegionGroup, 'fragments', Value * MaxFragmentsPerShard) -- because value between 0 and 1
-        BBar:SetTriggers(RegionGroup, 'fragments (percent)', Value * MaxFragmentsPerShard, MaxFragmentsPerShard)
-      end
+      BBar:SetTriggersActive(ShardIndex, ShardIndex <= SoulShards)
+      BBar:SetTriggers('Fragments ' .. ShardIndex,                 Value * MaxFragmentsPerShard) -- because value between 0 and 1
+      BBar:SetTriggers('Fragments ' .. ShardIndex .. ' (percent)', Value * MaxFragmentsPerShard, MaxFragmentsPerShard)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'soul shards', SoulShards)
+    BBar:SetTriggers('Soul Shards', SoulShards)
+    BBar:SetTriggers('Total Fragments', ShardFragments)
     BBar:DoTriggers()
   end
 end
@@ -430,7 +402,6 @@ end
 -------------------------------------------------------------------------------
 function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
   local BBar = self.BBar
-  local UB = self.UnitBar
 
   if not BBar:OptionsSet() then             -- OD.p1          OD.p2          OD.p3
     BBar:SetOptionData('BackgroundShard',      BoxMode)
@@ -445,13 +416,13 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',    function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'EnableTriggers',    function(v) BBar:EnableTriggers(v, GroupsInfo) Update = true end)
     BBar:SO('Layout', 'BoxMode',           function(v, UB)
       local GreenFire = self.GreenFire
       local BurningEmbers = UB.Layout.BurningEmbers
-      local FillTexture = self.FillTexture
-      local FullTexture = self.FullTexture
-      local ModeType = nil
+      local FillTexture
+      local FullTexture
+      local ModeType
 
       -- Shards
       if not BurningEmbers then
@@ -670,7 +641,7 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
       end
     end
 
-    local Name = NamePrefix .. Groups[ShardIndex][2]
+    local Name = GroupsInfo[ShardIndex][2]
 
     BBar:SetTooltipBox(ShardIndex, Name)
     Names[ShardIndex] = Name

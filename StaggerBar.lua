@@ -11,20 +11,13 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local UnitStagger, UnitHealthMax =
-      UnitStagger, UnitHealthMax
+local GetTime, UnitStagger, UnitHealthMax =
+      GetTime, UnitStagger, UnitHealthMax
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -56,68 +49,47 @@ local StaggerSBar = 10
 local BStaggerSBar = 11
 local StaggerPauseSBar = 20
 
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfoStagger = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '',             StaggerBarTFrame },
+  { OT.BackgroundBorderColor, 2,  '',             StaggerBarTFrame },
+  { OT.BackgroundBackground,  3,  '',             StaggerBarTFrame },
+  { OT.BackgroundColor,       4,  '',             StaggerBarTFrame },
+  { OT.BarTexture,            4,  '',             StaggerSBar      },
+  { OT.BarColor,              5,  '',             StaggerSBar      },
+  { OT.BarTexture,            6,  ' (continued)', BStaggerSBar     },
+  { OT.BarColor,              7,  ' (continued)', BStaggerSBar     },
+  { OT.BarOffset,             8,  '',             StaggerBarTFrame },
+  { OT.TextFontColor,         9,  '',                              },
+  { OT.TextFontOffset,        10, '',                              },
+  { OT.TextFontSize,          11, '',                              },
+  { OT.TextFontType,          12, '',                              },
+  { OT.TextFontStyle,         13, '',                              },
+  { OT.Sound,                 14, '',                              },
 }
 
-local TDStagger = { -- Trigger data stagger
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             StaggerBarTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        StaggerBarTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         StaggerBarTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              StaggerBarTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StaggerSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StaggerSBar,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (continued)', BStaggerSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (continued)',   BStaggerSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    StaggerBarTFrame },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoPause = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '', StaggerPauseTFrame },
+  { OT.BackgroundBorderColor, 2,  '', StaggerPauseTFrame },
+  { OT.BackgroundBackground,  3,  '', StaggerPauseTFrame },
+  { OT.BackgroundColor,       4,  '', StaggerPauseTFrame },
+  { OT.BarTexture,            5,  '', StaggerPauseSBar   },
+  { OT.BarColor,              6,  '', StaggerPauseSBar   },
+  { OT.BarOffset,             7,  '', StaggerPauseTFrame },
+  { OT.TextFontColor,         8,  ''                     },
+  { OT.TextFontOffset,        9,  ''                     },
+  { OT.TextFontSize,          10, ''                     },
+  { OT.TextFontType,          11, ''                     },
+  { OT.TextFontStyle,         12, ''                     },
+  { OT.Sound,                 13, ''                     },
 }
 
-local TDPause = { -- Trigger data pause timer
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             StaggerPauseTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        StaggerPauseTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         StaggerPauseTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              StaggerPauseTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StaggerPauseSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StaggerPauseSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    StaggerPauseTFrame },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
-}
-
-local VTStagger = {'whole',   'Stagger',
-                   'percent', 'Stagger (percent)',
-                   'float',   'Time',
-                   'auras',   'Auras'             }
-local VTPause = {'whole',   'Stagger',
-                 'percent', 'Stagger (percent)',
-                 'float',   'Time',
-                 'auras',   'Auras'             }
-
-local StaggerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, '', VTStagger, TDStagger}, -- 1
-  {2, '', VTPause, TDPause},     -- 2
+local GroupsInfoStagger = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {'whole',   'Stagger',
+                'percent', 'Stagger (percent)',
+                'decimal', 'Time',
+  },
+  {1, 'Stagger Bar', ObjectsInfoStagger}, -- 1
+  {2, 'Pause Timer',   ObjectsInfoPause},   -- 2
 }
 
 -------------------------------------------------------------------------------
@@ -157,8 +129,7 @@ local function DoStaggerPauseTime(UnitBarF, BBar, BoxNumber, Time, Done)
     end
 
     if Layout.EnableTriggers then
-      BBar:SetTriggers(StaggerPauseBox, 'time', Time)
-      BBar:SetTriggers(StaggerBarBox, 'time', Time)
+      BBar:SetTriggers('Time', Time)
       BBar:DoTriggers()
     end
   else
@@ -290,15 +261,11 @@ function Main.UnitBarsF.StaggerBar:Update()
 
   -- Check triggers
   if Layout.EnableTriggers then
-    if Testing and Layout.PauseTimer then
-      BBar:SetTriggers(StaggerPauseBox, 'time', PauseTime)
-    end
-
-    BBar:SetTriggers(StaggerBarBox, 'stagger', Stagger)
-    BBar:SetTriggers(StaggerBarBox, 'stagger (percent)', Stagger, MaxValue)
-    BBar:SetTriggers(StaggerBarBox, 'time', PauseTime)
-    BBar:SetTriggers(StaggerPauseBox, 'stagger', Stagger)
-    BBar:SetTriggers(StaggerPauseBox, 'stagger (percent)', Stagger, MaxValue)
+    BBar:SetTriggers('Stagger', Stagger)
+    BBar:SetTriggers('Stagger (percent)', Stagger, MaxValue)
+    BBar:SetTriggers('Time', PauseTime)
+    BBar:SetTriggers('Stagger', Stagger)
+    BBar:SetTriggers('Stagger (percent)', Stagger, MaxValue)
     BBar:DoTriggers()
   end
 end
@@ -394,7 +361,7 @@ function Main.UnitBarsF.StaggerBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',     function(v) BBar:EnableTriggers(v, StaggerGroups) end)
+    BBar:SO('Layout', 'EnableTriggers',     function(v) BBar:EnableTriggers(v, GroupsInfoStagger) end)
     BBar:SO('Layout', 'Swap',               function(v) BBar:SetSwapBar(v) end)
     BBar:SO('Layout', 'Float',              function(v) BBar:SetFloatBar(v) Display = true end)
     BBar:SO('Layout', 'ReverseFill',        function(v) BBar:SetFillReverseTexture(StaggerBarBox, StaggerSBar, v) Update = true end)

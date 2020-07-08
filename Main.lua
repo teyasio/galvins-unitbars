@@ -41,27 +41,26 @@ local LSM = LibStub('LibSharedMedia-3.0')
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
+local abs, floor, sqrt      =
+      abs, floor, math.sqrt
+local strfind, strmatch, strsplit, strsub, strtrim, strupper, format =
+      strfind, strmatch, strsplit, strsub, strtrim, strupper, format
 local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type, unpack =
       GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type, unpack
-
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
-local C_PetBattles, C_TimerAfter,  GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
-      C_PetBattles, C_Timer.After, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
+local C_PetBattles, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
+      C_PetBattles, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
 local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition =
       C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition
 local UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
       UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
 local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
       UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
-local UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll =
-      UnitPowerType, UnitReaction, wipe, GetZoneText, GetMinimapZoneText, UnitPowerBarAlt_TearDown, UnitPowerBarAlt_UpdateAll
-local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerBuffTimerManager, GetBuildInfo, LibStub =
-      PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, PlayerBuffTimerManager, GetBuildInfo, LibStub
+local UnitPowerType, UnitReaction, wipe, GetMinimapZoneText =
+      UnitPowerType, UnitReaction, wipe, GetMinimapZoneText
+local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, GetBuildInfo, LibStub =
+      PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, GetBuildInfo, LibStub
 local SoundKit, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1, InCombatLockdown, UnitAffectingCombat =
       SOUNDKIT, hooksecurefunc, PlayerPowerBarAlt, ExtraActionButton1, InCombatLockdown, UnitAffectingCombat
 
@@ -174,7 +173,8 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.IsDead              - set by UnitBarsUpdateStatus()
 -- Main.HasTarget           - set by UnitBarsUpdateStatus()
 -- Main.HasAltPower         - set by UnitBarsUpdateStatus()
--- Main.TrackedAurasList    - Set by SetAuraTracker()
+-- Main.AuraTrackersData    - Reference to AuraTrackersData
+-- Main.TalentTrackersData  - Reference to TalentTrackersData
 -- Main.PlayerGUID          - Set by ShareData()
 --
 -- Main.APBUsed           - Contains list of used power bars. Contains what minimap zone they were used in.
@@ -229,12 +229,9 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- RegEventFrames         - Table used by RegEvent()
 -- RegUnitEventFrames     - Table used by RegUnitEvent()
--- Talents                - Table that contains talents, active, and used by options. See GetTalents()
+-- TalentTrackersData     - Table that contains talents, active, and used by options. See TalentUpdate()
 --
--- MoonkinForm            - Current forms used by their bars.
 -- CatForm
--- BearForm
--- MonkBrewMasterSpec     - Current specs used by their bars.
 --
 -- MoveAlignDistance      - Amount of distance in pixels when aligning bars or bar objects.
 -- MoveSelectFrame        - Current frame that is selected when swapping or aligning bars or bar objects
@@ -256,7 +253,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- Keeps track of any spell being cast.
 --
--- CastTrackers[UnitBarF]      - Keeps track of the casting info for the bar.
+-- CastTrackers[Object]        - Keeps track of the casting info for the bar.
 --   Enabled                   - Used by SetCastTracker()
 --                                 if true then Fn will get called for this bar
 --   Fn                        - Function to call when a cast is starting or stopped
@@ -279,22 +276,63 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- Tracks all auras on different units and caches them.
 --
--- TrackedAurasOnUpdateFrame - Frame containing the onupdate for updating auras.
+-- AuraTrackersOnUpdateFrame - Frame containing the onupdate for updating auras.
 --
--- TrackedAuras[Object]      - Table containing which bar has auras.
+-- AuraTrackers[Object]      - Table containing which bar has auras.
 --   Enabled                 - If true then events for this bar are turned on.
 --   Units                   - Hash table of units for this object.
 --   Fn                      - Function to call for this objeect.
-
--- TrackedAurasList.All      - Contains a list of all the spells not broken by unit.
+--
+-- AuraTrackersData.All      - Contains a list of all the spells not broken by unit.
 --   All[SpellID]            - Reference to SpellID below, but only used by Spell.lua
 --
--- TrackedAurasList[Unit]    - Table of units containing the auras
---   [SpellID]               - SpellID of each aura
---      Active               - If true then aura is on the unit, otherwise its false.
---      Own                  - If true then the player created this aura.
---      Stacks               - Amount of stacks the aura has.
+-- AuraTrackersData[Unit]    - Table of units containing the auras
+--   DebuffTypes[]           - All the debuff types for all auras for this unit
+--   Active                  - If true then at least one aura is present
+--   Own                     - If true then at at least one aura is created by the owner
+--   Stacks                  - Highest stacks of all the auras for this unit
+--   HELPFUL                 - All aura buffs
+--     Active
+--     Own
+--     Stacks
+--   HARMFUL                 - All aura debuffs
+--     DebuffTypes[]         - Reference to DebuffTypes above
+--     Active
+--     Own
+--     Stacks
 --
+--   [SpellID]               - SpellID of each aura
+--      Active               - If true then aura is on the unit, otherwise its false
+--      Type                 - Type of aura
+--                              - 1  Buff
+--                              - 2  Debuff
+--      Own                  - If true then the player created this aura
+--      Stacks               - Amount of stacks the aura has
+--      DebuffType           - String: type for debuffs
+--
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Talent Tracker
+--
+-- Tracks all talents
+--
+-- TalentTrackers[Object]        - Keeps track of the talent info fhr the bar
+--   Enabled                     - Used by SetTalentTracker()
+--                                   if true then Fn will get called for this bar
+--   Fn                          - Function to call when a talent is changed
+--
+-- TalentTrackersData
+--   Active[SpellID]             - Talent SpellID
+--   SpellIDs[TalentName]        - Used by options to convert menu items into spellIDs
+--   TalentIsPvP[SpellID]        - if true then the talent is PvP otherwise PvE
+--
+--   PvEDropdown                 - Dropdown menu used by options
+--   PvEIconDropdown             - Same as dropdown with icons
+--
+--   <same as PvE>
+--   PvPDropdown                 - Dropdown menu used by options
+--   PvPIconDropdown             - Same as dropdown with icons
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -316,7 +354,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Notes on predicted spell tracking.
 --
 -- If the spell book changes a rescan of the spellbook takes place.  Just spells
--- that has a cast time and generate resource gets tracked.
+-- that have a cast time and generate resource gets tracked.
 --
 -- When an aura changes the same function is called except this time it just
 -- refresh the predicted power values.  If an aura buffs a spell that causes
@@ -373,16 +411,16 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 local AlignAndSwapTooltipDesc = 'Right mouse button to align and swap this bar'
 local MouseOverDesc = 'Modifier + left mouse button to drag this bar'
 local TrackingFrame = CreateFrame('Frame')
-local APBMover = nil
-local EABMover = nil
-local APBBuffTimerMover = nil
-local ScanTooltip = nil
+local APBMover
+local EABMover
+local APBBuffTimerMover
+local ScanTooltip
 local AuraListName = 'AuraList'
 local InitOnce = true
-local MessageBox = nil
-local UnitBarsParent = nil
-local UnitBars = nil
-local Gdata = nil
+local MessageBox
+local UnitBarsParent
+local UnitBars
+local Gdata
 
 local InCombat = false
 local InVehicle = false
@@ -393,31 +431,29 @@ local HasFocus = false
 local HasPet = false
 local HasAltPower = false
 local BlizzAltPowerVisible = false
-local AltPowerBarID = nil
-local PlayerPowerType = nil
-local PlayerClass = nil
-local PlayerStance = nil
-local PlayerSpecialization = nil
-local PlayerGUID = nil
-local APBUsed = nil
-local APBUseBlizz = nil
+local AltPowerBarID
+local PlayerPowerType
+local PlayerClass
+local PlayerStance
+local PlayerSpecialization
+local PlayerGUID
+local APBUsed
+local APBUseBlizz
 
-local MoonkinForm = MOONKIN_FORM
 local CatForm = CAT_FORM
-local BearForm = BEAR_FORM
-local MonkBrewmasterSpec = SPEC_MONK_BREWMASTER
 
 local MoveAlignDistance = 8
-local MoveSelectFrame = nil
-local MoveLastSelectFrame = nil
-local MovePoint = nil
-local MoveSelectPoint = nil
-local MoveLastHighlightFrame = nil
-local MoveOldSelectFrame = nil
-local MoveOldMFCenterX = nil
-local MoveOldMFCenterY = nil
+local MoveSelectFrame
+local MoveLastSelectFrame
+local MovePoint
+local MoveSelectPoint
+local MoveLastHighlightFrame
+local MoveOldSelectFrame
+local MoveOldMFCenterX
+local MoveOldMFCenterY
 
 local SpellBookChanged = 'SPELLS_CHANGED'
+local TalentSpecializationChanged = 'PLAYER_SPECIALIZATION_CHANGED'
 
 local EventCastStart     = 1
 local EventCastSucceeded = 2
@@ -434,14 +470,16 @@ local CastTrackerEvent = {
   UNIT_SPELLCAST_INTERRUPTED = EventCastFailed,
 }
 
-local CastTracking = nil
-local CastTrackers = nil
+local CastTracking
+local CastTrackers
 
-local TrackedAurasOnUpdateFrame = nil
-local TrackedAuras = nil
-local TrackedAurasList = nil
+local AuraTrackers
+local AuraTrackersData = {}
 
-local PredictedSpells = nil
+local TalentTrackers
+local TalentTrackersData = {}
+
+local PredictedSpells
 
 local RegEventFrames = {}
 local RegUnitEventFrames = {}
@@ -550,6 +588,8 @@ Main.UnitBarsFE = UnitBarsFE
 Main.APBBuffTimerMoverEnabled = false
 Main.APBMoverEnabled = false
 Main.EABMoverEnabled = false
+Main.AuraTrackersData = AuraTrackersData
+Main.TalentTrackersData = TalentTrackersData
 
 -------------------------------------------------------------------------------
 --
@@ -582,8 +622,9 @@ end
 --
 -- Action       'unregister' or 'register'
 -- EventType    Type of events to register.
+-- Unit         used for auratracking
 -------------------------------------------------------------------------------
-local function RegisterEvents(Action, EventType)
+local function RegisterEvents(Action, EventType, Unit)
 
   if EventType == 'main' then
 
@@ -605,7 +646,6 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'PLAYER_UNGHOST',                GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_ALIVE',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_LEVEL_UP',               GUB.UnitBarsUpdateStatus)
-    Main:RegEvent(true, 'PLAYER_TALENT_UPDATE',          GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_SPECIALIZATION_CHANGED', GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'UPDATE_SHAPESHIFT_FORM',        GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PET_BATTLE_OPENING_START',      GUB.UnitBarsUpdateStatus)
@@ -615,24 +655,42 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'ZONE_CHANGED_INDOORS',          GUB.UnitBarsUpdateStatus)
 
     -- Rest of the events are defined at the end of each lua file for the bars.
-  elseif EventType == 'casttracker' then
+  else
     local Flag = Action == 'register'
 
-    -- Register events for cast tracking.
-    Main:RegEvent(Flag, 'UNIT_SPELLCAST_START',       GUB.TrackCast, 'player')
-    Main:RegEvent(Flag, 'UNIT_SPELLCAST_SUCCEEDED',   GUB.TrackCast, 'player')
-    Main:RegEvent(Flag, 'UNIT_SPELLCAST_STOP',        GUB.TrackCast, 'player')
-    Main:RegEvent(Flag, 'UNIT_SPELLCAST_FAILED',      GUB.TrackCast, 'player')
-    Main:RegEvent(Flag, 'UNIT_SPELLCAST_INTERRUPTED', GUB.TrackCast, 'player')
-    Main:RegEvent(Flag, 'UNIT_SPELLCAST_DELAYED',     GUB.TrackCast, 'player')
+    if EventType == 'casttracker' then
 
-  elseif EventType == 'predictedspells' then
-    local Flag = Action == 'register'
+      -- Register events for cast tracking.
+      Main:RegEvent(Flag, 'UNIT_SPELLCAST_START',       GUB.TrackCast, 'player')
+      Main:RegEvent(Flag, 'UNIT_SPELLCAST_SUCCEEDED',   GUB.TrackCast, 'player')
+      Main:RegEvent(Flag, 'UNIT_SPELLCAST_STOP',        GUB.TrackCast, 'player')
+      Main:RegEvent(Flag, 'UNIT_SPELLCAST_FAILED',      GUB.TrackCast, 'player')
+      Main:RegEvent(Flag, 'UNIT_SPELLCAST_INTERRUPTED', GUB.TrackCast, 'player')
+      Main:RegEvent(Flag, 'UNIT_SPELLCAST_DELAYED',     GUB.TrackCast, 'player')
 
-    -- register events for predicted spell tracking.
-    Main:RegEvent(Flag, 'UNIT_AURA',                GUB.CheckPredictedSpells, 'player')
-    Main:RegEvent(Flag, 'SPELLS_CHANGED',           GUB.CheckPredictedSpells)
-    Main:RegEvent(Flag, 'PLAYER_EQUIPMENT_CHANGED', GUB.CheckPredictedSpells)
+    elseif EventType == 'predictedspells' then
+
+      -- register events for predicted spell tracking.
+      Main:RegEvent(Flag, 'UNIT_AURA',                GUB.CheckPredictedSpells, 'player')
+      Main:RegEvent(Flag, 'SPELLS_CHANGED',           GUB.CheckPredictedSpells)
+      Main:RegEvent(Flag, 'PLAYER_EQUIPMENT_CHANGED', GUB.CheckPredictedSpells)
+
+    elseif EventType == 'talenttracker' then
+
+      -- register events for talent tracking
+      Main:RegEvent(Flag, 'ACTIVE_TALENT_GROUP_CHANGED',   GUB.TalentUpdate)
+      Main:RegEvent(Flag, 'CHARACTER_POINTS_CHANGED',      GUB.TalentUpdate)
+      Main:RegEvent(Flag, 'PLAYER_PVP_TALENT_UPDATE',      GUB.TalentUpdate)
+      Main:RegEvent(Flag, 'PLAYER_TALENT_UPDATE',          GUB.TalentUpdate)
+      Main:RegEvent(Flag, 'PLAYER_SPECIALIZATION_CHANGED', GUB.TalentUpdate)
+
+    elseif EventType == 'auratracker' then
+
+      -- register events for aura tracking
+      Main:RegUnitEvent(Flag, 'UNIT_AURA', GUB.AuraUpdate, Unit)
+      Main:RegEvent(Flag, 'PLAYER_TARGET_CHANGED', GUB.AuraUpdate)
+      Main:RegEvent(Flag, 'PLAYER_FOCUS_CHANGED', GUB.AuraUpdate)
+    end
   end
 end
 
@@ -791,7 +849,7 @@ local function InitAltPowerBar()
   APBBuffTimerMover:SetFrameStrata('HIGH')
   APBBuffTimerMover:SetClampedToScreen(true)
 
-  local FontString = APBBuffTimerMover:CreateFontString(nil)
+  FontString = APBBuffTimerMover:CreateFontString(nil)
   FontString:SetAllPoints()
   FontString:SetFont([[Fonts\FRIZQT__.TTF]], 13, 'THICKOUTLINE')
   FontString:SetJustifyH('CENTER')
@@ -844,7 +902,7 @@ end
 --        is called. This secure function call is done in InitAltPowerBar()
 -------------------------------------------------------------------------------
 function GUB.Main:DoBlizzAltPowerBar()
-  local BuffTimer = nil
+  local BuffTimer
   local APBMoverOptionsDisabled = UnitBars.APBMoverOptionsDisabled
   BlizzAltPowerVisible = not UnitBars.AltPowerBar.Enabled or APBUseBlizz[AltPowerBarID] or false
 
@@ -988,7 +1046,7 @@ end
 function GUB.Main:HideWowFrame(...)
   for FrameIndex = 1, select('#', ...), 2 do
     local FrameName, Hide = select(FrameIndex, ...)
-    local Frame = nil
+    local Frame
 
     if FrameName == 'player' then
       Frame = PlayerFrame
@@ -1067,7 +1125,7 @@ end
 --          If units is nil, then it will register the event with
 --          all the existing units.
 -------------------------------------------------------------------------------
-local function RegUnitEvent(Reg, Event, Fn, ...)
+function GUB.Main:RegUnitEvent(Reg, Event, Fn, ...)
 
   local SubFrames = RegUnitEventFrames[Fn]
 
@@ -1176,7 +1234,7 @@ local GetTaggedColor = Main.GetTaggedColor
 --   r, g, b, a     Power color
 -------------------------------------------------------------------------------
 function GUB.Main:GetPowerColor(Unit, PowerType, p3, p4, r, g, b, a)
-  local Color = nil
+  local Color
 
   Unit = Unit or ''
   if UnitExists(Unit) then
@@ -1206,7 +1264,6 @@ end
 function GUB.Main:GetClassColor(Unit, p2, p3, p4, r, g, b, a)
   Unit = Unit or ''
   if UnitExists(Unit) then
-    local ClassColor = UnitBars.ClassColor
     local _, Class = UnitClass(Unit)
 
     if Class then
@@ -1236,8 +1293,7 @@ local GetClassColor = Main.GetClassColor
 --   r, g, b, a   Combat color
 -------------------------------------------------------------------------------
 function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
-  local r, g, b, a = 1, 1, 1, 1
-  local Color = nil
+  local Color
 
   Unit = Unit or ''
   if UnitExists(Unit) then
@@ -1399,7 +1455,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
 
   FontString:SetText("Galvin's Unit Bars\n\n" .. '|cffffff00This list can be viewed under Help -> Changes|r' .. '\n\n' .. Message .. '\n')
 
-  local Height = FontString:GetStringHeight()
+  Height = FontString:GetStringHeight()
   local Scroller = MessageBox.Scroller
 
   Scroller:SetMinMaxValues(1, Height - 40)
@@ -1440,7 +1496,7 @@ end
 --   ...     Multiple strings
 -------------------------------------------------------------------------------
 local function SplitString(Sep, St)
-  local Part = nil
+  local Part
 
   if St == nil then
     St = ''
@@ -1685,8 +1741,6 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
     end
   elseif Ver == 4 then
     if SourceKey == 'Triggers' then -- triggers
-      local Triggers = SourceUB.Triggers
-
       for Index, Trigger in ipairs(SourceUB.Triggers) do
 
         -- Convert texture size to texture scale.
@@ -1703,8 +1757,6 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
     end
   elseif Ver == 5 then
     if SourceKey == 'Triggers' then -- triggers
-      local Triggers = SourceUB.Triggers
-
       for Index, Trigger in ipairs(SourceUB.Triggers) do
 
         -- Remove Mimimize key
@@ -1725,8 +1777,6 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
 
     -- move trigger groups over by one that start from 5+
     elseif BarType == 'ShardBar' and SourceKey == 'Triggers' then
-      local Triggers = SourceUB.Triggers
-
       for Index, Trigger in ipairs(SourceUB.Triggers) do
         local GroupNumber = Trigger.GroupNumber
 
@@ -1745,7 +1795,6 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
       for Index = 1, #Text do
         local TS = Text[Index]
         local ValueName = TS.ValueName or TS.ValueNames
-        local ValueType = TS.ValueType or TS.ValueTypes
 
         for ValueIndex = 1, #ValueName do
           local VName = ValueName[ValueIndex]
@@ -1773,7 +1822,6 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
         local TS = Text[Index]
         local DubTS = DubText[Index]
         local ValueName = TS.ValueName
-        local ValueType = TS.ValueType
 
         if ValueName then
           TS.ValueNames = {}
@@ -1805,8 +1853,6 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
     end
   elseif Ver == 10 then
     if SourceKey == 'Triggers' then -- triggers
-      local Triggers = SourceUB.Triggers
-
       for Index, Trigger in ipairs(SourceUB.Triggers) do
         Trigger.ClassName = nil
         Trigger.ClassSpecs = nil
@@ -1841,12 +1887,15 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
       TS.FontPosition = nil
       TS.Position = nil
     end
+  elseif Ver == 14 then
+    -- Convert old triggers to new
+    Bar:ConvertTriggers(BarType, SourceUB[KeyFound])
   end
 end
 
 local function ConvertUnitBarData(Ver)
   local KeysFound = {}
-  local ConvertUBData = nil
+  local ConvertUBData
 
   local ConvertUBData1 = {
     {Action = 'custom',                                                 'RuneBarOrder', 'RuneLocation'},
@@ -1914,6 +1963,9 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData13 = {
     {Action = 'custom',    Source = '',                                 '=Text', '=Text2'},
   }
+  local ConvertUBData14 = {
+    {Action = 'custom',    Source = '',                                 '=Triggers'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1943,10 +1995,11 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData12
   elseif Ver == 13 then
     ConvertUBData = ConvertUBData13
+  elseif Ver == 14 then
+    ConvertUBData = ConvertUBData14
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
-    local UB = UBF.UnitBar
 
     -- Get source, dest and keylist
     for _, ConvertData in ipairs(ConvertUBData) do
@@ -2057,7 +2110,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:ShowTooltip(Frame, UnitBarDesc, Name, ...)
   if Frame and not UnitBars.HideTooltips then
-    local St = nil
+    local St
 
     GameTooltip:SetOwner(Frame, 'ANCHOR_TOPRIGHT')
 
@@ -2272,8 +2325,8 @@ end
 --        You'll get unpredictable results if the timer is changed without stopping it first.
 ---------------------------------------------------------------------------------
 function GUB.Main:SetTimer(Table, TimerFn, Delay, Wait)
-  local AnimationGroup = nil
-  local Animation = nil
+  local AnimationGroup
+  local Animation
 
   local SetTimer = Table._SetTimer
   if SetTimer == nil then
@@ -2365,8 +2418,6 @@ end
 --   Stacks       - Number of stacks of the buff gets returned when using the 'o' option.
 -------------------------------------------------------------------------------
 function GUB.Main:CheckAura(Operator, ...)
-  local Name = nil
-  local SpellID = 0
   local MaxSpellID = select('#', ...)
   local Found = 0
   local AuraIndex = 1
@@ -2400,20 +2451,92 @@ function GUB.Main:CheckAura(Operator, ...)
 end
 
 -------------------------------------------------------------------------------
+-- SetTalentTracker
+--
+-- Calls a function when a talent gets changed
+--
+-- Usage:  SetTalentTracker(Object, 'fn', Fn)
+--         SetTalentTracker(Object, 'off')
+--         SetTalentTracker(Object, 'register' or 'unregister')
+--         SetTalentTracker('reset')
+--
+-- Object         The table, string, etc to assign the talent tracker to.
+-- Fn             Turns on talent tracking and calls Fn when talents change.
+--                Function to call for this unitbar.
+--                  Fn gets called with (TalentTrackersData) from TalentUpdate()
+-- 'off'          Turns off all talenttracking for this bar
+-- 'reset'        turns off all talent tracking
+-------------------------------------------------------------------------------
+function GUB.Main:SetTalentTracker(Object, Action, Fn)
+  local RefreshTalentList = false
+
+  if Object == 'reset' then
+    TalentTrackers = nil
+    wipe(TalentTrackersData)
+  else
+    local TalentTracker = TalentTrackers and TalentTrackers[Object]
+
+    -- Turn talent tracking on and set Fn
+    if Action == 'fn' then
+      RefreshTalentList = true
+      if TalentTrackers == nil then
+        TalentTrackers = {}
+      end
+
+      if TalentTracker == nil then
+        TalentTracker = {Enabled = true}
+        TalentTrackers[Object] = TalentTracker
+      end
+
+      TalentTracker.Fn = Fn
+
+    -- Turn off talent tracker for this object
+    elseif TalentTrackers and Action == 'off' then
+      TalentTrackers[Object] = nil
+      RefreshTalentList = true
+    end
+
+    -- Register or unregister
+    if TalentTracker and (Action == 'register' or Action == 'unregister') then
+      TalentTracker.Enabled = Action == 'register'
+    end
+  end
+
+  RegisterEvents('unregister', 'talenttracker')
+
+  -- Only register events if the tracked talents list table is not empty
+  if TalentTrackers and next(TalentTrackers) then
+
+    -- Reg events for anything enabled
+    for Object, TalentTracker in pairs(TalentTrackers) do
+      if TalentTracker.Enabled then
+        RegisterEvents('register', 'talenttracker')
+        RefreshTalentList = true
+        break
+      end
+    end
+  end
+  -- Refresh talents for anything listening to talents
+  if RefreshTalentList then
+    GUB:TalentUpdate()
+  end
+end
+
+-------------------------------------------------------------------------------
 -- SetCastTracker
 --
 -- Calls a function when a cast has begun and ended.
 --
--- Usage:   SetCastTracker(UnitBarF, 'fn', Fn)
---          SetCastTracker(UnitBarF, 'off')
---          SetCastTracker(UnitBarF, 'register' or 'unregister')
+-- Usage:   SetCastTracker(Object, 'fn', Fn)
+--          SetCastTracker(Object, 'off')
+--          SetCastTracker(Object, 'register' or 'unregister')
 --          SetCastTracker('reset')
 --
 -- UnitBarF    The bar thats tracking spell casting.
 -- 'fn'        This sets up a function to call and starts tracking casts.
 -- Fn          The function to call when a cast is being made.
 --               Fn will get called with the following
---                 UnitBarF  -  The bar thats tracking casts.
+--                 Object    -  The table, string, etc to assign the spell tracker to.
 --                 SpellID   -  Spell being cast.
 --                 Message   -  Message  -- See TrackCast() for details.
 --                                'start'   - Cast begun.
@@ -2428,12 +2551,12 @@ end
 -- register    Enables cast tracking.
 -- 'reset'     Turn off all cast tracking
 -------------------------------------------------------------------------------
-function GUB.Main:SetCastTracker(UnitBarF, Action, Fn)
-  if UnitBarF == 'reset' then
+function GUB.Main:SetCastTracker(Object, Action, Fn)
+  if Object == 'reset' then
     CastTrackers = nil
     CastTracking = nil
   else
-    local CastTracker = CastTrackers and CastTrackers[UnitBarF]
+    local CastTracker = CastTrackers and CastTrackers[Object]
 
     -- Turn cast tracking on and set Fn
     if Action == 'fn' then
@@ -2443,7 +2566,7 @@ function GUB.Main:SetCastTracker(UnitBarF, Action, Fn)
 
       if CastTracker == nil then
         CastTracker = {Enabled = true}
-        CastTrackers[UnitBarF] = CastTracker
+        CastTrackers[Object] = CastTracker
       end
 
       if CastTracking == nil then
@@ -2455,7 +2578,7 @@ function GUB.Main:SetCastTracker(UnitBarF, Action, Fn)
     -- Turn off cast tracking for this bar
     elseif CastTracker then
       if Action == 'off' then
-        CastTrackers[UnitBarF] = nil
+        CastTrackers[Object] = nil
 
       -- track events on or off.
       elseif Action == 'register' or Action == 'unregister' then
@@ -2491,57 +2614,57 @@ end
 -- Object         The table, string, etc to assign the aura tracker to.
 -- Fn             Turns on aura tracking and calls Fn when auras change.
 --                Function to call for this unitbar.
---                  Fn gets called with (TrackedAurasList) from AuraUpdate()
+--                  Fn gets called with (AuraTrackersData) from AuraUpdate()
 -- 'off'          Turns off all auratracking for this bar
 -- Units          List of units to add.  If nil then units are removed for this bar.
 -- 'reset'        Clears all units and turns off all events for all bars.
 -------------------------------------------------------------------------------
-local function EventUpdateAura(self, Event, Unit)
-  Main:AuraUpdate()
-end
-
 function GUB.Main:SetAuraTracker(Object, Action, ...)
   local RefreshAuraList = false
 
   if Object == 'reset' then
-    TrackedAuras = nil
-    TrackedAurasList = nil
+    AuraTrackers = nil
+    wipe(AuraTrackersData)
   else
-    local TrackedAura = TrackedAuras and TrackedAuras[Object]
+    local AuraTracker = AuraTrackers and AuraTrackers[Object]
 
     -- Turn aura tracking on and set Fn
     if Action == 'fn' then
-      if TrackedAuras == nil then
-        TrackedAuras = {}
+      if AuraTrackers == nil then
+        AuraTrackers = {}
       end
 
-      if TrackedAura == nil then
-        TrackedAura = {Enabled = true}
-        TrackedAuras[Object] = TrackedAura
+      if AuraTracker == nil then
+        AuraTracker = {Enabled = true}
+        AuraTrackers[Object] = AuraTracker
       end
 
-      TrackedAura.Fn = ...
+      AuraTracker.Fn = ...
       return
 
     -- Turn off aura tracking for this object
-    elseif TrackedAuras and Action == 'off' then
-      TrackedAuras[Object] = nil
+    elseif AuraTrackers and Action == 'off' then
+      AuraTrackers[Object] = nil
       RefreshAuraList = true
     end
 
     -- Register or unregister.
-    if TrackedAura and (Action == 'register' or Action == 'unregister') then
-      TrackedAura.Enabled = Action == 'register'
+    if AuraTracker and (Action == 'register' or Action == 'unregister') then
+      AuraTracker.Enabled = Action == 'register'
 
     elseif Action == 'units' then
       RefreshAuraList = true
-      if TrackedAurasList == nil then
-        TrackedAurasList = {All = {} }
+      if AuraTrackersData.All == nil then
+        -- Create a fake unit 'All'
+        AuraTrackersData.All = {}
+      end
+      if next(AuraTrackersData) == nil then
+        wipe(AuraTrackersData.All)
       end
 
       -- Add units to the object
       local Units = {}
-      TrackedAura.Units = Units
+      AuraTracker.Units = Units
 
       if ... then
         for Index = 1, select('#', ...) do
@@ -2553,63 +2676,60 @@ function GUB.Main:SetAuraTracker(Object, Action, ...)
         end
       end
     end
-    if RefreshAuraList and TrackedAurasList then
+    if RefreshAuraList then
       local AllUnits = {}
 
-      for _, TrackedAura in pairs(TrackedAuras) do
-        local Units = TrackedAura.Units
+      for _, AuraTracker in pairs(AuraTrackers) do
+        local Units = AuraTracker.Units
 
         if Units then
           for Unit in pairs(Units) do
             AllUnits[Unit] = 1
-            if TrackedAurasList[Unit] == nil then
-              TrackedAurasList[Unit] = {}
+            if AuraTrackersData[Unit] == nil then
+              local DebuffTypes = {}
+              AuraTrackersData[Unit] = { DebuffTypes = DebuffTypes,
+                                         HELPFUL = {},
+                                         HARMFUL = { DebuffTypes = DebuffTypes },
+                                         Active = false,
+                                         Own = false,
+                                         Stacks = 0                             }
             end
           end
         end
       end
 
-      for Unit in pairs(TrackedAurasList) do
+      for Unit in pairs(AuraTrackersData) do
         if Unit ~= 'All' then
           if AllUnits[Unit] == nil then
-            TrackedAurasList[Unit] = nil
+            AuraTrackersData[Unit] = nil
           end
         end
       end
     end
   end
 
-  RegUnitEvent(false, 'UNIT_AURA', EventUpdateAura)
-
-  local EventRegistered = false
+  RegisterEvents('unregister', 'auratracker')
 
   -- Only register events if the tracked auras list table is not empty.
-  if TrackedAurasList and TrackedAuras and next(TrackedAuras) then
+  if AuraTrackers and next(AuraTrackers) then
 
     -- Reg events for any enabled units.
-    for Object, TrackedAura in pairs(TrackedAuras) do
-      if TrackedAura.Enabled then
-        local Units = TrackedAura.Units
+    for Object, AuraTracker in pairs(AuraTrackers) do
+      if AuraTracker.Enabled then
+        local Units = AuraTracker.Units
 
         if Units then
-          for _, Unit in pairs(Units) do
-            RegUnitEvent(true, 'UNIT_AURA', EventUpdateAura, Unit)
-            EventRegistered = true
+          for Unit in pairs(Units) do
+            RegisterEvents('register', 'auratracker', Unit)
+            RefreshAuraList = true
           end
         end
       end
     end
-
-    -- Refresh auras for anything listening to auras.
-    if EventRegistered then
-      Main:AuraUpdate()
-    end
   end
-  Main.TrackedAurasList = TrackedAurasList
-
-  -- Update aura options
+  -- Refresh auras for anything listening to auras.
   if RefreshAuraList then
-    Options:UpdateAuras()
+    GUB:AuraUpdate()
   end
 end
 
@@ -2706,117 +2826,17 @@ function GUB.Main:SetPredictedSpells(UnitBarF, Action, Fn)
 end
 
 -------------------------------------------------------------------------------
--- GetTalents
---
--- Stores which talents are active. Also contains pulldown menu data for options.
---
--- NOTES: PvP talent table
---   enabled            - Enable or disable talents. True if enabled.
---
--- Talents data structure:
---   Talents.Active[Talent Name]   Talent Name is a string, if not nil then talent is in use
---   Talents.PvE                   Array showing all the available talents for PvE
---     Dropdown                    Dropdown menu used by options
---     IconDropdown                Same as dropdown with icons
---   Talents.PvP                   Same as above except for PvP
--------------------------------------------------------------------------------
-function GUB.Main:GetTalents()
-  local Active = Talents.Active
-  local AllTalentIDs = nil -- To handle repeats for PvP talents
-
-  if Active == nil then
-    Active = {}
-    Talents.Active = Active
-    Talents.PvE = {}
-    Talents.PvP = {}
-  end
-  wipe(Active)
-
-  for Key in pairs(Talents) do
-    if Key ~= 'Active' then
-      local DropdownIndex = 0
-      local DropdownDefined = true
-
-      local Dropdowns = Talents[Key]
-      local Dropdown = Dropdowns.Dropdown
-      local IconDropdown = Dropdowns
-
-      if Dropdown == nil then
-        Dropdown = {}
-        IconDropdown = {}
-        Dropdowns.Dropdown = Dropdown
-        Dropdowns.IconDropdown = IconDropdown
-
-        DropdownDefined = false
-        AllTalentIDs = {}
-      end
-
-      -- Get PvE talents
-      if Key == 'PvE' then
-        DropdownIndex = 0
-        for Tier = 1, 10 do
-          for Column = 1, 3 do
-            local _, Name, Icon, Selected, _, _, _, _, _, _, Known  = GetTalentInfo(Tier, Column, 1)
-
-            if Name then
-              if Selected or Known then
-                Active[Name] = true
-              end
-              if not DropdownDefined then
-                DropdownIndex = DropdownIndex + 1
-                Dropdown[DropdownIndex] = Name
-                IconDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
-              end
-            end
-          end
-        end
-      else
-        -- Get PvP talents
-        DropdownIndex = 0
-        for SlotIndex = 1, 4 do
-          -- Sometimes this returns, nil so need to check it. Why does blizzard do stuff like this.
-          local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
-
-          if SlotInfo then
-            local TalentID = SlotInfo.selectedTalentID
-            local TalentIDs = SlotInfo.availableTalentIDs
-
-            if TalentID then
-              local _, Name = GetPvpTalentInfoByID(TalentID)
-
-              Active[Name] = true
-            end
-
-            if not DropdownDefined then
-              for PvPIndex = 1, #TalentIDs do
-                TalentID = TalentIDs[PvPIndex]
-
-                -- Only add if its a new talent
-                if AllTalentIDs[TalentID] == nil then
-                  DropdownIndex = DropdownIndex + 1
-
-                  AllTalentIDs[TalentID] = true
-                  local _, Name, Icon = GetPvpTalentInfoByID(TalentID)
-
-                  Dropdown[DropdownIndex] = Name
-                  IconDropdown[DropdownIndex] = format('|T%s:0|t %s', Icon, Name)
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-end
-
--------------------------------------------------------------------------------
 -- PrintRaw()
 --
 -- Shows all escapes codes in a string.
 -------------------------------------------------------------------------------
 function GUB.Main:PrintRaw(Text)
-  print(format('%q', Text))
+  local Output = ''
+
+  for Index = 1, #Text do
+     Output = Output .. ' ' .. strsub(Text, Index, Index)
+  end
+  print(Output)
 end
 
 -------------------------------------------------------------------------------
@@ -2824,8 +2844,10 @@ end
 --
 -- Like table.foreach except shows the details of all sub tables.
 -------------------------------------------------------------------------------
+local Exclusion = 'ClassSpecs'
+
 function GUB.Main:ListTable(Table, Path, Exclude)
-  local kst = nil
+  local kst
   if Path == nil then
     Path = '.'
   end
@@ -2838,31 +2860,33 @@ function GUB.Main:ListTable(Table, Path, Exclude)
   end
 
   for k, v in pairs(Table) do
-    if type(k) == 'table' then
-      kst = tostring(k)
-    else
-      kst = k
-    end
-
-    if type(v) == 'table' then
-      local Recursive = Exclude[v]
-
-      print(Path .. '.' .. kst .. ' = ', v, (Recursive == true and '(recursive)' or ''))
-
-      -- Only call if the table hasn't been seen before.
-      if Recursive ~= true then
-        Main:ListTable(v, Path .. '.' .. kst, Exclude)
-      end
-    else
-      if type(k) == 'table' or type(k) == 'function' then
-        local _, Address = strsplit(' ', tostring(k), 2)
-
-        print(Path .. '.' .. Address .. ' = ', v)
-
-      elseif type(v) == 'boolean' then
-        print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
+    if k ~= Exclusion then
+      if type(k) == 'table' then
+        kst = tostring(k)
       else
-        print(Path .. '.' .. kst .. ' = ', v)
+        kst = k
+      end
+
+      if type(v) == 'table' then
+        local Recursive = Exclude[v]
+
+        print(Path .. '.' .. kst .. ' = ', v, (Recursive == true and '(recursive)' or ''))
+
+        -- Only call if the table hasn't been seen before.
+        if Recursive ~= true then
+          Main:ListTable(v, Path .. '.' .. kst, Exclude)
+        end
+      else
+        if type(k) == 'table' or type(k) == 'function' then
+          local _, Address = strsplit(' ', tostring(k), 2)
+
+          print(Path .. '.' .. Address .. ' = ', v)
+
+        elseif type(v) == 'boolean' then
+          print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
+        else
+          print(Path .. '.' .. kst .. ' = ', v)
+        end
       end
     end
   end
@@ -2886,7 +2910,7 @@ local function Check(BarType, Table, TablePath)
   if Value == nil then
     return false
   end
-  local Key = nil
+  local Key
 
   while true do
     if TablePath then
@@ -2928,8 +2952,7 @@ function GUB.Main:GetUB(BarType, TablePath, Table)
   local Value = Table and Table[BarType] or UnitBars[BarType]
   local DUBValue = DUB[BarType]
   local DC = false
-  local Key = nil
-  local Array = nil
+  local Key
 
   if TablePath == '' then
     TablePath = nil
@@ -2979,7 +3002,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:DelUB(BarType, TablePath)
   local Value = UnitBars[BarType]
-  local Key = nil
+  local Key
 
   while true do
     if TablePath then
@@ -3141,6 +3164,9 @@ local function HideUnitBar(UnitBarF, HideBar)
       -- Disable Aura tracking if active
       Main:SetAuraTracker(UnitBarF, 'unregister')
 
+      -- Disable Talent tracking if active
+      Main:SetTalentTracker(UnitBarF, 'unregister')
+
       BBar:PlayAnimationBar('out')
       BBar:SetAnimationBar('stopall')
 
@@ -3153,6 +3179,9 @@ local function HideUnitBar(UnitBarF, HideBar)
 
       -- Enable Aura tracking if active
       Main:SetAuraTracker(UnitBarF, 'register')
+
+      -- Enable Talent tracking if active
+      Main:SetTalentTracker(UnitBarF, 'register')
 
       BBar:PlayAnimationBar('in')
     end
@@ -3185,7 +3214,7 @@ end
 --
 -------------------------------------------------------------------------------
 function GUB.Main:CheckClassSpecs(BarType, ClassSpecs, IsTriggers)
-  local Match = nil
+  local Match
 
   if IsTriggers then
     -- Only need to do this for triggers.
@@ -3249,7 +3278,7 @@ function GUB.Main:StatusCheck(Event)
     -- Always show bars if show or testing
     if not UnitBars.Show and not UnitBars.Testing then
       local Status = UB.Status
-      local ClassSpecEnabled = false
+      local ClassSpecEnabled
 
       ClassSpecEnabled = Main:CheckClassSpecs(self.BarType, UB.ClassSpecs)
       self.ClassSpecEnabled = ClassSpecEnabled
@@ -3357,10 +3386,10 @@ end
 --        the total width of MoveFrame.  Then the frame is inside.
 --        At this point the SelectLineDistance will vary between F1 and zero.
 -------------------------------------------------------------------------------
-local function MoveFrameCalcDistance(Distance, SelectLineDistance, SelectMFSize, MoveFrameSize)
+local function MoveFrameCalcDistance(SelectLineDistance, SelectMFSize, MoveFrameSize)
   SelectLineDistance = abs(SelectLineDistance)
 
-  Distance = abs(SelectLineDistance - SelectMFSize - MoveFrameSize) -- Distance betwee the edges of both frames.
+  local Distance = abs(SelectLineDistance - SelectMFSize - MoveFrameSize) -- Distance betwee the edges of both frames.
   if Distance >= MoveFrameSize then  -- at least half inside.
     if Distance > MoveFrameSize * 2 then   -- All of frame inside.
       Distance = 100 - (SelectLineDistance / (SelectMFSize - MoveFrameSize) * 100)
@@ -3390,7 +3419,6 @@ local function MoveFrameGetNearestFrame(TrackingFrame)
     local MoveFrameCenterX, MoveFrameCenterY = MoveFrame:GetCenter()
     local MoveFrameWidth = MoveFrame:GetWidth() * 0.5
     local MoveFrameHeight = MoveFrame:GetHeight() * 0.5
-    local SmallestDistance = 65535
     local SmallestLineDistance = 65535
 
     local SelectMFCenterX = 0
@@ -3473,30 +3501,29 @@ local function MoveFrameGetNearestFrame(TrackingFrame)
 
       local FlipX = 1
       local FlipY = 1
-      local DistanceX = 0
-      local DistanceY = 0
-      local Point = nil
+      local DistanceX
+      local DistanceY
       local XMovePoint = ''
       local YMovePoint = ''
       local XSelectPoint = ''
       local YSelectPoint = ''
-      local Flag = nil
-      local XLessY = nil
+      local Flag
+      local XLessY
       local PaddingDirectionX = 0
       local PaddingDirectionY = 0
 
       -- DistanceX and Y, if negative then outside the frame otherwise inside.
       if MoveFrameWidth <= SelectMFWidth then
-        DistanceX = MoveFrameCalcDistance(DistanceX, SelectLineDistanceX, SelectMFWidth, MoveFrameWidth)
+        DistanceX = MoveFrameCalcDistance(SelectLineDistanceX, SelectMFWidth, MoveFrameWidth)
       else
-        DistanceX = MoveFrameCalcDistance(DistanceX, SelectLineDistanceX, MoveFrameWidth, SelectMFWidth)
+        DistanceX = MoveFrameCalcDistance(SelectLineDistanceX, MoveFrameWidth, SelectMFWidth)
         FlipX = -1
       end
 
       if MoveFrameHeight <= SelectMFHeight then
-        DistanceY = MoveFrameCalcDistance(DistanceY, SelectLineDistanceY, SelectMFHeight, MoveFrameHeight)
+        DistanceY = MoveFrameCalcDistance(SelectLineDistanceY, SelectMFHeight, MoveFrameHeight)
       else
-        DistanceY = MoveFrameCalcDistance(DistanceY, SelectLineDistanceY, MoveFrameHeight, SelectMFHeight)
+        DistanceY = MoveFrameCalcDistance(SelectLineDistanceY, MoveFrameHeight, SelectMFHeight)
         FlipY = -1
       end
       XLessY = DistanceX < DistanceY
@@ -3618,7 +3645,7 @@ end
 
 function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
   local Move = MoveFrames.Move
-  local Type = nil
+  local Type
 
   if Move == nil then
     Move = {}
@@ -3699,7 +3726,7 @@ end
 -------------------------------------------------------------------------------
 local function MoveFrameModifyAlignFrames(Move, MoveFrame, SelectFrame)
   local AlignFrames = Move.AlignFrames
-  local AlignFrame = nil
+  local AlignFrame
 
   if AlignFrames == nil then
     AlignFrames = {}
@@ -3940,9 +3967,9 @@ local function TrackCastSendMessage(Message)
   local Timeout = type(Message) == 'table'
 
   if CastTrackers then
-    for UnitBarF, CastTracker in pairs(CastTrackers) do
+    for Object, CastTracker in pairs(CastTrackers) do
       if CastTracker.Enabled then
-        CastTracker.Fn(UnitBarF, CastTracking.SpellID, Timeout and 'timeout' or Message)
+        CastTracker.Fn(Object, CastTracking.SpellID, Timeout and 'timeout' or Message)
       end
     end
   end
@@ -4003,111 +4030,237 @@ function GUB:TrackCast(Event, Unit, CastID, SpellID)
 end
 
 -------------------------------------------------------------------------------
+-- TalentUpdate (called by event)
+--
+-- Used by SetTalentTracker()
+--
+-- Gets called when ever a talent is changed or talents change
+-- Stores which talents are active. Also contains pulldown menu data for options.
+-------------------------------------------------------------------------------
+function GUB:TalentUpdate(Event)
+  if TalentTrackers then
+    if next(TalentTrackersData) == nil then
+      TalentTrackersData.Active = {}
+      TalentTrackersData.SpellIDs = {}
+      TalentTrackersData.TalentIsPvP = {}
+      TalentTrackersData.PvEDropdown = {}
+      TalentTrackersData.PvEIconDropdown = {}
+      TalentTrackersData.PvPDropdown = {}
+      TalentTrackersData.PvPIconDropdown = {}
+    end
+    local PvPTalentIDs = {}
+    local SpellIDs = TalentTrackersData.SpellIDs
+    local Active = TalentTrackersData.Active
+    local TalentIsPvP = TalentTrackersData.TalentIsPvP
+    wipe(Active)
+    wipe(SpellIDs)
+    wipe(TalentIsPvP)
+
+    -- PvE
+    local Dropdown = TalentTrackersData.PvEDropdown
+    local IconDropdown = TalentTrackersData.PvEIconDropdown
+    local DropdownIndex = 1
+    local Tagged
+    wipe(Dropdown)
+    wipe(IconDropdown)
+
+    Dropdown[1] = 'None'
+    IconDropdown[1] = 'None'
+
+    for Tier = 1, 10 do
+      for Column = 1, 3 do
+        local TalentID, Name, Icon, Selected, _, SpellID, _, _, _, _, Known  = GetTalentInfo(Tier, Column, 1)
+
+        if Name then
+          if Selected or Known then
+            Active[SpellID] = true
+            Tagged = '*'
+          else
+            Tagged = ''
+          end
+          SpellIDs[Name] = SpellID
+          TalentIsPvP[SpellID] = false
+
+          DropdownIndex = DropdownIndex + 1
+          Dropdown[DropdownIndex] = Name
+          IconDropdown[DropdownIndex] = format('|T%s:0|t %s%s', Icon, Name, Tagged)
+        end
+      end
+    end
+
+    -- PvP
+    local Dropdown = TalentTrackersData.PvPDropdown
+    local IconDropdown = TalentTrackersData.PvPIconDropdown
+    DropdownIndex = 1
+    wipe(Dropdown)
+    wipe(IconDropdown)
+
+    Dropdown[1] = 'None'
+    IconDropdown[1] = 'None'
+
+    for SlotIndex = 1, 4 do
+      -- Sometimes this returns nil, so need to check it. Why does blizzard do stuff like this.
+      local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
+
+      if SlotInfo then
+        local TalentIDs = SlotInfo.availableTalentIDs
+
+        for PvPIndex = 1, #TalentIDs do
+          local TalentID = TalentIDs[PvPIndex]
+          local _, Name, Icon, Selected, _, SpellID, _, _, _, Known = GetPvpTalentInfoByID(TalentID)
+
+          if Selected or Known then
+            Active[SpellID] = true
+            Tagged = '*'
+          else
+            Tagged = ''
+          end
+
+          if PvPTalentIDs[TalentID] == nil then
+            PvPTalentIDs[TalentID] = true
+            SpellIDs[Name] = SpellID
+            TalentIsPvP[SpellID] = true
+
+            DropdownIndex = DropdownIndex + 1
+            Dropdown[DropdownIndex] = Name
+            IconDropdown[DropdownIndex] = format('|T%s:0|t %s%s', Icon, Name, Tagged)
+          end
+        end
+      end
+    end
+
+    -- Only call back on event
+    if Event then
+      for _, TalentTracker in pairs(TalentTrackers) do
+        TalentTracker.Fn(TalentTrackersData)
+      end
+      if Event == TalentSpecializationChanged then
+        Options:RefreshMainOptions()
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- AuraUpdate (called by setscript)
 --
 -- Used by SetAuraTracker()
 --
 -- Gets called when ever an aura changes on a unit.
 --
--- Object        If specified then uses TrackedAuras[Object]
+-- Object        If specified then uses AuraTrackers[Object]
 --               If nil all objects get updated.
+-- EventUnit     This is used if called by a UNIT_AURA event.  Otherwise
+--               it'll iterate thru all units currently active
 -------------------------------------------------------------------------------
-local function OnUpdateAuraUpdate(self)
-  local BarCount = self.BarCount
-  local Object = self.Object
+local function GetAuras(Unit, All, Auras)
+  local FinalDebuffTypes = Auras.DebuffTypes
+  local FinalActive = false
+  local FinalOwn = false
+  local FinalStacks = 0
+  local Filter = 'HELPFUL'
 
-  if TrackedAuras then
-    local TrackedAura = nil
+  for DebuffType in pairs(FinalDebuffTypes) do
+    FinalDebuffTypes[DebuffType] = false
+  end
 
-    -- Find the next UnitBar
-    Object, TrackedAura = next(TrackedAuras, Object)
+  for Index = 1, 2 do
+    local AllActive = false
+    local AllOwn = false
+    local AllStacks = 0
 
-    if Object then
-      BarCount = BarCount + 1
-      if TrackedAura.Enabled then
-        TrackedAura.Fn(TrackedAurasList)
+    if Index == 2 then
+      Filter = 'HARMFUL'
+    end
+    for AuraIndex = 1, 1000 do
+      local Name, _, Stacks, DebuffType, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, Filter)
+
+      if Name == nil then
+        break
       end
-    else
-      BarCount = 0
+      local Aura = Auras[SpellID]
+
+      if Aura == nil then
+        Aura = {}
+        Auras[SpellID] = Aura
+        All[SpellID] = Aura
+      end
+      local Own = UnitCaster == 'player'
+      Stacks = Stacks or 0
+
+      Aura.Active = true
+      Aura.Type = Index
+      Aura.Own = Own
+      Aura.Stacks = Stacks
+      Aura.DebuffType = DebuffType
+
+      -- All
+      AllActive = true
+      if Own then
+        AllOwn = true
+      end
+      if AllStacks < Stacks then
+        AllStacks = Stacks
+      end
+      if DebuffType then
+        FinalDebuffTypes[DebuffType] = true
+      end
+    end
+    -- Set buff or debuff
+    local Aura = Auras[Filter]
+    Aura.Active = AllActive
+    Aura.Own = AllOwn
+    Aura.Stacks = AllStacks
+
+    if AllActive then
+      FinalActive = true
+    end
+    if AllOwn then
+      FinalOwn = true
+    end
+    if AllStacks > FinalStacks then
+      FinalStacks = AllStacks
     end
   end
-
-  -- Check for end
-  if TrackedAuras == nil or BarCount == self.BarStop then
-    BarCount = 0
-    Object = nil
-    self.BarStop = 0
-    self:SetScript('OnUpdate', nil)
-  end
-
-  self.BarCount = BarCount
-  self.Object = Object
+  Auras.Active = FinalActive
+  Auras.Own = FinalOwn
+  Auras.Stacks = FinalStacks
 end
 
-function GUB.Main:AuraUpdate(Object)
-  if TrackedAuras and TrackedAurasList then
-    local TrackedAura = nil
-    local All = TrackedAurasList.All
+-------------
+-- AuraUpdate
+-------------
+function GUB:AuraUpdate(Event, Unit)
+  if AuraTrackers and AuraTrackersData then
+    local All = AuraTrackersData.All
 
-    -- If Object is specified then just update the object instantly.
-    if Object then
-      TrackedAura = TrackedAuras[Object]
-
-      -- Return no trackedaura found or not enabled
-      if TrackedAura == nil or not TrackedAura.Enabled then
-        return
-      end
-    end
-
-    -- Reset source unit status
-    for Unit, Auras in pairs(TrackedAurasList) do
-      for SpellID, Aura in pairs(Auras) do
-        Aura.Active = false
-        Aura.Stacks = 0
-      end
-    end
-
-    for Unit, Auras in pairs(TrackedAurasList) do
-      local AuraIndex = 1
-
-      repeat
-        local Name, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HELPFUL')
-        if Name == nil then
-          Name, _, Stacks, _, _, _, UnitCaster, _, _, SpellID, _, _, _ = UnitAura(Unit, AuraIndex, 'HARMFUL')
+    if Unit then
+      -- Reset source unit status
+      for SpellID, Aura in pairs(AuraTrackersData[Unit]) do
+        if type(SpellID) == 'number' then
+          Aura.Active = false
+          Aura.Stacks = 0
         end
-        if Name then
-          local Aura = Auras[SpellID]
-
-          if Aura == nil then
-            Aura = {}
-            Auras[SpellID] = Aura
-            All[SpellID] = Aura
-          end
-          Aura.Active = true
-          Aura.Stacks = Stacks or 0
-          Aura.Own = UnitCaster == 'player'
-          AuraIndex = AuraIndex + 1
-        end
-      until Name == nil
-    end
-
-    if Object then
-      TrackedAura.Fn(TrackedAurasList)
+      end
+      GetAuras(Unit, All, AuraTrackersData[Unit])
     else
-      if TrackedAurasOnUpdateFrame == nil then
-        TrackedAurasOnUpdateFrame = CreateFrame('Frame')
-        TrackedAurasOnUpdateFrame.Object = nil
-        TrackedAurasOnUpdateFrame.BarCount = 0
-        TrackedAurasOnUpdateFrame.BarStop = 0
+      -- No unit so do everything
+      for AuraUnit, Auras in pairs(AuraTrackersData) do
+        if AuraUnit ~= 'All' then
+          -- Reset source unit status
+          for SpellID, Aura in pairs(AuraTrackersData[AuraUnit]) do
+            if type(SpellID) == 'number' then
+              Aura.Active = false
+            end
+          end
+          GetAuras(AuraUnit, All, Auras)
+        end
       end
-      local BarCount = TrackedAurasOnUpdateFrame.BarCount
-
-      -- Check to see if an auraupdate onupdate is in progress.
-      if BarCount > 0 then
-        TrackedAurasOnUpdateFrame.BarStop = BarCount
-      else
-        -- Loop thru each bar one frame at a time to split the load.
-        TrackedAurasOnUpdateFrame:SetScript('OnUpdate', OnUpdateAuraUpdate)
+    end
+    -- Only call back on aura event
+    if Event then
+      for _, AuraTracker in pairs(AuraTrackers) do
+        AuraTracker.Fn(AuraTrackersData)
       end
     end
   end
@@ -4140,8 +4293,8 @@ function GUB:CheckPredictedSpells(Event)
     Event = SpellBookChanged
   end
 
-  local SpellID = 0
-  local SkillType = 0
+  local SpellID
+  local SkillType
   local BookIndex = 0
 
   -- Scan the spell book or used the cached spells.
@@ -4257,23 +4410,19 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   Main.HasAltPower = HasAltPower
   Main.PlayerPowerType = PlayerPowerType
 
-  -- Check for talent changes
-  Main:GetTalents()
-
-  -- Alternate power bar options needs to be disabled when there is a bar active
-  if Event == 'UNIT_POWER_BAR_SHOW' or Event == 'UNIT_POWER_BAR_HIDE' then
-    Options:RefreshMainOptions()
-  end
-
   -- Need to do this here since hiding targetframe at startup doesn't work.
   Main:UnitBarsSetAllOptions('frames')
 
   -- Call for a checktrigger change thru setattr if player specialization has changed.
   -- This is for triggers since specialization is supported now.
   local PlayerSpecializationChanged = Main.PlayerSpecialization ~= PlayerSpecialization
-
   Main.PlayerSpecializationChanged = PlayerSpecializationChanged
   Main.PlayerSpecialization = PlayerSpecialization
+
+  -- Alternate power bar options needs to be disabled when there is a bar active
+  if Event == 'UNIT_POWER_BAR_SHOW' or Event == 'UNIT_POWER_BAR_HIDE' then
+    Options:RefreshMainOptions()
+  end
 
   -- Close options when in combat.
   if InCombat then
@@ -4292,10 +4441,9 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
     end
   end
 
-  Main:AuraUpdate(AuraListName)
-
   for _, UBF in ipairs(UnitBarsFE) do
     if PlayerSpecializationChanged then
+      -- Call enable since it'll do CheckTriggers on specialization changed
       UBF:SetAttr('Layout', 'EnableTriggers')
     end
     UBF:Update()
@@ -4425,8 +4573,6 @@ end
 -- Otherwise it does both.
 -------------------------------------------------------------------------------
 function GUB.Main:UnitBarsSetAllOptions(Action)
-  local ATOFrame = Options.ATOFrame
-  local HideTooltips = UnitBars.HideTooltips
   local Locked = UnitBars.Locked
   local EnableTooltips = not (UnitBars.HideTooltipsLocked and Locked or UnitBars.HideTooltipsNotLocked and not Locked)
   local Clamped = UnitBars.Clamped
@@ -4500,8 +4646,6 @@ function GUB.Main:UnitBarSetAttr(UnitBarF)
   -- Get the unitbar data.
   local UBO = UnitBarF.UnitBar.Attributes
   local Alpha = UBO.Alpha
-  local Anchor = UnitBarF.Anchor
-  local BBar = UnitBarF.BBar
 
   -- Set animation type
   SetAnimationTypeUnitBar(UnitBarF)
@@ -4644,7 +4788,6 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:SetUnitBars(ProfileChanged)
   local EnableClass = UnitBars.EnableClass
-  local ATOFrame = Options.ATOFrame
   local Index = 0
   local Total = 0
 
@@ -4667,6 +4810,7 @@ function GUB.Main:SetUnitBars(ProfileChanged)
     Main:SetAnchorSize('reset')
     Main:SetCastTracker('reset')
     Main:SetAuraTracker('reset')
+    Main:SetTalentTracker('reset')
     Main:SetPredictedSpells('reset')
   end
 
@@ -4812,16 +4956,11 @@ end
 -- Removes keys that are in the profile but not in the default
 -------------------------------------------------------------------------------
 local TriggerExcludeList =  {
-  ['Auras'] = 1,
-  ['Index'] = 1,
-  ['Virtual'] = 1,
-  ['Select'] = 1,
-  ['TypeIndex'] = 1,
-  ['TextLine'] = 1,
-  ['GroupNumbers'] = 1,
-  ['OneTime'] = 1,
-  ['OffsetAll'] = 1,
-  ['OrderNumber'] = 1,
+  ['ClassSpecs'] = 1,
+  ['Par1'] = 1,
+  ['Par2'] = 1,
+  ['Par3'] = 1,
+  ['Par4'] = 1,
 }
 
 local function FixTriggers(BarType, UBD, Triggers)
@@ -4835,10 +4974,43 @@ local function FixTriggers(BarType, UBD, Triggers)
         -- Copy any keys that are not in the profile from defaults.
         Main:CopyMissingTableValues(DefaultTrigger, Trigger, true)
 
-        for Key in pairs(Trigger) do
-          if DefaultTrigger[Key] == nil and TriggerExcludeList[Key] == nil then
-            --print('ERASED:', format('%s.Triggers.%s.%s', BarType, TriggerIndex, Key))
+        for Key, Value in pairs(Trigger) do
+          local Exclude = TriggerExcludeList[Key] == 1
+          if DefaultTrigger[Key] == nil and not Exclude then
             Trigger[Key] = nil
+            --print('ERASED:', format('%s.Triggers.%s.%s', BarType, TriggerIndex, Key))
+
+          elseif not Exclude and type(Value) == 'table' then
+            local DefaultTable = DefaultTrigger[Key]
+            local DefaultArray = DefaultUB[format('Trigger%sArray', Key)]
+
+            Main:CopyMissingTableValues(DefaultTable, Value, true)
+
+            -- Search arrays
+            for Index, Table in pairs(Value) do
+              if type(Index) ~= 'number' then
+                -- Copy any keys that are not in the profile from the default table
+                Main:CopyMissingTableValues(DefaultTable, Value, true)
+
+                if DefaultTable[Index] == nil then
+                  Value[Index] = nil
+                  --print('ERASED:', format('%s.Triggers.%s.%s.%s', BarType, TriggerIndex, Key, Index))
+                end
+              elseif Index > 0 then
+                -- Copy any keys that are not in the profile from default array
+                Main:CopyMissingTableValues(DefaultArray, Table, true)
+
+                for ArrayKey, ArrayValue in pairs(Table) do
+                  if DefaultArray[ArrayKey] == nil then
+                    Table[ArrayKey] = nil
+                    --print('ERASED:', format('%s.Triggers.%s.%s[%s].%s', BarType, TriggerIndex, Key, Index, ArrayKey))
+                  end
+                end
+              else
+                Value[Index] = nil
+                --print('ERASED:', format('%s.Triggers.%s.%s[%s]', BarType, TriggerIndex, Key, Index))
+              end
+            end
           end
         end
       end
@@ -4958,6 +5130,10 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 660 then -- 6.60
     ConvertUnitBarData(13)
   end
+  if Ver == nil or Ver < 670 then -- 6.70
+    ConvertUnitBarData(14)
+  end
+
 
   -- Make sure profile is accurate.
   FixUnitBars()
@@ -5057,7 +5233,6 @@ function GUB:OnEnable()
   Options:OnInitialize()
   InitAltPowerBar()
   InitExtraActionButton()
-  Main:GetTalents()
 
   GUB:ApplyProfile()
 
@@ -5070,8 +5245,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 42 then
-    Gdata.ShowMessage = 42
+  if Gdata.ShowMessage ~= 44 then
+    Gdata.ShowMessage = 44
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

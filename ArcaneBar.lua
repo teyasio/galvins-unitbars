@@ -10,22 +10,15 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local UnitPower, UnitPowerMax =
-      UnitPower, UnitPowerMax
+local UnitPower =
+      UnitPower
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -37,7 +30,6 @@ local UnitPower, UnitPowerMax =
 local MaxArcaneCharges = 4
 local Display = false
 local Update = false
-local NamePrefix = 'Arcane '
 
 -- Powertype constants
 local PowerArcane = ConvertPowerType['ARCANE_CHARGES']
@@ -54,51 +46,38 @@ local ArcaneSBar = 10
 local ArcaneDarkTexture = 11
 local ArcaneLightTexture = 12
 
-local RegionGroup = 6
-
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1, '', BoxMode     },
+  { OT.BackgroundBorderColor, 2, '', BoxMode     },
+  { OT.BackgroundBackground,  3, '', BoxMode     },
+  { OT.BackgroundColor,       4, '', BoxMode     },
+  { OT.BarTexture,            5, '', ArcaneSBar  },
+  { OT.BarColor,              6, '', ArcaneSBar  },
+  { OT.BarOffset,             7, '', BoxMode     },
+  { OT.TextureScale,          8, '', AllTextures },
+  { OT.Sound,                 9, '', Sound       }
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ArcaneSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,              ArcaneSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoRegion = { -- type, id, additional text
+  { OT.RegionBorder,          1, '' },
+  { OT.RegionBorderColor,     2, '' },
+  { OT.RegionBackground,      3, '' },
+  { OT.RegionBackgroundColor, 4, '' },
+  { OT.Sound,                 5, '' },
 }
 
-local TDregion = { -- Trigger data for region
-  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
-  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
-    GF = GF },
-  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
-  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
-    GF = GF },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
-}
-
-local VTs = {'whole', 'Arcane Charges',
-             'auras', 'Auras'          }
-local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Charge 1',    VTs, TD}, -- 1
-  {2,   'Charge 2',    VTs, TD}, -- 2
-  {3,   'Charge 3',    VTs, TD}, -- 3
-  {4,   'Charge 4',    VTs, TD}, -- 4
-  {'a', 'All', {'whole', 'Arcane Charges',
-                'state', 'Active',
-                'auras', 'Auras'          }, TD}, -- 5
-  {'r', 'Region',     VTs, TDregion}, -- 6
+local GroupsInfo = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole', 'Arcane Charges'
+  },
+  {1,    'Arcane Charge 1',  ObjectsInfo},       -- 1
+  {2,    'Arcane Charge 2',  ObjectsInfo},       -- 2
+  {3,    'Arcane Charge 3',  ObjectsInfo},       -- 3
+  {4,    'Arcane Charge 4',  ObjectsInfo},       -- 4
+  {'a',  'All',              ObjectsInfo},       -- 5
+  {'aa', 'All Active',       ObjectsInfo},       -- 6
+  {'ai', 'All Inactive',     ObjectsInfo},       -- 7
+  {'r',  'Region',           ObjectsInfoRegion}, -- 8
 }
 
 local ArcaneData = {
@@ -133,7 +112,7 @@ function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerToken)
   -------------------
   -- Check Power Type
   -------------------
-  local PowerType = nil
+  local PowerType
   if PowerToken then
     PowerType = ConvertPowerType[PowerToken]
   else
@@ -181,13 +160,12 @@ function Main.UnitBarsF.ArcaneBar:Update(Event, Unit, PowerToken)
     BBar:ChangeTexture(ChangeArcane, 'SetHiddenTexture', ArcaneIndex, ArcaneIndex > ArcaneCharges)
 
     if EnableTriggers then
-      BBar:SetTriggers(ArcaneIndex, 'active', ArcaneIndex <= ArcaneCharges)
-      BBar:SetTriggers(ArcaneIndex, 'arcane charges', ArcaneCharges)
+      BBar:SetTriggersActive(ArcaneIndex, ArcaneIndex <= ArcaneCharges)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'arcane charges', ArcaneCharges)
+    BBar:SetTriggers('Arcane Charges', ArcaneCharges)
     BBar:DoTriggers()
   end
 end
@@ -210,7 +188,7 @@ function Main.UnitBarsF.ArcaneBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, GroupsInfo) Update = true end)
     BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
@@ -332,7 +310,7 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   for ArcaneIndex = 1, MaxArcaneCharges do
     BBar:SetFillTexture(ArcaneIndex, ArcaneSBar, 1)
 
-    local Name = NamePrefix .. Groups[ArcaneIndex][2]
+    local Name = GroupsInfo[ArcaneIndex][2]
 
     BBar:SetTooltipBox(ArcaneIndex, Name)
     Names[ArcaneIndex] = Name

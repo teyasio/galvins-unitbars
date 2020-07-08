@@ -10,22 +10,15 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local UnitPower =
-      UnitPower
+local ipairs, UnitPower =
+      ipairs, UnitPower
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -37,7 +30,6 @@ local UnitPower =
 local MaxSoulShards = 5
 local Display = false
 local Update = false
-local NamePrefix = 'Soul '
 
 -- Powertype constants
 local PowerShard = ConvertPowerType['SOUL_SHARDS']
@@ -54,53 +46,39 @@ local ShardSBar = 10
 local ShardDarkTexture = 11
 local ShardLightTexture = 12
 
-local RegionGroup = 7
-
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  {OT.BackgroundBorder,      1, '', BoxMode     },
+  {OT.BackgroundBorderColor, 2, '', BoxMode     },
+  {OT.BackgroundBackground,  3, '', BoxMode     },
+  {OT.BackgroundColor,       4, '', BoxMode     },
+  {OT.BarTexture,            5, '', ShardSBar   },
+  {OT.BarColor,              6, '', ShardSBar   },
+  {OT.BarOffset,             7, '', BoxMode     },
+  {OT.TextureScale,          8, '', AllTextures },
+  {OT.Sound,                 9, ''              }
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ShardSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,              ShardSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoRegion = { -- type, id, additional text
+  { OT.RegionBorder,          1, '' },
+  { OT.RegionBorderColor,     2, '' },
+  { OT.RegionBackground,      3, '' },
+  { OT.RegionBackgroundColor, 4, '' },
+  { OT.Sound,                 5, '' },
 }
 
-local TDregion = { -- Trigger data for region
-  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
-  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
-    GF = GF },
-  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
-  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
-    GF = GF },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
-}
-
-local VTs = {'whole', 'Soul Shards',
-             'auras', 'Auras'       }
-
-local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Shard 1',    VTs, TD}, -- 1
-  {2,   'Shard 2',    VTs, TD}, -- 2
-  {3,   'Shard 3',    VTs, TD}, -- 3
-  {4,   'Shard 4',    VTs, TD}, -- 4
-  {5,   'Shard 5',    VTs, TD}, -- 5
-  {'a', 'All', {'whole', 'Soul Shards',
-                'state', 'Active',
-                'auras', 'Auras'       }, TD},   -- 6
-  {'r', 'Region',     VTs, TDregion},  -- 7
+local GroupsInfo = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole', 'Soul Shards',
+  },
+  {1,   'Soul Shard 1',  ObjectsInfo},       -- 1
+  {2,   'Soul Shard 2',  ObjectsInfo},       -- 2
+  {3,   'Soul Shard 3',  ObjectsInfo},       -- 3
+  {4,   'Soul Shard 4',  ObjectsInfo},       -- 4
+  {5,   'Soul Shard 5',  ObjectsInfo},       -- 5
+  {'a',  'All',          ObjectsInfo},       -- 6
+  {'aa', 'All Active',   ObjectsInfo},       -- 7
+  {'ai', 'All Inactive', ObjectsInfo},       -- 8
+  {'r', 'Region',        ObjectsInfoRegion}, -- 9
 }
 
 local ShardData = {
@@ -117,14 +95,6 @@ local ShardData = {
   },
 }
 local SoulShardDarkColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
-
-
-local ShardDataOLD = {
-  Texture = [[Interface\PlayerFrame\UI-WarlockShard]],
-  BoxWidth = 17 + 15, BoxHeight = 16 + 15,  -- extra space around the texture.
-  Width = 17 + 15 - 7, Height = 16 + 15 - 7,
-  Left = 0.01562500, Right = 0.28125000, Top = 0.00781250, Bottom = 0.13281250
-}
 
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
@@ -152,7 +122,7 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerToken)
   -------------------
   -- Check Power Type
   -------------------
-  local PowerType = nil
+  local PowerType
   if PowerToken then
     PowerType = ConvertPowerType[PowerToken]
   else
@@ -200,13 +170,12 @@ function Main.UnitBarsF.ShardBar:Update(Event, Unit, PowerToken)
     BBar:ChangeTexture(ChangeShards, 'SetHiddenTexture', ShardIndex, ShardIndex > SoulShards)
 
     if EnableTriggers then
-      BBar:SetTriggers(ShardIndex, 'active', ShardIndex <= SoulShards)
-      BBar:SetTriggers(ShardIndex, 'soul shards', SoulShards)
+      BBar:SetTriggersActive(ShardIndex, ShardIndex <= SoulShards)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'soul shards', SoulShards)
+    BBar:SetTriggers('Soul Shards', SoulShards)
     BBar:DoTriggers()
   end
 end
@@ -229,7 +198,7 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, GroupsInfo) Update = true end)
     BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
@@ -345,7 +314,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
         BBar:SetColorTexture(ShardIndex, TextureNumber, SoulShardDarkColor.r, SoulShardDarkColor.g, SoulShardDarkColor.b, SoulShardDarkColor.a)
       end
     end
-    local Name = NamePrefix .. Groups[ShardIndex][2]
+    local Name = GroupsInfo[ShardIndex][2]
 
     BBar:SetTooltipBox(ShardIndex, Name)
     Names[ShardIndex] = Name
