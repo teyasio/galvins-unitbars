@@ -3775,7 +3775,7 @@ local function CreateTriggerDisplayOptions(Order, UBF, BBar, Trigger)
 end
 
 -------------------------------------------------------------------------------
--- AddTriggerAuraOptions
+-- AddTriggerAuraOption
 --
 -- Subfunction of CreateTriggerAuraOptions()
 --
@@ -5272,7 +5272,6 @@ local function CreateTriggerOptions(BarType, Order, Name)
 
     -- Only create triggers if they're enabled.
     if Main.UnitBars[BarType].Layout.EnableTriggers then
-      print('recreating triggers', BarType, UnitBarsF[BarType].UnitBar.Triggers)
       local TOA = {}
       local TLA
       TriggerOptions.args = TOA
