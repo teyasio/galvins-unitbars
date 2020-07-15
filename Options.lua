@@ -3245,7 +3245,6 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar, DisableFn)
                      return DisableFn and DisableFn() or GetClassSpecsTable(BarType, ClassSpecsTP).All
                    end,
         args = {
-          Spacer10 = CreateSpacer(10),
           Class = {
             type = 'select',
             name = 'Class',
@@ -4588,7 +4587,7 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
                  local Match = Talent.Match and '(Match)' or "(Can't Match)"
 
                  if SpellID == 0 then
-                   return format('%s:20:16:%s', 0, 'No talent selected. Pick one from the pulldown below')
+                   return format('%s:20:16:%s', 0, 'No talent selected. Pick one from the pulldowns below')
                  elseif type(SpellID) == 'string' then
                    return format('0:20:16: %s (log into character to finish convert)', SpellID)
                  else
@@ -4908,6 +4907,11 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, Selecte
                   end,
             set = function(Info, Value)
                     Trigger.SpecEnabled = Value
+
+                    -- Update bar to reflect trigger changes
+                    BBar:CheckTriggers()
+                    UBF:Update()
+                    BBar:Display()
                   end,
           },
           Header = {
@@ -6857,30 +6861,28 @@ local function CreateResetOptions(BarType, Order, Name)
     HEADER2 = { Order = 100, Name = 'Background' },
 
     BG                        = { Name = 'Background',           Order = 101, Width = 'wide',   TablePaths = {'Background'} },
-    BGCombo                   = { Name = 'Combo',                Order = 102, Width = 'wide',   TablePaths = {'BackgroundCombo'} },
 
-    BGShard                   = { Name = 'Shard',                Order = 103, Width = 'wide',   TablePaths = {'BackgroundShard'} },
-    BGEmber                   = { Name = 'Ember',                Order = 104, Width = 'wide',   TablePaths = {'BackgroundEmber'} },
+    BGShard                   = { Name = 'Shard',                Order = 102, Width = 'wide',   TablePaths = {'BackgroundShard'} },
+    BGEmber                   = { Name = 'Ember',                Order = 103, Width = 'wide',   TablePaths = {'BackgroundEmber'} },
 
-    BGStagger                 = { Name = 'Stagger',              Order = 105, Width = 'wide',   TablePaths = {'BackgroundStagger'} },
-    BGPause                   = { Name = 'Pause',                Order = 106, Width = 'wide',   TablePaths = {'BackgroundPause'} },
+    BGStagger                 = { Name = 'Stagger',              Order = 104, Width = 'wide',   TablePaths = {'BackgroundStagger'} },
+    BGPause                   = { Name = 'Pause',                Order = 105, Width = 'wide',   TablePaths = {'BackgroundPause'} },
 
-    BGAltPower                = { Name = 'Power',                Order = 107, Width = 'wide',   TablePaths = {'BackgroundPower'} },
-    BGAltCounter              = { Name = 'Counter',              Order = 108, Width = 'wide',   TablePaths = {'BackgroundCounter'} },
+    BGAltPower                = { Name = 'Power',                Order = 106, Width = 'wide',   TablePaths = {'BackgroundPower'} },
+    BGAltCounter              = { Name = 'Counter',              Order = 107, Width = 'wide',   TablePaths = {'BackgroundCounter'} },
     --------------------------
     HEADER3 = { Order = 200, Name = 'Bar' },
 
     Bar                       = { Name = 'Bar',                  Order = 201, Width = 'wide',   TablePaths = {'Bar'} },
-    BarCombo                  = { Name = 'Combo',                Order = 202, Width = 'wide',   TablePaths = {'BarCombo'} },
 
-    BarShard                  = { Name = 'Shard',                Order = 203, Width = 'wide',   TablePaths = {'BarShard'} },
-    BarEmber                  = { Name = 'Ember',                Order = 204, Width = 'wide',   TablePaths = {'BarEmber'} },
+    BarShard                  = { Name = 'Shard',                Order = 202, Width = 'wide',   TablePaths = {'BarShard'} },
+    BarEmber                  = { Name = 'Ember',                Order = 203, Width = 'wide',   TablePaths = {'BarEmber'} },
 
-    BarStagger                = { Name = 'Stagger',              Order = 205, Width = 'wide',   TablePaths = {'BarStagger'} },
-    BarPause                  = { Name = 'Pause',                Order = 206, Width = 'wide',   TablePaths = {'BarPause'} },
+    BarStagger                = { Name = 'Stagger',              Order = 204, Width = 'wide',   TablePaths = {'BarStagger'} },
+    BarPause                  = { Name = 'Pause',                Order = 205, Width = 'wide',   TablePaths = {'BarPause'} },
 
-    BarAltPower               = { Name = 'Power',                Order = 207, Width = 'wide',   TablePaths = {'BarPower'} },
-    BarAltCounter             = { Name = 'Counter',              Order = 208, Width = 'wide',   TablePaths = {'BarCounter'} },
+    BarAltPower               = { Name = 'Power',                Order = 206, Width = 'wide',   TablePaths = {'BarPower'} },
+    BarAltCounter             = { Name = 'Counter',              Order = 207, Width = 'wide',   TablePaths = {'BarCounter'} },
     --------------------------
     HEADER1 = { Order = 300, Name = 'Region Color', CheckTable = 'Region.Color' },
 
@@ -6892,17 +6894,14 @@ local function CreateResetOptions(BarType, Order, Name)
     BGColor                   = { Name = 'Background Color',     Order = 401, Width = 'wide',   TablePaths = {'Background.Color'} },
     BGBorderColor             = { Name = 'Border Color',         Order = 402, Width = 'wide',   TablePaths = {'Background.BorderColor'} },
 
-    BGColorCombo              = { Name = 'Combo',                Order = 403, Width = 'wide',   TablePaths = {'BackgroundCombo.Color'} },
-    BGBorderColorCombo        = { Name = 'Combo Border',         Order = 404, Width = 'wide',   TablePaths = {'BackgroundCombo.BorderColor'} },
-
-    BGColorShard              = { Name = 'Shard',                Order = 405, Width = 'wide',   TablePaths = {'BackgroundShard.Color'} },
-    BGColorEmber              = { Name = 'Ember',                Order = 406, Width = 'wide',   TablePaths = {'BackgroundEmber.Color'} },
-    BGBorderColorShard        = { Name = 'Shard Border',         Order = 407, Width = 'wide',   TablePaths = {'BackgroundShard.BorderColor'} },
-    BGBorderColorEmber        = { Name = 'Ember Border',         Order = 408, Width = 'wide',   TablePaths = {'BackgroundEmber.BorderColor'} },
-    BGColorShardGreen         = { Name = 'Shard [Green]',        Order = 409, Width = 'wide',   TablePaths = {'BackgroundShard.ColorGreen'} },
-    BGColorEmberGreen         = { Name = 'Ember [Green]',        Order = 410, Width = 'wide',   TablePaths = {'BackgroundEmber.ColorGreen'} },
-    BGBorderColorShardGreen   = { Name = 'Shard Border [Green]', Order = 411, Width = 'wide',   TablePaths = {'BackgroundShard.BorderColorGreen'} },
-    BGBorderColorEmberGreen   = { Name = 'Ember Border [Green]', Order = 412, Width = 'wide',   TablePaths = {'BackgroundEmber.BorderColorGreen'} },
+    BGColorShard              = { Name = 'Shard',                Order = 403, Width = 'wide',   TablePaths = {'BackgroundShard.Color'} },
+    BGColorEmber              = { Name = 'Ember',                Order = 404, Width = 'wide',   TablePaths = {'BackgroundEmber.Color'} },
+    BGBorderColorShard        = { Name = 'Shard Border',         Order = 405, Width = 'wide',   TablePaths = {'BackgroundShard.BorderColor'} },
+    BGBorderColorEmber        = { Name = 'Ember Border',         Order = 406, Width = 'wide',   TablePaths = {'BackgroundEmber.BorderColor'} },
+    BGColorShardGreen         = { Name = 'Shard [Green]',        Order = 407, Width = 'wide',   TablePaths = {'BackgroundShard.ColorGreen'} },
+    BGColorEmberGreen         = { Name = 'Ember [Green]',        Order = 408, Width = 'wide',   TablePaths = {'BackgroundEmber.ColorGreen'} },
+    BGBorderColorShardGreen   = { Name = 'Shard Border [Green]', Order = 409, Width = 'wide',   TablePaths = {'BackgroundShard.BorderColorGreen'} },
+    BGBorderColorEmberGreen   = { Name = 'Ember Border [Green]', Order = 410, Width = 'wide',   TablePaths = {'BackgroundEmber.BorderColorGreen'} },
 
     BGColorBlood              = { Name = 'Blood',                Order = 413, Width = 'wide',   TablePaths = {'Background.ColorBlood'} },
     BGColorFrost              = { Name = 'Frost',                Order = 414, Width = 'wide',   TablePaths = {'Background.ColorFrost'} },
@@ -6928,27 +6927,25 @@ local function CreateResetOptions(BarType, Order, Name)
     BarColorPredictedCost     = { Name = 'Predicted Cost',       Order = 503, Width = 'wide',   TablePaths = {'Bar.PredictedCostColor'} },
     BarColorAbsorbHealth      = { Name = 'Absorb Health',        Order = 504, Width = 'wide',   TablePaths = {'Bar.AbsorbColor'} },
 
-    BarColorCombo             = { Name = 'Combo',                Order = 505, Width = 'wide',   TablePaths = {'BarCombo.Color'} },
+    BarColorShard             = { Name = 'Shard',                Order = 505, Width = 'wide',   TablePaths = {'BarShard.Color'} },
+    BarColorEmber             = { Name = 'Ember',                Order = 506, Width = 'wide',   TablePaths = {'BarEmber.Color'} },
+    BarColorShardFull         = { Name = 'Shard (full)',         Order = 507, Width = 'wide',   TablePaths = {'BarShard.ColorFull'} },
+    BarColorEmberFull         = { Name = 'Ember (full)',         Order = 508, Width = 'wide',   TablePaths = {'BarEmber.ColorFull'} },
+    BarColorShardGreen        = { Name = 'Shard [Green]',        Order = 509, Width = 'wide',   TablePaths = {'BarShard.ColorGreen'} },
+    BarColorEmberGreen        = { Name = 'Ember [Green]',        Order = 510, Width = 'wide',   TablePaths = {'BarEmber.ColorGreen'} },
+    BarColorShardFullGreen    = { Name = 'Shard (full) [Green]', Order = 511, Width = 'wide',   TablePaths = {'BarShard.ColorFullGreen'} },
+    BarColorEmberFullGreen    = { Name = 'Ember (full) [Green]', Order = 512, Width = 'wide',   TablePaths = {'BarEmber.ColorFullGreen'} },
 
-    BarColorShard             = { Name = 'Shard',                Order = 506, Width = 'wide',   TablePaths = {'BarShard.Color'} },
-    BarColorEmber             = { Name = 'Ember',                Order = 507, Width = 'wide',   TablePaths = {'BarEmber.Color'} },
-    BarColorShardFull         = { Name = 'Shard (full)',         Order = 508, Width = 'wide',   TablePaths = {'BarShard.ColorFull'} },
-    BarColorEmberFull         = { Name = 'Ember (full)',         Order = 509, Width = 'wide',   TablePaths = {'BarEmber.ColorFull'} },
-    BarColorShardGreen        = { Name = 'Shard [Green]',        Order = 510, Width = 'wide',   TablePaths = {'BarShard.ColorGreen'} },
-    BarColorEmberGreen        = { Name = 'Ember [Green]',        Order = 511, Width = 'wide',   TablePaths = {'BarEmber.ColorGreen'} },
-    BarColorShardFullGreen    = { Name = 'Shard (full) [Green]', Order = 512, Width = 'wide',   TablePaths = {'BarShard.ColorFullGreen'} },
-    BarColorEmberFullGreen    = { Name = 'Ember (full) [Green]', Order = 513, Width = 'wide',   TablePaths = {'BarEmber.ColorFullGreen'} },
+    BarColorBlood             = { Name = 'Blood',                Order = 513, Width = 'wide',   TablePaths = {'Bar.ColorBlood'} },
+    BarColorFrost             = { Name = 'Frost',                Order = 514, Width = 'wide',   TablePaths = {'Bar.ColorFrost'} },
+    BarColorUnholy            = { Name = 'Unholy',               Order = 515, Width = 'wide',   TablePaths = {'Bar.ColorUnholy'} },
 
-    BarColorBlood             = { Name = 'Blood',                Order = 514, Width = 'wide',   TablePaths = {'Bar.ColorBlood'} },
-    BarColorFrost             = { Name = 'Frost',                Order = 515, Width = 'wide',   TablePaths = {'Bar.ColorFrost'} },
-    BarColorUnholy            = { Name = 'Unholy',               Order = 516, Width = 'wide',   TablePaths = {'Bar.ColorUnholy'} },
+    BarColorStagger           = { Name = 'Stagger',              Order = 516, Width = 'wide',   TablePaths = {'BarStagger.Color'} },
+    BarColorStaggerCont       = { Name = 'Stagger (Continued)',  Order = 517, Width = 'wide',   TablePaths = {'BarStagger.BStaggerColor'} },
+    BarColorPause             = { Name = 'Pause',                Order = 518, Width = 'wide',   TablePaths = {'BarPause.Color'} },
 
-    BarColorStagger           = { Name = 'Stagger',              Order = 517, Width = 'wide',   TablePaths = {'BarStagger.Color'} },
-    BarColorStaggerCont       = { Name = 'Stagger (Continued)',  Order = 518, Width = 'wide',   TablePaths = {'BarStagger.BStaggerColor'} },
-    BarColorPause             = { Name = 'Pause',                Order = 519, Width = 'wide',   TablePaths = {'BarPause.Color'} },
-
-    BarColorAltPower          = { Name = 'Power',                Order = 520, Width = 'wide',   TablePaths = {'BarPower.Color'} },
-    BarColorAltCounter        = { Name = 'Counter',              Order = 521, Width = 'wide',   TablePaths = {'BarCounter.Color'} },
+    BarColorAltPower          = { Name = 'Power',                Order = 519, Width = 'wide',   TablePaths = {'BarPower.Color'} },
+    BarColorAltCounter        = { Name = 'Counter',              Order = 520, Width = 'wide',   TablePaths = {'BarCounter.Color'} },
   }
 
   Options:DoFunction(BarType, 'ResetOptions', function()
@@ -7226,106 +7223,101 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
   MenuButtons = MenuButtons or { -- Include means that these menu items will be usable during copy paste.
     ['Main'] = { Order = 1,
       { Name = 'All',                  All = false, TablePath = '',                                   },  -- 1
-      { Name = 'Specialization',       All = true,  TablePath = 'ClassSpecs',                         },  -- 2
-      { Name = 'Status',               All = true,  TablePath = 'Status',                             },  -- 3
-      { Name = 'Attributes',           All = true,  TablePath = 'Attributes',                         },  -- 4
-      { Name = 'Layout',               All = true,  TablePath = 'Layout',                             },  -- 5
-      { Name = 'Region',               All = true,  TablePath = 'Region',                             }}, -- 6
+      { Name = 'Specialization',       All = true,  TablePath = 'ClassSpecs',                         },
+      { Name = 'Status',               All = true,  TablePath = 'Status',                             },
+      { Name = 'Attributes',           All = true,  TablePath = 'Attributes',                         },
+      { Name = 'Layout',               All = true,  TablePath = 'Layout',                             },
+      { Name = 'Region',               All = true,  TablePath = 'Region',                             }},
 
     ['Background'] = { Order = 2,
       { Name = 'Background',           All = true,  TablePath = 'Background',                         },  -- 1
-      { Name = 'Combo',                All = false, TablePath = 'BackgroundCombo',                    },  -- 2
-      { Name = 'Shard',                All = false, TablePath = 'BackgroundShard',                    },  -- 3
-      { Name = 'Ember',                All = false, TablePath = 'BackgroundEmber',                    },  -- 4
-      { Name = 'Stagger',              All = false, TablePath = 'BackgroundStagger',                  },  -- 5
-      { Name = 'Pause',                All = false, TablePath = 'BackgroundPause',                    },  -- 6
-      { Name = 'Power',                All = false, TablePath = 'BackgroundPower',                    },  -- 7
-      { Name = 'Counter',              All = false, TablePath = 'BackgroundCounter',                  }}, -- 8
+      { Name = 'Shard',                All = false, TablePath = 'BackgroundShard',                    },
+      { Name = 'Ember',                All = false, TablePath = 'BackgroundEmber',                    },
+      { Name = 'Stagger',              All = false, TablePath = 'BackgroundStagger',                  },
+      { Name = 'Pause',                All = false, TablePath = 'BackgroundPause',                    },
+      { Name = 'Power',                All = false, TablePath = 'BackgroundPower',                    },
+      { Name = 'Counter',              All = false, TablePath = 'BackgroundCounter',                  }},
 
     ['Bar'] = { Order = 3,
       { Name = 'Bar',                  All = true,  TablePath = 'Bar',                                },  -- 1
-      { Name = 'Combo',                All = false, TablePath = 'BarCombo',                           },  -- 2
-      { Name = 'Shard',                All = false, TablePath = 'BarShard',                           },  -- 3
-      { Name = 'Ember',                All = false, TablePath = 'BarEmber',                           },  -- 4
-      { Name = 'Stagger',              All = false, TablePath = 'BarStagger',                         },  -- 5
-      { Name = 'Pause',                All = false, TablePath = 'BarPause',                           },  -- 6
-      { Name = 'Power',                All = false, TablePath = 'BarPower',                           },  -- 7
-      { Name = 'Counter',              All = false, TablePath = 'BarCounter',                         }}, -- 8
+      { Name = 'Shard',                All = false, TablePath = 'BarShard',                           },
+      { Name = 'Ember',                All = false, TablePath = 'BarEmber',                           },
+      { Name = 'Stagger',              All = false, TablePath = 'BarStagger',                         },
+      { Name = 'Pause',                All = false, TablePath = 'BarPause',                           },
+      { Name = 'Power',                All = false, TablePath = 'BarPower',                           },
+      { Name = 'Counter',              All = false, TablePath = 'BarCounter',                         }},
 
     ['Region Color'] = { Order = 4, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
       { Name = 'Background',           All = true,  TablePath = 'Region.Color',                       },  -- 1
-      { Name = 'Border',               All = true,  TablePath = 'Region.BorderColor',                 }}, -- 2
+      { Name = 'Border',               All = true,  TablePath = 'Region.BorderColor',                 }},
 
     ['Background Color'] = { Order = 5, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
       { Name = 'Background Color',     All = true,  TablePath = 'Background.Color',                   },  -- 1
-      { Name = 'Border Color',         All = true,  TablePath = 'Background.BorderColor',             },  -- 2
-      { Name = 'Combo',                All = false, TablePath = 'BackgroundCombo.Color',              },  -- 3
-      { Name = 'Combo Border',         All = false, TablePath = 'BackgroundCombo.BorderColor',        },  -- 4
-      { Name = 'Shard',                All = false, TablePath = 'BackgroundShard.Color',              },  -- 5
-      { Name = 'Ember',                All = false, TablePath = 'BackgroundEmber.Color',              },  -- 6
-      { Name = 'Shard [Green]',        All = false, TablePath = 'BackgroundShard.ColorGreen',         },  -- 7
-      { Name = 'Ember [Green]',        All = false, TablePath = 'BackgroundEmber.ColorGreen',         },  -- 8
-      { Name = 'Shard Border',         All = false, TablePath = 'BackgroundShard.BorderColor',        },  -- 9
-      { Name = 'Ember Border',         All = false, TablePath = 'BackgroundEmber.BorderColor',        },  -- 10
-      { Name = 'Shard Border [Green]', All = false, TablePath = 'BackgroundShard.BorderColorGreen',   },  -- 11
-      { Name = 'Ember Border [Green]', All = false, TablePath = 'BackgroundEmber.BorderColorGreen',   },  -- 12
-      { Name = 'Blood',                All = false, TablePath = 'Background.ColorBlood',              },  -- 13
-      { Name = 'Frost',                All = false, TablePath = 'Background.ColorFrost',              },  -- 14
-      { Name = 'Unholy',               All = false, TablePath = 'Background.ColorUnholy',             },  -- 15
-      { Name = 'Blood Border',         All = false, TablePath = 'Background.BorderColorBlood',        },  -- 16
-      { Name = 'Frost Border',         All = false, TablePath = 'Background.BorderColorFrost',        },  -- 17
-      { Name = 'Unholy Border',        All = false, TablePath = 'Background.BorderColorUnholy',       },  -- 18
-      { Name = 'Stagger',              All = false, TablePath = 'BackgroundStagger.Color',            },  -- 19
-      { Name = 'Pause',                All = false, TablePath = 'BackgroundPause.Color',              },  -- 20
-      { Name = 'Stagger Border',       All = false, TablePath = 'BackgroundStagger.BorderColor',      },  -- 21
-      { Name = 'Pause Border',         All = false, TablePath = 'BackgroundPause.BorderColor',        },  -- 22
-      { Name = 'Power',                All = false, TablePath = 'BackgroundPower.Color',              },  -- 23
-      { Name = 'Counter',              All = false, TablePath = 'BackgroundCounter.Color',            },  -- 24
-      { Name = 'Power Border',         All = false, TablePath = 'BackgroundPower.BorderColor',        },  -- 25
-      { Name = 'Counter Border',       All = false, TablePath = 'BackgroundCounter.BorderColor',      }}, -- 26
+      { Name = 'Border Color',         All = true,  TablePath = 'Background.BorderColor',             },
+      { Name = 'Shard',                All = false, TablePath = 'BackgroundShard.Color',              },
+      { Name = 'Ember',                All = false, TablePath = 'BackgroundEmber.Color',              },
+      { Name = 'Shard [Green]',        All = false, TablePath = 'BackgroundShard.ColorGreen',         },
+      { Name = 'Ember [Green]',        All = false, TablePath = 'BackgroundEmber.ColorGreen',         },
+      { Name = 'Shard Border',         All = false, TablePath = 'BackgroundShard.BorderColor',        },
+      { Name = 'Ember Border',         All = false, TablePath = 'BackgroundEmber.BorderColor',        },
+      { Name = 'Shard Border [Green]', All = false, TablePath = 'BackgroundShard.BorderColorGreen',   },
+      { Name = 'Ember Border [Green]', All = false, TablePath = 'BackgroundEmber.BorderColorGreen',   },
+      { Name = 'Blood',                All = false, TablePath = 'Background.ColorBlood',              },
+      { Name = 'Frost',                All = false, TablePath = 'Background.ColorFrost',              },
+      { Name = 'Unholy',               All = false, TablePath = 'Background.ColorUnholy',             },
+      { Name = 'Blood Border',         All = false, TablePath = 'Background.BorderColorBlood',        },
+      { Name = 'Frost Border',         All = false, TablePath = 'Background.BorderColorFrost',        },
+      { Name = 'Unholy Border',        All = false, TablePath = 'Background.BorderColorUnholy',       },
+      { Name = 'Stagger',              All = false, TablePath = 'BackgroundStagger.Color',            },
+      { Name = 'Pause',                All = false, TablePath = 'BackgroundPause.Color',              },
+      { Name = 'Stagger Border',       All = false, TablePath = 'BackgroundStagger.BorderColor',      },
+      { Name = 'Pause Border',         All = false, TablePath = 'BackgroundPause.BorderColor',        },
+      { Name = 'Power',                All = false, TablePath = 'BackgroundPower.Color',              },
+      { Name = 'Counter',              All = false, TablePath = 'BackgroundCounter.Color',            },
+      { Name = 'Power Border',         All = false, TablePath = 'BackgroundPower.BorderColor',        },
+      { Name = 'Counter Border',       All = false, TablePath = 'BackgroundCounter.BorderColor',      }},
 
     ['Bar Color'] = { Order = 6, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
       { Name = 'Bar Color',            All = true,  TablePath = 'Bar.Color',                          },  -- 1
-      { Name = 'Predicted',            All = true,  TablePath = 'Bar.PredictedColor',                 },  -- 2
-      { Name = 'Predicted Cost',       All = true,  TablePath = 'Bar.PredictedCostColor',             },  -- 3
-      { Name = 'Absorb Health',        All = true,  TablePath = 'Bar.AbsorbColor',                    },  -- 4
-      { Name = 'Combo',                All = false, TablePath = 'BarCombo.Color',                     },  -- 5
-      { Name = 'Shard',                All = false, TablePath = 'BarShard.Color',                     },  -- 6
-      { Name = 'Ember',                All = false, TablePath = 'BarEmber.Color',                     },  -- 7
-      { Name = 'Shard (full)',         All = false, TablePath = 'BarShard.ColorFull',                 },  -- 8
-      { Name = 'Ember (full)',         All = false, TablePath = 'BarEmber.ColorFull',                 },  -- 9
-      { Name = 'Shard [Green]',        All = false, TablePath = 'BarShard.ColorGreen',                },  -- 10
-      { Name = 'Ember [Green]',        All = false, TablePath = 'BarEmber.ColorGreen',                },  -- 11
-      { Name = 'Shard (full) [Green]', All = false, TablePath = 'BarShard.ColorFullGreen',            },  -- 12
-      { Name = 'Ember (full) [Green]', All = false, TablePath = 'BarEmber.ColorFullGreen',            },  -- 13
-      { Name = 'Blood',                All = false, TablePath = 'Bar.ColorBlood',                     },  -- 14
-      { Name = 'Frost',                All = false, TablePath = 'Bar.ColorFrost',                     },  -- 15
-      { Name = 'Unholy',               All = false, TablePath = 'Bar.ColorUnholy',                    },  -- 16
-      { Name = 'Stagger',              All = false, TablePath = 'BarStagger.Color',                   },  -- 17
-      { Name = 'Pause',                All = false, TablePath = 'BarPause.Color',                     },  -- 18
-      { Name = 'Power',                All = false, TablePath = 'BarPower.Color',                     },  -- 19
-      { Name = 'Counter',              All = false, TablePath = 'BarCounter.Color',                   }}, -- 20
+      { Name = 'Predicted',            All = true,  TablePath = 'Bar.PredictedColor',                 },
+      { Name = 'Predicted Cost',       All = true,  TablePath = 'Bar.PredictedCostColor',             },
+      { Name = 'Absorb Health',        All = true,  TablePath = 'Bar.AbsorbColor',                    },
+      { Name = 'Shard',                All = false, TablePath = 'BarShard.Color',                     },
+      { Name = 'Ember',                All = false, TablePath = 'BarEmber.Color',                     },
+      { Name = 'Shard (full)',         All = false, TablePath = 'BarShard.ColorFull',                 },
+      { Name = 'Ember (full)',         All = false, TablePath = 'BarEmber.ColorFull',                 },
+      { Name = 'Shard [Green]',        All = false, TablePath = 'BarShard.ColorGreen',                },
+      { Name = 'Ember [Green]',        All = false, TablePath = 'BarEmber.ColorGreen',                },
+      { Name = 'Shard (full) [Green]', All = false, TablePath = 'BarShard.ColorFullGreen',            },
+      { Name = 'Ember (full) [Green]', All = false, TablePath = 'BarEmber.ColorFullGreen',            },
+      { Name = 'Blood',                All = false, TablePath = 'Bar.ColorBlood',                     },
+      { Name = 'Frost',                All = false, TablePath = 'Bar.ColorFrost',                     },
+      { Name = 'Unholy',               All = false, TablePath = 'Bar.ColorUnholy',                    },
+      { Name = 'Stagger',              All = false, TablePath = 'BarStagger.Color',                   },
+      { Name = 'Pause',                All = false, TablePath = 'BarPause.Color',                     },
+      { Name = 'Power',                All = false, TablePath = 'BarPower.Color',                     },
+      { Name = 'Counter',              All = false, TablePath = 'BarCounter.Color',                   }},
 
     ['Text'] = { Order = 7, Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
       { Name  = 'All Text',            All = true,  TablePath = 'Text',                               },  -- 1
-      { Name  = 'Text 1',              All = false, TablePath = 'Text.1',                             },  -- 2
-      { Name  = 'Text 2',              All = false, TablePath = 'Text.2',                             },  -- 3
-      { Name  = 'Text 3',              All = false, TablePath = 'Text.3',                             },  -- 4
-      { Name  = 'Text 4',              All = false, TablePath = 'Text.4',                             }}, -- 5
+      { Name  = 'Text 1',              All = false, TablePath = 'Text.1',                             },
+      { Name  = 'Text 2',              All = false, TablePath = 'Text.2',                             },
+      { Name  = 'Text 3',              All = false, TablePath = 'Text.3',                             },
+      { Name  = 'Text 4',              All = false, TablePath = 'Text.4',                             }},
 
     ['Text (pause)'] = { Order = 8, BarType = 'StaggerBar', Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
       { Name  = 'All Text',            All = true,  TablePath = 'Text2',                              },  -- 1
-      { Name  = 'Text 1',              All = false, TablePath = 'Text2.1',                            },  -- 2
-      { Name  = 'Text 2',              All = false, TablePath = 'Text2.2',                            },  -- 3
-      { Name  = 'Text 3',              All = false, TablePath = 'Text2.3',                            },  -- 4
-      { Name  = 'Text 4',              All = false, TablePath = 'Text2.4',                            }}, -- 5
+      { Name  = 'Text 1',              All = false, TablePath = 'Text2.1',                            },
+      { Name  = 'Text 2',              All = false, TablePath = 'Text2.2',                            },
+      { Name  = 'Text 3',              All = false, TablePath = 'Text2.3',                            },
+      { Name  = 'Text 4',              All = false, TablePath = 'Text2.4',                            }},
 
     ['Text (counter)'] = { Order = 8, BarType = 'AltPowerBar', Include = { ['Text'] = 1, ['Text (counter)'] = 1 },
       { Name  = 'All Text',            All = true,  TablePath = 'Text2',                              },  -- 1
-      { Name  = 'Text 1',              All = false, TablePath = 'Text2.1',                            },  -- 2
-      { Name  = 'Text 2',              All = false, TablePath = 'Text2.2',                            },  -- 3
-      { Name  = 'Text 3',              All = false, TablePath = 'Text2.3',                            },  -- 4
-      { Name  = 'Text 4',              All = false, TablePath = 'Text2.4',                            }}, -- 5
+      { Name  = 'Text 1',              All = false, TablePath = 'Text2.1',                            },
+      { Name  = 'Text 2',              All = false, TablePath = 'Text2.2',                            },
+      { Name  = 'Text 3',              All = false, TablePath = 'Text2.3',                            },
+      { Name  = 'Text 4',              All = false, TablePath = 'Text2.4',                            }},
 
     ['Triggers'] = { Order = 9,
       { Name = 'Triggers',             All = true,  TablePath = 'Triggers',                           }}, -- 1

@@ -185,8 +185,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.APBBuffTimerMoverEnabled - If true then the blizzard alternate power bar timer can be moved to a new location
 -- Main.EABMoverEnabled   - If true then the extra action button can be moved to a new location
 --
--- Main.Talents           - Contains the table Talents
---
 -- UnitBars               - Contains the currently selected profile
 -- Gdata                  - Anything stored in here can be seen by all characters on the same account
 -- ConvertPowerType       - Table to convert a string powertype into a number
@@ -483,7 +481,6 @@ local PredictedSpells
 
 local RegEventFrames = {}
 local RegUnitEventFrames = {}
-local Talents = {}
 
 local SelectFrameBorder = {
   bgFile   = '',
@@ -582,7 +579,6 @@ Main.LSM = LSM
 Main.ConvertPowerType = ConvertPowerType
 Main.ConvertPowerTypeHAP = ConvertPowerTypeHAP
 Main.ConvertCombatColor = ConvertCombatColor
-Main.Talents = Talents
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
 Main.APBBuffTimerMoverEnabled = false
@@ -659,8 +655,6 @@ local function RegisterEvents(Action, EventType, Unit)
     local Flag = Action == 'register'
 
     if EventType == 'casttracker' then
-
-      -- Register events for cast tracking.
       Main:RegEvent(Flag, 'UNIT_SPELLCAST_START',       GUB.TrackCast, 'player')
       Main:RegEvent(Flag, 'UNIT_SPELLCAST_SUCCEEDED',   GUB.TrackCast, 'player')
       Main:RegEvent(Flag, 'UNIT_SPELLCAST_STOP',        GUB.TrackCast, 'player')
@@ -669,15 +663,11 @@ local function RegisterEvents(Action, EventType, Unit)
       Main:RegEvent(Flag, 'UNIT_SPELLCAST_DELAYED',     GUB.TrackCast, 'player')
 
     elseif EventType == 'predictedspells' then
-
-      -- register events for predicted spell tracking.
       Main:RegEvent(Flag, 'UNIT_AURA',                GUB.CheckPredictedSpells, 'player')
       Main:RegEvent(Flag, 'SPELLS_CHANGED',           GUB.CheckPredictedSpells)
       Main:RegEvent(Flag, 'PLAYER_EQUIPMENT_CHANGED', GUB.CheckPredictedSpells)
 
     elseif EventType == 'talenttracker' then
-
-      -- register events for talent tracking
       Main:RegEvent(Flag, 'ACTIVE_TALENT_GROUP_CHANGED',   GUB.TalentUpdate)
       Main:RegEvent(Flag, 'CHARACTER_POINTS_CHANGED',      GUB.TalentUpdate)
       Main:RegEvent(Flag, 'PLAYER_PVP_TALENT_UPDATE',      GUB.TalentUpdate)
@@ -685,8 +675,6 @@ local function RegisterEvents(Action, EventType, Unit)
       Main:RegEvent(Flag, 'PLAYER_SPECIALIZATION_CHANGED', GUB.TalentUpdate)
 
     elseif EventType == 'auratracker' then
-
-      -- register events for aura tracking
       Main:RegUnitEvent(Flag, 'UNIT_AURA', GUB.AuraUpdate, Unit)
       Main:RegEvent(Flag, 'PLAYER_TARGET_CHANGED', GUB.AuraUpdate)
       Main:RegEvent(Flag, 'PLAYER_FOCUS_CHANGED', GUB.AuraUpdate)
@@ -3204,8 +3192,10 @@ end
 --         to a different bar, specs that matched on the old bar are removed
 --         if they'll never match on the new bar
 --
---   ClassSpecs                    A list of classes in uppercase.  Each class has an array where the index is the specialization
---                                 Example: ClassSpecs.WARRIOR[3] = true, warrior protection spec
+--   ClassSpecs[ClassName]         A list of classes in uppercase.
+--     [Specialization]            Class specialization. Example: ClassSpecs.WARRIOR[3] = true, warrior protection spec
+--
+--   ClassSpecs
 --     Inverse                     Does the opposite.  So if you had Warrior arms.  Then inverse would mean everything thats
 --                                 not arms or not a Warrior.
 --     ClassName                   Current class selected in the Class Specialization options pull down.
@@ -4059,6 +4049,8 @@ function GUB:TalentUpdate(Event)
     -- PvE
     local Dropdown = TalentTrackersData.PvEDropdown
     local IconDropdown = TalentTrackersData.PvEIconDropdown
+
+    -- Start from 1 since 'none' takes first spot
     local DropdownIndex = 1
     local Tagged
     wipe(Dropdown)
@@ -5038,7 +5030,6 @@ local ExcludeList = {
   ['*.Text.#'] = 1,
   ['*.Text2.#'] = 1,
   ['*.Triggers.#'] = 1,
-  ['*.Triggers.ActionSync'] = 1,
 }
 
 local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)

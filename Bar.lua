@@ -8105,36 +8105,6 @@ end
 --
 -- Notes: No need to delete old keys since the cleaner will take care of it
 -------------------------------------------------------------------------------
-
---[[  X = no code written to convert this yet
-
-  *   Enabled = true,
-  *   Static = false,
-  -   SpecEnabled = false,
-  -   DisabledBySpec = false,
-  *   ClassSpecs = SetClassSpecs(ClassSpecs, false),
-  -   HideAuras = false,
-  *   OffsetAll = true,
-  -   Action = {Type = 1},
-  *   Name = '',
-
-  *   GroupNumber = 1,
-  -   OrderNumber = 0,
-  -   TypeID = 'bartexturecolor',
-  *   Type = 'bar color',
-  -   ValueTypeID = '',
-  -   ValueType = '',
-  *   CanAnimate = false,
-  *   Animate = false,
-  *   AnimateSpeed = 0.01,
-  -   State = true,
-  -   AuraOperator = 'or',
-  X   Conditions = { All = false, {Operator = '>', Value = 0} },
-  X   Pars = {},
-  *   GetFnTypeID = 'none',
-  *   GetPars = {},
-]]
-
 function GUB.Bar:ConvertTriggers(BarType, Triggers)
   local TriggerIsAll = Trigger660IsAll[BarType]
   local TriggerRegion = Trigger660Region[BarType]

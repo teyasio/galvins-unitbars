@@ -589,8 +589,8 @@ end
 local function EditBoxSetText(self, Text, Cursor)
   local EditBox = self.EditBox
 
-  self.LastText = '' --Text or ''
-  EditBox:SetText(Text) --self.LastText)
+  self.LastText = ''
+  EditBox:SetText(Text)
   EditBox:SetCursorPosition(Cursor or 0)
 
   AuraMenuHideButton(self)
