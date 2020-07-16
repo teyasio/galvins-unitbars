@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 672
+GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.

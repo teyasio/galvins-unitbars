@@ -34,4 +34,13 @@ externals:
     Libs/AceGUI-3.0-SharedMediaWidgets:
         url: https://repos.curseforge.com/wow/ace-gui-3-0-shared-media-widgets/trunk
         tag: latest
-
+    Libs/LibSerialize:
+        url: https://github.com/rossnichols/LibSerialize
+        tag: latest
+    Libs/LibDeflate:
+        https://github.com/SafeteeWoW/LibDeflate
+        tag: latest
+ignore:
+  - Libs/LibDeflate/docs
+  - Libs/LibDeflate/examples
+  - Libs/LibDeflate/tests
