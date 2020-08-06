@@ -37,16 +37,18 @@ GUB.Options = Options
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
 local LSM = LibStub('LibSharedMedia-3.0')
+local LS = LibStub('LibSerialize')
+local LD = LibStub('LibDeflate')
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local abs, floor, sqrt      =
       abs, floor, math.sqrt
 local strfind, strmatch, strsplit, strsub, strtrim, strupper, format =
       strfind, strmatch, strsplit, strsub, strtrim, strupper, format
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type, unpack =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type, unpack
+local GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack =
+      GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
 local C_PetBattles, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
@@ -595,7 +597,7 @@ Main.TalentTrackersData = TalentTrackersData
 do
   local Index = 0
   for BarType, UB in pairs(DUB) do
-    if type(UB) == 'table' and UB.Name then
+    if type(UB) == 'table' and UB._Name then
       Index = Index + 1
       local UBFTable = CreateFrame('Frame')
 
@@ -892,7 +894,7 @@ end
 function GUB.Main:DoBlizzAltPowerBar()
   local BuffTimer
   local APBMoverOptionsDisabled = UnitBars.APBMoverOptionsDisabled
-  BlizzAltPowerVisible = not UnitBars.AltPowerBar.Enabled or APBUseBlizz[AltPowerBarID] or false
+  BlizzAltPowerVisible = not UnitBars.AltPowerBar._Enabled or APBUseBlizz[AltPowerBarID] or false
 
   -- Look for bufftimers for darkmoon fair or similar
   for TimerIndex = 1, 10 do
@@ -1473,7 +1475,7 @@ local function Contains(Table, Value)
 end
 
 -------------------------------------------------------------------------------
--- StringSplit
+-- SplitString
 --
 -- Splits and trims a string and returns it as paramaters. Removes any extra spaces.
 --
@@ -1501,10 +1503,6 @@ local function SplitString(Sep, St)
   elseif Part ~= '' then
     return Part
   end
-end
-
-function GUB.Main:StringSplit(Sep, St)
-  return SplitString(Sep, St)
 end
 
 -------------------------------------------------------------------------------
@@ -1954,6 +1952,11 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData14 = {
     {Action = 'custom',    Source = '',                                 '=Triggers'},
   }
+  local ConvertUBData15 = {
+    {Action = 'move',                                                   '=Name:_Name', '=OptionOrder:_OptionOrder', '=OptionText:_OptionText',
+                                                                        '=UnitType:_UnitType', '=Enabled:_Enabled', '=x:_x', '=y:_y'},
+  }
+
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1985,6 +1988,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData13
   elseif Ver == 14 then
     ConvertUBData = ConvertUBData14
+  elseif Ver == 15 then
+    ConvertUBData = ConvertUBData15
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -2192,13 +2197,13 @@ function GUB.Main:SetAnchorPoint(Anchor, x, y)
     y = y + (Anchor._Height * Scale - 1) * AnchorPos.y
 
   elseif x == 'UB' then
-    x, y = UB.x, UB.y
+    x, y = UB._x, UB._y
   end
 
   Anchor:ClearAllPoints()
   Anchor:SetPoint(AnchorPoint, x, y)
 
-  UB.x, UB.y = x, y
+  UB._x, UB._y = x, y
 end
 
 -------------------------------------------------------------------------------
@@ -2270,14 +2275,14 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY, Float)
     -- Get the new x, y location for the current AnchorPoint
     -- Offsets have to be scaled
     -- (width and height minus 1) is to account for 1 pixel bar shift
-    UB.x = x + OffsetX * Scale + (Width - 1) * AnchorPos.x
-    UB.y = y + OffsetY * Scale + (Height - 1) * AnchorPos.y
+    UB._x = x + OffsetX * Scale + (Width - 1) * AnchorPos.x
+    UB._y = y + OffsetY * Scale + (Height - 1) * AnchorPos.y
   end
 
   Anchor:SetSize(Width, Height)
   Anchor.AnimationFrame:SetSize(Width, Height)
 
-  Main:SetAnchorPoint(Anchor, UB.x, UB.y)
+  Main:SetAnchorPoint(Anchor, UB._x, UB._y)
 
   -- Update alignment if alignswap is open
   if Options.AlignSwapOptionsOpen then
@@ -2858,7 +2863,7 @@ function GUB.Main:ListTable(Table, Path, Exclude)
       if type(v) == 'table' then
         local Recursive = Exclude[v]
 
-        print(Path .. '.' .. kst .. ' = ', v, (Recursive == true and '(recursive)' or ''))
+        --print(Path .. '.' .. kst .. ' = ', v, (Recursive == true and '(recursive)' or ''))
 
         -- Only call if the table hasn't been seen before.
         if Recursive ~= true then
@@ -2868,12 +2873,12 @@ function GUB.Main:ListTable(Table, Path, Exclude)
         if type(k) == 'table' or type(k) == 'function' then
           local _, Address = strsplit(' ', tostring(k), 2)
 
-          print(Path .. '.' .. Address .. ' = ', v)
+          --print(Path .. '.' .. Address .. ' = ', v)
 
         elseif type(v) == 'boolean' then
-          print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
+          --print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
         else
-          print(Path .. '.' .. kst .. ' = ', v)
+          --print(Path .. '.' .. kst .. ' = ', v)
         end
       end
     end
@@ -3015,6 +3020,28 @@ function GUB.Main:DelUB(BarType, TablePath)
 end
 
 -------------------------------------------------------------------------------
+-- DeepCopy
+--
+-- Does a recursive copy and will also copy underscore keys
+-- Wipes the Dest first
+-------------------------------------------------------------------------------
+function GUB.Main:DeepCopy(Source, Dest, Recursive)
+  if Recursive == nil then
+    wipe(Dest)
+  end
+
+  for k, v in pairs(Source) do
+    if type(v) == 'table' then
+      local t = {}
+      Dest[k] = t
+      Main:DeepCopy(v, t, true)
+    else
+      Dest[k] = v
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- CopyTableValues
 --
 -- Copies all the data from one table to another.
@@ -3047,7 +3074,6 @@ local function CopyTable(Source, Dest, DC, Array)
           CopyTable(v, d, DC)
         else
           Dest[k] = v
-          --print(k, '=', v)
         end
       end
     end
@@ -3177,6 +3203,44 @@ local function HideUnitBar(UnitBarF, HideBar)
 end
 
 -------------------------------------------------------------------------------
+-- UpdateClassSpecs
+--
+-- Updates the specialization data against the defaults by adding or removing data
+--
+-- BarType      The bar thats being checked
+-- ClassSpecs   Table containing the class and specs
+-- IsTriggers   Used by triggers
+-------------------------------------------------------------------------------
+function GUB.Main:UpdateClassSpecs(BarType, ClassSpecs, IsTriggers)
+  local CSD
+  if IsTriggers then
+    CSD = DUB[BarType].Triggers.Default.ClassSpecs
+  else
+    CSD = DUB[BarType].ClassSpecs
+  end
+  Main:CopyMissingTableValues(CSD, ClassSpecs)
+
+  for KeyName, ClassSpec in pairs(ClassSpecs) do
+    local SpecD = CSD[KeyName]
+
+    if SpecD ~= nil then
+      if type(ClassSpec) == 'table' then
+        for Index in pairs(ClassSpec) do
+
+          -- Does the spec exist in defaults
+          if SpecD[Index] == nil then
+            ClassSpec[Index] = nil
+          end
+        end
+      end
+    else
+      -- Remove keys not found in defaults
+      ClassSpecs[KeyName] = nil
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- CheckClassSpecs
 --
 -- Checks the class and or spec against a table. The spec must be supported by the
@@ -3184,7 +3248,6 @@ end
 --
 -- BarType      The bar thats being checked
 -- ClassSpecs   Table containing the class and specs
--- IsTriggers   Used by triggers
 -- Returns true if the spec is found
 --
 -- NOTES:  This will remove entries in ClassSpecs if those are not found
@@ -3203,35 +3266,8 @@ end
 --     All                         if true matches all specs, ignores any class spec settings.
 --
 -------------------------------------------------------------------------------
-function GUB.Main:CheckClassSpecs(BarType, ClassSpecs, IsTriggers)
+function GUB.Main:CheckClassSpecs(BarType, ClassSpecs)
   local Match
-
-  if IsTriggers then
-    -- Only need to do this for triggers.
-    -- Since specs in non triggers gets checked by
-    -- FixUnitBars()
-    local CSD = DUB[BarType].Triggers.Default.ClassSpecs
-    Main:CopyMissingTableValues(CSD, ClassSpecs)
-
-    for KeyName, ClassSpec in pairs(ClassSpecs) do
-      local SpecD = CSD[KeyName]
-
-      if SpecD ~= nil then
-        if type(ClassSpec) == 'table' then
-          for Index in pairs(ClassSpec) do
-
-            -- Does the spec exist in defaults
-            if SpecD[Index] == nil then
-              ClassSpec[Index] = nil
-            end
-          end
-        end
-      else
-        -- Remove keys not found in defaults
-        ClassSpecs[KeyName] = nil
-      end
-    end
-  end
 
   if not ClassSpecs.All then
 
@@ -3262,7 +3298,7 @@ function GUB.Main:StatusCheck(Event)
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
-  if UB.Enabled then
+  if UB._Enabled then
     local Hide = false
 
     -- Always show bars if show or testing
@@ -3325,6 +3361,67 @@ function GUB.Main:StatusCheck(Event)
 
     HideUnitBar(self, Hide)
   end
+end
+
+-------------------------------------------------------------------------------
+-- ImportStringTable
+--
+-- Imports a string back into a table
+--
+-- Data    String to get imported
+--
+-- Returns
+--   Success      true or false
+--   Version      Version number of the mod that exported this data
+--   BarType      The bar that the data was exported from
+--   Type         Type of data
+--   Name         Name of the data
+--   Table        Actual table that got exported
+-------------------------------------------------------------------------------
+function GUB.Main:ImportStringTable(Data)
+  local CompressedTable = LD:DecodeForPrint(Data)
+
+  if CompressedTable then
+    local SerializedTable = LD:DecompressDeflate(CompressedTable)
+
+    if SerializedTable then
+      local Success, ImportData = LS:Deserialize(SerializedTable)
+
+      if Success then
+        return true, ImportData.Version, ImportData.VersionType, ImportData.BarType, ImportData.Type, ImportData.DisplayType, ImportData.Name, ImportData.Table
+      end
+    end
+  end
+
+  return false
+end
+
+-------------------------------------------------------------------------------
+-- ExportTableString
+--
+-- Exports a table into a string
+--
+-- Type      Strng: type of data to export
+-- Name      String: Name of the data
+-- Table     Table of data to export
+--
+-- Returns String
+-------------------------------------------------------------------------------
+function GUB.Main:ExportTableString(BarType, Type, DisplayType, Name, Table)
+  local ExportTable = {
+    Version = Version,
+    VersionType = 'retail',
+    BarType = BarType,
+    Type = Type,
+    DisplayType = DisplayType,
+    Name = Name,
+    Table = Table,
+  }
+
+  local SerializedTable = LS:SerializeEx({ errorOnUnserializableType = false }, ExportTable)
+  local CompressedTable = LD:CompressDeflate(SerializedTable)
+
+  return LD:EncodeForPrint(CompressedTable)
 end
 
 --*****************************************************************************
@@ -4609,7 +4706,7 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
     if UnitBars.AuraListOn then
       -- use a dummy function since nothing needs to be done.
       Main:SetAuraTracker(AuraListName, 'fn', function() end)
-      Main:SetAuraTracker(AuraListName, 'units', Main:StringSplit(' ', UnitBars.AuraListUnits))
+      Main:SetAuraTracker(AuraListName, 'units', Main:SplitString(' ', UnitBars.AuraListUnits))
     else
       Main:SetAuraTracker(AuraListName, 'off')
     end
@@ -4728,7 +4825,7 @@ local function CreateUnitBar(UnitBarF, BarType)
     Anchor:SetToplevel(true)
 
     -- Get name for align and swap.
-    Anchor.Name = UnitBars[BarType].Name
+    Anchor.Name = UnitBars[BarType]._Name
 
     -- Create the animation frame.
     local AnimationFrame = CreateFrame('Frame', nil, Anchor)
@@ -4820,9 +4917,9 @@ function GUB.Main:SetUnitBars(ProfileChanged)
     if EnableClass then
       local ClassSpecs = DUB[BarType].ClassSpecs[PlayerClass]
 
-      UB.Enabled = ClassSpecs ~= nil and Contains(ClassSpecs, true) ~= nil
+      UB._Enabled = ClassSpecs ~= nil and Contains(ClassSpecs, true) ~= nil
     end
-    local Enabled = UB.Enabled
+    local Enabled = UB._Enabled
 
     if Enabled then
       Index = Index + 1
@@ -5032,7 +5129,7 @@ local ExcludeList = {
   ['*.Triggers.#'] = 1,
 }
 
-local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
+function GUB.Main:FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
   if DefaultTable == nil then
     DefaultTable = DUB
     Table = UnitBars
@@ -5061,7 +5158,7 @@ local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
     if ExcludeList[format('%s%s', TablePath, PathKey)] == nil then
       if DefaultValue ~= nil then
         if type(Value) == 'table' then
-          FixUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), format('%s%s.', RTablePath, RPathKey))
+          Main:FixUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), format('%s%s.', RTablePath, RPathKey))
         end
       else
         --print('ERASED:', format('%s%s', RTablePath, RPathKey))
@@ -5124,10 +5221,13 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 670 then -- 6.70
     ConvertUnitBarData(14)
   end
+  if Ver == nil or Ver < 673 then -- 6.73
+    ConvertUnitBarData(15)
+  end
 
 
   -- Make sure profile is accurate.
-  FixUnitBars()
+  Main:FixUnitBars()
   UnitBars.Version = Version
 
   Main:SetUnitBars(true)
@@ -5236,9 +5336,10 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 44 then
-    Gdata.ShowMessage = 44
+  if Gdata.ShowMessage ~= 45 then
+    Gdata.ShowMessage = 45
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
 
+GUB.Main.SplitString = function(self, ...) return SplitString(...) end

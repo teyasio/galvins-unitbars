@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local ipairs, UnitPower =
       ipairs, UnitPower
 
@@ -325,7 +325,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetHiddenTexture(0, ShardDarkTexture, false)
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   BBar:SetChangeTexture(ChangeShards, ShardLightTexture, ShardSBar)
 

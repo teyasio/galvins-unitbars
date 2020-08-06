@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local ipairs =
       ipairs
 local UnitPower, UnitPowerMax =
@@ -356,7 +356,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetChangeTexture(ChangePoints, ComboLightTexture, ComboSBar)
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   -- Set the texture scale for bar offset triggers.
   BBar:SetScaleAllTexture(0, AllTextures, 1)

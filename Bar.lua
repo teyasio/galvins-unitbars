@@ -18,8 +18,8 @@ local Options = GUB.Options
 local LSM = Main.LSM
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local abs, max, floor, ceil, sqrt,      mhuge =
       abs, max, floor, ceil, math.sqrt, math.huge
 local strfind, strmatch, strsub, strtrim, strsplit, strlower, strupper, format, gsub =
@@ -1442,10 +1442,6 @@ local function GetRect(Frame, OffsetX, OffsetY)
   return x, y, Frame:GetWidth(), Frame:GetHeight()
 end
 
-function GUB.Bar:GetRect(Frame, OffsetX, OffsetY)
-  return GetRect(Frame, OffsetX, OffsetY)
-end
-
 -------------------------------------------------------------------------------
 -- GetBoundsRect
 --
@@ -1575,7 +1571,7 @@ local function BoxInfo(Frame)
     local BarDB = Frame.BarDB
     local UB = BarDB.Anchor.UnitBar
     local AnchorPoint = AnchorPointWord[UB.Attributes.AnchorPoint]
-    local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
+    local BarX, BarY = floor(UB._x + 0.5), floor(UB._y + 0.5)
 
     -- Is this a boxframe?
     if Frame.BF then
@@ -5917,7 +5913,7 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
     BorderFrame:SetAllPoints()
     PaddingFrame:SetAllPoints()
 
-    -- Scale frame's size is done thry OnSizeChangedFrame().  So ScaleFrame has to be
+    -- Scale frame's size is done thru OnSizeChangedFrame().  So ScaleFrame has to be
     -- set CENTER. SetScale() doesn't work well with frames that have SetAllPoints()
     ScaleFrame:SetPoint('CENTER')
     SizeFrame:SetAllPoints(PaddingFrame)
@@ -7685,8 +7681,10 @@ function BarDB:CheckTriggers(Action)
       Trigger.ActiveAuras = false
 
       if not Disabled then
-        if Static or ( not Trigger.SpecEnabled or Main:CheckClassSpecs(BarType, Trigger.ClassSpecs, true) ) and
-                     ( TalentsDisabled or CheckTriggersTalents(Trigger, InputTalents)                    )     then
+        local ClassSpecs = Trigger.ClassSpecs
+        Main:UpdateClassSpecs(BarType, ClassSpecs, true)
+        if Static or ( not Trigger.SpecEnabled or Main:CheckClassSpecs(BarType, ClassSpecs) ) and
+                     ( TalentsDisabled or CheckTriggersTalents(Trigger, InputTalents)             ) then
           ActiveTriggers[#ActiveTriggers + 1] = Trigger
         end
       end
@@ -7712,7 +7710,7 @@ function BarDB:CheckTriggers(Action)
                                           self:CheckTriggersAuras()
                                           self:DoTriggers()
                                         end)
-    Main:SetAuraTracker(UnitBarF, 'units', Main:StringSplit(' ', Units))
+    Main:SetAuraTracker(UnitBarF, 'units', Main:SplitString(' ', Units))
   else
     Main:SetAuraTracker(UnitBarF, 'off')
   end
@@ -7889,21 +7887,20 @@ end
 --
 -- Adds triggers from another bar without overwriting the existing ones.
 --
--- SourceBarType      Bar the source triggers are coming from.
+-- Source      string: Then this a bartype otherwise this contains the table to append
 -------------------------------------------------------------------------------
-function BarDB:AppendTriggers(SourceBarType)
-  local SourceTriggers = Main.UnitBars[SourceBarType].Triggers
-  local SourceBarName = DUB[SourceBarType].Name
+function BarDB:AppendTriggers(SourceTriggers)
+  if type(SourceTriggers) == 'string' then
+    SourceTriggers = Main.UnitBars[SourceTriggers].Triggers
+  end
   local Triggers = self.UnitBarF.UnitBar.Triggers
 
   for TriggerIndex = 1, #SourceTriggers do
     local Trigger = {}
     local SourceTrigger = SourceTriggers[TriggerIndex]
-    local Name = SourceTrigger.Name
 
-    -- Copy trigger and modify name
+    -- Copy trigger
     Main:CopyTableValues(SourceTrigger, Trigger, true)
-    Trigger.Name = format('[ %s ] %s', SourceBarName, Name)
 
     -- Append trigger
     Triggers[#Triggers + 1] = Trigger
@@ -8225,3 +8222,4 @@ function GUB.Bar:ConvertTriggers(BarType, Triggers)
   end
 end
 
+GUB.Bar.GetRect = function(self, ...) return GetRect(...) end

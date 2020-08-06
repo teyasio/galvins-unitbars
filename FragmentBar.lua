@@ -15,10 +15,10 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
-local floor, pairs, ipairs, type, format, print =
-      floor, pairs, ipairs, type, format, print
+local _, _G, print =
+      _, _G, print
+local floor, pairs, ipairs, type, format =
+      floor, pairs, ipairs, type, format
 local UnitPower, IsSpellKnown =
       UnitPower, IsSpellKnown
 
@@ -655,7 +655,7 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetSizeTextureFrame(0, TextureModeEmber, ShardData.EmberTextureWidth, ShardData.EmberTextureHeight)
   BBar:SetSizeTextureFrame(0, TextureModeEmberGreen, ShardData.EmberTextureWidth, ShardData.EmberTextureHeight)
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   BBar:SetChangeTexture(ShardFill, ShardFillTexture, GreenShardFillTexture, EmberFillTexture, GreenEmberFillTexture, ShardFillSBar,
                         EmberFillSBar)

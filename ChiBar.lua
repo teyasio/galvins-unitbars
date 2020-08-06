@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local ipairs, UnitPower, UnitPowerMax =
       ipairs, UnitPower, UnitPowerMax
 
@@ -345,7 +345,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetChangeTexture(ChangeChi, ChiLightTexture, ChiSBar)
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   -- Set the texture scale for bar offset triggers.
   BBar:SetScaleAllTexture(0, AllTextures, 1)

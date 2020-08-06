@@ -13,10 +13,10 @@ local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
 -- localize some globals.
-local _, _G =
-      _, _G
-local GetTime, strfind, format, sort, print =
-      GetTime, strfind, format, sort, print
+local _, _G, print =
+      _, _G, print
+local GetTime, strfind, format, sort =
+      GetTime, strfind, format, sort
 local GetRuneCooldown, CreateFrame =
       GetRuneCooldown, CreateFrame
 
@@ -690,7 +690,7 @@ function GUB.RuneBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:SetTooltipBox(RuneIndex, Name)
   end
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   BBar:SetSizeTextureFrame(0, BarMode, UB.Bar.Width, UB.Bar.Height)
   BBar:SetSizeTextureFrame(0, RuneMode, RuneDataWidth, RuneDataHeight)

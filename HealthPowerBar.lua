@@ -17,10 +17,10 @@ local UnitBarsF = Main.UnitBarsF
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
-local floor, strfind, pairs, print =
-      floor, strfind, pairs, print
+local _, _G, print =
+      _, _G, print
+local floor, strfind, pairs =
+      floor, strfind, pairs
 local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs =
       GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs
 local UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax =
@@ -259,7 +259,7 @@ local function UpdateHealthBar(self, Event, Unit)
   -- Set IsActive
   ---------------
   local UB = self.UnitBar
-  Unit = UB.UnitType
+  Unit = DUB[self.BarType]._UnitType
   local Layout = UB.Layout
 
   local CurrValue = UnitHealth(Unit)
@@ -433,7 +433,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   local UB = self.UnitBar
   local BarType = self.BarType
   local PowerType
-  Unit = UB.UnitType
+  Unit = DUB[self.BarType]._UnitType
   PowerToken = ConvertPowerType[PowerToken]
 
   if BarType ~= 'ManaPower' then
@@ -759,7 +759,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont('Text', HapBox)
 
   -- Enable tooltip
-  BBar:SetTooltipBox(HapBox, UB.Name)
+  BBar:SetTooltipBox(HapBox, UB._Name)
 
   -- Show the bar.
   BBar:SetHidden(HapBox, HapTFrame, false)

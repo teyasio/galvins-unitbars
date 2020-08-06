@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local UnitPower =
       UnitPower
 
@@ -316,7 +316,7 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
     Names[ArcaneIndex] = Name
   end
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   BBar:SetChangeTexture(ChangeArcane, ArcaneLightTexture, ArcaneSBar)
 

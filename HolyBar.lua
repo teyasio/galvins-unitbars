@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local ipairs, UnitPower =
       ipairs, UnitPower
 
@@ -348,7 +348,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(ChangeHoly, HolyLightTexture, HolySBar)
   BBar:SetHiddenTexture(0, HolyDarkTexture, false)
 
-  BBar:SetTooltipRegion(UB.Name .. ' - Region')
+  BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   -- Set offset for trigger bar offset
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)

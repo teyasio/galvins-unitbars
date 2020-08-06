@@ -514,13 +514,13 @@ ClassSpecs = { -- This is used for all health and power bars
 }
 
 Profile.PlayerHealth = {
-  Name = 'Player Health',
-  OptionOrder = 1,
-  UnitType = 'player',
-  Enabled = true,
+  _Name = 'Player Health',
+  _OptionOrder = 1,
+  _UnitType = 'player',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 230,
+  _x = -200,
+  _y = 230,
 }
 MergeTable(Profile.PlayerHealth, {
   Status = {
@@ -624,13 +624,13 @@ MergeTable(Profile.PlayerHealth, {
 -- Player Power
 --=============================================================================
 Profile.PlayerPower = {
-  Name = 'Player Power',
-  OptionOrder = 2,
-  UnitType = 'player',
-  Enabled = true,
+  _Name = 'Player Power',
+  _OptionOrder = 2,
+  _UnitType = 'player',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 200,
+  _x = -200,
+  _y = 200,
 }
 MergeTable(Profile.PlayerPower, {
   Status = {
@@ -731,13 +731,13 @@ MergeTable(Profile.PlayerPower, {
 -- Target Health
 --=============================================================================
 Profile.TargetHealth = {
-  Name = 'Target Health',
-  OptionOrder = 3,
-  UnitType = 'target',
-  Enabled = true,
+  _Name = 'Target Health',
+  _OptionOrder = 3,
+  _UnitType = 'target',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 170,
+  _x = -200,
+  _y = 170,
 }
 MergeTable(Profile.TargetHealth, {
   Status = {
@@ -843,13 +843,13 @@ MergeTable(Profile.TargetHealth, {
 -- Target Power
 --=============================================================================
 Profile.TargetPower = {
-  Name = 'Target Power',
-  OptionOrder = 4,
-  UnitType = 'target',
-  Enabled = true,
+  _Name = 'Target Power',
+  _OptionOrder = 4,
+  _UnitType = 'target',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 140,
+  _x = -200,
+  _y = 140,
 }
 MergeTable(Profile.TargetPower, {
   Status = {
@@ -942,13 +942,13 @@ MergeTable(Profile.TargetPower, {
 -- Focus Health
 --=============================================================================
 Profile.FocusHealth = {
-  Name = 'Focus Health',
-  OptionOrder = 5,
-  UnitType = 'focus',
-  Enabled = true,
+  _Name = 'Focus Health',
+  _OptionOrder = 5,
+  _UnitType = 'focus',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 110,
+  _x = -200,
+  _y = 110,
 }
 MergeTable(Profile.FocusHealth, {
   Status = {
@@ -1054,13 +1054,13 @@ MergeTable(Profile.FocusHealth, {
 -- Focus Power
 --=============================================================================
 Profile.FocusPower = {
-  Name = 'Focus Power',
-  OptionOrder = 6,
-  UnitType = 'focus',
-  Enabled = true,
+  _Name = 'Focus Power',
+  _OptionOrder = 6,
+  _UnitType = 'focus',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 80,
+  _x = -200,
+  _y = 80,
 }
 MergeTable(Profile.FocusPower, {
   Status = {
@@ -1163,14 +1163,14 @@ ClassSpecs = { -- This is used for pet health and power
 }
 
 Profile.PetHealth = {
-  Name = 'Pet Health',
-  OptionOrder = 7,
-  OptionText = 'Classes with pets only',
-  UnitType = 'pet',
-  Enabled = true,
+  _Name = 'Pet Health',
+  _OptionOrder = 7,
+  _OptionText = 'Classes with pets only',
+  _UnitType = 'pet',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 50,
+  _x = -200,
+  _y = 50,
 }
 MergeTable(Profile.PetHealth, {
   Status = {
@@ -1272,14 +1272,14 @@ MergeTable(Profile.PetHealth, {
 -- Pet Power
 --=============================================================================
 Profile.PetPower = {
-  Name = 'Pet Power',
-  OptionOrder = 8,
-  OptionText = 'Classes with pets only',
-  UnitType = 'pet',
-  Enabled = true,
+  _Name = 'Pet Power',
+  _OptionOrder = 8,
+  _OptionText = 'Classes with pets only',
+  _UnitType = 'pet',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = 20,
+  _x = -200,
+  _y = 20,
 }
 MergeTable(Profile.PetPower, {
   Status = {
@@ -1379,14 +1379,14 @@ ClassSpecs = {
 }
 
 Profile.ManaPower = {
-  Name = 'Mana Power',
-  OptionOrder = 9,
-  OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
-  UnitType = 'player',
-  Enabled = true,
+  _Name = 'Mana Power',
+  _OptionOrder = 9,
+  _OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
+  _UnitType = 'player',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = -10,
+  _x = -200,
+  _y = -10,
 }
 MergeTable(Profile.ManaPower, {
   Status = {
@@ -1488,12 +1488,12 @@ ClassSpecs = {
 }
 
 Profile.StaggerBar = {
-  Name = 'Stagger Bar',
-  OptionOrder = 10,
-  Enabled = true,
+  _Name = 'Stagger Bar',
+  _OptionOrder = 10,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = -40,
+  _x = -200,
+  _y = -40,
 }
 MergeTable(Profile.StaggerBar, {
   Status = {
@@ -1656,12 +1656,12 @@ ClassSpecs = {
 }
 
 Profile.AltPowerBar = {
-  Name = 'Alternate Power Bar',
-  OptionOrder = 11,
-  Enabled = true,
+  _Name = 'Alternate Power Bar',
+  _OptionOrder = 11,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = -200,
-  y = -70,
+  _x = -200,
+  _y = -70,
 }
 MergeTable(Profile.AltPowerBar, {
   Status = {
@@ -1814,12 +1814,12 @@ ClassSpecs = {
 }
 
 Profile.RuneBar = {
-  Name = 'Rune Bar',
-  OptionOrder = 12,
-  Enabled = true,
+  _Name = 'Rune Bar',
+  _OptionOrder = 12,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 0,
-  y = 229,
+  _x = 0,
+  _y = 229,
 }
 MergeTable(Profile.RuneBar, {
   Status = {
@@ -2047,12 +2047,12 @@ ClassSpecs = {
 }
 
 Profile.ComboBar = {
-  Name = 'Combo Bar',
-  OptionOrder = 13,
-  Enabled = true,
+  _Name = 'Combo Bar',
+  _OptionOrder = 13,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 0,
-  y = 195,
+  _x = 0,
+  _y = 195,
 }
 MergeTable(Profile.ComboBar, {
   Status = {
@@ -2176,12 +2176,12 @@ ClassSpecs = {
 }
 
 Profile.HolyBar = {
-  Name = 'Holy Bar',
-  OptionOrder = 14,
-  Enabled = true,
+  _Name = 'Holy Bar',
+  _OptionOrder = 14,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 0,
-  y = 154,
+  _x = 0,
+  _y = 154,
 }
 MergeTable(Profile.HolyBar, {
   Status = {
@@ -2296,12 +2296,12 @@ ClassSpecs = {
 }
 
 Profile.ShardBar = {
-  Name = 'Shard Bar',
-  OptionOrder = 15,
-  Enabled = true,
+  _Name = 'Shard Bar',
+  _OptionOrder = 15,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 0,
-  y = 112,
+  _x = 0,
+  _y = 112,
 }
 MergeTable(Profile.ShardBar, {
   Status = {
@@ -2416,13 +2416,13 @@ ClassSpecs = {
 }
 
 Profile.FragmentBar = {
-  Name = 'Fragment Bar',
-  OptionOrder = 16,
-  OptionText = 'Destruction Warlocks only',
-  Enabled = true,
+  _Name = 'Fragment Bar',
+  _OptionOrder = 16,
+  _OptionText = 'Destruction Warlocks only',
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 150,
-  y = 112,
+  _x = 150,
+  _y = 112,
 }
 MergeTable(Profile.FragmentBar, {
   Status = {
@@ -2697,12 +2697,12 @@ ClassSpecs = {
 }
 
 Profile.ChiBar = {
-  Name = 'Chi Bar',
-  OptionOrder = 17,
-  Enabled = true,
+  _Name = 'Chi Bar',
+  _OptionOrder = 17,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 0,
-  y = 69,
+  _x = 0,
+  _y = 69,
 }
 MergeTable(Profile.ChiBar, {
   Status = {
@@ -2821,12 +2821,12 @@ ClassSpecs = {
 }
 
 Profile.ArcaneBar = {
-  Name = 'Arcane Bar',
-  OptionOrder = 18,
-  Enabled = true,
+  _Name = 'Arcane Bar',
+  _OptionOrder = 18,
+  _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
-  x = 0,
-  y = 30,
+  _x = 0,
+  _y = 30,
 }
 MergeTable(Profile.ArcaneBar, {
   Status = {
@@ -2954,9 +2954,12 @@ You can get to the options in two ways.
 First is going to interface -> addons -> Galvin's UnitBars.  Then click on "GUB Options".
 The other way is to type "/gub config" or "/gub c".
 
+|cff00ff00Importing and Exporting|r
+To export all the settings for a unitbar.  Go to Import Export tab for that bar.  Unitbar settings can only be imported to the same bar.
+To export a trigger go to Triggers -> List.  You'll see the import and export buttons there.  Triggers can be imported into other bars and they always get appended.
 
 |cff00ff00Dragging and Dropping|r
-To drag any bar around the screen use the left mouse button while pressing any modifier key (alt, shift, or control).  To move a rune use the right mouse button while pressing down any modifier key.
+To drag any bar around the screen use the left mouse button while pressing any modifier key (alt, shift, or control).  To move a things like runes use the right mouse button while pressing down any modifier key.
 
 
 |cff00ff00Status|r
@@ -3127,6 +3130,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 6.73
+|cff00ff00Import and Export|r added to Unitbars and Triggers.  For Unitbars, the export and import tab can be found at the root menu for each bar.  For triggers, can be found under list tab under triggers
+
 Version 6.70
 |cff00ff00Triggers|r has been rewritten.  GUB will attempt to convert all your triggers over.  You may need to fix some triggers
 |cff00ff00ComboBar|r Removed all anticipation code

@@ -14,8 +14,8 @@ local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local GetTime, UnitStagger, UnitHealthMax =
       GetTime, UnitStagger, UnitHealthMax
 
@@ -470,7 +470,7 @@ function GUB.StaggerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont('Text2', StaggerPauseBox)
 
   -- Enable tooltip
-  BBar:SetTooltipBox(StaggerBarBox, UB.Name)
+  BBar:SetTooltipBox(StaggerBarBox, UB._Name)
   BBar:SetTooltipBox(StaggerPauseBox, 'Pause Timer')
 
   -- Show the bars.

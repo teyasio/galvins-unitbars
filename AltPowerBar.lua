@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local GetTime, floor =
       GetTime, floor
 local UnitAlternatePowerInfo, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, UnitAlternatePowerTextureInfo =
@@ -564,8 +564,8 @@ function GUB.AltPowerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont('Text2', AltCounterBarBox)
 
   -- Enable tooltip
-  BBar:SetTooltipBox(AltPowerBarBox, UB.Name .. ' (Power)')
-  BBar:SetTooltipBox(AltCounterBarBox, UB.Name .. ' (Counter)')
+  BBar:SetTooltipBox(AltPowerBarBox, UB._Name .. ' (Power)')
+  BBar:SetTooltipBox(AltCounterBarBox, UB._Name .. ' (Counter)')
 
   -- Show the textures, but not the frames
   BBar:SetHiddenTexture(AltPowerBarBox, AltPowerSBar, false)

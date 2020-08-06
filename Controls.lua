@@ -1,12 +1,13 @@
+--====================
 -- Controls.lua
 
 -- Contains custom controls.
 --
--- Aura Menu          Modified from AceGUI-3.0-Spell-EditBox
--- Menu Button        Button thats part menu and part button. Used by triggers
--- Flex Button        Button that can be flexible in size.  Also can be left/center/right justified.
--- Editbox Selected   An edit box that automatically selects what's in it.
--- Spell Info         Shows a tooltip when moused over.  Also shows an icon with text next to it.
+-- Aura Menu                     Modified from AceGUI-3.0-Spell-EditBox
+-- Editbox Ready Only Selected   An edit box that automatically selects what's in it.  Also read only
+-- Spell Info                    Shows a tooltip when moused over.  Also shows an icon with text next to it.
+-- Dropdown Select               Same as a normal drop down except has a scroll bar
+-- Multi line edit box debug     Same as a regular one but for debug
 
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
@@ -20,16 +21,20 @@ local LSM = Main.LSM
 local AceGUI = LibStub('AceGUI-3.0')
 
 -- localize some globals.
-local _, _G =
-      _, _G
-local GetSpellInfo, ipairs, pairs, tonumber, CreateFrame, strlower, strfind, strsplit, format, sort =
-      GetSpellInfo, ipairs, pairs, tonumber, CreateFrame, strlower, strfind, strsplit, format, sort
-local GameTooltip, ClearOverrideBindings, PlaySound, CreateFont =
-      GameTooltip, ClearOverrideBindings, PlaySound, CreateFont
-local UIParent, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
-      UIParent, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
-local C_TradeSkillUIGetTradeSkillLineForRecipe,  SoundKit, unpack, print =
-      C_TradeSkillUI.GetTradeSkillLineForRecipe, SOUNDKIT, unpack, print
+local _, _G, print =
+      _, _G, print
+local CreateFrame, strlower, strfind, strsplit, strtrim, strsub, format, sort, tostring =
+      CreateFrame, strlower, strfind, strsplit, strtrim, strsub, format, sort, tostring
+local tonumber, tconcat     , GetTime =
+      tonumber, table.concat, GetTime
+local ipairs, pairs, unpack =
+      ipairs, pairs, unpack
+local GameTooltip, ClearOverrideBindings, GetSpellInfo, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo =
+      GameTooltip, ClearOverrideBindings, GetSpellInfo, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo
+local UIParent, GameFontNormal, GameFontHighlight, ChatFontNormal, OKAY, PlaySound =
+      UIParent, GameFontNormal, GameFontHighlight, ChatFontNormal, OKAY, PlaySound
+local C_TradeSkillUIGetTradeSkillLineForRecipe  =
+      C_TradeSkillUI.GetTradeSkillLineForRecipe
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -39,12 +44,9 @@ local C_TradeSkillUIGetTradeSkillLineForRecipe,  SoundKit, unpack, print =
 -- SpellsLoaded           if true then spells are already loaded.
 -- SpellsPerRun           Amount of spells to load at one time.
 -- SpellsTPS              Amount of calls per second
--- AuraMenulines          Amount of lines used.
+-- AuraMenuLines          Amount of lines used.
 -- MenuLines              How many lines to show without a scroll bar.
 -- SpellsMenuFrameWidth   Width of the menu in pixels for spells menu
--- MenuButtonHeight       Height of the menu buttons in pixels.
--- FlexButtonHeight       Height of the flex buttons in pixels.
--- MenuArrowSize          Size of the menu arrow in pixels.
 -- AuraMenuFrame          Contains the current open pulldown window for spells
 -------------------------------------------------------------------------------
 local MaxSpells = 300000            -- Total spells to load in 1 second
@@ -52,43 +54,30 @@ local SpellsTPS = 1 / 30            -- 30 times per second
 local SpellsPerRun = MaxSpells / 30 -- Total Spells to load each run
 local SpellsLoaded = false
 local HyperLinkSt = 'spell:%s'
+local Ace3Widgets = {}
+local DefaultType = 0
 
 local AuraMenuLines = 100
 local MenuLines = 10
 local SpellsMenuFrameWidth = 250
-local MenuArrowSize = 32 / 2.7
-local MenuBulletSize = 32 / 3.5
-local MenuButtonHeight = 24
-local FlexButtonHeight = 24
-local TextButtonHeight = 24
-local TextButtonHL = {r = 0.3, g = 0.3, b = 0.3}
-
 
 local EditBoxWidgetVersion = 1
 local AuraEditBoxWidgetVersion = 1
-local MenuButtonWidgetVersion = 1
-local FlexButtonWidgetVersion = 1
-local EditBoxSelectedWidgetVersion = 1
+local EditBoxReadOnlySelectedWidgetVersion = 1
 local SpellInfoWidgetVersion = 1
-local TextButtonWidgetVersion = 1
-local MultiLineEditBoxWidgetVersion = 1
+local MultiLineEditBoxDebugWidgetVersion = 1
+local MultiLineEditBoxImportWidgetVersion = 1
+local MultiLineEditBoxExportWidgetVersion = 1
 local DropdownSelectWidgetVersion = 1
-
 
 local EditBoxWidgetType = 'GUB_AuraMenu_Base'
 local AuraEditBoxWidgetType = 'GUB_Aura_EditBox'
-local MenuButtonWidgetType = 'GUB_Menu_Button'
-local FlexButtonWidgetType = 'GUB_Flex_Button'
-local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
-local MultiLineEditBoxWidgetType = 'GUB_MultiLine_EditBox'
+local EditBoxReadOnlySelectedWidgetType = 'GUB_EditBox_ReadOnly_Selected'
+local MultiLineEditBoxDebugWidgetType = 'GUB_MultiLine_EditBox_Debug'
+local MultiLineEditBoxImportWidgetType = 'GUB_MultiLine_EditBox_Import'
+local MultiLineEditBoxExportWidgetType = 'GUB_MultiLine_EditBox_Export'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
-local TextButtonWidgetType = 'GUB_Text_Button'
 local DropdownSelectWidgetType = 'GUB_Dropdown_Select'
-
-
-local MenuOpenedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuOpened]]
-local MenuClosedIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuClosed]]
-local MenuBulletIcon        = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuBullet]]
 
 local SpellsTimer = {}
 local SpellList = {}
@@ -121,47 +110,595 @@ local SliderBackdrop = {
   },
 }
 
-local MenuButtonBorder = {
-  bgFile   = LSM:Fetch('background', 'Blizzard Rock'),
-  edgeFile = LSM:Fetch('border', 'Blizzard Dialog'),
-  tile = false,
-  tileSize = 16,
-  edgeSize = 16,
-  insets = {
-    left = 4 ,
-    right = 4,
-    top = 4,
-    bottom = 4
-  }
+--#############################################################################
+--#############################################################################
+--
+-- ACE3 code here to be reused
+--
+--#############################################################################
+--#############################################################################
+
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--
+-- Code copied/modified from AceGUIWidget-EditBox.lua
+--
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+do
+
+local function ShowButton(self)
+  if not self.disablebutton then
+    self.button:Show()
+    self.editbox:SetTextInsets(0, 20, 3, 3)
+  end
+end
+
+local function HideButton(self)
+  self.button:Hide()
+  self.editbox:SetTextInsets(0, 0, 3, 3)
+end
+
+--[[-----------------------------------------------------------------------------
+Scripts
+-------------------------------------------------------------------------------]]
+local function Control_OnEnter(frame)
+  frame.obj:Fire("OnEnter")
+end
+
+local function Control_OnLeave(frame)
+  frame.obj:Fire("OnLeave")
+end
+
+local function Frame_OnShowFocus(frame)
+  frame.obj.editbox:SetFocus()
+  frame:SetScript("OnShow", nil)
+end
+
+local function EditBox_OnEscapePressed(frame)
+  AceGUI:ClearFocus()
+end
+
+local function EditBox_OnEnterPressed(frame)
+  local self = frame.obj
+  local value = frame:GetText()
+  local cancel = self:Fire("OnEnterPressed", value)
+  if not cancel then
+    PlaySound(856) -- SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON
+    HideButton(self)
+  end
+end
+
+local function EditBox_OnReceiveDrag(frame)
+  local self = frame.obj
+  local type, id, info = GetCursorInfo()
+  local name
+  if type == "item" then
+    name = info
+  elseif type == "spell" then
+    name = GetSpellInfo(id, info)
+  elseif type == "macro" then
+    name = GetMacroInfo(id)
+  end
+  if name then
+    self:SetText(name)
+    self:Fire("OnEnterPressed", name)
+    ClearCursor()
+    HideButton(self)
+    AceGUI:ClearFocus()
+  end
+end
+
+local function EditBox_OnTextChanged(frame)
+  local self = frame.obj
+  local value = frame:GetText()
+  if tostring(value) ~= tostring(self.lasttext) then
+    self:Fire("OnTextChanged", value)
+    self.lasttext = value
+    ShowButton(self)
+  end
+end
+
+local function EditBox_OnFocusGained(frame)
+  AceGUI:SetFocus(frame.obj)
+end
+
+local function Button_OnClick(frame)
+  local editbox = frame.obj.editbox
+  editbox:ClearFocus()
+  EditBox_OnEnterPressed(editbox)
+end
+
+--[[-----------------------------------------------------------------------------
+Methods
+-------------------------------------------------------------------------------]]
+local methods = {
+  ["OnAcquire"] = function(self)
+    -- height is controlled by SetLabel
+    self:SetWidth(200)
+    self:SetDisabled(false)
+    self:SetLabel()
+    self:SetText()
+    self:DisableButton(false)
+    self:SetMaxLetters(0)
+  end,
+
+  ["OnRelease"] = function(self)
+    self:ClearFocus()
+  end,
+
+  ["SetDisabled"] = function(self, disabled)
+    self.disabled = disabled
+    if disabled then
+      self.editbox:EnableMouse(false)
+      self.editbox:ClearFocus()
+      self.editbox:SetTextColor(0.5,0.5,0.5)
+      self.label:SetTextColor(0.5,0.5,0.5)
+    else
+      self.editbox:EnableMouse(true)
+      self.editbox:SetTextColor(1,1,1)
+      self.label:SetTextColor(1,.82,0)
+    end
+  end,
+
+  ["SetText"] = function(self, text)
+    self.lasttext = text or ""
+    self.editbox:SetText(text or "")
+    self.editbox:SetCursorPosition(0)
+    HideButton(self)
+  end,
+
+  ["GetText"] = function(self, text)
+    return self.editbox:GetText()
+  end,
+
+  ["SetLabel"] = function(self, text)
+    if text and text ~= "" then
+      self.label:SetText(text)
+      self.label:Show()
+      self.editbox:SetPoint("TOPLEFT",self.frame,"TOPLEFT",7,-18)
+      self:SetHeight(44)
+      self.alignoffset = 30
+    else
+      self.label:SetText("")
+      self.label:Hide()
+      self.editbox:SetPoint("TOPLEFT",self.frame,"TOPLEFT",7,0)
+      self:SetHeight(26)
+      self.alignoffset = 12
+    end
+  end,
+
+  ["DisableButton"] = function(self, disabled)
+    self.disablebutton = disabled
+    if disabled then
+      HideButton(self)
+    end
+  end,
+
+  ["SetMaxLetters"] = function (self, num)
+    self.editbox:SetMaxLetters(num or 0)
+  end,
+
+  ["ClearFocus"] = function(self)
+    self.editbox:ClearFocus()
+    self.frame:SetScript("OnShow", nil)
+  end,
+
+  ["SetFocus"] = function(self)
+    self.editbox:SetFocus()
+    if not self.frame:IsShown() then
+      self.frame:SetScript("OnShow", Frame_OnShowFocus)
+    end
+  end,
+
+  ["HighlightText"] = function(self, from, to)
+    self.editbox:HighlightText(from, to)
+  end
 }
 
-local MenuButtonHighlightBorder = {
-  bgFile   = LSM:Fetch('background', 'Blizzard Rock'),
-  edgeFile = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_MenuHighlightBorder]],
-  tile = false,
-  tileSize = 16,
-  edgeSize = 16,
-  insets = {
-    left = 4 ,
-    right = 4,
-    top = 4,
-    bottom = 4
+--[[-----------------------------------------------------------------------------
+Constructor
+-------------------------------------------------------------------------------]]
+function Ace3Widgets:EditBox()
+  local frame = CreateFrame("Frame", nil, UIParent)
+  frame:Hide()
+
+  local editbox = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+  editbox:SetAutoFocus(false)
+  editbox:SetFontObject(ChatFontNormal)
+  editbox:SetScript("OnEnter", Control_OnEnter)
+  editbox:SetScript("OnLeave", Control_OnLeave)
+  editbox:SetScript("OnEscapePressed", EditBox_OnEscapePressed)
+  editbox:SetScript("OnEnterPressed", EditBox_OnEnterPressed)
+  editbox:SetScript("OnTextChanged", EditBox_OnTextChanged)
+  editbox:SetScript("OnReceiveDrag", EditBox_OnReceiveDrag)
+  editbox:SetScript("OnMouseDown", EditBox_OnReceiveDrag)
+  editbox:SetScript("OnEditFocusGained", EditBox_OnFocusGained)
+  editbox:SetTextInsets(0, 0, 3, 3)
+  editbox:SetMaxLetters(256)
+  editbox:SetPoint("BOTTOMLEFT", 6, 0)
+  editbox:SetPoint("BOTTOMRIGHT")
+  editbox:SetHeight(19)
+
+  local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  label:SetPoint("TOPLEFT", 0, -2)
+  label:SetPoint("TOPRIGHT", 0, -2)
+  label:SetJustifyH("LEFT")
+  label:SetHeight(18)
+
+  local button = CreateFrame("Button", nil, editbox, "UIPanelButtonTemplate")
+  button:SetWidth(40)
+  button:SetHeight(20)
+  button:SetPoint("RIGHT", -2, 0)
+  button:SetText(OKAY)
+  button:SetScript("OnClick", Button_OnClick)
+  button:Hide()
+
+  local widget = {
+    alignoffset = 30,
+    editbox     = editbox,
+    label       = label,
+    button      = button,
+    frame       = frame,
+    type        = DefaultType
   }
+  for method, func in pairs(methods) do
+    widget[method] = func
+  end
+  editbox.obj, button.obj = widget, widget
+
+  return widget
+end
+
+end
+
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--
+-- Code copied/modified from AceGUIWidget-MultiLineEditBox.lua
+--
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+--%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+do
+local function Layout(self)
+  self:SetHeight(self.numlines * 14 + (self.disablebutton and 19 or 41) + self.labelHeight)
+
+  if self.labelHeight == 0 then
+    self.scrollBar:SetPoint("TOP", self.frame, "TOP", 0, -23)
+  else
+    self.scrollBar:SetPoint("TOP", self.label, "BOTTOM", 0, -19)
+  end
+
+  if self.disablebutton then
+    self.scrollBar:SetPoint("BOTTOM", self.frame, "BOTTOM", 0, 21)
+    self.scrollBG:SetPoint("BOTTOMLEFT", 0, 4)
+  else
+    self.scrollBar:SetPoint("BOTTOM", self.button, "TOP", 0, 18)
+    self.scrollBG:SetPoint("BOTTOMLEFT", self.button, "TOPLEFT")
+  end
+end
+
+--[[-----------------------------------------------------------------------------
+Scripts
+-------------------------------------------------------------------------------]]
+local function OnClick(self)                                                     -- Button
+  self = self.obj
+  self.editBox:ClearFocus()
+  if not self:Fire("OnEnterPressed", self.editBox:GetText()) then
+    self.button:Disable()
+  end
+end
+
+local function OnCursorChanged(self, _, y, _, cursorHeight)                      -- EditBox
+  self, y = self.obj.scrollFrame, -y
+  local offset = self:GetVerticalScroll()
+  if y < offset then
+    self:SetVerticalScroll(y)
+  else
+    y = y + cursorHeight - self:GetHeight()
+    if y > offset then
+      self:SetVerticalScroll(y)
+    end
+  end
+end
+
+local function OnEditFocusLost(self)                                             -- EditBox
+  self:HighlightText(0, 0)
+  self.obj:Fire("OnEditFocusLost")
+end
+
+local function OnEnter(self)                                                     -- EditBox / ScrollFrame
+  self = self.obj
+  if not self.entered then
+    self.entered = true
+    self:Fire("OnEnter")
+  end
+end
+
+local function OnLeave(self)                                                     -- EditBox / ScrollFrame
+  self = self.obj
+  if self.entered then
+    self.entered = nil
+    self:Fire("OnLeave")
+  end
+end
+
+local function OnMouseUp(self)                                                   -- ScrollFrame
+  self = self.obj.editBox
+  self:SetFocus()
+  self:SetCursorPosition(self:GetNumLetters())
+end
+
+local function OnReceiveDrag(self)                                               -- EditBox / ScrollFrame
+  local type, id, info = GetCursorInfo()
+  if type == "spell" then
+    info = GetSpellInfo(id, info)
+  elseif type ~= "item" then
+    return
+  end
+  ClearCursor()
+  self = self.obj
+  local editBox = self.editBox
+  if not editBox:HasFocus() then
+    editBox:SetFocus()
+    editBox:SetCursorPosition(editBox:GetNumLetters())
+  end
+  editBox:Insert(info)
+  self.button:Enable()
+end
+
+local function OnSizeChanged(self, width, height)                                -- ScrollFrame
+  self.obj.editBox:SetWidth(width)
+end
+
+local function OnTextChanged(self, userInput)                                    -- EditBox
+  if userInput then
+    self = self.obj
+    self:Fire("OnTextChanged", self.editBox:GetText())
+    self.button:Enable()
+  end
+end
+
+local function OnTextSet(self)                                                   -- EditBox
+  self:HighlightText(0, 0)
+  self:SetCursorPosition(self:GetNumLetters())
+  self:SetCursorPosition(0)
+  self.obj.button:Disable()
+end
+
+local function OnVerticalScroll(self, offset)                                    -- ScrollFrame
+  local editBox = self.obj.editBox
+  editBox:SetHitRectInsets(0, 0, offset, editBox:GetHeight() - offset - self:GetHeight())
+end
+
+local function OnShowFocus(frame)
+  frame.obj.editBox:SetFocus()
+  frame:SetScript("OnShow", nil)
+end
+
+local function OnEditFocusGained(frame)
+  AceGUI:SetFocus(frame.obj)
+  frame.obj:Fire("OnEditFocusGained")
+end
+
+--[[-----------------------------------------------------------------------------
+Methods
+-------------------------------------------------------------------------------]]
+local methods = {
+  ["OnAcquire"] = function(self)
+    self.editBox:SetText("")
+    self:SetDisabled(false)
+    self:SetWidth(200)
+    self:DisableButton(false)
+    self:SetNumLines()
+    self.entered = nil
+    self:SetMaxLetters(0)
+  end,
+
+  ["OnRelease"] = function(self)
+    self:ClearFocus()
+  end,
+
+  ["SetDisabled"] = function(self, disabled)
+    local editBox = self.editBox
+    if disabled then
+      editBox:ClearFocus()
+      editBox:EnableMouse(false)
+      editBox:SetTextColor(0.5, 0.5, 0.5)
+      self.label:SetTextColor(0.5, 0.5, 0.5)
+      self.scrollFrame:EnableMouse(false)
+      self.button:Disable()
+    else
+      editBox:EnableMouse(true)
+      editBox:SetTextColor(1, 1, 1)
+      self.label:SetTextColor(1, 0.82, 0)
+      self.scrollFrame:EnableMouse(true)
+    end
+  end,
+
+  ["SetLabel"] = function(self, text)
+    if text and text ~= "" then
+      self.label:SetText(text)
+      if self.labelHeight ~= 10 then
+        self.labelHeight = 10
+        self.label:Show()
+      end
+    elseif self.labelHeight ~= 0 then
+      self.labelHeight = 0
+      self.label:Hide()
+    end
+    Layout(self)
+  end,
+
+  ["SetNumLines"] = function(self, value)
+    if not value or value < 4 then
+      value = 4
+    end
+    self.numlines = value
+    Layout(self)
+  end,
+
+  ["SetText"] = function(self, text)
+    self.editBox:SetText(text)
+  end,
+
+  ["GetText"] = function(self)
+    return self.editBox:GetText()
+  end,
+
+  ["SetMaxLetters"] = function (self, num)
+    self.editBox:SetMaxLetters(num or 0)
+  end,
+
+  ["DisableButton"] = function(self, disabled)
+    self.disablebutton = disabled
+    if disabled then
+      self.button:Hide()
+    else
+      self.button:Show()
+    end
+    Layout(self)
+  end,
+
+  ["ClearFocus"] = function(self)
+    self.editBox:ClearFocus()
+    self.frame:SetScript("OnShow", nil)
+  end,
+
+  ["SetFocus"] = function(self)
+    self.editBox:SetFocus()
+    if not self.frame:IsShown() then
+      self.frame:SetScript("OnShow", OnShowFocus)
+    end
+  end,
+
+  ["HighlightText"] = function(self, from, to)
+    self.editBox:HighlightText(from, to)
+  end,
+
+  ["GetCursorPosition"] = function(self)
+    return self.editBox:GetCursorPosition()
+  end,
+
+  ["SetCursorPosition"] = function(self, ...)
+    return self.editBox:SetCursorPosition(...)
+  end,
+
+
 }
 
-local TextButtonBorder = {
-  bgFile   = LSM:Fetch('background', 'Blizzard Tooltip'),
-  edgeFile = LSM:Fetch('border', 'Blizzard Tooltip'),
-  tile = false,
-  tileSize = 16,
-  edgeSize = 16,
-  insets = {
-    left = 4 ,
-    right = 4,
-    top = 4,
-    bottom = 4
-  }
+--[[-----------------------------------------------------------------------------
+Constructor
+-------------------------------------------------------------------------------]]
+local backdrop = {
+  bgFile = [[Interface\Tooltips\UI-Tooltip-Background]],
+  edgeFile = [[Interface\Tooltips\UI-Tooltip-Border]], edgeSize = 16,
+  insets = { left = 4, right = 3, top = 4, bottom = 3 }
 }
+
+function Ace3Widgets:MultiLineEditBox()
+  local frame = CreateFrame("Frame", nil, UIParent)
+  frame:Hide()
+
+  local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  label:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -4)
+  label:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -4)
+  label:SetJustifyH("LEFT")
+  label:SetText(ACCEPT)
+  label:SetHeight(10)
+
+  local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  button:SetPoint("BOTTOMLEFT", 0, 4)
+  button:SetHeight(22)
+  button:SetWidth(label:GetStringWidth() + 24)
+  button:SetText(ACCEPT)
+  button:SetScript("OnClick", OnClick)
+  button:Disable()
+
+  local text = button:GetFontString()
+  text:ClearAllPoints()
+  text:SetPoint("TOPLEFT", button, "TOPLEFT", 5, -5)
+  text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -5, 1)
+  text:SetJustifyV("MIDDLE")
+
+  local scrollBG = CreateFrame("Frame", nil, frame)
+  scrollBG:SetBackdrop(backdrop)
+  scrollBG:SetBackdropColor(0, 0, 0)
+  scrollBG:SetBackdropBorderColor(0.4, 0.4, 0.4)
+
+  local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+
+  local scrollBar = scrollFrame.ScrollBar
+  scrollBar:ClearAllPoints()
+  scrollBar:SetPoint("TOP", label, "BOTTOM", 0, -19)
+  scrollBar:SetPoint("BOTTOM", button, "TOP", 0, 18)
+  scrollBar:SetPoint("RIGHT", frame, "RIGHT")
+
+  scrollBG:SetPoint("TOPRIGHT", scrollBar, "TOPLEFT", 0, 19)
+  scrollBG:SetPoint("BOTTOMLEFT", button, "TOPLEFT")
+
+  scrollFrame:SetPoint("TOPLEFT", scrollBG, "TOPLEFT", 5, -6)
+  scrollFrame:SetPoint("BOTTOMRIGHT", scrollBG, "BOTTOMRIGHT", -4, 4)
+  scrollFrame:SetScript("OnEnter", OnEnter)
+  scrollFrame:SetScript("OnLeave", OnLeave)
+  scrollFrame:SetScript("OnMouseUp", OnMouseUp)
+  scrollFrame:SetScript("OnReceiveDrag", OnReceiveDrag)
+  scrollFrame:SetScript("OnSizeChanged", OnSizeChanged)
+  scrollFrame:HookScript("OnVerticalScroll", OnVerticalScroll)
+
+  local editBox = CreateFrame("EditBox", nil, scrollFrame)
+  editBox:SetAllPoints()
+  editBox:SetFontObject(ChatFontNormal)
+  editBox:SetMultiLine(true)
+  editBox:EnableMouse(true)
+  editBox:SetAutoFocus(false)
+  editBox:SetCountInvisibleLetters(false)
+  editBox:SetScript("OnCursorChanged", OnCursorChanged)
+  editBox:SetScript("OnEditFocusLost", OnEditFocusLost)
+  editBox:SetScript("OnEnter", OnEnter)
+  editBox:SetScript("OnEscapePressed", editBox.ClearFocus)
+  editBox:SetScript("OnLeave", OnLeave)
+  editBox:SetScript("OnMouseDown", OnReceiveDrag)
+  editBox:SetScript("OnReceiveDrag", OnReceiveDrag)
+  editBox:SetScript("OnTextChanged", OnTextChanged)
+  editBox:SetScript("OnTextSet", OnTextSet)
+  editBox:SetScript("OnEditFocusGained", OnEditFocusGained)
+
+
+  scrollFrame:SetScrollChild(editBox)
+
+  local widget = {
+    button      = button,
+    editBox     = editBox,
+    frame       = frame,
+    label       = label,
+    labelHeight = 10,
+    numlines    = 4,
+    scrollBar   = scrollBar,
+    scrollBG    = scrollBG,
+    scrollFrame = scrollFrame,
+    type        = DefaultType
+  }
+  for method, func in pairs(methods) do
+    widget[method] = func
+  end
+  button.obj, editBox.obj, scrollFrame.obj = widget, widget, widget
+
+  return widget
+end
+
+end
+
+--#############################################################################
+--#############################################################################
+--
+-- End of ace3 code
+--
+--#############################################################################
+--#############################################################################
+
 
 --*****************************************************************************
 --
@@ -883,612 +1420,6 @@ AceGUI:RegisterWidgetType(AuraEditBoxWidgetType, AuraEditBoxConstructor, AuraEdi
 
 --*****************************************************************************
 --
--- Menu_Button util
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- SetMenuIcon
---
--- Sets the menu arrow to opened, closed or none.  Disabled or enabled.
---
--- ButtonFrame    Frame to position arrow on.
--- State          '0', '1', '2'
--------------------------------------------------------------------------------
-local function SetMenuIcon(ButtonFrame, State)
-  local MenuIcon
-  local MenuIconSize
-  local MenuArrowClosed = ButtonFrame.MenuArrowClosed
-  local MenuArrowOpened = ButtonFrame.MenuArrowOpened
-  local MenuBullet = ButtonFrame.MenuBullet
-
-  if State == '0' then -- arrow closed
-    MenuIconSize = MenuArrowSize
-    MenuIcon = ButtonFrame.MenuArrowClosed
-    MenuArrowOpened:Hide()
-   MenuBullet:Hide()
-  elseif State == '1' then -- arrow open
-    MenuIconSize = MenuArrowSize
-    MenuIcon = ButtonFrame.MenuArrowOpened
-    MenuArrowClosed:Hide()
-    MenuBullet:Hide()
-  elseif State == '2' then -- show bullet
-    MenuIconSize = MenuBulletSize
-    MenuIcon = ButtonFrame.MenuBullet
-    MenuArrowOpened:Hide()
-    MenuArrowClosed:Hide()
-  end
-
-  if State == '' then
-    MenuArrowOpened:Hide()
-    MenuArrowClosed:Hide()
-    MenuBullet:Hide()
-  else
-    MenuIcon:Show()
-
-    -- Calc center position
-    local Center = (MenuButtonHeight - MenuIconSize) / 2
-
-    MenuIcon:SetPoint('TOPLEFT', 9, Center * -1)
-  end
-end
-
---*****************************************************************************
---
--- Menu_Button dialog control
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- MenuButtonOnAcquire
---
--- Gets called when the menu button is visible on screen.
---
--- self   Widget
--------------------------------------------------------------------------------
-local function MenuButtonOnAcquire(self)
-  self:SetHeight(MenuButtonHeight)
-  self:SetDisabled(false)
-end
-
--------------------------------------------------------------------------------
--- MenuButtonDisable
---
--- Gets called if the options disables/enables the menu button.
---
--- self        Widget
--- Disabled    If true then disabled, otherwise false
--------------------------------------------------------------------------------
-local function MenuButtonDisable(self, Disabled)
-  local ButtonFrame = self.ButtonFrame
-
-  if Disabled then
-    ButtonFrame:Disable()
-    SetMenuIcon(ButtonFrame, '')
-  else
-    ButtonFrame:Enable()
-  end
-end
-
--------------------------------------------------------------------------------
--- MenuButtonOnEnterPressed
---
--- Gets called if the menu button gets clicked
--------------------------------------------------------------------------------
-local function MenuButtonOnEnterPressed(self, ...)
-  AceGUI:ClearFocus()
-  PlaySound(SoundKit.IG_MAINMENU_OPTION)
-  self.Widget:Fire('OnEnterPressed', ...)
-end
-
-local function MenuButtonOnEnter(self)
-  self:SetBackdrop(MenuButtonHighlightBorder)
-  self:SetBackdropColor(0.45, 0.45, 0.45, 1)
-  self:SetBackdropBorderColor(0.7, 0.7, 0.7, 1)
-end
-
-local function MenuButtonOnLeave(self)
-  self:SetBackdrop(MenuButtonBorder)
-  self:SetBackdropColor(0.45, 0.45, 0.45, 1)
-end
-
--------------------------------------------------------------------------------
--- MenuButtonSetLabel
---
--- Sets the text for the menu button
---
--- self   Widget
--- Text   Text to display
---
--- Text also takes the state. Example: <text>:0 or 1
--------------------------------------------------------------------------------
-local function MenuButtonSetLabel(self, Text)
-  local ButtonFrame = self.ButtonFrame
-  local Text, State = strsplit(':', Text)
-
-  ButtonFrame:SetText('       ' .. Text)
-
-  SetMenuIcon(ButtonFrame, State or '')
-end
-
--------------------------------------------------------------------------------
--- MenuButtonConstructor
---
--- Creates the button for the ace options to use.
---
--- To use this in ace-config.  Use type = 'input', and then use "set" to respond
--- To mouse clicks on the button.
---
--- To set the state use: 'Menu:#' # = 0 closed, # = 1 opened, # = 2 bullet
--------------------------------------------------------------------------------
-local function MenuButtonConstructor()
-  local Frame = CreateFrame('Frame', nil, UIParent)
-  local ButtonFrame = CreateFrame('Button', nil, Frame)
-  local Widget = {}
-
-  ButtonFrame:SetBackdrop(MenuButtonBorder)
-  ButtonFrame:SetBackdropColor(0.45, 0.45, 0.45, 1)
-
-  -- Need this so there is space between each control.
-  ButtonFrame:SetPoint('TOPLEFT', 1, 0)
-  ButtonFrame:SetPoint('BOTTOMRIGHT', -1, 0)
-
-  -- Create font text for enabled, disabled, and highlight
-  local FontNormal = CreateFont('GUB_FontNormal')
-  FontNormal:SetFontObject(GameFontNormal)
-  FontNormal:SetJustifyH('LEFT')
-  ButtonFrame:SetNormalFontObject(FontNormal)
-
-  local FontDisable = CreateFont('GUB_FontDisable')
-  FontDisable:SetFontObject(GameFontDisable)
-  FontDisable:SetJustifyH('LEFT')
-  ButtonFrame:SetDisabledFontObject(FontDisable)
-
-  local FontHighlight = CreateFont('GUB_FontHighlight')
-  FontHighlight:SetFontObject(GameFontHighlight)
-  FontHighlight:SetJustifyH('LEFT')
-  ButtonFrame:SetHighlightFontObject(FontHighlight)
-
-  -- Create menu arrows
-  local MenuArrowOpened = ButtonFrame:CreateTexture(nil, 'OVERLAY')
-  MenuArrowOpened:SetTexture(MenuOpenedIcon)
-
-  local MenuArrowClosed = ButtonFrame:CreateTexture(nil, 'OVERLAY')
-  MenuArrowClosed:SetTexture(MenuClosedIcon)
-
-  local MenuBullet = ButtonFrame:CreateTexture(nil, 'OVERLAY')
-  MenuBullet:SetTexture(MenuBulletIcon)
-  MenuBullet:Hide()
-
-  -- Set size and color of menu arrows
-  MenuArrowOpened:SetSize(MenuArrowSize, MenuArrowSize)
-  MenuArrowClosed:SetSize(MenuArrowSize, MenuArrowSize)
-  MenuBullet:SetSize(MenuBulletSize, MenuBulletSize)
-
-  MenuArrowOpened:SetVertexColor(0.75, 0.75, 0.75, 1)
-  MenuArrowClosed:SetVertexColor(0.75, 0.75, 0.75, 1)
-  MenuBullet:SetVertexColor(0.75, 0.75, 0.75, 1)
-
-  ButtonFrame.MenuArrowOpened = MenuArrowOpened
-  ButtonFrame.MenuArrowClosed = MenuArrowClosed
-  ButtonFrame.MenuBullet = MenuBullet
-
-
-  ButtonFrame:SetScript('OnClick', MenuButtonOnEnterPressed)
-  ButtonFrame:SetScript('OnEnter', MenuButtonOnEnter)
-  ButtonFrame:SetScript('OnLeave', MenuButtonOnLeave)
-
-
-  ButtonFrame.Widget = Widget
-
-
-  Widget.frame = Frame
-  Widget.type = MenuButtonWidgetType
-  Widget.ButtonFrame = ButtonFrame
-
-  Widget.OnAcquire = MenuButtonOnAcquire
-
-  -- Set functions for ace config dialog
-  Widget.SetDisabled = MenuButtonDisable
-  Widget.SetLabel = MenuButtonSetLabel
-  Widget.SetText = function() end
-
-
-  return AceGUI:RegisterAsWidget(Widget)
-end
-
-AceGUI:RegisterWidgetType(MenuButtonWidgetType, MenuButtonConstructor, MenuButtonWidgetVersion)
-
---*****************************************************************************
---
--- Flex_Button dialog control
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- FlexButtonOnAcquire
---
--- Gets called when the flex button is visible on screen.
---
--- self   Widget
--------------------------------------------------------------------------------
-local function FlexButtonOnAcquire(self)
-  self:SetHeight(24)
-  self:SetWidth(200)
-  self:SetDisabled(false)
-end
-
--------------------------------------------------------------------------------
--- FlexButtonDisable
---
--- Gets called if the options disables/enables the flex button.
---
--- self        Widget
--- Disabled    If true then disabled, otherwise false
---------------------------------------------------------------------------
-local function FlexButtonDisable(self, Disabled)
-  local ButtonFrame = self.ButtonFrame
-
-  if Disabled then
-    ButtonFrame:Disable()
-  else
-    ButtonFrame:Enable()
-  end
-end
-
--------------------------------------------------------------------------------
--- FlexButtonSetLabel
---
--- Sets the text for the flex button
---
--- self   Widget
--- Text   Text to display
--------------------------------------------------------------------------------
-local function FlexButtonSetLabel(self, Text)
-  self.ButtonFrame:SetText(Text)
-end
-
--------------------------------------------------------------------------------
--- FlexButtonSetCommand
---
--- Changes the flex button based on the command
---
--- self      Widget
--- Command   Command in the form of Command,Width
--------------------------------------------------------------------------------
-local function FlexButtonSetCommand(self, Command)
-  local Command, Width = strsplit(',', Command or '')
-  local ButtonFrame = self.ButtonFrame
-
-  if Width then
-    ButtonFrame:SetWidth(Width)
-  end
-
-  ButtonFrame:ClearAllPoints()
-  self.ButtonFrame:SetHeight(FlexButtonHeight)
-
-  if Command == 'L' then
-    ButtonFrame:SetPoint('TOPLEFT')
-  elseif Command == 'R' then
-    ButtonFrame:SetPoint('TOPRIGHT')
-  elseif Command == 'C' then
-    ButtonFrame:SetPoint('CENTER')
-  end
-end
-
--------------------------------------------------------------------------------
--- FlexButtonOnEnterPressed
---
--- Gets called when the flex button gets clicked
--------------------------------------------------------------------------------
-local function FlexButtonOnEnterPressed(self, ...)
-  AceGUI:ClearFocus()
-  PlaySound(SoundKit.IG_MAINMENU_OPTION)
-  self.Widget:Fire('OnEnterPressed', ...)
-end
-
--------------------------------------------------------------------------------
--- FlexButtonOnEnter
---
--- Gets called when mousing over the flex button
--------------------------------------------------------------------------------
-local function FlexButtonOnEnter(self)
-  self.Widget:Fire('OnEnter')
-end
-
--------------------------------------------------------------------------------
--- FlexButtonOnLeave
---
--- Gets called when the mouse leaves the flex button
--------------------------------------------------------------------------------
-local function FlexButtonOnLeave(self)
-  self.Widget:Fire('OnLeave')
-end
-
--------------------------------------------------------------------------------
--- MenuButtonConstructor
---
--- Creates the flex button for ace options to use.
---
--- To use this in ace-config.  Use type = 'input', and then use set to respond
--- To mouse clicks on the button.
---
--- in 'get' you can specify commands in the format of text:commands
--- Commands are 'L' button will be left justified
---              'R' Button will be right justified
---              'C' Button will be in the center
---              A length paramater can be specified using a comma
--- Example   text:L,23  Left justified and 23 pixels wide.
--------------------------------------------------------------------------------
-local function FlexButtonConstructor()
-  local Frame = CreateFrame('Frame', nil, UIParent)
-  local ButtonFrame = CreateFrame('Button', nil, Frame, 'UIPanelButtonTemplate')
-  local Widget = {}
-
-  -- Need this so there is space between each control.
-  ButtonFrame:SetPoint('TOPLEFT')
-  ButtonFrame:SetPoint('BOTTOMRIGHT')
-
-  ButtonFrame:EnableMouse(true)
-  ButtonFrame:SetScript('OnClick', FlexButtonOnEnterPressed)
-  ButtonFrame:SetScript('OnEnter', FlexButtonOnEnter)
-  ButtonFrame:SetScript('OnLeave', FlexButtonOnLeave)
-
-  ButtonFrame.Widget = Widget
-
-  local Text = ButtonFrame:GetFontString()
-  Text:ClearAllPoints()
-  Text:SetPoint('TOPLEFT', 15, -1)
-  Text:SetPoint('BOTTOMRIGHT', -15, 1)
-  Text:SetJustifyV('MIDDLE')
-
-
-  Widget.frame = Frame
-  Widget.type = FlexButtonWidgetType
-  Widget.ButtonFrame = ButtonFrame
-
-  Widget.OnAcquire = FlexButtonOnAcquire
-
-  -- Set functions for ace config dialog
-  Widget.SetDisabled = FlexButtonDisable
-  Widget.SetLabel = FlexButtonSetLabel
-  Widget.SetText = FlexButtonSetCommand
-
-  return AceGUI:RegisterAsWidget(Widget)
-end
-
-AceGUI:RegisterWidgetType(FlexButtonWidgetType, FlexButtonConstructor, FlexButtonWidgetVersion)
-
---*****************************************************************************
---
--- Text_Button dialog control
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- TextButtonOnAcquire
---
--- Gets called when the text button is visible on screen.
---
--- self   Widget
--------------------------------------------------------------------------------
-local function TextButtonOnAcquire(self)
-  self:SetHeight(TextButtonHeight)
-  self:SetDisabled(false)
-end
-
--------------------------------------------------------------------------------
--- TextButtonDisable
---
--- Gets called if the options disables/enables the text button.
---
--- self        Widget
--- Disabled    If true then disabled, otherwise false
--------------------------------------------------------------------------------
-local function TextButtonDisable(self, Disabled)
-  local ButtonFrame = self.ButtonFrame
-
-  if Disabled then
-    ButtonFrame:Disable()
-  else
-    ButtonFrame:Enable()
-  end
-end
-
--------------------------------------------------------------------------------
--- TextButtonOnEnterPressed
---
--- Gets called if the text button gets clicked
--------------------------------------------------------------------------------
-local function TextButtonOnEnterPressed(self, ...)
-  AceGUI:ClearFocus()
-  PlaySound(SoundKit.IG_MAINMENU_OPTION)
-  self.Widget:Fire('OnEnterPressed', ...)
-end
-
--------------------------------------------------------------------------------
--- TextButtonSetLabel
---
--- Sets the text for the button
---
--- self   Widget
--- Text   Text to display
--------------------------------------------------------------------------------
-local function TextButtonSetLabel(self, Text)
-
-  -- get color
-  local rgb, Text = strsplit(':', Text, 2)
-  local r, g, b = strsplit(',', rgb, 3)
-
-  self.ButtonFrame.Text:SetText(Text)
-  self.BorderFrame:SetBackdropBorderColor(r, g, b, 1)
-end
-
--------------------------------------------------------------------------------
--- TextButtonOnEnter
---
--- Gets called when mousing over the text button
--------------------------------------------------------------------------------
-local function TextButtonOnEnter(self)
-  local Widget = self.Widget
-
-  Widget.BorderFrame:SetBackdropColor(TextButtonHL.r, TextButtonHL.g, TextButtonHL.b, 1)
- -- Widget:Fire('OnEnter')
-end
-
--------------------------------------------------------------------------------
--- TextButtonOnLeave
---
--- Gets called when the mouse leaves the flex button
--------------------------------------------------------------------------------
-local function TextButtonOnLeave(self)
-  local Widget = self.Widget
-
-  Widget.BorderFrame:SetBackdropColor(0, 0, 0, 1)
- -- self.Widget:Fire('OnLeave')
-end
-
--------------------------------------------------------------------------------
--- TextButtonConstructor
---
--- Creates a button that shows only text, no borders, etc.
---
--- To use this in ace-config.  Use type = 'input', and then use name = 'r,g,b:text'
--- to set the text of the button.
---
--- r,g,b is the color for red green and blue.
--------------------------------------------------------------------------------
-local function TextButtonConstructor()
-  local Frame = CreateFrame('Frame', nil, UIParent)
-  local ButtonFrame = CreateFrame('Button', nil, Frame)
-  local Widget = {}
-
-  -- Need this so there is space between each control.
-  ButtonFrame:SetAllPoints(Frame)
-  ButtonFrame:EnableMouse(true)
-
-  ButtonFrame:SetScript('OnEnter', TextButtonOnEnter)
-  ButtonFrame:SetScript('OnLeave', TextButtonOnLeave)
-
-
-  local BorderFrame = CreateFrame('Frame', nil, Frame)
-  BorderFrame:SetPoint('TOPLEFT', 0, 3)
-  BorderFrame:SetPoint('BOTTOMRIGHT', 0, -3)
-  BorderFrame:SetBackdrop(TextButtonBorder)
-  BorderFrame:SetBackdropColor(0, 0, 0, 1)
-  BorderFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-
-  --BorderFrame:Hide()
-
-  ButtonFrame.Widget = Widget
-
-  -- Create text
-  local Text = ButtonFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormal')
-  Text:SetJustifyH('LEFT')
-  Text:SetWordWrap(false)
-  Text:SetPoint('TOPLEFT', 6, 0)
-  Text:SetPoint('BOTTOMRIGHT', -6, 0)
-
-  ButtonFrame:SetScript('OnClick', TextButtonOnEnterPressed)
-
-  ButtonFrame.Text = Text
-
-  Widget.frame = Frame
-  Widget.type = TextButtonWidgetType
-  Widget.ButtonFrame = ButtonFrame
-  Widget.BorderFrame = BorderFrame
-
-  Widget.OnAcquire = TextButtonOnAcquire
-
-  -- Set functions for ace config dialog
-  Widget.SetDisabled = TextButtonDisable
-  Widget.SetLabel = TextButtonSetLabel
-  Widget.SetText = function() end
-
-  return AceGUI:RegisterAsWidget(Widget)
-end
-
-AceGUI:RegisterWidgetType(TextButtonWidgetType, TextButtonConstructor, TextButtonWidgetVersion)
-
---*****************************************************************************
---
--- Edit_Box_Selected dialog control
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- EditBoxSelectedOnFocusGained
---
--- Overrides the original script so that the okay button can be hidden.
--------------------------------------------------------------------------------
-local function EditBoxSelectedOnFocusGained(self)
-  AceGUI:SetFocus(self.obj)
-  self:HighlightText()
-  self:SetCursorPosition(1000)
-
-  -- Hide the okay button
-  self.obj:DisableButton(true)
-end
-
--------------------------------------------------------------------------------
--- EditBoxSelectedOnEscapePressed
---
--- Overrides the original script so that input can't be changed.
--------------------------------------------------------------------------------
-local function EditBoxSelectedOnEscapePressed(self)
-  AceGUI:ClearFocus()
-
-  self:SetText(self.obj.lasttext or '')
-end
-
--------------------------------------------------------------------------------
--- EditBoxSelectedConstructor
---
--- Creates an read only editbox that preselects all the text when clicked.
--------------------------------------------------------------------------------
-local function EditBoxSelectedConstructor()
-  local Widget = AceGUI:Create('EditBox')
-
-  -- Set on focus to select text
-  local EditBox = Widget.editbox
-  EditBox:SetScript('OnEditFocusGained', EditBoxSelectedOnFocusGained)
-  EditBox:SetScript('OnEditFocusLost', EditBoxSelectedOnEscapePressed)
-  EditBox:SetScript('OnEscapePressed', EditBoxSelectedOnEscapePressed)
-  EditBox:SetScript('OnTextChanged', nil)
-
-  Widget.type = EditBoxSelectedWidgetType
-
-  return AceGUI:RegisterAsWidget(Widget)
-end
-
-AceGUI:RegisterWidgetType(EditBoxSelectedWidgetType, EditBoxSelectedConstructor, EditBoxSelectedWidgetVersion)
-
---*****************************************************************************
---
--- MultiLine_Edit_Box dialog control
---
---*****************************************************************************
-
--------------------------------------------------------------------------------
--- MultiLineEditBoxConstructor
---
--- Creates an editbox without the 'accept' button
--------------------------------------------------------------------------------
-local function MultiLineEditBoxConstructor()
-  local Widget = AceGUI:Create('MultiLineEditBox')
-
-  Widget.type = MultiLineEditBoxWidgetType
-  Widget.button:SetPoint('BOTTOMLEFT', 0, -197)
-  Widget.DisableButton = function() end
-  Widget.button:Hide()
-
-  return AceGUI:RegisterAsWidget(Widget)
-end
-
-AceGUI:RegisterWidgetType(MultiLineEditBoxWidgetType, MultiLineEditBoxConstructor, MultiLineEditBoxWidgetVersion)
-
---*****************************************************************************
---
 -- Spell_Info dialog control
 --
 --*****************************************************************************
@@ -1506,7 +1437,7 @@ local function SpellInfoOnAcquire(self)
 end
 
 -------------------------------------------------------------------------------
--- SpellInfoSetLabel
+-- SpellInfoSetText
 --
 -- Sets the spell icon, size, and text
 --
@@ -1515,7 +1446,7 @@ end
 -- self       Widget
 -- Text       SpellID, size, and text
 -------------------------------------------------------------------------------
-local function SpellInfoSetLabel(self, Text)
+local function SpellInfoSetText(self, Text)
   local Name
   local Icon
   local SpellID
@@ -1601,7 +1532,9 @@ end
 --
 -- Creates an icon with text.  Can mouse over icon for spell info.
 --
--- To use this in ace-config.  Use type = 'input'
+-- To use this in ace-config.  Use type = 'description'
+-- fontsize gets ignored
+--
 -- In the 'name' field you specify the spell ID, iconsize, and fontsize, followed by text
 -- Example:  10750:32:14:This is some text
 --
@@ -1637,8 +1570,9 @@ local function SpellInfoConstructor()
   Widget.IconLabel = IconLabel
 
   -- Set functions for ace config dialog
-  Widget.SetLabel = SpellInfoSetLabel
-  Widget.SetText = function() end
+  --Widget.SetLabel =
+  Widget.SetText = SpellInfoSetText
+  Widget.SetFontObject = function() end
 
   return AceGUI:RegisterAsWidget(Widget)
 end
@@ -1789,3 +1723,277 @@ local function DropdownSelectConstructor()
 end
 
 AceGUI:RegisterWidgetType(DropdownSelectWidgetType, DropdownSelectConstructor, DropdownSelectWidgetVersion)
+
+--*****************************************************************************
+--
+-- EditBox_ReadOnly_Selected dialog control
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- EditBoxSelectedReadOnlyOnFocusGained
+--
+-- Selects the text when the focus is gained
+-------------------------------------------------------------------------------
+local function EditBoxSelectedReadOnlyOnFocusGained(Frame)
+  AceGUI:SetFocus(Frame.obj)
+  Frame:HighlightText()
+  Frame:SetCursorPosition(1000)
+end
+
+-------------------------------------------------------------------------------
+-- EditBoxSelectedReadOnlySetText
+--
+-- Makes sure the text is only displayed once
+-------------------------------------------------------------------------------
+local function EditBoxSelectedReadOnlySetText(self, Text)
+  local EditBox = self.editbox
+  local ReadOnlyText = EditBox.ReadOnlyText
+
+  if ReadOnlyText == nil then
+    ReadOnlyText = Text
+    EditBox.ReadOnlyText = ReadOnlyText
+  end
+
+  EditBox:SetText(ReadOnlyText or '')
+  EditBox:SetCursorPosition(1000)
+end
+
+-------------------------------------------------------------------------------
+-- EditBoxSelectedReadOnlyClearFocus
+--
+-- Resets ReadOnlyText when the edit box loses focus
+-------------------------------------------------------------------------------
+local function EditBoxSelectedReadOnlyClearFocus(self)
+  local EditBox = self.editbox
+  EditBox:ClearFocus()
+  EditBox.ReadOnlyText = nil
+  self.frame:SetScript('OnShow', nil)
+end
+
+-------------------------------------------------------------------------------
+-- EditBoxSelectedConstructor
+--
+-- Creates an read only editbox that preselects all the text when clicked.
+-------------------------------------------------------------------------------
+local function EditBoxReadOnlySelectedConstructor()
+  local Widget = Ace3Widgets:EditBox()
+
+  -- Set on focus to select text
+  local EditBox = Widget.editbox
+
+  EditBox:SetScript('OnEditFocusGained', EditBoxSelectedReadOnlyOnFocusGained)
+  EditBox:SetScript('OnTextChanged', function(self)
+                                       if self:HasFocus() then
+                                         self:SetText(self.ReadOnlyText)
+                                         self:HighlightText()
+                                       end
+                                     end)
+  EditBox:SetScript('OnChar', function(self)
+                                if self:HasFocus() then
+                                  self:SetText(self.ReadOnlyText)
+                                  self:HighlightText()
+                                end
+                              end)
+  EditBox:SetScript('OnCursorChanged', function(self)
+                                         if self:HasFocus() then
+                                           self:HighlightText()
+                                         end
+                                       end)
+
+  Widget.SetText = EditBoxSelectedReadOnlySetText
+  Widget.ClearFocus = EditBoxSelectedReadOnlyClearFocus
+  Widget.type = EditBoxReadOnlySelectedWidgetType
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(EditBoxReadOnlySelectedWidgetType, EditBoxReadOnlySelectedConstructor, EditBoxReadOnlySelectedWidgetVersion)
+
+--*****************************************************************************
+--
+-- MultiLine_Edit_Box dialog control
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxConstructor
+--
+-- Creates an editbox without the 'accept' button
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxDebugConstructor()
+  local Widget = Ace3Widgets:MultiLineEditBox()
+
+  Widget.button:SetPoint('BOTTOMLEFT', 0, -197)
+  Widget.DisableButton = function() end
+  Widget.button:Hide()
+
+  Widget.type = MultiLineEditBoxDebugWidgetType
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(MultiLineEditBoxDebugWidgetType, MultiLineEditBoxDebugConstructor, MultiLineEditBoxDebugWidgetVersion)
+
+--*****************************************************************************
+--
+-- MultiLine_Edit_Box_Import dialog control
+-- Some code ideas borrowed from weakauras
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxImportConstructor
+--
+-- Creates an edit box to import data.  The done button gets hidden
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxImportConstructor()
+  local TextBuffer
+  local Pasted
+  local LastOnCharTime
+  local CharCount = 0
+
+  local Widget = Ace3Widgets:MultiLineEditBox()
+
+  local function ImportTextBuffer(self)
+    self:SetScript('OnUpdate', nil)
+
+    Pasted = strtrim(tconcat(TextBuffer))
+    TextBuffer = {}
+
+    -- import
+    if #Pasted > 20 then
+      self:SetMaxBytes(2500)
+      self:SetText(strsub(Pasted, 1, 2500))
+
+      -- exit editbox and passback the pasted text
+      self:ClearFocus()
+      Widget:Fire('OnEnterPressed', Pasted or '')
+    end
+  end
+
+  Widget.type = MultiLineEditBoxImportWidgetType
+
+  Widget.button:SetSize(1, 1)
+  Widget.button:Hide()
+  -- blank this function so button don't get shown
+  Widget.DisableButton = function() end
+
+  Widget.GetText = function()
+                     return Pasted or ''
+                   end
+
+  local EditBox = Widget.editBox
+  EditBox:SetMaxBytes(2500)
+  EditBox:SetScript('OnMouseUp', nil);
+  EditBox:SetScript('OnTextChanged', nil)
+
+  -- Need to do a paste this way otherwise WoW may freeze
+  -- So the paste is faked a little.
+  -- This idea was taken from Weakauras
+  EditBox:SetScript('OnChar', function(self, Char)
+                                if LastOnCharTime ~= GetTime() then
+                                  TextBuffer = {}
+                                  CharCount = 0
+                                  LastOnCharTime = GetTime()
+                                  -- Call ImportTextBuffer on the next frame
+                                  self:SetScript('OnUpdate', ImportTextBuffer)
+                                end
+                                -- Add character input to the buffer
+                                CharCount = CharCount + 1
+                                TextBuffer[CharCount] = Char
+                              end)
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(MultiLineEditBoxImportWidgetType, MultiLineEditBoxImportConstructor, MultiLineEditBoxImportWidgetVersion)
+
+
+--*****************************************************************************
+--
+-- MultiLine_Edit_Box_Export dialog control
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxExportOnFocusGained
+--
+-- Selects the text when the focus is gained
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxExportOnFocusGained(Frame)
+  AceGUI:SetFocus(Frame.obj)
+  Frame:HighlightText()
+  Frame:SetCursorPosition(1000)
+  Frame.obj:Fire('OnEditFocusGained')
+end
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxExportSetText
+--
+-- Makes sure the text is only displayed once
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxExportSetText(self, Text)
+  local EditBox = self.editBox
+  local ReadOnlyText = EditBox.ReadOnlyText
+
+  if ReadOnlyText == nil then
+    ReadOnlyText = Text
+    EditBox.ReadOnlyText = ReadOnlyText
+  end
+  EditBox:SetText(ReadOnlyText or '')
+end
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxExportClearFocus
+--
+-- Resets ReadOnlyText when the edit box loses focus
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxExportClearFocus(self)
+  local EditBox = self.editBox
+  EditBox:ClearFocus()
+  EditBox.ReadOnlyText = nil
+  self.frame:SetScript('OnShow', nil)
+end
+
+-------------------------------------------------------------------------------
+-- MultiLineEditBoxExportConstructor
+--
+-- Creates a read only editbox
+-------------------------------------------------------------------------------
+local function MultiLineEditBoxExportConstructor()
+  local Widget = Ace3Widgets:MultiLineEditBox()
+
+  Widget.type = MultiLineEditBoxExportWidgetType
+  Widget.button:SetSize(1, 1)
+  Widget.button:Hide()
+  -- blank this function so button don't get shown
+  Widget.DisableButton = function() end
+
+  local EditBox = Widget.editBox
+  EditBox:SetScript('OnTextSet', nil)
+  EditBox:SetScript('OnTextChanged', nil)
+
+  EditBox:SetScript('OnEditFocusGained', MultiLineEditBoxExportOnFocusGained)
+  EditBox:SetScript('OnChar', function(self, UserInput)
+                                if self:HasFocus() then
+                                  self:SetText(self.ReadOnlyText)
+                                  self:HighlightText()
+                                end
+                              end)
+  EditBox:SetScript('OnCursorChanged', function(self)
+                                         if self:HasFocus() then
+                                           self:HighlightText()
+                                         end
+                                       end)
+  EditBox:SetMaxBytes(nil)
+
+  Widget.SetText = MultiLineEditBoxExportSetText
+  Widget.ClearFocus = MultiLineEditBoxExportClearFocus
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(MultiLineEditBoxExportWidgetType, MultiLineEditBoxExportConstructor, MultiLineEditBoxExportWidgetVersion)
+
+
+
