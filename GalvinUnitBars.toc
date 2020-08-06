@@ -1,4 +1,4 @@
-## Interface: 80200
+## Interface: 80300
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
