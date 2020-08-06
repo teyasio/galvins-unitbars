@@ -2,7 +2,7 @@
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
-## Version: 6.73
+## Version: 6.74
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB, GalvinUnitBarsData
 #@no-lib-strip@
@@ -17,7 +17,6 @@ Libs\AceDB-3.0\AceDB-3.0.xml
 Libs\AceDBOptions-3.0\AceDBOptions-3.0.xml
 Libs\AceGUI-3.0\AceGUI-3.0.xml
 Libs\AceConfig-3.0\AceConfig-3.0.xml
-Libs\AceSerializer-3.0\AceSerializer-3.0.xml
 
 # additional libraries
 
