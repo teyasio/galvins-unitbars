@@ -1,4 +1,3 @@
---====================
 -- Controls.lua
 
 -- Contains custom controls.

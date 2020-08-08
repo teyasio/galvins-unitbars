@@ -60,12 +60,6 @@ local GetAlternatePowerInfoByID =
 -- ImportOptionsData             String: Contains the import string to be imported
 --
 -- MainOptionsHideFrame          Frame used for when the main options window is closed.
---
--- Import/Export
---   Exporting                   if true then an export is happening
---   ImportData                  Contains data for importing
---
--- ExportData                    String: Data exported to be shown in the export edit box
 -------------------------------------------------------------------------------
 local AceConfigRegistery = LibStub('AceConfigRegistry-3.0')
 local AceConfig = LibStub('AceConfig-3.0')
@@ -5032,8 +5026,6 @@ local function RefreshAuraList(AG, Unit, AuraTrackersData)
           width = 'full',
           name = format('%s:24:14:(|cFF00FF00%s|r)', SpellID, SpellID),
           dialogControl = 'GUB_Spell_Info',
-          get = function() end,
-          set = function() end,
         }
 
         SortList[Order] = {Name = GetSpellInfo(SpellID), AuraInfo = AuraInfo}

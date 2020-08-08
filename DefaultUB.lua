@@ -3130,6 +3130,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 6.75
+|cff00ff00Any exports prior to this version will no longer be importable|r
+
 Version 6.73
 |cff00ff00Import and Export|r added to Unitbars and Triggers.  For Unitbars, the export and import tab can be found at the root menu for each bar.  For triggers, can be found under list tab under triggers
 

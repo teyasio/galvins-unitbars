@@ -28,6 +28,18 @@ local FindMenuItem = Options.FindMenuItem
 local HideTooltip = Options.HideTooltip
 local CreateSpecOptions = Options.CreateSpecOptions
 
+-- localize some globals.
+local _, _G, print =
+      _, _G, print
+local strupper, strtrim, strfind, format, strsplit, strsub, tostring =
+      strupper, strtrim, strfind, format, strsplit, strsub, tostring
+local tonumber, gsub, tremove, tinsert, tconcat     , wipe, strsub =
+      tonumber, gsub, tremove, tinsert, table.concat, wipe, strsub
+local ipairs, pairs, type, select =
+      ipairs, pairs, type, select
+local GetSpellInfo, IsModifierKeyDown =
+      GetSpellInfo, IsModifierKeyDown
+
 local TextLineDropdown = {
   [0] = 'All',
   [1] = 'Line 1',
@@ -109,18 +121,6 @@ local TriggerTypeColorIcon = {
   regionbackground      = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackground]],
   regionbackgroundcolor = [[Interface\AddOns\GalvinUnitBars\Textures\GUB_TriggerBackgroundColor]],
 }
-
--- localize some globals.
-local _, _G, print =
-      _, _G, print
-local strupper, strtrim, strfind, format, strsplit, strsub, tostring =
-      strupper, strtrim, strfind, format, strsplit, strsub, tostring
-local tonumber, gsub, tremove, tinsert, tconcat     , wipe, strsub =
-      tonumber, gsub, tremove, tinsert, table.concat, wipe, strsub
-local ipairs, pairs, type, select =
-      ipairs, pairs, type, select
-local GetSpellInfo, IsModifierKeyDown =
-      GetSpellInfo, IsModifierKeyDown
 
 --*****************************************************************************
 --
@@ -1872,8 +1872,7 @@ end
 --
 -- Subfunction of CreateTriggerOptions()
 --
--- BarType      Current bar this trigger belongs to
-
+-- BarType           Current bar this trigger belongs to
 -- UBF               Unitbar frame to access the bar functions.
 -- BBar              The bar object to access the bar DB functions.
 -- Action            'list'   Show the current trigger list

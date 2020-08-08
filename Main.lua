@@ -3388,7 +3388,9 @@ function GUB.Main:ImportStringTable(Data)
       local Success, ImportData = LS:Deserialize(SerializedTable)
 
       if Success then
-        return true, ImportData.Version, ImportData.VersionType, ImportData.BarType, ImportData.Type, ImportData.DisplayType, ImportData.Name, ImportData.Table
+        if ImportData.ID == 'GALVIN_UNIT_BARS' then
+          return true, ImportData.Version, ImportData.VersionType, ImportData.BarType, ImportData.Type, ImportData.DisplayType, ImportData.Name, ImportData.Table
+        end
       end
     end
   end
@@ -3409,6 +3411,7 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:ExportTableString(BarType, Type, DisplayType, Name, Table)
   local ExportTable = {
+    ID = 'GALVIN_UNIT_BARS',
     Version = Version,
     VersionType = 'retail',
     BarType = BarType,
