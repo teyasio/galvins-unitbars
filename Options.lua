@@ -6334,7 +6334,11 @@ local function CreateImportOptions(Order, Name)
                        BBar:AppendTriggers(ImportTable)
                      elseif ImportType == 'unitbar' then
                        -- Need to deep copy
-                       Main:CopyTableValues(ImportTable, Main.UnitBars[ImportSourceBarType], true)
+                       local UB = Main.UnitBars[ImportSourceBarType]
+                       local x, y = UB._x, UB._y
+
+                       Main:DeepCopy(ImportTable, UB)
+                       UB._x, UB._y = x, y
                      end
 
                      -- Need to do this to be sure the data is safe
