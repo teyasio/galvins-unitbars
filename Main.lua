@@ -12,6 +12,7 @@ local DefaultUB = GUB.DefaultUB
 local Version = DefaultUB.Version
 local DUB = DefaultUB.Default.profile
 local InCombatOptionsMessage = GUB.DefaultUB.InCombatOptionsMessage
+local FormIDStance = GUB.DefaultUB.FormIDStance
 
 local Main = {}
 local UnitBarsF = {}
@@ -51,12 +52,12 @@ local GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, 
       GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
-local C_PetBattles, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
-      C_PetBattles, GetShapeshiftFormID, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
+local C_PetBattles, GetShapeshiftFormID, GetShapeshiftFormInfo, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
+      C_PetBattles, GetShapeshiftFormID, GetShapeshiftFormInfo, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo
 local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition =
       C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition
-local UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists =
-      UnitAlternatePowerInfo, UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists
+local UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID  =
+      UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID
 local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
       UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
 local UnitPowerType, UnitReaction, wipe, GetMinimapZoneText =
@@ -160,10 +161,10 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.ProfileChanged    - If true then profile is currently being changed. This is set by SetUnitBars()
 -- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
 -- Main.Reset             - If true then a reset happened.  This is set by CreateResetOptions() in options.lua.
--- Main.PlayerSpecializationChanged
---                        - If true then the player changed their specialization.
+-- Main.PlayerChanged     - If true then the player changed their specialization or stance/form
 -- Main.PlayerSpecialization
---                          - Number. Contains the current specialization of the player.
+--                          - Number. Contains the current specialization of the player
+-- Main.PlayerStance        - Number. Contains the player stance or form
 -- Main.UnitBars            - Set by ShareData()
 -- Main.Gdata               - Set by ShareData()
 -- Main.PlayerClass         - Set by ShareData()
@@ -208,6 +209,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- HasTarget              - True or false. If true then the player has a target.
 -- HasFocus               - True or false. If true then the player has a focus.
 -- HasPet                 - True or false. If true then the player has a pet.
+-- HasPetPower            - True or false. If true then the players pet has power type.
 -- HasAltPower            - True or false. If true then the player has alternate power bar.
 -- BlizzAltPowerVisible   - True or false. If true then the blizzard alt power bar is visible, otherwise hidden.
 --                          Set by DoBlizzAltPowerBar(). Used by StatusCheck()
@@ -429,6 +431,7 @@ local IsDead = false
 local HasTarget = false
 local HasFocus = false
 local HasPet = false
+local HasPetPower = false
 local HasAltPower = false
 local BlizzAltPowerVisible = false
 local AltPowerBarID
@@ -439,8 +442,6 @@ local PlayerSpecialization
 local PlayerGUID
 local APBUsed
 local APBUseBlizz
-
-local CatForm = CAT_FORM
 
 local MoveAlignDistance = 8
 local MoveSelectFrame
@@ -536,7 +537,6 @@ local ConvertPowerType = {
   ASTRAL_POWER   = 8,
   HOLY_POWER     = 9,
   ALTERNATE      = 10,
-  MAELSTROM      = 11,
   CHI            = 12,
   INSANITY       = 13,
   ARCANE_CHARGES = 16,
@@ -555,7 +555,6 @@ local ConvertPowerTypeHAP = {
   ENERGY         = 3,
   RUNIC_POWER    = 6,
   LUNAR_POWER    = 8,
-  MAELSTROM      = 11,
   INSANITY       = 13,
   FURY           = 17,
   PAIN           = 18,
@@ -568,13 +567,6 @@ local ConvertPowerTypeHAP = {
 local ConvertCombatColor = {
   Hostile = 1, Attack = 2, Flagged = 3, Friendly = 4,
 }
-
-DUB.FocusHealth.BarVisible  = function() return HasFocus end
-DUB.FocusPower.BarVisible   = function() return HasFocus end
-DUB.PetHealth.BarVisible    = function() return HasPet end
-DUB.PetPower.BarVisible     = function() return HasPet and UnitPowerMax('pet', UnitPowerType('pet')) ~= 0 end
-DUB.ComboBar.BarVisible     = function() return PlayerClass == 'ROGUE' or
-                                                (PlayerClass == 'DRUID' and PlayerStance == CatForm) end
 
 -- Share with the whole addon.
 Main.LSM = LSM
@@ -806,7 +798,7 @@ local function InitAltPowerBar()
   local APBPos = UnitBars.APBPos
   local APBTimerPos = UnitBars.APBTimerPos
 
-  APBMover = CreateFrame('Frame', nil, UIParent)
+  APBMover = CreateFrame('Frame', nil, UIParent, 'BackdropTemplate')
   APBMover:SetSize(75, 50)
   APBMover:SetMovable(true)
   APBMover:SetBackdrop(SelectFrameBorder)
@@ -829,7 +821,7 @@ local function InitAltPowerBar()
     APBMover:SetPoint(unpack(APBPos))
   end
 
-  APBBuffTimerMover = CreateFrame('Frame', nil, UIParent)
+  APBBuffTimerMover = CreateFrame('Frame', nil, UIParent, 'BackdropTemplate')
   APBBuffTimerMover:SetPoint('CENTER')
   APBBuffTimerMover:SetSize(250, 75)
   APBBuffTimerMover:SetMovable(true)
@@ -958,7 +950,7 @@ end
 local function InitExtraActionButton()
   local EABPos = UnitBars.EABPos
 
-  EABMover = CreateFrame('Frame', nil, UIParent)
+  EABMover = CreateFrame('Frame', nil, UIParent, 'BackdropTemplate')
   EABMover:SetSize(ExtraActionButton1:GetSize())
   EABMover:SetMovable(true)
   EABMover:SetBackdrop(SelectFrameBorder)
@@ -1365,7 +1357,7 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
   Height = Height or 310
 
   if MessageBox == nil then
-    MessageBox = CreateFrame('Frame', nil, UIParent)
+    MessageBox = CreateFrame('Frame', nil, UIParent, 'BackdropTemplate')
     MessageBox:SetSize(Width, Height)
     MessageBox:SetPoint('CENTER')
     MessageBox:SetBackdrop(DialogBorder)
@@ -2843,6 +2835,7 @@ function GUB.Main:ListTable(Table, Path, Exclude)
   local kst
   if Path == nil then
     Path = '.'
+    print('---------------------')
   end
 
   -- Exclude will prevent tables from causing an infinite loop
@@ -2863,7 +2856,7 @@ function GUB.Main:ListTable(Table, Path, Exclude)
       if type(v) == 'table' then
         local Recursive = Exclude[v]
 
-        --print(Path .. '.' .. kst .. ' = ', v, (Recursive == true and '(recursive)' or ''))
+        print(Path .. '.' .. kst .. ' = ', v, (Recursive == true and '(recursive)' or ''))
 
         -- Only call if the table hasn't been seen before.
         if Recursive ~= true then
@@ -2873,12 +2866,12 @@ function GUB.Main:ListTable(Table, Path, Exclude)
         if type(k) == 'table' or type(k) == 'function' then
           local _, Address = strsplit(' ', tostring(k), 2)
 
-          --print(Path .. '.' .. Address .. ' = ', v)
+          print(Path .. '.' .. Address .. ' = ', v)
 
         elseif type(v) == 'boolean' then
-          --print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
+          print(Path .. '.' .. kst .. ' = ', format('boolean: %s', tostring(v)))
         else
-          --print(Path .. '.' .. kst .. ' = ', v)
+          print(Path .. '.' .. kst .. ' = ', v)
         end
       end
     end
@@ -3287,6 +3280,121 @@ function GUB.Main:CheckClassSpecs(BarType, ClassSpecs)
 end
 
 -------------------------------------------------------------------------------
+-- GetPlayerStance
+--
+-- Returns the current stance the player is in as a number
+-- 0 means the class doesn't have stances or has a stance, but isn't in any
+-------------------------------------------------------------------------------
+local function GetPlayerStance()
+  local StanceNumber = 0
+
+  local FS = FormIDStance[PlayerClass]
+  if FS then
+    StanceNumber = FS[GetShapeshiftFormID()] or 0
+  end
+
+  if StanceNumber == 0 then
+    for Stance = 1, 20 do
+      local Icon, Active = GetShapeshiftFormInfo(Stance)
+
+      if Active then
+        return Stance
+      end
+    end
+  end
+
+  return StanceNumber
+end
+
+-------------------------------------------------------------------------------
+-- UpdatePlayerStances
+--
+-- Updates the stance data against the defaults by adding or removing data
+--
+-- NOTES:  This will remove entries in ClassStances if those are not found
+--         in the bar.  This is so when triggers or flag options get copied
+--         to a different bar, stances that matched on the old bar are removed
+--         if they'll never match on the new bar
+-------------------------------------------------------------------------------
+function GUB.Main:UpdatePlayerStances(BarType, ClassStances, IsTriggers)
+  local CSD
+  if IsTriggers then
+    CSD = DUB[BarType].Triggers.Default.ClassStances
+  else
+    CSD = DUB[BarType].ClassStances
+  end
+
+  Main:CopyMissingTableValues(CSD, ClassStances)
+
+  for KeyStances, Value in pairs(ClassStances) do
+    local ValueD = CSD[KeyStances]
+
+    if ValueD == nil then
+      -- Remove keys not found in defaults
+      ClassStances[KeyStances] = nil
+    elseif type(Value) == 'table' then
+      local ClassStancesBySpec = Value
+      local ClassStancesBySpecD = ValueD
+
+      for KeyStancesBySpec, ValueStancesBySpec in pairs(ClassStancesBySpec) do
+        if type(ValueStancesBySpec) ~= 'table' then
+
+          -- Does the key exist in defaults
+          if ClassStancesBySpecD[KeyStancesBySpec] == nil then
+            ClassStancesBySpec[KeyStancesBySpec] = nil
+          end
+        end
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CheckPlayerStances
+--
+-- Checks the players class and/or stance against a table. The stance must be supported by the
+-- bar first.
+--
+-- BarType       The bar thats being checked
+-- ClassStances  Table containing the class and stances
+--
+-- Returns true if the stance is found assuming enabled
+--
+-- See DefaultUB.lua for stance data structure
+-------------------------------------------------------------------------------
+function GUB.Main:CheckPlayerStances(BarType, ClassStances)
+  local Match = false
+
+  if next(DUB[BarType].ClassStances) and not ClassStances.All then
+
+    -- Check enabled
+    -- Check for stance match
+    local ClassStancesBySpec = ClassStances[PlayerClass]
+    if ClassStancesBySpec == nil then
+      Match = ClassStances.OtherClasses
+    else
+      local Spec = PlayerSpecialization
+      if ClassStancesBySpec.UseAll then
+        Spec = 0
+      end
+      local ClassStance = ClassStancesBySpec[Spec]
+      if ClassStance then
+        Match = ClassStance[PlayerStance] or false
+
+        -- Check for inverse
+        if ClassStances.Inverse then
+          Match = not Match
+        end
+      end
+    end
+  else
+    Match = true
+  end
+
+  return Match
+end
+
+-------------------------------------------------------------------------------
 -- StatusCheck    UnitBarsF function
 --
 -- Does a status check and updates the bar if it became visible.
@@ -3304,55 +3412,66 @@ function GUB.Main:StatusCheck(Event)
     -- Always show bars if show or testing
     if not UnitBars.Show and not UnitBars.Testing then
       local Status = UB.Status
-      local ClassSpecEnabled
 
-      ClassSpecEnabled = Main:CheckClassSpecs(self.BarType, UB.ClassSpecs)
-      self.ClassSpecEnabled = ClassSpecEnabled
-
-      if not ClassSpecEnabled then
+      -- spec
+      if not Main:CheckClassSpecs(self.BarType, UB.ClassSpecs) then
         Hide = true
-
+      -- stance
+      elseif not Main:CheckPlayerStances(self.BarType, UB.ClassStances) then
+        Hide = true
       elseif not Status.ShowAlways then
-        -- Check to see if the bar has an enable function and call it.
-        local Fn = self.BarVisible
-        if Fn then
-          Hide = not Fn()
-        end
-        if not Hide then
-          -- Hide if the HideWhenDead status is set.
-          if IsDead and Status.HideWhenDead then
+        -- Hide if the HideWhenDead status is set.
+        if IsDead and Status.HideWhenDead then
+          Hide = true
+        -- Hide if the player has no target.
+        elseif not HasTarget and Status.HideNoTarget then
+          Hide = true
+        -- Hide if the player has no Focus
+        elseif not HasFocus and Status.HideNoFocus then
+          Hide = true
+        -- Hide if in a vehicle if the HideInVehicle status is set
+        elseif InVehicle and Status.HideInVehicle then
+          Hide = true
+        -- Hide if in a pet battle and the HideInPetBattle status is set.
+        elseif InPetBattle and Status.HideInPetBattle then
+          Hide = true
+        -- Get the idle status based on HideNotActive when not in combat.
+        -- If the flag is not present then it defaults to false.
+        elseif not InCombat and Status.HideNotActive then
+          local IsActive = self.IsActive
+          Hide = IsActive == false
+          -- if not visible then set IsActive to watch for activity.
+          if Hide then
+            self.IsActive = 0
+          end
+        -- Hide if not in combat with the HideNoCombat status.
+        elseif not InCombat and Status.HideNoCombat then
+          Hide = true
+        -- Hide if the blizzard alternate power bar is visible otherwise hide
+        -- Hide if there is no active blizzard alternate power bar
+        elseif Status.HideIfBlizzAltPowerVisible ~= nil then
+          if not HasAltPower then
             Hide = true
-          -- Hide if the player has no target.
-          elseif not HasTarget and Status.HideNoTarget then
-            Hide = true
-          -- Hide if in a vehicle if the HideInVehicle status is set
-          elseif InVehicle and Status.HideInVehicle then
-            Hide = true
-          -- Hide if in a pet battle and the HideInPetBattle status is set.
-          elseif InPetBattle and Status.HideInPetBattle then
-            Hide = true
-          -- Get the idle status based on HideNotActive when not in combat.
-          -- If the flag is not present then it defaults to false.
-          elseif not InCombat and Status.HideNotActive then
-            local IsActive = self.IsActive
-            Hide = IsActive == false
-            -- if not visible then set IsActive to watch for activity.
-            if Hide then
-              self.IsActive = 0
-            end
-          -- Hide if not in combat with the HideNoCombat status.
-          elseif not InCombat and Status.HideNoCombat then
-            Hide = true
-          -- Hide if the blizzard alternate power bar is visible otherwise hide
-          -- Hide if there is no active blizzard alternate power bar
-          elseif Status.HideIfBlizzAltPowerVisible ~= nil then
-            if not HasAltPower then
+          elseif Status.HideIfBlizzAltPowerVisible then
+            if BlizzAltPowerVisible then
               Hide = true
-            elseif Status.HideIfBlizzAltPowerVisible then
-              if BlizzAltPowerVisible then
-                Hide = true
-              end
             end
+          end
+        -- Other
+        else
+          local HidePowerType = Status.HidePowerType
+
+          -- Hide Power Type
+          if HidePowerType and HidePowerType ~= 'NONE' and HidePowerType == PlayerPowerType then
+            Hide = true
+
+          -- Hide no Pet
+          elseif not HasPet and Status.HideNoPet then
+            Hide = true
+
+          -- Hide no pet power
+          elseif not HasPetPower and Status.HideNoPetPower then
+            Hide = true
           end
         end
       end
@@ -3773,7 +3892,7 @@ function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
     local MF = Type == 'box' and MoveFrames[Index] or MoveFrames[Index].Anchor
 
     if MF.MoveHighlightFrame == nil then
-      local MoveHighlightFrame = CreateFrame('Frame', nil, MF)
+      local MoveHighlightFrame = CreateFrame('Frame', nil, MF, 'BackdropTemplate')
 
       MoveHighlightFrame:SetFrameLevel(GetHighestFrameLevel(MF) + 1)
       MoveHighlightFrame:SetPoint('TOPLEFT', -1, 1)
@@ -4481,13 +4600,16 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   HasTarget = UnitExists('target')
   HasFocus = UnitExists('focus')
   HasPet = PetHasActionBar() or HasPetUI()
+  HasPetPower = HasPet and UnitPowerMax('pet', UnitPowerType('pet')) ~= 0
   BlizzAltPowerVisible = PlayerPowerBarAlt:IsVisible()
   PlayerStance = GetShapeshiftFormID()
-  PlayerPowerType = UnitPowerType('player')
+  _, PlayerPowerType = UnitPowerType('player')
   PlayerSpecialization = GetSpecialization() or 0
+  PlayerStance = GetPlayerStance()
 
-  local AltPowerType, _, _, _, _, _, _, _, _, _, _, _, _, BarID = UnitAlternatePowerInfo('player')
-  HasAltPower = AltPowerType ~= nil
+  local BarID = UnitPowerBarID('player')
+  local BarInfo = GetUnitPowerBarInfoByID(BarID)
+  HasAltPower = BarInfo and BarInfo.barType ~= nil or false
   AltPowerBarID = BarID
 
   -- Save for alt bar history and hide blizz alt power bar
@@ -4508,8 +4630,14 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
   -- Call for a checktrigger change thru setattr if player specialization has changed.
   -- This is for triggers since specialization is supported now.
   local PlayerSpecializationChanged = Main.PlayerSpecialization ~= PlayerSpecialization
-  Main.PlayerSpecializationChanged = PlayerSpecializationChanged
   Main.PlayerSpecialization = PlayerSpecialization
+
+  -- Call for a checktrigger change thru setattr if player talents has changed.
+  -- This is for triggers since talents is supported now.
+  local PlayerStanceChanged = Main.PlayerStance ~= PlayerStance
+
+  Main.PlayerStance = PlayerStance
+  Main.PlayerChanged = PlayerSpecializationChanged or PlayerStanceChanged or false
 
   -- Alternate power bar options needs to be disabled when there is a bar active
   if Event == 'UNIT_POWER_BAR_SHOW' or Event == 'UNIT_POWER_BAR_HIDE' then
@@ -4540,7 +4668,7 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
     end
     UBF:Update()
   end
-  Main.PlayerSpecializationChanged = false
+  Main.PlayerChanged = false
 end
 
 -------------------------------------------------------------------------------
@@ -5049,6 +5177,7 @@ end
 -------------------------------------------------------------------------------
 local TriggerExcludeList =  {
   ['ClassSpecs'] = 1,
+  ['ClassStances'] = 1,
   ['Par1'] = 1,
   ['Par2'] = 1,
   ['Par3'] = 1,
@@ -5231,6 +5360,7 @@ function GUB:ApplyProfile()
 
   -- Make sure profile is accurate.
   Main:FixUnitBars()
+
   UnitBars.Version = Version
 
   Main:SetUnitBars(true)
@@ -5263,8 +5393,8 @@ end
 -- until after OnEnable()
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
-  if select(4, GetBuildInfo()) < 80000 then
-    message("Galvin's UnitBars\nThis will work on WoW 8.x or higher only")
+  if select(4, GetBuildInfo()) < 90000 then
+    message("Galvin's UnitBars\nThis will work on WoW 9.x or higher only")
     return
   end
 
@@ -5339,8 +5469,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 45 then
-    Gdata.ShowMessage = 45
+  if Gdata.ShowMessage ~= 50 then
+    Gdata.ShowMessage = 50
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

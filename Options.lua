@@ -36,8 +36,8 @@ local ipairs, pairs, type, next, sort =
       ipairs, pairs, type, next, sort
 local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, GameTooltip, GetSpellInfo =
       InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, GameTooltip, GetSpellInfo
-local GetAlternatePowerInfoByID =
-      GetAlternatePowerInfoByID
+local GetUnitPowerBarInfoByID, GetUnitPowerBarStringsByID =
+      GetUnitPowerBarInfoByID, GetUnitPowerBarStringsByID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -377,6 +377,19 @@ local AnimationTypeDropdown = {
   alpha = 'Alpha',
   scale = 'Scale',
 }
+
+-- Create PowerTypeDropdown
+local PowerTypeHAPDropdown = {}
+do
+  local PowerName = {
+    RUNIC_POWER = 'Runic Power',
+    LUNAR_POWER = 'Astral Power',
+  }
+  for PowerType, Index in pairs(ConvertPowerTypeHAP) do
+    PowerTypeHAPDropdown[Index] = PowerName[PowerType] or gsub(strlower(PowerType), '%a', strupper, 1)
+  end
+  PowerTypeHAPDropdown[100] = 'None'
+end
 
 Options.o = o
 Options.AceConfigDialog = AceConfigDialog
@@ -2134,7 +2147,7 @@ end
 -- BBar          Only used with triggers
 -- DisableFn     Only used with triggers
 -------------------------------------------------------------------------------
-local function MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs)
+local function MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs, BBar)
 
   -- Mark menu items that have specializations
   for Index, ClassName in pairs(ClassDropdown) do
@@ -2143,15 +2156,15 @@ local function MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs)
 
     if ClassSpec then
       local CN = ClassName
-      local Found = false
+      local Changed = false
 
       for _, Active in pairs(ClassSpec) do
-        if Active then
-          Found = true
+        if BBar == nil and not Active or BBar and Active then
+          Changed = true
           break
         end
       end
-      if Found then
+      if Changed then
         CN = CN .. '*'
       end
       SelectClassDropdown[Index] = CN
@@ -2219,13 +2232,13 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar, DisableFn)
     tinsert(SelectClassDropdown, 1, CN)
   end
 
-  MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs)
+  MarkMenuSpec(ClassDropdown, SelectClassDropdown, ClassSpecs, BBar)
 
   local SpecOptions = {
     type = 'group',
     dialogInline = true,
     name = function()
-             MarkMenuSpec(ClassDropdown, SelectClassDropdown, GetClassSpecsTable(BarType, ClassSpecsTP))
+             MarkMenuSpec(ClassDropdown, SelectClassDropdown, GetClassSpecsTable(BarType, ClassSpecsTP), BBar)
              return ''
            end,
     order = Order,
@@ -2399,6 +2412,382 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar, DisableFn)
 end
 
 -------------------------------------------------------------------------------
+-- CreateStanceOptions
+--
+-- Create options to change stances for the trigger
+--
+-- Subfunction of CreateTriggerTabOptions(), CreateUnitBarOptions()
+--
+-- Order           Position in the options.
+-- UBF             Unitbar frame to access the bar functions.
+-- BBar            Access to bar functions.
+-- ClassStancesTP  String or table, if string then its a table path to the ClassStances table
+-- BBar            Only used with triggers
+-- DisableFn     Only used with triggers
+-------------------------------------------------------------------------------
+local function MarkMenuStance(ClassDropdown, SelectClassDropdown, ClassStances, BBar)
+
+  -- Mark menu items that have stances
+  for Index, ClassName in pairs(ClassDropdown) do
+    local ClassNameUpper = ConvertPlayerClass[ClassName]
+    local ClassStancesBySpec = ClassStances[ClassNameUpper]
+
+    if ClassStancesBySpec then
+      local CN = ClassName
+      local Changed = false
+
+      for Stance, ClassStance in pairs(ClassStancesBySpec) do
+        if type(ClassStance) == 'table' then
+          for Key, Active in pairs(ClassStance) do
+            if type(Key) == 'number' then
+              if BBar == nil and not Active or BBar and Active then
+                Changed = true
+                break
+              end
+            end
+          end
+        end
+      end
+      if Changed then
+        CN = CN .. '*'
+      end
+      SelectClassDropdown[Index] = CN
+    end
+  end
+end
+
+local function GetClassStancesTable(BarType, ClassStancesTP)
+  if type(ClassStancesTP) == 'string' then
+    return Main:GetUB(BarType, ClassStancesTP)
+  else
+    return ClassStancesTP
+  end
+end
+
+local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar, DisableFn)
+  local UBF = Main.UnitBarsF[BarType]
+  local ClassStanceNames = DefaultUB.ClassStanceNames
+  local ClassSpecializations = DefaultUB.ClassSpecializations
+  local PlayerClass = Main.PlayerClass
+  local ClassDropdown = {}
+  local SelectClassDropdown = {}
+  local SpecDropdown = {}
+  local StanceDropdown = {}
+  local MyClassFound = false
+  local CSD
+  local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+  local Index = 1
+
+  if BBar then
+    CSD = DUB[BarType].Triggers.Default.ClassStances
+  else
+    CSD = DUB[BarType].ClassStances
+  end
+
+  -- Build pulldown menus
+  for ClassName, ClassStancesBySpec in pairs(CSD) do
+    if type(ClassStancesBySpec) == 'table' then
+      local ClassNameLower = ConvertPlayerClass[ClassName]
+
+      if ClassName ~= PlayerClass then
+        ClassDropdown[Index] = ClassNameLower
+        SelectClassDropdown[Index] = ClassNameLower
+        Index = Index + 1
+      else
+        MyClassFound = true
+      end
+
+      -- Create Spec drop down by class
+      -- Create spec dropdown
+      local ClassSpecialization = ClassSpecializations[ClassName]
+      local SpecList = {}
+
+      -- Create dropdowns
+      local StanceNames = ClassStanceNames[ClassName]
+      local StanceList = {}
+
+      if StanceNames then
+        for Spec, ClassStances in pairs(ClassStancesBySpec) do
+          if type(Spec) == 'number' then
+            if Spec == 0 then
+              SpecList[0] = 'All'
+            else
+              SpecList[Spec] = ClassSpecialization[Spec]
+            end
+            local SL = {}
+            StanceList[Spec] = SL
+            for Stance, Active in pairs(ClassStances) do
+              if type(Stance) == 'number' then
+                SL[Stance] = StanceNames[Stance]
+              end
+            end
+          end
+        end
+        SpecDropdown[ClassNameLower] = SpecList
+        StanceDropdown[ClassNameLower] = StanceList
+      end
+    end
+  end
+  sort(ClassDropdown)
+  sort(SelectClassDropdown)
+
+  -- Set class you're on to the first entry
+  -- Only if the bar supports your class
+  if MyClassFound then
+    local CN = ConvertPlayerClass[PlayerClass]
+    tinsert(ClassDropdown, 1, CN)
+    tinsert(SelectClassDropdown, 1, CN)
+  end
+
+  MarkMenuStance(ClassDropdown, SelectClassDropdown, ClassStances, BBar)
+
+  local StanceOptions = {
+    type = 'group',
+    dialogInline = true,
+    name = function()
+             MarkMenuStance(ClassDropdown, SelectClassDropdown, GetClassStancesTable(BarType, ClassStancesTP), BBar)
+             return ''
+           end,
+    order = Order,
+    disabled = function()
+                 return Main.UnitBars.Show or Main.UnitBars.Testing
+               end,
+    get = function(Info, Index)
+            local KeyName = Info[#Info]
+
+            return GetClassStancesTable(BarType, ClassStancesTP)[KeyName]
+          end,
+    set = function(Info, Value, Active)
+            local KeyName = Info[#Info]
+
+            GetClassStancesTable(BarType, ClassStancesTP)[KeyName] = Value
+
+            -- Update bar to reflect stance setting.
+            if BBar then
+              BBar:CheckTriggers()
+            end
+            UBF:Update()
+            if BBar then
+              BBar:Display()
+            end
+          end,
+    args = {
+      All = {
+        type = 'toggle',
+        name = 'All',
+        desc = 'Matches all classes and stances',
+        width = 'half',
+        order = 1,
+        disabled = function()
+                     if DisableFn then
+                       return DisableFn()
+                     else
+                       return false
+                     end
+                   end,
+      },
+      Inverse = {
+        type = 'toggle',
+        name = 'Inverse',
+        width = 'half',
+        order = 2,
+        disabled = function()
+                     return DisableFn and DisableFn() or GetClassStancesTable(BarType, ClassStancesTP).All
+                   end,
+      },
+      OtherClasses = {
+        type = 'toggle',
+        name = 'Other Classes',
+        desc = 'If checked, will treat classes with no stances as if they had a working stance',
+        order = 3,
+        disabled = function()
+                     if DisableFn then
+                       return DisableFn()
+                     else
+                       return false
+                     end
+                   end,
+      },
+      Reset = {
+        type = 'execute',
+        order = 4,
+        desc = 'Sets all stance options to default',
+        name = 'Reset',
+        width = 'half',
+        func = function()
+                 ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+                 Main:CopyTableValues(CSD, ClassStances, true)
+
+                 if BBar then
+                   BBar:CheckTriggers()
+                 end
+                 UBF:Update()
+                 if BBar then
+                   BBar:Display()
+                 end
+               end,
+        confirm = function()
+                    return 'This will reset your class stance settings'
+                  end,
+        disabled = function()
+                     return DisableFn and DisableFn() or false
+                   end,
+      },
+      Clear = {
+        type = 'execute',
+        order = 5,
+        desc = 'Uncheck all class stance settings',
+        name = 'Clear',
+        width = 'half',
+        func = function()
+                 ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+
+                 for ClassName, ClassStancesBySpec in pairs(ClassStances) do
+                   if type(ClassStancesBySpec) == 'table' then
+                     for _, ClassStance in pairs(ClassStancesBySpec) do
+                       if type(ClassStance) == 'table' then
+                         for Index in pairs(ClassStance) do
+                           ClassStance[Index] = false
+                         end
+                       end
+                     end
+                   end
+                 end
+
+                 if BBar then
+                   BBar:CheckTriggers()
+                 end
+                 UBF:Update()
+                 if BBar then
+                   BBar:Display()
+                 end
+               end,
+        confirm = function()
+                    return 'This will uncheck your class stance settings'
+                  end,
+        disabled = function()
+                     return DisableFn and DisableFn() or false
+                   end,
+      },
+      StanceGroup = {
+        type = 'group',
+        name = '',
+        order = 6,
+        get = function(Info, Value)
+                local KeyName = Info[#Info]
+                local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+
+                if KeyName == 'Class' then
+                  local ClassIndex = FindMenuItem(ClassDropdown, ClassStances.ClassName or '')
+
+                  -- Set default classname
+                  ClassStances.ClassName = ClassDropdown[ClassIndex]
+
+                  return ClassIndex
+                else
+                  local ClassStancesClassName = ClassStances[strupper(ClassStances.ClassName)]
+
+                  if KeyName == 'StanceBySpec' then
+                    return ClassStancesClassName.Spec
+                  elseif KeyName == 'Stance' then
+                    return ClassStancesClassName[ClassStancesClassName.Spec][Value]
+                  else
+                    return ClassStancesClassName[KeyName]
+                  end
+                end
+              end,
+        set = function(Info, Value, Active)
+                local KeyName = Info[#Info]
+                local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+
+                if KeyName == 'Class' then
+                  ClassStances.ClassName = ClassDropdown[Value]
+                else
+                  local ClassStancesClassName = ClassStances[strupper(ClassStances.ClassName)]
+
+                  if KeyName == 'StanceBySpec' then
+                    ClassStancesClassName.Spec = Value
+                  elseif KeyName == 'Stance' then
+                    ClassStancesClassName[ClassStancesClassName.Spec][Value] = Active
+                  else
+                    ClassStancesClassName[KeyName] = Value
+                  end
+                end
+                -- Update bar to reflect stance setting.
+                if BBar then
+                  BBar:CheckTriggers()
+                end
+                UBF:Update()
+                if BBar then
+                  BBar:Display()
+                end
+              end,
+        disabled = function()
+                     return DisableFn and DisableFn() or GetClassStancesTable(BarType, ClassStancesTP).All
+                   end,
+        args = {
+          Class = {
+            type = 'select',
+            name = 'Class',
+            order = 1,
+            style = 'dropdown',
+            values = SelectClassDropdown,
+          },
+          Seperator = {
+            type = 'header',
+            name = '',
+            order = 10,
+          },
+          StanceBySpec = {
+            type = 'select',
+            name = 'Select Specialization',
+            order = 20,
+            values = function()
+                       return SpecDropdown[GetClassStancesTable(BarType, ClassStancesTP).ClassName]
+                     end,
+          },
+          Spacer21 = CreateSpacer(21, 'half'),
+          UseAll = {
+            type = 'toggle',
+            name = 'Use All',
+            desc = 'If checked, will use the stance settings under ALL specialization',
+            order = 22,
+          },
+          Stance = {
+            type = 'multiselect',
+            name = '',
+            order = 23,
+            width = 'normal',
+            values = function()
+                       local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+                       local ClassName = ClassStances.ClassName
+
+                       return StanceDropdown[ClassName][ClassStances[strupper(ClassName)].Spec]
+                     end,
+            disabled = function()
+                         if DisableFn and DisableFn() then
+                           return true
+                         else
+                           local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+                           local ClassStancesBySpec = ClassStances[strupper(ClassStances.ClassName)]
+
+                           return ClassStances.All or (ClassStancesBySpec.Spec ~= 0 and ClassStancesBySpec.UseAll) or
+                                                      (ClassStancesBySpec.Spec == 0 and not ClassStancesBySpec.UseAll)
+                         end
+                       end,
+            hidden = function()
+                       return StanceDropdown[GetClassStancesTable(BarType, ClassStancesTP).ClassName] == nil
+                     end,
+          },
+        },
+      },
+    },
+  }
+
+  return StanceOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateStatusOptions
 --
 -- Creates the status flags for all unitbars.
@@ -2422,10 +2811,36 @@ local function CreateStatusOptions(BarType, Order, Name)
                  return Main.UnitBars.Show or Main.UnitBars.Testing
                end,
     get = function(Info)
-            return UBF.UnitBar.Status[Info[#Info]]
+            local KeyName = Info[#Info]
+            local Value = UBF.UnitBar.Status[KeyName]
+
+            if KeyName == 'HidePowerType' then
+              if Value == 'NONE' then
+                return 100
+              else
+                return ConvertPowerTypeHAP[Value] or ConvertPowerTypeHAP[0]
+              end
+            else
+              return Value
+            end
           end,
     set = function(Info, Value)
-            UBF.UnitBar.Status[Info[#Info]] = Value
+            local KeyName = Info[#Info]
+
+            if KeyName == 'HidePowerType' then
+              if Value == 100 then
+                Value = 'NONE'
+              else
+                for PowerType, Index in pairs(ConvertPowerTypeHAP) do
+                  if Index == Value then
+                    Value = PowerType
+                    break
+                  end
+                end
+              end
+            end
+
+            UBF.UnitBar.Status[KeyName] = Value
 
             -- Update the status of all bars.
             GUB:UnitBarsUpdateStatus()
@@ -2459,11 +2874,19 @@ local function CreateStatusOptions(BarType, Order, Name)
       desc = 'Hides the bar when you have no target selected',
     }
   end
+  if UBD.Status.HideNoFocus ~= nil then
+    StatusArgs.HideNoFocus = {
+      type = 'toggle',
+      name = 'Hide no Focus',
+      order = 6,
+      desc = 'Hides the bar when you have no focus',
+    }
+  end
   if UBD.Status.HideInVehicle ~= nil then
     StatusArgs.HideInVehicle = {
       type = 'toggle',
       name = 'Hide in Vehicle',
-      order = 6,
+      order = 7,
       desc = "Hides the bar when you're in a vehicle",
     }
   end
@@ -2471,7 +2894,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideInPetBattle = {
       type = 'toggle',
       name = 'Hide in Pet Battle',
-      order = 7,
+      order = 8,
       desc = "Hides the bar when you're in a pet battle",
     }
   end
@@ -2479,7 +2902,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNotActive = {
       type = 'toggle',
       name = 'Hide not Active',
-      order = 8,
+      order = 9,
       desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
     }
   end
@@ -2487,7 +2910,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNoCombat = {
       type = 'toggle',
       name = 'Hide no Combat',
-      order = 9,
+      order = 10,
       desc = 'When not in combat the bar will be hidden',
     }
   end
@@ -2495,8 +2918,48 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideIfBlizzAltPowerVisible = {
       type = 'toggle',
       name = 'Hide if Blizzard Visible',
-      order = 10,
+      order = 11,
       desc = 'Hide when the blizzard alternate power bar is visible. This only works while the alternate power bar is active',
+    }
+  end
+
+  -- Other status flags
+  local Other = false
+  if UBD.Status.HidePowerType ~= nil then
+    Other = true
+    StatusArgs.HidePowerType = {
+      type = 'select',
+      name = 'Hide Power Type',
+      order = 101,
+      values = PowerTypeHAPDropdown,
+      desc = 'Hide the bar when the player power type is equal to what is currently set',
+    }
+    StatusArgs.Spacer110 = CreateSpacer(110)
+  end
+  if UBD.Status.HideNoPet ~= nil then
+    Other = true
+    StatusArgs.HideNoPet = {
+      type = 'toggle',
+      name = 'Hide no Pet',
+      order = 111,
+      desc = 'Hide the bar when the player has no pet',
+    }
+  end
+  if UBD.Status.HideNoPetPower ~= nil then
+    Other = true
+    StatusArgs.HideNoPetPower = {
+      type = 'toggle',
+      name = 'Hide no Pet Power',
+      order = 112,
+      desc = "Hide the bar when the player's pet has no power type",
+    }
+  end
+
+  if Other then
+    StatusArgs.Seperator = {
+      type = 'header',
+      name = '',
+      order = 100,
     }
   end
 
@@ -2535,7 +2998,19 @@ local function CreateShowOptions(BarType, Order, Name)
         order = 10,
         dialogInline = false,
         args = {
-          SpecOptions = CreateSpecOptions(BarType, 10, 'ClassSpecs'), -- ClassSpecs is a table path
+          SpecOptions = CreateSpecOptions(BarType, 1, 'ClassSpecs'), -- ClassSpecs is a table path
+        },
+      },
+      StanceGroup = {
+        type = 'group',
+        name = 'Stances',
+        order = 11,
+        dialogInline = false,
+        disabled = function()
+                     return next(DUB[BarType].ClassStances) == nil
+                   end,
+        args = {
+          StanceOptions = CreateStanceOptions(BarType, 1, 'ClassStances'), -- 'ClassStances is the table path
         },
       },
       StatusOptions = CreateStatusOptions(BarType, 20, 'Status'),
@@ -3895,15 +4370,16 @@ local function CreateResetOptions(BarType, Order, Name)
     All                       = { Name = 'All',                  Order =   1, Width = 'half' },
     Location                  = { Name = 'Location',             Order =   2, Width = 'half',   TablePaths = {'_x', '_y'} },
     Specialization            = { Name = 'Spec',                 Order =   3, Width = 'half',   TablePaths = {'ClassSpecs'} },
-    Status                    = { Name = 'Status',               Order =   4, Width = 'half',   TablePaths = {'Status'} },
-    Test                      = { Name = 'Test',                 Order =   5, Width = 'half',   TablePaths = {'TestMode'} },
-    Layout                    = { Name = 'Layout',               Order =   6, Width = 'half',   TablePaths = {'Layout', 'BoxLocations', 'BoxOrder'} },
-    Region                    = { Name = 'Region',               Order =   7, Width = 'half',   TablePaths = {'Region'} },
-    Text                      = { Name = 'Text',                 Order =   8, Width = 'half',   TablePaths = {'Text'} },
-    TextPause                 = { Name = 'Text (pause)',         Order =   9, Width = 'normal', BarType = 'StaggerBar',  TablePaths = {'Text2'} },
-    TextCounter               = { Name = 'Text (counter)',       Order =  10, Width = 'normal', BarType = 'AltPowerBar', TablePaths = {'Text2'} },
-    Triggers                  = { Name = 'Triggers',             Order =  11, Width = 'half',   TablePaths = {'Triggers'} },
-    Attributes                = { Name = 'Attributes',           Order =  12, Width = 'normal', TablePaths = {'Attributes'} },
+    Stances                   = { Name = 'Stances',              Order =   4, Width = 'half',   TablePaths = {'ClassStances'} },
+    Status                    = { Name = 'Status',               Order =   5, Width = 'half',   TablePaths = {'Status'} },
+    Test                      = { Name = 'Test',                 Order =   6, Width = 'half',   TablePaths = {'TestMode'} },
+    Layout                    = { Name = 'Layout',               Order =   7, Width = 'half',   TablePaths = {'Layout', 'BoxLocations', 'BoxOrder'} },
+    Region                    = { Name = 'Region',               Order =   8, Width = 'half',   TablePaths = {'Region'} },
+    Text                      = { Name = 'Text',                 Order =   9, Width = 'half',   TablePaths = {'Text'} },
+    TextPause                 = { Name = 'Text (pause)',         Order =  10, Width = 'normal', BarType = 'StaggerBar',  TablePaths = {'Text2'} },
+    TextCounter               = { Name = 'Text (counter)',       Order =  11, Width = 'normal', BarType = 'AltPowerBar', TablePaths = {'Text2'} },
+    Triggers                  = { Name = 'Triggers',             Order =  12, Width = 'half',   TablePaths = {'Triggers'} },
+    Attributes                = { Name = 'Attributes',           Order =  13, Width = 'normal', TablePaths = {'Attributes'} },
     --------------------------
     HEADER2 = { Order = 100, Name = 'Background' },
 
@@ -4273,6 +4749,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
     ['Main'] = { Order = 1,
       { Name = 'All',                  All = false, TablePath = '',                                   },  -- 1
       { Name = 'Specialization',       All = true,  TablePath = 'ClassSpecs',                         },
+      { Name = 'Stances',              All = true,  TablePath = 'ClassStances',                       },
       { Name = 'Status',               All = true,  TablePath = 'Status',                             },
       { Name = 'Attributes',           All = true,  TablePath = 'Attributes',                         },
       { Name = 'Layout',               All = true,  TablePath = 'Layout',                             },
@@ -5191,9 +5668,17 @@ local function BuildAltPowerBarList(APA, TableName, Order, Name)
   local PBA = PowerBarList.args
 
   for BarID = 1, 1000 do
-    local AltPowerType, MinPower, _, _, _, _, _, _, _, _, PowerName, PowerTooltip = GetAlternatePowerInfoByID(BarID)
+    local AltPower = false
+    local PowerName
+    local PowerTooltip
+    local BarInfo = GetUnitPowerBarInfoByID(BarID)
 
-    if AltPowerType then
+    if BarInfo and BarInfo.barType then
+      PowerName, PowerTooltip = GetUnitPowerBarStringsByID(BarID)
+      AltPower = true
+    end
+
+    if AltPower then
       PBA[TableName .. ':' .. BarID .. 'APBL'] = {
         type = 'toggle',
         width = 'full',
@@ -5474,21 +5959,18 @@ local function CreatePowerColorOptions(Order, Name)
   -- Power types for the player power bar.
   -- These cover classes with more than one power type.
   local PlayerPower = {
-    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0, LUNAR_POWER = 8},
-    MONK  = {MANA = 0, ENERGY = 0},
-    SHAMAN = {MANA = 0, MAELSTROM = 11},
-    PRIEST = {MANA = 0, INSANITY = 12},
-    DEMONHUNTER = {FURY = 17, PAIN = 18},
+    DRUID = {MANA = 1, ENERGY = 1, RAGE = 1, LUNAR_POWER = 1},
+    MONK  = {MANA = 1, ENERGY = 1},
+    PRIEST = {MANA = 1, INSANITY = 1},
+    DEMONHUNTER = {FURY = 1, PAIN = 1},
   }
   local PowerWidth = {
     RUNIC_POWER = 'normal',
     LUNAR_POWER = 'normal',
-    MAELSTROM = 'normal',
   }
   local PowerName = {
     RUNIC_POWER = 'Runic Power',
     LUNAR_POWER = 'Astral Power',
-    MAELSTROM = 'Maelstrom',
   }
 
   -- Set up a power order.  half goes first, then normal
@@ -5511,11 +5993,11 @@ local function CreatePowerColorOptions(Order, Name)
 
   local PCOA = PowerColorOptions.args
   local ClassPowerType = PlayerPower[Main.PlayerClass]
-  local PlayerPowerType = ConvertPowerType[Main.PlayerPowerType]
+  local PlayerPowerType = Main.PlayerPowerType
   Index = 0
 
-  for _, PowerType in pairs(PowerOrder) do
-    local n = gsub(strlower(PowerType), '%a', strupper, 1)
+  for _, PowerType in ipairs(PowerOrder) do
+    local Name = gsub(strlower(PowerType), '%a', strupper, 1)
     Index = Index + 1
 
     if ClassPowerType and ClassPowerType[PowerType] or PowerType == PlayerPowerType then
@@ -5526,7 +6008,7 @@ local function CreatePowerColorOptions(Order, Name)
 
     PCOA[PowerType] = {
       type = 'color',
-      name = PowerName[PowerType] or n,
+      name = PowerName[PowerType] or Name,
       order = Order,
       width = PowerWidth[PowerType] or 'half',
       hasAlpha = true,
@@ -6338,11 +6820,20 @@ local function CreateImportOptions(Order, Name)
                        local x, y = UB._x, UB._y
 
                        Main:DeepCopy(ImportTable, UB)
+
+                       local ClassStances = UB.ClassStances
+
+                       if ClassStances == nil then
+                         ClassStances = {}
+                         UB.ClassStances = ClassStances
+                         Main:UpdatePlayerStances(ImportSourceBarType, ClassStances)
+                       end
                        UB._x, UB._y = x, y
                      end
 
                      -- Need to do this to be sure the data is safe
                      Main:FixUnitBars()
+
 
                      -- Update the layout.
                      Main.CopyPasted = true
@@ -7083,6 +7574,7 @@ GUB.Options.FindMenuItem = FindMenuItem
 GUB.Options.HideTooltip = HideTooltip
 GUB.Options.CreateSpacer = CreateSpacer
 GUB.Options.CreateSpecOptions = CreateSpecOptions
+GUB.Options.CreateStanceOptions = CreateStanceOptions
 GUB.Options.CreateColorAllOptions = CreateColorAllOptions
 
 

@@ -15,8 +15,8 @@ local OT = Bar.TriggerObjectTypes
 -- localize some globals.
 local _, _G, print =
       _, _G, print
-local GetTime, strfind, format, sort =
-      GetTime, strfind, format, sort
+local GetTime, strfind, sort =
+      GetTime, strfind, sort
 local GetRuneCooldown, CreateFrame =
       GetRuneCooldown, CreateFrame
 
@@ -235,7 +235,7 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
     -- stop text timer
     if not Layout.HideText then
       BBar:SetValueTime(RuneIndex, DoRuneTime)
-      if Main.UnitBars.Testing then
+      if Layout.EnableTriggers then
         BBar:SetTriggers('Time ' .. RuneIndex, 0)
         BBar:DoTriggers()
       end
@@ -344,7 +344,7 @@ local function OnUpdateRunes(self)
   local Testing = Main.UnitBars.Testing
   local UB = RuneBar.UnitBar
   local TestMode = UB.TestMode
-  local PlayerSpecialization = Main.PlayerSpecialization
+  local PlayerSpecialization = Main.PlayerClass == 'DEATHKNIGHT' and Main.PlayerSpecialization or 1
 
   if Testing then
     AnyRecharging = TestMode.RuneOnCooldown > 0
@@ -533,6 +533,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       local PlayerSpecialization = self.PlayerSpecialization
 
       if PlayerSpecialization then
+        print('::', PlayerSpecialization, RuneCooldownFillTexture[PlayerSpecialization])
         BBar:SetCooldownSwipeTexture(0, RuneEmptyTexture, RuneCooldownFillTexture[PlayerSpecialization])
         BBar:SetCooldownEdgeTexture(0, RuneEmptyTexture, RuneCooldownSparkTexture[PlayerSpecialization])
         BBar:SetAtlasTexture(0, RuneTexture, RuneReadyTexture[PlayerSpecialization])

@@ -1133,7 +1133,8 @@ local function RestoreBackdrops(Frame)
       if not RestoreBackdrop(Frame:GetChildren()) then
 
         -- No children found so use this frame.
-        local Backdrop = Frame:GetBackdrop()
+        -- Check if frame has a backdrop
+        local Backdrop = Frame.GetBackdrop and Frame:GetBackdrop()
 
         if Backdrop then
           local RestoreFrame = Frame.RestoreFrame
@@ -1149,7 +1150,8 @@ local function RestoreBackdrops(Frame)
     end
     return Found
   end
-  RestoreBackdrop(Frame)
+  return
+  --RestoreBackdrop(Frame)
 end
 
 -------------------------------------------------------------------------------
@@ -1338,17 +1340,17 @@ end
 -- Object     Object to save the backdrop to.
 --
 -- Returns:
---  Backdrop   Reference to backdrop saved to Object.
---             If object already has a backdrop it returns that one instead.
+--  BackdropInfo   Blizzards backdrop table
+--                 If object already has a backdrop it returns that one instead.
 -------------------------------------------------------------------------------
 local function GetBackdrop(Object)
-  local Backdrop = Object.Backdrop
+  local Backdrop = Object.backdropInfo
 
   if Backdrop == nil then
     Backdrop = {}
 
     Main:CopyTableValues(DefaultBackdrop, Backdrop, true)
-    Object.Backdrop = Backdrop
+    Object.backdropInfo = Backdrop
   end
 
   return Backdrop
@@ -1362,13 +1364,13 @@ end
 -- day they make it so a backdrop table isn't needed anymore.
 --
 -- Frame       Frame that backdrop is being set to
--- Backdrop    Backdrop to set
 -------------------------------------------------------------------------------
-local function SetBackdrop(Frame, Backdrop)
+local function SetBackdrop(Frame)
   local r, g, b, a = Frame:GetBackdropColor()
   local r1, g1, b1, a1 = Frame:GetBackdropBorderColor()
 
-  Frame:SetBackdrop(Backdrop)
+  -- Call ApplyBackdrop. Frame.backdropInfo gets used there
+  Frame:ApplyBackdrop()
   Frame:SetBackdropColor(r, g, b, a)
   Frame:SetBackdropBorderColor(r1, g1, b1, a1)
 end
@@ -5799,7 +5801,7 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
   Bar.BoxFrames = {}
 
   -- Create the region frame.
-  local Region = CreateFrame('Frame', nil, ParentFrame)
+  local Region = CreateFrame('Frame', nil, ParentFrame, 'BackdropTemplate')
   Region:SetSize(1, 1)
   Region:SetPoint('TOPLEFT')
   Region.Hidden = false
@@ -5814,7 +5816,7 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
   for BoxFrameIndex = 1, NumBoxes do
 
     -- Create the BoxFrame and Border.
-    local BoxFrame = CreateFrame('Frame', nil, BoxBorder)
+    local BoxFrame = CreateFrame('Frame', nil, BoxBorder, 'BackdropTemplate')
 
     BoxFrame:SetSize(1, 1)
     BoxFrame:SetPoint('TOPLEFT')
@@ -5899,7 +5901,7 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
     TF:SetPoint('TOPLEFT')
     TF:SetSize(1, 1)
 
-    local BorderFrame = CreateFrame('Frame', nil, TF)
+    local BorderFrame = CreateFrame('Frame', nil, TF, 'BackdropTemplate')
     local PaddingFrame = CreateFrame('Frame', nil, BorderFrame)
     local SizeFrame = CreateFrame('Frame', nil, PaddingFrame)
     local ScaleFrame = CreateFrame('Frame', nil, SizeFrame)
@@ -5967,7 +5969,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, Textu
     -- Create a statusbar or texture.
     if TextureType == nil  or TextureType == 'statusbar' then
       if TextureType == 'statusbar' then
-        Frame = CreateFrame('Frame', nil, ScaleFrame)
+        Frame = CreateFrame('Frame', nil, ScaleFrame, 'BackdropTemplate')
         Frame:SetPoint('CENTER')
         Frame:SetFrameLevel(MaxFrameLevel)
 
@@ -6909,7 +6911,7 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
 
     -- Create a new fontstring if one doesn't exist.
     if FontString == nil then
-      TextFrame = CreateFrame('Frame', nil, Frame)
+      TextFrame = CreateFrame('Frame', nil, Frame, 'BackdropTemplate')
       TextFrame:SetBackdrop(FrameBorder)
       TextFrame:SetBackdropBorderColor(1, 1, 1, 0)
 
@@ -7675,6 +7677,9 @@ function BarDB:CheckTriggers(Action)
         TrackTalents = true
       end
 
+      -- Update stance data
+      Main:UpdatePlayerStances(BarType, Trigger.ClassStances)
+
       Trigger.AurasOn      = not Auras.Disabled      and #Auras > 0
       Trigger.ConditionsOn = not Conditions.Disabled and #Conditions > 0
 
@@ -7864,7 +7869,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       end
     end
 
-    if self.TriggerData == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerSpecializationChanged then
+    if self.TriggerData == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerChanged then
       self.Triggers = Triggers
       self.TriggerData = TriggerData
       self:CheckTriggers()
@@ -7969,6 +7974,7 @@ end
 -- Executes triggers based on talents, auras, conditions, etc
 -------------------------------------------------------------------------------
 function BarDB:DoTriggers()
+  local BarType = self.BarType
   local TriggerData = self.TriggerData
   local ActiveTriggers = TriggerData.ActiveTriggers
   local ActiveObjects = TriggerData.ActiveObjects
@@ -7987,8 +7993,9 @@ function BarDB:DoTriggers()
 
     -- Check active status
     local Active = ActiveTrigger.Static or
-                   ( not ActiveTrigger.AurasOn      or ActiveTrigger.ActiveAuras   ) and
-                   ( not ActiveTrigger.ConditionsOn or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
+                   ( not ActiveTrigger.StanceEnabled or Main:CheckPlayerStances(BarType, ActiveTrigger.ClassStances) ) and
+                   ( not ActiveTrigger.AurasOn       or ActiveTrigger.ActiveAuras   ) and
+                   ( not ActiveTrigger.ConditionsOn  or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
 
     if not Active then
       if ActiveTrigger.OneTime then

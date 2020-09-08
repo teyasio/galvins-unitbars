@@ -27,6 +27,7 @@ local CreateSpacer = Options.CreateSpacer
 local FindMenuItem = Options.FindMenuItem
 local HideTooltip = Options.HideTooltip
 local CreateSpecOptions = Options.CreateSpecOptions
+local CreateStanceOptions = Options.CreateStanceOptions
 
 -- localize some globals.
 local _, _G, print =
@@ -1799,6 +1800,37 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, EditLis
             order = 2,
           },
           SpecOptions = CreateSpecOptions(BarType, 3, Trigger.ClassSpecs, BBar, function() return not Trigger.SpecEnabled end),
+        },
+      },
+
+      -- Stances
+      StancesTab = {
+        type = 'group',
+        name = 'Stances',
+        order = 2,
+        args = {
+          StanceEnabled = {
+            type = 'toggle',
+            name = 'Enable',
+            order = 1,
+            get = function()
+                    return Trigger.StanceEnabled
+                  end,
+            set = function(Info, Value)
+                    Trigger.StanceEnabled = Value
+
+                    -- Update bar to reflect trigger changes
+                    BBar:CheckTriggers()
+                    UBF:Update()
+                    BBar:Display()
+                  end,
+          },
+          Header = {
+            type = 'header',
+            name = '',
+            order = 2,
+          },
+          StanceOptions = CreateStanceOptions(BarType, 3, Trigger.ClassStances, BBar, function() return not Trigger.StanceEnabled end),
         },
       },
 
