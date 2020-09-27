@@ -19,8 +19,8 @@ local _, _G, print =
       _, _G, print
 local GetTime, floor =
       GetTime, floor
-local UnitAlternatePowerInfo, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, UnitAlternatePowerTextureInfo =
-      UnitAlternatePowerInfo, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, UnitAlternatePowerTextureInfo
+local UnitPowerBarID, GetUnitPowerBarStringsByID, GetUnitPowerBarInfoByID, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, GetUnitPowerBarTextureInfo =
+      UnitPowerBarID, GetUnitPowerBarStringsByID, GetUnitPowerBarInfoByID, UnitPowerBarTimerInfo, UnitAlternatePowerCounterInfo, GetUnitPowerBarTextureInfo
 local UnitPower, UnitPowerMax, CreateFrame =
       UnitPower, UnitPowerMax, CreateFrame
 
@@ -240,7 +240,10 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
   local TestTypeBoth = false
   local TimeFrameActive = false
 
-  local AltPowerType, MinPower, _, _, _, _, _, _, _, _, PowerName, _, _, BarID = UnitAlternatePowerInfo('player')
+  local BarID = UnitPowerBarID('player')
+  local PowerName = GetUnitPowerBarStringsByID(BarID)
+  local BarInfo = GetUnitPowerBarInfoByID(BarID)
+  local AltPowerType = BarInfo and BarInfo.barType
 
   -- Incase the timer event went off first.
   local AltPowerType2 = AltPowerType
@@ -253,7 +256,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
 
   -- Check if the counter supports maxvalue
   if AltPowerType == AltPowerTypeCounter then
-    UseMaxValue = UnitAlternatePowerCounterInfo('player')
+    UseMaxValue = BarInfo.fractionalCounter
   end
 
   if Event == nil and AltPowerType == nil then
@@ -372,7 +375,7 @@ function Main.UnitBarsF.AltPowerBar:Update(Event, Unit, PowerToken)
       end
 
       a = 1
-      AltTexture, r, g, b = UnitAlternatePowerTextureInfo('player', AltColorFill, TimeIndex)
+      AltTexture, r, g, b = GetUnitPowerBarTextureInfo('player', AltColorFill, TimeIndex)
       r1, g1, b1, a1 = r, g, b, 1
     end
 

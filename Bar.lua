@@ -384,6 +384,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --  TriggerData
 --    ActiveTriggers                           Contains reference to triggers that will be used during combat
 --    ActiveBoxesAll[BoxNumber]                true or false. Used by the 'ALL' options.  This tells which boxes are active
+--    ActiveBoxesCustom[Group][BoxNumber]      true or false. Used by SetTriggersCustomGroup()
 --    ActiveObjects[BoxNumber][ObjectTypeID]   Objects actively being used. Contains the trigger index that last used the object
 --                                             Used by DoTriggers(), CheckTriggers() and EnableTriggers()
 --                                               0 : means no trigger modified that object so restore it
@@ -399,7 +400,9 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --    InputValueNamesDropdown[]                Array: Used by trigger options
 --    InputValues[InputName]                   This keeps track of the values set thru SetTriggers(). InputName is the name used in SetTriggers()
 --
---    GroupsDropdown                Pulldown menu contains the name of each group. Used by options
+--    GroupsDropdown                           Pulldown menu contains the name of each group. Used by options
+--    NameToGroup[GroupName]                   Returns group based on the name of that group
+--
 --    Groups[Index]
 --      Name                        Name of the group. Usually this is the name of each box, like Rune 1, Rune 2, etc
 --      BoxNumber                   Number of box or -1 for region
@@ -440,7 +443,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   CanAnimate                      true or false.  If true then the trigger can animate.
 --   Animate                         true or false. if true then the trigger will animate
 --   AnimateSpeed                    Speed to play the animation at.
---   OffsetAll                       true or false. Used for bar offset size.  By options.
+--   OffsetAll                       true or false. Used for bar offset size or padding  By options.
 --   ColorFn                         Color function
 --   BarFn                           Bar Function to call to make changes to the bar
 --
@@ -1124,6 +1127,7 @@ local function RestoreFrameOnUpdate(RestoreFrame)
 end
 
 local function RestoreBackdrops(Frame)
+  if true then return end
   local function RestoreBackdrop(...)
     local Found = false
 
@@ -1133,7 +1137,8 @@ local function RestoreBackdrops(Frame)
       if not RestoreBackdrop(Frame:GetChildren()) then
 
         -- No children found so use this frame.
-        local Backdrop = Frame:GetBackdrop()
+        -- Check if frame has a backdrop
+        local Backdrop = Frame.GetBackdrop and Frame:GetBackdrop()
 
         if Backdrop then
           local RestoreFrame = Frame.RestoreFrame
@@ -1149,7 +1154,8 @@ local function RestoreBackdrops(Frame)
     end
     return Found
   end
-  RestoreBackdrop(Frame)
+  return
+  --RestoreBackdrop(Frame)
 end
 
 -------------------------------------------------------------------------------
@@ -1338,17 +1344,17 @@ end
 -- Object     Object to save the backdrop to.
 --
 -- Returns:
---  Backdrop   Reference to backdrop saved to Object.
---             If object already has a backdrop it returns that one instead.
+--  BackdropInfo   Blizzards backdrop table
+--                 If object already has a backdrop it returns that one instead.
 -------------------------------------------------------------------------------
 local function GetBackdrop(Object)
-  local Backdrop = Object.Backdrop
+  local Backdrop = Object.backdropInfo
 
   if Backdrop == nil then
     Backdrop = {}
 
     Main:CopyTableValues(DefaultBackdrop, Backdrop, true)
-    Object.Backdrop = Backdrop
+    Object.backdropInfo = Backdrop
   end
 
   return Backdrop
@@ -1362,13 +1368,13 @@ end
 -- day they make it so a backdrop table isn't needed anymore.
 --
 -- Frame       Frame that backdrop is being set to
--- Backdrop    Backdrop to set
 -------------------------------------------------------------------------------
-local function SetBackdrop(Frame, Backdrop)
+local function SetBackdrop(Frame)
   local r, g, b, a = Frame:GetBackdropColor()
   local r1, g1, b1, a1 = Frame:GetBackdropBorderColor()
 
-  Frame:SetBackdrop(Backdrop)
+  -- Call ApplyBackdrop. Frame.backdropInfo gets used there
+  Frame:ApplyBackdrop()
   Frame:SetBackdropColor(r, g, b, a)
   Frame:SetBackdropBorderColor(r1, g1, b1, a1)
 end
@@ -4423,6 +4429,8 @@ end
 -- Left, Right, Top, Bottom   Paddding values.
 -------------------------------------------------------------------------------
 function BarDB:SetPaddingTextureFrame(BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
+  SaveSettings(self, 'SetPaddingTextureFrame', BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
+
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
     local PaddingFrame = TextureFrame.PaddingFrame
@@ -5799,7 +5807,7 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
   Bar.BoxFrames = {}
 
   -- Create the region frame.
-  local Region = CreateFrame('Frame', nil, ParentFrame)
+  local Region = CreateFrame('Frame', nil, ParentFrame, 'BackdropTemplate')
   Region:SetSize(1, 1)
   Region:SetPoint('TOPLEFT')
   Region.Hidden = false
@@ -5814,7 +5822,7 @@ function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
   for BoxFrameIndex = 1, NumBoxes do
 
     -- Create the BoxFrame and Border.
-    local BoxFrame = CreateFrame('Frame', nil, BoxBorder)
+    local BoxFrame = CreateFrame('Frame', nil, BoxBorder, 'BackdropTemplate')
 
     BoxFrame:SetSize(1, 1)
     BoxFrame:SetPoint('TOPLEFT')
@@ -5899,7 +5907,7 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
     TF:SetPoint('TOPLEFT')
     TF:SetSize(1, 1)
 
-    local BorderFrame = CreateFrame('Frame', nil, TF)
+    local BorderFrame = CreateFrame('Frame', nil, TF, 'BackdropTemplate')
     local PaddingFrame = CreateFrame('Frame', nil, BorderFrame)
     local SizeFrame = CreateFrame('Frame', nil, PaddingFrame)
     local ScaleFrame = CreateFrame('Frame', nil, SizeFrame)
@@ -5967,7 +5975,7 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, Textu
     -- Create a statusbar or texture.
     if TextureType == nil  or TextureType == 'statusbar' then
       if TextureType == 'statusbar' then
-        Frame = CreateFrame('Frame', nil, ScaleFrame)
+        Frame = CreateFrame('Frame', nil, ScaleFrame, 'BackdropTemplate')
         Frame:SetPoint('CENTER')
         Frame:SetFrameLevel(MaxFrameLevel)
 
@@ -6909,7 +6917,7 @@ function BarDB:UpdateFont(BoxNumber, ColorIndex)
 
     -- Create a new fontstring if one doesn't exist.
     if FontString == nil then
-      TextFrame = CreateFrame('Frame', nil, Frame)
+      TextFrame = CreateFrame('Frame', nil, Frame, 'BackdropTemplate')
       TextFrame:SetBackdrop(FrameBorder)
       TextFrame:SetBackdropBorderColor(1, 1, 1, 0)
 
@@ -7189,6 +7197,40 @@ end
 -- Trigger functions
 --
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-------------------------------------------------------------------------------
+-- SetTriggersCustomGroup
+--
+-- Works with custom groups only
+-- Like SetTriggers accept it turns off an off a custom groups boxnumber
+-------------------------------------------------------------------------------
+function BarDB:SetTriggersCustomGroup(GroupName, Active, ...)
+  local TriggerData = self.TriggerData
+  local Group = TriggerData.NameToGroup[GroupName]
+
+  if Group == nil then
+    assert(false, 'SetTriggersCustomGroup - Invalid GroupName: ' .. GroupName)
+  else
+    local ActiveBoxes = TriggerData.ActiveBoxesCustom[Group]
+
+    if ActiveBoxes == nil then
+      ActiveBoxes = {}
+      TriggerData.ActiveBoxesCustom[Group] = ActiveBoxes
+    end
+
+    for Index = 1, #ActiveBoxes do
+      ActiveBoxes[Index] = -1
+    end
+
+    if Active then
+      for Index = 1, select('#', ...) do
+        local BoxNumber = select(Index, ...) or -1
+
+        ActiveBoxes[Index] = BoxNumber
+      end
+    end
+  end
+end
 
 -------------------------------------------------------------------------------
 -- SetTriggersActive
@@ -7675,6 +7717,9 @@ function BarDB:CheckTriggers(Action)
         TrackTalents = true
       end
 
+      -- Update stance data
+      Main:UpdatePlayerStances(BarType, Trigger.ClassStances)
+
       Trigger.AurasOn      = not Auras.Disabled      and #Auras > 0
       Trigger.ConditionsOn = not Conditions.Disabled and #Conditions > 0
 
@@ -7732,6 +7777,7 @@ end
 --   [1+] = [GroupIndex]         Table containing table name, box name, and objects info
 --     [1] = Group Type            number   : Boxnumber of the box for the bar
 --                                 'r'      : Region
+--                                 'c'      : Custom: Can be on any box. Gets set thru SetTriggersGroup()
 --                                 'a'      : Triggers will change ALL boxes
 --                                 'aa'     : Triggers will only change active boxes
 --                                 'ai'     : Triggers will only change inactive boxes
@@ -7763,6 +7809,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       local InputValueNamesDropdown = {}
       local Groups = {}
       local GroupsDropdown = {}
+      local NameToGroup = {}
       local ActiveObjects = {}
       local DropdownIndex = 1
 
@@ -7790,6 +7837,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       TriggerData.ActiveTriggers = {}
       TriggerData.ActiveObjects = ActiveObjects
       TriggerData.ActiveBoxesAll = {}
+      TriggerData.ActiveBoxesCustom = {}
       TriggerData.InputValueTypes = InputValueTypes
       TriggerData.InputValueNames = InputValueNames
       TriggerData.InputValueNamesDropdown = InputValueNamesDropdown
@@ -7797,6 +7845,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
 
       TriggerData.Groups = Groups
       TriggerData.GroupsDropdown = GroupsDropdown
+      TriggerData.NameToGroup = NameToGroup
 
       -- do boxes, region, any etc
       for GroupIndex = 1, #GroupsInfo do
@@ -7806,7 +7855,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
         local GroupType = GroupInfo[1]
         local GroupName = GroupInfo[2]
 
-        if type(GroupType) ~= 'number' and GroupType ~= 'r' and
+        if type(GroupType) ~= 'number' and GroupType ~= 'r' and GroupType ~= 'c' and
            GroupType ~= 'a' and GroupType ~= 'aa' and GroupType ~= 'ai' then
           assert(false, 'EnableTriggers - Invalid GroupType: ' .. GroupType)
         end
@@ -7821,6 +7870,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
         Group.BoxNumber = BoxNumber
         Group.Type = GroupType
         GroupsDropdown[GroupIndex] = GroupName
+        NameToGroup[GroupName] = Group
 
         -- Objects
         local ObjectTypeTypeID = {}
@@ -7864,7 +7914,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       end
     end
 
-    if self.TriggerData == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerSpecializationChanged then
+    if self.TriggerData == nil or Main.ProfileChanged or Main.CopyPasted or Main.PlayerChanged then
       self.Triggers = Triggers
       self.TriggerData = TriggerData
       self:CheckTriggers()
@@ -7969,10 +8019,12 @@ end
 -- Executes triggers based on talents, auras, conditions, etc
 -------------------------------------------------------------------------------
 function BarDB:DoTriggers()
+  local BarType = self.BarType
   local TriggerData = self.TriggerData
   local ActiveTriggers = TriggerData.ActiveTriggers
   local ActiveObjects = TriggerData.ActiveObjects
   local ActiveBoxesAll = TriggerData.ActiveBoxesAll
+  local ActiveBoxesCustom = TriggerData.ActiveBoxesCustom
   local NumBoxes = self.NumBoxes
   local OTSound = OT.Sound
 
@@ -7987,8 +8039,9 @@ function BarDB:DoTriggers()
 
     -- Check active status
     local Active = ActiveTrigger.Static or
-                   ( not ActiveTrigger.AurasOn      or ActiveTrigger.ActiveAuras   ) and
-                   ( not ActiveTrigger.ConditionsOn or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
+                   ( not ActiveTrigger.StanceEnabled or Main:CheckPlayerStances(BarType, ActiveTrigger.ClassStances) ) and
+                   ( not ActiveTrigger.AurasOn       or ActiveTrigger.ActiveAuras   ) and
+                   ( not ActiveTrigger.ConditionsOn  or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
 
     if not Active then
       if ActiveTrigger.OneTime then
@@ -7996,7 +8049,22 @@ function BarDB:DoTriggers()
       end
     end
 
-    if Type == 'a' or Type == 'aa' or Type == 'ai' then
+    -- Custom group
+    if Type == 'c' then
+      local ActiveBoxes = ActiveBoxesCustom[Group]
+
+      if ActiveBoxes then
+        for Index = 1, #ActiveBoxes do
+          local BoxNumber = ActiveBoxes[Index]
+
+          if BoxNumber ~= -1 then
+            ActiveObjects[BoxNumber][ObjectTypeID] = TriggerIndex
+          end
+        end
+      end
+
+    -- all
+    elseif Type == 'a' or Type == 'aa' or Type == 'ai' then
       for BoxNumber = 1, NumBoxes do
         local ActiveBoxAll = ActiveBoxesAll[BoxNumber]
 

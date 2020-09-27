@@ -219,6 +219,41 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 -- Triggers               - See Bar.lua triggers
 --
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Stance Structure
+--   ClassStanceNames[ClassName]  --  String: Name of the class in uppercase
+--     [0]                        --  String: 'No Stance'
+--     [1 to # of stances]        --  String: Contains the name of each stance for that class
+--
+--   Data fed into SetClassStances
+--   ClassStances
+--     OtherClasses               -- default setting true or false
+--     All                        -- default setting true or false
+--     Inverse                    -- default setting true or false
+--     ClassName                  -- default settting: string
+--     [ClassName]
+--       UseAll                   -- default setting true or false
+--       [Spec]                   --  String: Name of the class in uppercase
+--         true or false          --  This is from {T} or {F}. Defaults all the stance options to true or false
+--         -100                   --  Defaults the 'No Stance' option to false
+--         100                    --  Defaults the 'No Stance' option to true
+--         (Stance Number)        --  If negative then defaults this stance to false otherwise true
+--
+--   Final Data
+--   ClassStances
+--     None                       -- The options uses the defaults to check for this
+--     All                        -- If true then matches for all classes and stances. Ignores stance checks
+--     Inverse                    -- Inverts the logic test for stances. Does the opposite
+--     ClassName                  -- Lower case except first letter
+--     OtherClasses               -- If checked will treat other classes no in the list as if they had a working stance
+--     [ClassName]                -- ClassName is all uppercase
+--       Spec                     -- Contains the selected player specializaion
+--       UseAll                   -- Boolean. If true then uses the All specialization
+--       [Spec#]
+--         [0]                    -- No Stance: True or false.
+--         [Stance Number]        -- All other stances: True or false. this stance is used appears in options
+-------------------------------------------------------------------------------
 local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBorderTexture = 'Blizzard Tooltip'
 local DefaultStatusBarTexture = 'Blizzard'
@@ -276,6 +311,7 @@ local DefaultTriggers = {
   Static = false,
   Disabled = false,
   SpecEnabled = false,
+  StanceEnables = false,
   OneTime = false,
   -- ClassSpecs is deepcopied in down below in each bar
   -- ClassSpecs = SetClassSpecs(ClassSpecs, false),
@@ -330,7 +366,6 @@ for ClassIndex = 1, GetNumClasses() do
 end
 GUB.DefaultUB.ClassSpecializations = ClassSpecializations
 
-
 --[[
 GUB.DefaultUB.ClassSpecializations = {
   DEATHKNIGHT = {'Blood', 'Frost', 'Unholy'},
@@ -348,6 +383,59 @@ GUB.DefaultUB.ClassSpecializations = {
 }
 ]]
 
+local NoStanceSt = 'No Stance'
+
+local ClassStanceNames = {
+  -- HUNTER, MAGE, WARLOCK, SHAMAN have no stances
+
+  DRUID = {                          -- Stance   ID (GetShapeshiftFormID)
+    [0] = NoStanceSt,                -- 0
+    'Bear',                          -- 1         5    8 (dire bear)
+    'Aquatic',                       -- 2         4
+    'Cat',                           -- 3         1
+    'Travel',                        -- 4         3
+    'Moonkin',                       -- 5         31
+  },
+  PALADIN = {
+    [0] = NoStanceSt,                -- 0
+    'Crusader',                      -- 1
+    'Devotion',                      -- 2
+    'Retribution',                   -- 3
+    'Concentration',                 -- 4
+  },
+  PRIEST = {  -- no stance bar
+    [0] = NoStanceSt,                -- 0
+    'Shadow',                        -- 1         28
+    'Spirit of Redemption',          -- 2         32
+  },
+  ROGUE = {
+    [0] = NoStanceSt,                -- 0
+   'Stealth',                        -- 1
+  },
+  SHAMAN = {  -- no stance bar
+    [0] = NoStanceSt,                -- 0
+   'Ghost Wolf',                     -- 1         16
+  },
+}
+
+-- These are used in GetPlayerStance() only
+-- These convert form to stance
+local FormIDStance = {
+  DRUID  = { [8]  = 1,    -- bear
+             [4]  = 2,    -- Aquatic
+             [1]  = 3,    -- Cat
+             [27] = 4,    -- Travel
+             [31] = 5  }, -- Moonkin
+
+                          -- Shadow form comes from GetShapeshiftFormInfo()
+  PRIEST = { [32] = 2  }, -- Spirit of Redmeption
+
+  SHAMAN = { [16] = 1  }, -- Ghost wolf
+}
+
+GUB.DefaultUB.ClassStanceNames = ClassStanceNames
+GUB.DefaultUB.FormIDStance = FormIDStance
+
 local function MergeTable(Source, Dest)
   for k, v in pairs(Dest) do
     Source[k] = v
@@ -359,7 +447,7 @@ end
 -- Same as deepcopy except it can add a new key and table
 -- SourceKey must be an existing key in the source
 -- AddTableWithKey must contain a key and table
-local function DeepCopy(Source, SourceKey, AddTableWithKey)
+local function DeepCopy(Source, AddTablesWithKey)
   local Copy = {}
 
   for k, v in pairs(Source) do
@@ -369,12 +457,10 @@ local function DeepCopy(Source, SourceKey, AddTableWithKey)
     Copy[k] = v
   end
 
-  if AddTableWithKey then
-    local AddKey = next(AddTableWithKey)
-    if SourceKey then
-      Copy[SourceKey][AddKey] = DeepCopy(AddTableWithKey[AddKey])
+  if AddTablesWithKey then
+    for AddKey in pairs(AddTablesWithKey) do
+      Copy[AddKey] = DeepCopy(AddTablesWithKey[AddKey])
     end
-    Copy[AddKey] = DeepCopy(AddTableWithKey[AddKey])
   end
 
   return Copy
@@ -418,6 +504,73 @@ local function SetClassSpecs(ClassSpecs, Flag)
       end
     else
       CS[ClassName] = ClassSpec
+    end
+  end
+
+  return CS
+end
+
+-- Flag = false: set everything to false
+-- True doesn't do anything
+-- Negative number means false for that stance
+-- See CheckClassStance() in Main.lua for data structure.
+-- This adds the enabled flag
+local function SetClassStances(ClassStanceData, Flag)
+  local CS = {}
+  Flag = Flag == nil or Flag
+
+  for ClassName, ClassStancesBySpec in pairs(ClassStanceData) do
+    if type(ClassStancesBySpec) ~= 'table' then
+      CS[ClassName] = ClassStancesBySpec
+    else
+      -- Do stances by specialization
+      CS[ClassName] = {Spec = 0, UseAll = ClassStancesBySpec.UseAll}
+
+      for Spec, ClassStances in pairs(ClassStancesBySpec) do
+        if type(ClassStances) == 'table' then
+          local t = {}
+          CS[ClassName][Spec] = t
+
+          -- Check for empty table
+          if next(ClassStances) == nil then
+            assert(false, format('Class Table Empty: %s', ClassName))
+          end
+
+          -- Check for enabled
+          -- format example: DRUID = {T}
+          if #ClassStances == 1 and type(ClassStances[1]) == 'boolean' then
+            local StanceFlag = Flag
+            local StanceNames = ClassStanceNames[ClassName]
+
+            if Flag then
+              StanceFlag = ClassStances[1]
+            end
+            -- Copy stances of classname
+            -- if disabled then set each stance to false. This is for triggers when using false disabled
+            if StanceNames then
+              for k in pairs(StanceNames) do
+                t[k] = StanceFlag
+              end
+            end
+          else
+            -- Table size > 1 and not boolean
+            -- -100 = No Stance or formless false
+            --  100 = No Stance or formless true
+            for _, StanceNumber in pairs(ClassStances) do
+              local StanceFlag = Flag
+
+              if Flag then
+                StanceFlag = StanceNumber > 0
+              end
+              if abs(StanceNumber) == 100 then
+                t[0] = StanceFlag
+              else
+                t[abs(StanceNumber)] = StanceFlag
+              end
+            end
+          end
+        end
+      end
     end
   end
 
@@ -497,40 +650,60 @@ GUB.DefaultUB.Default = {
   },
 }
 local Profile = GUB.DefaultUB.Default.profile
-local ClassSpecs
 
 -- for empty tables
 local T = true
 local F = false
-
-
---=============================================================================
--- Player Health
---=============================================================================
-ClassSpecs = { -- This is used for all health and power bars
+local ClassSpecs
+local ClassSpecsAll = { -- This is used for all health and power bars
   All = true, Inverse = false, ClassName = '',
   DEATHKNIGHT = {T}, DEMONHUNTER = {T}, DRUID = {T}, HUNTER = {T}, MAGE    = {T}, MONK    = {T},
   PALADIN     = {T}, PRIEST      = {T}, ROGUE = {T}, SHAMAN = {T}, WARLOCK = {T}, WARRIOR = {T}
 }
+local ClassStances
+local ClassStancesHAP = { -- This is used for all health and power bars
+  All = true, Inverse = false, ClassName = '', OtherClasses = true,
+  DRUID   = { UseAll = true,
+              [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T}, [4] = {T} },
+  PALADIN = { UseAll = true,
+              [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
+  PRIEST  = { UseAll = true,
+              [0] = {T}, [1] = { 100 }, [2] = { 100, 2 }, [3] = { 100, 1 } },
+  ROGUE   = { UseAll = true,
+              [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
+  SHAMAN  = { UseAll = true,
+              [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
+}
+local ClassStancesNone = {}
 
+--=============================================================================
+-- Player Health
+--=============================================================================
 Profile.PlayerHealth = {
   _Name = 'Player Health',
   _OptionOrder = 1,
   _UnitType = 'player',
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 230,
 }
+
 MergeTable(Profile.PlayerHealth, {
   Status = {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -617,7 +790,8 @@ MergeTable(Profile.PlayerHealth, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -628,7 +802,8 @@ Profile.PlayerPower = {
   _OptionOrder = 2,
   _UnitType = 'player',
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 200,
 }
@@ -637,10 +812,15 @@ MergeTable(Profile.PlayerPower, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
     HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.25,
@@ -724,7 +904,8 @@ MergeTable(Profile.PlayerPower, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -735,7 +916,8 @@ Profile.TargetHealth = {
   _OptionOrder = 3,
   _UnitType = 'target',
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 170,
 }
@@ -744,10 +926,15 @@ MergeTable(Profile.TargetHealth, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = true,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -836,7 +1023,8 @@ MergeTable(Profile.TargetHealth, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -847,7 +1035,8 @@ Profile.TargetPower = {
   _OptionOrder = 4,
   _UnitType = 'target',
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 140,
 }
@@ -856,10 +1045,15 @@ MergeTable(Profile.TargetPower, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = true,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -935,7 +1129,8 @@ MergeTable(Profile.TargetPower, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -946,7 +1141,8 @@ Profile.FocusHealth = {
   _OptionOrder = 5,
   _UnitType = 'focus',
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 110,
 }
@@ -955,10 +1151,15 @@ MergeTable(Profile.FocusHealth, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = true,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -1047,7 +1248,8 @@ MergeTable(Profile.FocusHealth, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -1058,7 +1260,8 @@ Profile.FocusPower = {
   _OptionOrder = 6,
   _UnitType = 'focus',
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 80,
 }
@@ -1067,10 +1270,15 @@ MergeTable(Profile.FocusPower, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = true,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -1146,7 +1354,8 @@ MergeTable(Profile.FocusPower, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -1169,6 +1378,7 @@ Profile.PetHealth = {
   _UnitType = 'pet',
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 50,
 }
@@ -1177,10 +1387,15 @@ MergeTable(Profile.PetHealth, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = true,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -1265,7 +1480,8 @@ MergeTable(Profile.PetHealth, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -1278,6 +1494,7 @@ Profile.PetPower = {
   _UnitType = 'pet',
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = 20,
 }
@@ -1286,10 +1503,15 @@ MergeTable(Profile.PetPower, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = true,
+    HideNoPetPower = true,
   },
   TestMode = {
     Value = 0.50,
@@ -1365,7 +1587,8 @@ MergeTable(Profile.PetPower, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -1373,18 +1596,29 @@ MergeTable(Profile.PetPower, {
 --=============================================================================
 ClassSpecs = {
   All = false, Inverse = false, ClassName = '',
-  DRUID  = { 1, -2, -3, -4 },
+  DRUID  = {T},
+  MONK   = { 1 },
   PRIEST = { 3 },
-  SHAMAN = { 1, 2 },
+  SHAMAN = { 1 },
+}
+ClassStances = {
+  All = false, Inverse = false, ClassName = '', OtherClasses = true,
+  DRUID  = { UseAll = false,
+             [0] = {T}, [1] = { 100, 5 }, [2] = {F}, [3] = {F}, [4] = {F} },
+  PRIEST = { UseAll = false,
+             [0] = {T}, [1] = { -100 }, [2] = { -100, 2 }, [3] = { 100, 1 } },
+  SHAMAN = { UseAll = false,
+             [0] = { 100, -1 }, [1] = { 100, -1 }, [2] = { -100, -1 }, [3] = { -100, -1 } },
 }
 
 Profile.ManaPower = {
   _Name = 'Mana Power',
   _OptionOrder = 9,
-  _OptionText = 'Druid, Priest, Shaman, or Monk only: Shown when normal mana bar is not available',
+  _OptionText = 'Shown when normal mana bar is not available',
   _UnitType = 'player',
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStances),
   _x = -200,
   _y = -10,
 }
@@ -1393,10 +1627,15 @@ MergeTable(Profile.ManaPower, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'MANA',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Value = 0.50,
@@ -1476,7 +1715,8 @@ MergeTable(Profile.ManaPower, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -1492,6 +1732,7 @@ Profile.StaggerBar = {
   _OptionOrder = 10,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
   _x = -200,
   _y = -40,
 }
@@ -1500,10 +1741,15 @@ MergeTable(Profile.StaggerBar, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     StaggerPercent = 0,
@@ -1643,23 +1889,19 @@ MergeTable(Profile.StaggerBar, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
 --=============================================================================
 -- AlternatePowerBar
 --=============================================================================
-ClassSpecs = {
-  All = true, Inverse = false, ClassName = '',
-  DEATHKNIGHT = {T}, DEMONHUNTER = {T}, DRUID = {T}, HUNTER = {T}, MAGE    = {T}, MONK    = {T},
-  PALADIN     = {T}, PRIEST      = {T}, ROGUE = {T}, SHAMAN = {T}, WARLOCK = {T}, WARRIOR = {T}
-}
-
 Profile.AltPowerBar = {
   _Name = 'Alternate Power Bar',
   _OptionOrder = 11,
   _Enabled = true,
-  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassSpecs = SetClassSpecs(ClassSpecsAll),
+  ClassStances = SetClassStances(ClassStancesHAP),
   _x = -200,
   _y = -70,
 }
@@ -1667,9 +1909,16 @@ MergeTable(Profile.AltPowerBar, {
   Status = {
     ShowAlways      = false,
     HideWhenDead    = true,
+    HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = false,
     HideInPetBattle = false,
     HideIfBlizzAltPowerVisible = true,
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     AltTypePower = true,
@@ -1802,7 +2051,8 @@ MergeTable(Profile.AltPowerBar, {
   Triggers = {
     _DC = 0,
     Notes = '|cff00ff00Counter is used for Darkmoon Faire games and anything else like it|r\n',
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecsAll, false),
+                                          ClassStances = SetClassStances(ClassStancesHAP, false) }),
   },
 } )
 --=============================================================================
@@ -1818,6 +2068,7 @@ Profile.RuneBar = {
   _OptionOrder = 12,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
   _x = 0,
   _y = 229,
 }
@@ -1826,10 +2077,15 @@ MergeTable(Profile.RuneBar, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     BloodSpec = false,
@@ -2035,7 +2291,8 @@ MergeTable(Profile.RuneBar, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
 --=============================================================================
@@ -2045,27 +2302,43 @@ ClassSpecs = {
   All = false, Inverse = false, ClassName = '',
   ROGUE = {T}, DRUID = {T},
 }
+ClassStances = {
+  All = false, Inverse = false, ClassName = '', OtherClasses = false,
+  ROGUE = { UseAll = true,
+            [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T}},
+  DRUID = { UseAll = true,
+            [0] = { -100, -1, -2, 3, -4, -5 }, [1] = { -100, -1, -2, 3, -4, -5 }, [2] = { -100, -1, -2, 3, -4, -5 },
+            [3] = { -100, -1, -2, 3, -4, -5 }, [4] = { -100, -1, -2, 3, -4, -5 } },
+}
 
 Profile.ComboBar = {
   _Name = 'Combo Bar',
   _OptionOrder = 13,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStances),
   _x = 0,
   _y = 195,
 }
+
 MergeTable(Profile.ComboBar, {
   Status = {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     ComboPoints = 0,
+    AnimachargeComboPoint = 0,
     DeeperStratagem = false,
   },
   Layout = {
@@ -2092,6 +2365,7 @@ MergeTable(Profile.ComboBar, {
     TextureScaleCombo = 1,
     TextureScaleAnticipation = 1,
     InactiveAnticipationAlpha = 1,
+    DisableAnimacharge = false,
   },
   Attributes = {
     Scale = 1,
@@ -2142,6 +2416,16 @@ MergeTable(Profile.ComboBar, {
       {r = 1, g = 1, b = 1, a = 1},  -- Combo point 5
       {r = 1, g = 1, b = 1, a = 1},  -- Combo point 6
     },
+    -- Animacharge options
+    AnimaColor = {r = 0, g = 0, b = 0, a = 1},
+    AnimaBorderColor = {r = 1, g = 1, b = 0, a = 1},
+    AnimaBgTexture = DefaultBgTexture,
+    AnimaBorderTexture = GUBSquareBorderTexture,
+    AnimaBgTile = false,
+    AnimaBgTileSize = 16,
+    AnimaBorderSize = 12,
+    AnimaPaddingAll = true,
+    AnimaPadding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
   },
   Bar = {
     Advanced = false,
@@ -2161,10 +2445,19 @@ MergeTable(Profile.ComboBar, {
       {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 5
       {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 6
     },
+    -- Animacharge options
+    AnimaAdvanced = false,
+    AnimaWidth = 40,
+    AnimaHeight = 25,
+    AnimaBarColor = {r = 0, g = 0.639, b = 0.996, a = 1},
+    AnimaStatusBarTexture = GUBStatusBarTexture,
+    AnimaPaddingAll = true,
+    AnimaPadding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -2172,7 +2465,12 @@ MergeTable(Profile.ComboBar, {
 --=============================================================================
 ClassSpecs = {
   All = false, Inverse = false, ClassName = '',
-  PALADIN = { 3 },
+  PALADIN = {T},
+}
+ClassStances = {
+  All = false, Inverse = false, ClassName = '', OtherClasses = false,
+  PALADIN = { UseAll = true,
+              [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
 }
 
 Profile.HolyBar = {
@@ -2180,6 +2478,7 @@ Profile.HolyBar = {
   _OptionOrder = 14,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStances),
   _x = 0,
   _y = 154,
 }
@@ -2191,7 +2490,11 @@ MergeTable(Profile.HolyBar, {
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     HolyPower = 0,
@@ -2284,7 +2587,8 @@ MergeTable(Profile.HolyBar, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -2300,6 +2604,7 @@ Profile.ShardBar = {
   _OptionOrder = 15,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
   _x = 0,
   _y = 112,
 }
@@ -2308,10 +2613,15 @@ MergeTable(Profile.ShardBar, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     SoulShards = 0,
@@ -2404,7 +2714,8 @@ MergeTable(Profile.ShardBar, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
 --=============================================================================
@@ -2421,6 +2732,7 @@ Profile.FragmentBar = {
   _OptionText = 'Destruction Warlocks only',
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
   _x = 150,
   _y = 112,
 }
@@ -2429,10 +2741,15 @@ MergeTable(Profile.FragmentBar, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     ShowFull = true,
@@ -2685,7 +3002,8 @@ MergeTable(Profile.FragmentBar, {
   Triggers = {
     _DC = 0,
     Notes = '"|cff00ff00Fragments" are based on the amount of fill from 0 to 10 or percentage per shard|r\n',
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
 --=============================================================================
@@ -2701,6 +3019,7 @@ Profile.ChiBar = {
   _OptionOrder = 17,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
   _x = 0,
   _y = 69,
 }
@@ -2709,10 +3028,15 @@ MergeTable(Profile.ChiBar, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     Chi = 0,
@@ -2809,7 +3133,8 @@ MergeTable(Profile.ChiBar, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
 --=============================================================================
@@ -2825,6 +3150,7 @@ Profile.ArcaneBar = {
   _OptionOrder = 18,
   _Enabled = true,
   ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
   _x = 0,
   _y = 30,
 }
@@ -2833,10 +3159,15 @@ MergeTable(Profile.ArcaneBar, {
     ShowAlways      = false,
     HideWhenDead    = true,
     HideNoTarget    = false,
+    HideNoFocus     = false,
     HideInVehicle   = true,
     HideInPetBattle = true,
     HideNotActive   = false,
-    HideNoCombat    = false
+    HideNoCombat    = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
   },
   TestMode = {
     ArcaneCharges = 0,
@@ -2926,7 +3257,8 @@ MergeTable(Profile.ArcaneBar, {
   },
   Triggers = {
     _DC = 0,
-    Default = DeepCopy(DefaultTriggers, nil, { ClassSpecs = SetClassSpecs(ClassSpecs, false) }),
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
 
@@ -2961,6 +3293,17 @@ To export a trigger go to Triggers -> List.  You'll see the import and export bu
 |cff00ff00Dragging and Dropping|r
 To drag any bar around the screen use the left mouse button while pressing any modifier key (alt, shift, or control).  To move a things like runes use the right mouse button while pressing down any modifier key.
 
+|cff00ff00Stances|r
+Stances lets you make changes based on a form or stance.
+
+   |cff00ffffReset|r Resets everything back to default.
+   |cff00ffffClear|r Unchecks every stance option.
+   |cff00ffffAll|r Lets everything work.
+   |cff00ffffInverse|r Does the opposite. So if this is checked and rogue stealth is checked.  Then not being in stealth would activate.
+   |cff00ffffOther Classes|r Makes it so the class that has no stances has a working stance. This lets all other classes activate.
+   |cff00ffffClass Menu|r Only lists the classes that have stances
+   |cff00ffffSelect Specialization|r Each group of stances work based on the specialization you're in.
+   |cff00ffffUse All|r If checked the 'All' specialization group will be used for all specializations.
 
 |cff00ff00Status|r
 All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flags it can't override is never show and hide not usable.
@@ -2968,11 +3311,16 @@ All bars have status flags.  This tells a bar what to do based on a certain cond
    |cff00ffffHide not Usable|r Disable and hides the bar if it's not usable by the class or spec.
    |cff00ffffShow Always|r Always show the bar.  This doesn't override Hide not usable.
    |cff00ffffHide when Dead|r Hide the bar when the player is dead.
+   |cff00ffffHide no Target|r Hide the bar when the player has no target.
+   |cff00ffffHide no Focus|r Hide the bar when the player has no focus.
    |cff00ffffHide in Vehicle|r Hide the bar if a vehicle.
    |cff00ffffHide in Pet Battle|r Hide the bar if in a pet battle.
    |cff00ffffHide not Active|r Hide the bar when it's not active and out of combat.
    |cff00ffffHide no Combat|r Hide the bar when not in combat.
 
+   |cff00ffffHide Power Type|r Hides the bar when the selected power is the current power bar.
+   |cff00ffffHide no Pet|r Hides the bar when the player has no pet out.
+   |cff00ffffHide no Pet Power|r Hides the bar when the player has a pet out without a power type.
 
 |cff00ff00Text|r
 Each text line can have multiple values.  Click the add/remove buttons to add or remove values.  To add another text line click the add text line button.
@@ -3033,12 +3381,12 @@ Additional options will be found at the option panel for the bar when test mode 
 
 HelpText[#HelpText + 1] = [[
 |cff00ff00Triggers|r
-Triggers lets you modify things based on Specialization, Talents, Auras, and Conditions.
+Triggers lets you modify things based on Specialization, Stances, Talents, Auras, and Conditions.
 They are executed in the order they appear from top to bottom.
 
 The Trigger UI has 3 tabs:
    |cffff00ffList tab|r shows all the triggers and allows you to move, copy, delete, etc
-   |cffff00ffActivation tab|r is what will cause a trigger to execute.
+   |cffff00ffActivate tab|r is what will cause a trigger to execute.
    |cffff00ffDisplay tab|r is what a trigger will modify.
 
 |cff00ffffList Tab|r
@@ -3053,6 +3401,7 @@ If there are no triggers. Then you will only be able to add a trigger.  Click ad
 |cff00ffffActivate Tab|r
 Talents, auras and conditions edit functions are the same.  They're self explanatory.
     |cffff00ffSpecialization|r Works the same way for bars except things are unchecked by default.
+    |cffff00ffStances|r Works the same way for bars except things are unchecked by default.
     |cffff00ffTalents|r There are two pull down menus one for PvE and PvP.  Just pick a talent and it'll appear above.  Selecting 'none' from the menu will remove the talent.
     |cffff00ffAuras|r By default an aura can match any debuff or buff based on the options picked. So for example you want to find any debuff that was of type disease.  You would click 'Buff' till it turns into 'Debuff'. Then click 'Check Debuff Types' and check off disease.
       |cffa6c4ffAura input box|r This will auto match spell names as you type.  Or you can type in the spell ID of the aura instead.  If you want to use an aura that was on you.  Then start to type that aura name and it'll be the first in the list. To remove the aura listed above. Just hit enter without typing anything.
@@ -3130,6 +3479,15 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 7.00
+|cff00ff00Animacharge|r added to combobar.  Also animacharge options found under background and bar, and for triggers found under Display -> Name
+|cff00ff00Hide Power Type|r added to 'Status' options.  This will hide a bar based on your current power type
+|cff00ff00Hide no Focus|r added to 'Status' options
+|cff00ff00Hide no Pet|r added to 'Status' options
+|cff00ff00Hide no Pet Power|r added to 'status' options
+|cff00ff00Stances|r added to bars and triggers. Stances for bars found under the Show tab and Activate tab for triggers
+
 Version 6.75
 |cff00ff00Any exports prior to this version will no longer be importable|r
 

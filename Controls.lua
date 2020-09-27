@@ -622,7 +622,7 @@ function Ace3Widgets:MultiLineEditBox()
   text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -5, 1)
   text:SetJustifyV("MIDDLE")
 
-  local scrollBG = CreateFrame("Frame", nil, frame)
+  local scrollBG = CreateFrame("Frame", nil, frame, 'BackdropTemplate')
   scrollBG:SetBackdrop(backdrop)
   scrollBG:SetBackdropColor(0, 0, 0)
   scrollBG:SetBackdropBorderColor(0.4, 0.4, 0.4)
@@ -1281,7 +1281,7 @@ local function AuraMenuConstructor()
   local EditBox = CreateFrame('EditBox', nil, Frame, 'InputBoxTemplate')
 
   -- Don't feel like looking up the specific callbacks for when a widget resizes, so going to be creative with SetPoint instead!
-  local MenuFrame = CreateFrame('Frame', nil, UIParent)
+  local MenuFrame = CreateFrame('Frame', nil, UIParent, 'BackdropTemplate')
   MenuFrame:SetBackdrop(AuraMenuBackdrop)
   MenuFrame:SetBackdropColor(0, 0, 0, 0.85)
   MenuFrame:SetWidth(1)
@@ -1310,7 +1310,7 @@ local function AuraMenuConstructor()
   ScrollFrame:SetScrollChild(AuraMenuFrame)
 
   -- Create the scroller
-  local Scroller = CreateFrame('slider', nil, ScrollFrame)
+  local Scroller = CreateFrame('slider', nil, ScrollFrame, 'BackdropTemplate')
   Scroller:SetOrientation('VERTICAL')
   Scroller:SetPoint('TOPRIGHT', MenuFrame, 'TOPRIGHT', -12, -7)
   Scroller:SetPoint('BOTTOMRIGHT', MenuFrame, 'BOTTOMRIGHT', -12, 7)

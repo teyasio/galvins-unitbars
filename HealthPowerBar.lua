@@ -138,7 +138,7 @@ local function Casting(UnitBarF, SpellID, Message)
     if UnitBarF.BarType == 'ManaPower' then
       BarPowerType = PowerMana
     else
-      BarPowerType = Main.PlayerPowerType
+      BarPowerType = ConvertPowerType[Main.PlayerPowerType]
     end
 
     -- get predicted power
@@ -797,7 +797,7 @@ end
 local function RegEventHealth(Enable, UnitBarF, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION',       UpdateHealthBar, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_ABSORB_AMOUNT_CHANGED', UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT',       UpdateHealthBar, ...)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH',                UpdateHealthBar, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',             UpdateHealthBar, ...)
   Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',               UpdateHealthBar, ...)
 end
