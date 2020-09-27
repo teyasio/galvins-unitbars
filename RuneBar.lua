@@ -533,6 +533,7 @@ function Main.UnitBarsF.RuneBar:SetAttr(TableName, KeyName)
       local PlayerSpecialization = self.PlayerSpecialization
 
       if PlayerSpecialization then
+        print('::', PlayerSpecialization, RuneCooldownFillTexture[PlayerSpecialization])
         BBar:SetCooldownSwipeTexture(0, RuneEmptyTexture, RuneCooldownFillTexture[PlayerSpecialization])
         BBar:SetCooldownEdgeTexture(0, RuneEmptyTexture, RuneCooldownSparkTexture[PlayerSpecialization])
         BBar:SetAtlasTexture(0, RuneTexture, RuneReadyTexture[PlayerSpecialization])
