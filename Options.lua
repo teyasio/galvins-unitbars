@@ -7466,7 +7466,7 @@ local function CreateAlignSwapOptions()
             if KeyName == 'x' or KeyName == 'y' then
               Value = tonumber(Value)
               if Value then
-                AlignSwapAnchor.UnitBar[KeyName] = Value
+                AlignSwapAnchor.UnitBar[format('_%s', KeyName)] = Value
               end
               local UB = AlignSwapAnchor.UnitBar
 
