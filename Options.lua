@@ -252,7 +252,7 @@ local o = {
   UnitBarRotationMax = 180,
 
   -- Bar size options
-  UnitBarSizeMin = 15,
+  UnitBarSizeMin = 10,
   UnitBarSizeMax = 500,
   UnitBarSizeAdvancedMinMax = 25,
 
@@ -2266,7 +2266,6 @@ local function CreateSpecOptions(BarType, Order, ClassSpecsTP, BBar, DisableFn)
       local ClassNameLower =  ConvertPlayerClass[ClassName]
 
       if ClassName ~= PlayerClass then
-
         ClassDropdown[Index] = ClassNameLower
         SelectClassDropdown[Index] = ClassNameLower
         Index = Index + 1
@@ -7087,6 +7086,235 @@ local function CreateExportOptions(Order, Name)
 end
 
 -------------------------------------------------------------------------------
+-- CreateProfilesBySpecOptions
+--
+-- Allows you to change profiles based on player specificaiton
+--
+-- Subfunction of CreateMainOptions()
+-------------------------------------------------------------------------------
+local function MarkMenuSpec2(ClassDropdown, SelectClassDropdown, ProfilesBySpec)
+
+  -- Mark menu items that have specializations
+  for Index, ClassName in pairs(ClassDropdown) do
+    local ClassNameUpper = ConvertPlayerClass[ClassName]
+    local ProfileBySpec = ProfilesBySpec[ClassNameUpper]
+
+    if ProfileBySpec then
+      local CN = ClassName
+      local Changed = false
+
+      for _, PBS in pairs(ProfileBySpec) do
+        if PBS.Enabled then
+          Changed = true
+          break
+        end
+      end
+      if Changed then
+        CN = CN .. '*'
+      end
+      SelectClassDropdown[Index] = CN
+    end
+  end
+end
+
+local function CreateProfilesBySpecOptions(Order, Name)
+  local Gdata = Main.Gdata
+  local PlayerClass = Main.PlayerClass
+  local ClassSpecializations = DefaultUB.ClassSpecializations
+  local ProfilesBySpec = Gdata.ProfilesBySpec
+  local DBobject = Main.DBobject
+  local ClassDropdown = {}
+  local SelectClassDropdown = {}
+  local Index = 1
+  local MyClassFound = false
+
+  -- Initializa ProfilesBySpec and ProfilesBySpecEnabled
+  for ClassName, Specs in pairs(ClassSpecializations) do
+    local ProfileBySpec = ProfilesBySpec[ClassName]
+    local ClassNameLower =  ConvertPlayerClass[ClassName]
+
+    -- Create new table for each class not found
+    if ProfileBySpec == nil then
+      ProfileBySpec = {}
+      ProfilesBySpec[ClassName] = ProfileBySpec
+    end
+
+    -- Initailize each spec
+    for Spec in ipairs(Specs) do
+      if ProfileBySpec[Spec] == nil then
+        ProfileBySpec[Spec] = {Name = '', Enabled = false}
+      end
+    end
+
+    if ClassName ~= PlayerClass then
+      ClassDropdown[Index] = ClassNameLower
+      SelectClassDropdown[Index] = ClassNameLower
+      Index = Index + 1
+    else
+      MyClassFound = true
+    end
+  end
+  sort(ClassDropdown)
+  sort(SelectClassDropdown)
+
+  -- Set class you're on to the first entry
+  -- Only if the bar supports your class
+  if MyClassFound then
+    local CN = ConvertPlayerClass[PlayerClass]
+    tinsert(ClassDropdown, 1, CN)
+    tinsert(SelectClassDropdown, 1, CN)
+  end
+  if Gdata.ProfilesBySpecClassName == '' then
+    Gdata.ProfilesBySpecClassName = ClassDropdown[1]
+  end
+
+  MarkMenuSpec2(ClassDropdown, SelectClassDropdown, ProfilesBySpec)
+
+  local ProfilesBySpecOptions = {
+    type = 'group',
+    name = function()
+             MarkMenuSpec2(ClassDropdown, SelectClassDropdown, ProfilesBySpec)
+             return Name
+           end,
+    order = Order,
+    args = {
+      Enable = {
+        type = 'toggle',
+        name = 'Enable',
+        order = 1,
+        get = function()
+                return Gdata.ProfilesBySpecializationEnabled
+              end,
+        set = function(Info, Value)
+                Gdata.ProfilesBySpecializationEnabled = Value
+              end,
+      },
+      Header = {
+        type = 'header',
+        name = '',
+        order = 2,
+      },
+      Notes = {
+        type = 'description',
+        name = "Default profiles will not show in the list until they've been switched to from the Profiles options.",
+        order = 10,
+      },
+      Class = {
+        type = 'select',
+        name = 'Class',
+        order = 11,
+        style = 'dropdown',
+        values = SelectClassDropdown,
+        get = function(Info)
+                return FindMenuItem(ClassDropdown, Gdata.ProfilesBySpecClassName)
+              end,
+        set = function(Info, Value)
+                Gdata.ProfilesBySpecClassName = ClassDropdown[Value]
+              end,
+        disabled = function()
+                     return not Gdata.ProfilesBySpecializationEnabled
+                   end,
+      },
+      Spacer12 = CreateSpacer(12, 'half'),
+      Reset = {
+        type = 'execute',
+        order = 13,
+        desc = 'Sets all profiles by specialization options to default',
+        name = 'Reset',
+        width = 'half',
+        func = function()
+                 for ClassName, ProfileBySpec in pairs(ProfilesBySpec) do
+                   for _, PBS in pairs(ProfileBySpec) do
+                     PBS.Name = ''
+                     PBS.Enabled = false
+                   end
+                 end
+               end,
+        confirm = function()
+                    return 'This will reset your profiles by specialization settings'
+                  end,
+        disabled = function()
+                     return not Gdata.ProfilesBySpecializationEnabled
+                   end,
+      },
+      Spacer11 = CreateSpacer(11),
+      SpecsGroup = {
+        type = 'group',
+        name = 'Select Profiles',
+        order = 20,
+        dialogInline = true,
+        get = function(Info)
+                local KeyName = Info[#Info]
+                local ClassNameUpper = ConvertPlayerClass[Gdata.ProfilesBySpecClassName]
+                local PBS = ProfilesBySpec[ClassNameUpper][Info.arg]
+
+                if KeyName == 'SpecEnable' then
+                  return PBS.Enabled
+                else
+                  return FindMenuItem(Main.ProfileList, PBS.Name)
+                end
+              end,
+        set = function(Info, Value)
+                local KeyName = Info[#Info]
+                local ClassNameUpper = ConvertPlayerClass[Gdata.ProfilesBySpecClassName]
+                local PBS = ProfilesBySpec[ClassNameUpper][Info.arg]
+
+                if KeyName == 'SpecEnable' then
+                  PBS.Enabled = Value
+                else
+                  PBS.Name = Main.ProfileList[Value]
+                end
+              end,
+        args = {}
+      },
+    },
+  }
+  local SpecsGroupArgs = ProfilesBySpecOptions.args.SpecsGroup.args
+
+  for SpecIndex = 1, 4 do
+    local SpecGroup = {
+      type = 'group',
+      name = '',
+      order = SpecIndex,
+      hidden = function()
+                 return ClassSpecializations[ConvertPlayerClass[Gdata.ProfilesBySpecClassName]][SpecIndex] == nil
+               end,
+      args = {},
+    }
+    SpecsGroupArgs[format('SpecGroup%s', SpecIndex)] = SpecGroup
+
+    local SpecGroupArgs = SpecGroup.args
+    SpecGroupArgs.SpecName = {
+      type = 'select',
+      name = function()
+               return ClassSpecializations[ConvertPlayerClass[Gdata.ProfilesBySpecClassName]][SpecIndex] or ''
+             end,
+      order = 1,
+      values = function()
+                 return Main.ProfileList
+               end,
+      disabled = function()
+                   return not Gdata.ProfilesBySpecializationEnabled or not ProfilesBySpec[ConvertPlayerClass[Gdata.ProfilesBySpecClassName]][SpecIndex].Enabled
+                 end,
+      arg = SpecIndex
+    }
+    SpecGroupArgs.Spacer2 = CreateSpacer(2, 'half')
+    SpecGroupArgs.SpecEnable = {
+      type = 'toggle',
+      name = 'Enable',
+      width = 'half',
+      order = 3,
+      arg = SpecIndex,
+      disabled = function()
+                   return not Gdata.ProfilesBySpecializationEnabled
+                 end,
+    }
+  end
+
+  return ProfilesBySpecOptions
+end
+
+-------------------------------------------------------------------------------
 -- CreateMainOptions
 --
 -- Returns the main options table.
@@ -7345,10 +7573,17 @@ local function CreateMainOptions()
 --    PROFILES group.
 -------------------------------------------------------------------------------
 --=============================================================================
-  local Profile = AceDBOptions:GetOptionsTable(GUB.MainDB)
+  local Profile = AceDBOptions:GetOptionsTable(Main.DBobject)
   MainOptionsArgs.Profile = Profile
   Profile.order = 100
   Profile.hidden = ImportExportHidden
+
+--=============================================================================
+-------------------------------------------------------------------------------
+--    PROFILES by Specification group.
+-------------------------------------------------------------------------------
+--=============================================================================
+  MainOptionsArgs.ProfilesBySpec = CreateProfilesBySpecOptions(101, 'Profiles by Specialization')
 
 --=============================================================================
 -------------------------------------------------------------------------------
@@ -7358,7 +7593,7 @@ local function CreateMainOptions()
   MainOptionsArgs.Help = {
     type = 'group',
     name = 'Help',
-    order = 101,
+    order = 900,
     childGroups = 'tab',
     hidden = ImportExportHidden,
     args = {

@@ -48,8 +48,8 @@ local abs, floor, sqrt      =
       abs, floor, math.sqrt
 local strfind, strmatch, strsplit, strsub, strtrim, strupper, format =
       strfind, strmatch, strsplit, strsub, strtrim, strupper, format
-local GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack =
-      GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack
+local GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack, sort =
+      GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack, sort
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
 local C_PetBattles, GetShapeshiftFormID, GetShapeshiftFormInfo, GetSpecialization, GetSpellBookItemInfo, GetSpellInfo =
@@ -179,6 +179,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.AuraTrackersData    - Reference to AuraTrackersData
 -- Main.TalentTrackersData  - Reference to TalentTrackersData
 -- Main.PlayerGUID          - Set by ShareData()
+-- Main.ProfileList         - Set by ShareData()  This is sorted from A - Z. Used by Options
 --
 -- Main.APBUsed           - Contains list of used power bars. Contains what minimap zone they were used in.
 --                          set by UnitBarsUpdateStatus(). Used by ShareData()
@@ -187,6 +188,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.APBMoverEnabled   - If true then the blizzard alternate power can be moved to a new location
 -- Main.APBBuffTimerMoverEnabled - If true then the blizzard alternate power bar timer can be moved to a new location
 -- Main.EABMoverEnabled   - If true then the extra action button can be moved to a new location
+-- Main.DBobject
 --
 -- UnitBars               - Contains the currently selected profile
 -- Gdata                  - Anything stored in here can be seen by all characters on the same account
@@ -197,10 +199,12 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- InitOnce               - Used by OnEnable to initialize just one time.
 -- MessageBox             - Contains the message box to show a message on screeen.
 -- TrackingFrame          - Used by MoveFrameGetNearestFrame()
+-- SetProfileFrame        - Used by CHangeProfilesBySpec(). This used to prevent crash on changing profile
 -- MouseOverDesc          - Mouse over tooltip displayed to drag bar.
 -- UnitBarVersion         - Current version of the mod.
 -- AlignAndSwapTooltipDesc - Tooltip to be shown when the alignment tool is active.
 -- AnchorPosition         - Table used when changing the Anchor size.  Used by SetAnchorPoint() and SetAnchorSize()
+-- DBobject                 - Contains the addons database object
 --
 -- InCombat               - True or false. If true then the player is in combat.
 -- InVehicle              - True or false. If true then the player is in a vehicle.
@@ -413,6 +417,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 local AlignAndSwapTooltipDesc = 'Right mouse button to align and swap this bar'
 local MouseOverDesc = 'Modifier + left mouse button to drag this bar'
 local TrackingFrame = CreateFrame('Frame')
+local SetProfileFrame = CreateFrame('Frame')
 local APBMover
 local EABMover
 local APBBuffTimerMover
@@ -423,6 +428,7 @@ local MessageBox
 local UnitBarsParent
 local UnitBars
 local Gdata
+local DBobject
 
 local InCombat = false
 local InVehicle = false
@@ -4669,6 +4675,11 @@ function GUB:UnitBarsUpdateStatus(Event, Unit)
     UBF:Update()
   end
   Main.PlayerChanged = false
+
+  -- Check for ProfileBySpec
+  if PlayerSpecializationChanged then
+    GUB:ChangeProfilesBySpec()
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -5110,6 +5121,9 @@ local function ShareData()
   Main.PlayerPowerType = PlayerPowerType
   Main.PlayerGUID = PlayerGUID
   Main.Gdata = Gdata
+  local ProfileList = DBobject:GetProfiles()
+  sort(ProfileList)
+  Main.ProfileList = ProfileList
 
   -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
@@ -5301,10 +5315,34 @@ function GUB.Main:FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
 end
 
 -------------------------------------------------------------------------------
+-- ChangeProfilesBySpec
+-------------------------------------------------------------------------------
+function GUB:ChangeProfilesBySpec()
+  if Gdata.ProfilesBySpecializationEnabled then
+    print('ENABLED')
+    local ProfilesBySpec = Gdata.ProfilesBySpec
+
+    if next(ProfilesBySpec) then
+      local CurrentProfile = DBobject:GetCurrentProfile()
+      local PBS = ProfilesBySpec[PlayerClass][PlayerSpecialization]
+      local ProfileBySpecName = PBS.Name
+
+      if PBS.Enabled and CurrentProfile ~= ProfileBySpecName then
+        -- Has to be done on next frame or mod crashes
+        SetProfileFrame:SetScript('OnUpdate', function()
+                                                DBobject:SetProfile(ProfileBySpecName)
+                                                SetProfileFrame:SetScript('OnUpdate', nil)
+                                              end)
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- Profile Apply
 -------------------------------------------------------------------------------
 function GUB:ApplyProfile()
-  UnitBars = GUB.MainDB.profile
+  UnitBars = DBobject.profile
   local Ver = UnitBars.Version
 
   -- Share the values with other parts of the addon.
@@ -5367,6 +5405,7 @@ function GUB:ApplyProfile()
 
   -- Update options.
   Options:DoFunction()
+  Options:RefreshMainOptions()
 
   -- Reset align padding.
   Main:MoveFrameSetAlignPadding(UnitBarsFE, 'reset')
@@ -5380,10 +5419,18 @@ end
 -- Profile New
 -------------------------------------------------------------------------------
 function GUB:ProfileNew(Event)
-  GUB.MainDB.profile.Version = Version
+  DBobject.profile.Version = Version
   if Event == 'OnProfileReset' then
     GUB:ApplyProfile()
   end
+end
+
+-------------------------------------------------------------------------------
+-- Profile Delete
+-------------------------------------------------------------------------------
+function GUB:DeleteProfile()
+  -- Share the values with other parts of the addon.
+  ShareData()
 end
 
 -------------------------------------------------------------------------------
@@ -5424,10 +5471,11 @@ function GUB:OnEnable()
 
   -- Load the unitbars database
   -- true default to shared "Default" profile instead of per-char to start with
-  GUB.MainDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', GUB.DefaultUB.Default, true)
+  DBobject = LibStub('AceDB-3.0'):New('GalvinUnitBarsDB', GUB.DefaultUB.Default, true)
+  Main.DBobject = DBobject
 
-  UnitBars = GUB.MainDB.profile
-  Gdata = GUB.MainDB.global
+  UnitBars = DBobject.profile
+  Gdata = DBobject.global
 
   -- Let ace3 handle GalvinUnitBarsData. This will only run once
   if Gdata.ShowMessage == 0 then
@@ -5460,17 +5508,19 @@ function GUB:OnEnable()
 
   GUB:ApplyProfile()
 
-  GUB.MainDB.RegisterCallback(GUB, 'OnProfileReset', 'ProfileNew')
-  GUB.MainDB.RegisterCallback(GUB, 'OnNewProfile', 'ProfileNew')
-  GUB.MainDB.RegisterCallback(GUB, 'OnProfileChanged', 'ApplyProfile')
-  GUB.MainDB.RegisterCallback(GUB, 'OnProfileCopied', 'ApplyProfile')
+  DBobject.RegisterCallback(GUB, 'OnProfileReset', 'ProfileNew')
+  DBobject.RegisterCallback(GUB, 'OnNewProfile', 'ProfileNew')
+  DBobject.RegisterCallback(GUB, 'OnProfileChanged', 'ApplyProfile')
+  DBobject.RegisterCallback(GUB, 'OnProfileCopied', 'ApplyProfile')
+  DBobject.RegisterCallback(GUB, 'OnProfileDeleted', 'DeleteProfile')
+
   LSM.RegisterCallback(GUB, 'LibSharedMedia_Registered', 'MediaUpdate')
 
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 50 then
-    Gdata.ShowMessage = 50
+  if Gdata.ShowMessage ~= 51 then
+    Gdata.ShowMessage = 51
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

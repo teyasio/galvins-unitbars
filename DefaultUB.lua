@@ -588,7 +588,10 @@ GUB.DefaultUB.Default = {
     AutoExpand = true,
     ExpandAll = false,
     APBUsed = {},
-    APBUseBlizz = {}
+    APBUseBlizz = {},
+    ProfilesBySpecClassName = '',
+    ProfilesBySpecEnabled = false,
+    ProfilesBySpec = {},
   },
   profile = {
     Point = 'CENTER',
@@ -3435,6 +3438,10 @@ To use the blizzard style alternate power bar.  Just check off the bar in the li
 
 |cff00ff00Profiles|r
 Its recommended that once you have your perfect configuration made you make a backup of it using profiles.  Just create a new profile named backup.  Then copy your config to backup.  All characters by default start with a new config, but you can share one across all characters or any of your choosing.
+
+
+|cff00ff00Profiles by Specialization|r
+By default this is not turned on.  Click enable to turn on.  Pick the class.  Enable the specialization you want to use a profile with.  If the profile isn't found then make sure you already selected that profile at least once from the Profiles options.
 ]]
 
 
@@ -3479,6 +3486,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 7.10
+|cff00ff00Profiles by Specialization|r added next to the Profiles tab.  This will let you change a profile automatically by specialization
 
 Version 7.00
 |cff00ff00Animacharge|r added to combobar.  Also animacharge options found under background and bar, and for triggers found under Display -> Name
