@@ -5319,7 +5319,6 @@ end
 -------------------------------------------------------------------------------
 function GUB:ChangeProfilesBySpec()
   if Gdata.ProfilesBySpecializationEnabled then
-    print('ENABLED')
     local ProfilesBySpec = Gdata.ProfilesBySpec
 
     if next(ProfilesBySpec) then
