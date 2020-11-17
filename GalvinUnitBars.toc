@@ -1,4 +1,4 @@
-## Interface: 90001
+## Interface: 90002
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin

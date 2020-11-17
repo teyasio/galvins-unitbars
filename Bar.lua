@@ -1154,7 +1154,6 @@ local function RestoreBackdrops(Frame)
     end
     return Found
   end
-  return
   --RestoreBackdrop(Frame)
 end
 
@@ -4429,8 +4428,6 @@ end
 -- Left, Right, Top, Bottom   Paddding values.
 -------------------------------------------------------------------------------
 function BarDB:SetPaddingTextureFrame(BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
-  SaveSettings(self, 'SetPaddingTextureFrame', BoxNumber, TextureFrameNumber, Left, Right, Top, Bottom)
-
   repeat
     local TextureFrame = NextBox(self, BoxNumber).TextureFrames[TextureFrameNumber]
     local PaddingFrame = TextureFrame.PaddingFrame
