@@ -3506,7 +3506,7 @@ local ChangesText = {}
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
 
-Version 7.12
+Version 7.14
 |cff00ff00Status|r Hide in Vehicle replaced with Hide in Vehicle (UI) and Hide in Vehicle (No UI). If you're seeing bars while in a vehicle.  You'll need to set these options
 
 Version 7.10
