@@ -58,8 +58,8 @@ local C_SpecializationInfoGetPvpTalentSlotInfo,  GetTalentInfo, GetPvpTalentInfo
       C_SpecializationInfo.GetPvpTalentSlotInfo, GetTalentInfo, GetPvpTalentInfoByID, GetCursorPosition
 local UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID  =
       UnitAura, UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID
-local UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
-      UnitGUID, UnitHasVehicleUI, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
+local UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
+      UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
 local UnitPowerType, UnitReaction, wipe, GetMinimapZoneText =
       UnitPowerType, UnitReaction, wipe, GetMinimapZoneText
 local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, GetBuildInfo, LibStub =
@@ -208,6 +208,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- InCombat               - True or false. If true then the player is in combat.
 -- InVehicle              - True or false. If true then the player is in a vehicle.
+-- HasVehicleUI           - True or false. If true then the player has a UI for a vehicle.
 -- InPetBattle            - True or false. If true then the player is in a pet battle.
 -- IsDead                 - True or false. If true then the player is dead.
 -- HasTarget              - True or false. If true then the player has a target.
@@ -432,6 +433,7 @@ local DBobject
 
 local InCombat = false
 local InVehicle = false
+local HasVehicleUI = false
 local InPetBattle = false
 local IsDead = false
 local HasTarget = false
@@ -3435,8 +3437,11 @@ function GUB.Main:StatusCheck(Event)
         -- Hide if the player has no Focus
         elseif not HasFocus and Status.HideNoFocus then
           Hide = true
-        -- Hide if in a vehicle if the HideInVehicle status is set
-        elseif InVehicle and Status.HideInVehicle then
+        -- Hide if in a vehicle and has a UI
+        elseif HasVehicleUI and Status.HideInVehicleUI then
+          Hide = true
+        -- Hide if in a vehicle and has no UI
+        elseif InVehicle and not HasVehicleUI and Status.HideInVehicleNoUI then
           Hide = true
         -- Hide if in a pet battle and the HideInPetBattle status is set.
         elseif InPetBattle and Status.HideInPetBattle then
@@ -4600,7 +4605,8 @@ end
 -------------------------------------------------------------------------------
 function GUB:UnitBarsUpdateStatus(Event, Unit)
   InCombat = UnitAffectingCombat('player')
-  InVehicle = UnitHasVehicleUI('player')
+  InVehicle = UnitInVehicle('player')
+  HasVehicleUI = UnitHasVehicleUI('player')
   InPetBattle = C_PetBattles.IsInBattle()
   IsDead = UnitIsDeadOrGhost('player')
   HasTarget = UnitExists('target')
@@ -5518,8 +5524,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 51 then
-    Gdata.ShowMessage = 51
+  if Gdata.ShowMessage ~= 52 then
+    Gdata.ShowMessage = 52
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

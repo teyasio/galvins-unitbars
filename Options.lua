@@ -2943,19 +2943,27 @@ local function CreateStatusOptions(BarType, Order, Name)
       desc = 'Hides the bar when you have no focus',
     }
   end
-  if UBD.Status.HideInVehicle ~= nil then
-    StatusArgs.HideInVehicle = {
+  if UBD.Status.HideInVehicleUI ~= nil then
+    StatusArgs.HideInVehicleUI = {
       type = 'toggle',
-      name = 'Hide in Vehicle',
+      name = 'Hide in Vehicle (UI)',
       order = 7,
-      desc = "Hides the bar when you're in a vehicle",
+      desc = "Hides the bar when you're in a vehicle that has a UI",
+    }
+  end
+  if UBD.Status.HideInVehicleNoUI ~= nil then
+    StatusArgs.HideInVehicleNoUI = {
+      type = 'toggle',
+      name = 'Hide in Vehicle (No UI)',
+      order = 8,
+      desc = "Hides the bar when you're in a vehicle without a UI. Like in the daily quest Air Supremacy",
     }
   end
   if UBD.Status.HideInPetBattle ~= nil then
     StatusArgs.HideInPetBattle = {
       type = 'toggle',
       name = 'Hide in Pet Battle',
-      order = 8,
+      order = 9,
       desc = "Hides the bar when you're in a pet battle",
     }
   end
@@ -2963,7 +2971,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNotActive = {
       type = 'toggle',
       name = 'Hide not Active',
-      order = 9,
+      order = 10,
       desc = 'Bar will be hidden if its not active. This only gets checked out of combat',
     }
   end
@@ -2971,7 +2979,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideNoCombat = {
       type = 'toggle',
       name = 'Hide no Combat',
-      order = 10,
+      order = 11,
       desc = 'When not in combat the bar will be hidden',
     }
   end
@@ -2979,7 +2987,7 @@ local function CreateStatusOptions(BarType, Order, Name)
     StatusArgs.HideIfBlizzAltPowerVisible = {
       type = 'toggle',
       name = 'Hide if Blizzard Visible',
-      order = 11,
+      order = 12,
       desc = 'Hide when the blizzard alternate power bar is visible. This only works while the alternate power bar is active',
     }
   end

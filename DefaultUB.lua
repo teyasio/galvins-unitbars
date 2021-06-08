@@ -91,13 +91,14 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 --                          If a flag is found true then a statuscheck will be done to see what the
 --                          bar should do. Flags with a higher priority override flags with a lower.
 --                          Flags from highest priority to lowest.
---                            ShowAlways       Show the bar all the time.
---                            HideWhenDead     Hide the unitbar when the player is dead.
---                            HideNoTarget     Hide the unitbar when the player has no target.
---                            HideInVehicle    Hide the unitbar if in a vehicle.
---                            HideInPetBattle  Hide the unitbar if in a pet battle.
---                            HideNotActive    Hide the unitbar if its not active. Only checked out of combat.
---                            HideNoCombat     Hide the unitbar when not in combat.
+--                            ShowAlways        Show the bar all the time.
+--                            HideWhenDead      Hide the unitbar when the player is dead.
+--                            HideNoTarget      Hide the unitbar when the player has no target.
+--                            HideInVehicleUI   Hide the unitbar if in a vehicle that has a UI.
+--                            HideInVehicleNoUI Hide the unitbar if in a vehicle that has no UI.
+--                            HideInPetBattle   Hide the unitbar if in a pet battle.
+--                            HideNotActive     Hide the unitbar if its not active. Only checked out of combat.
+--                            HideNoCombat      Hide the unitbar when not in combat.
 --
 --   TestMode             - Table used during test mode.
 --   BoxLocations         - Only exists if the bar was set to Floating mode.  Contains the box frame positions.
@@ -695,14 +696,15 @@ Profile.PlayerHealth = {
 
 MergeTable(Profile.PlayerHealth, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -812,14 +814,15 @@ Profile.PlayerPower = {
 }
 MergeTable(Profile.PlayerPower, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -926,14 +929,15 @@ Profile.TargetHealth = {
 }
 MergeTable(Profile.TargetHealth, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = true,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = true,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -1045,14 +1049,15 @@ Profile.TargetPower = {
 }
 MergeTable(Profile.TargetPower, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = true,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = true,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -1151,14 +1156,15 @@ Profile.FocusHealth = {
 }
 MergeTable(Profile.FocusHealth, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = true,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = true,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -1270,14 +1276,15 @@ Profile.FocusPower = {
 }
 MergeTable(Profile.FocusPower, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = true,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = true,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -1387,14 +1394,15 @@ Profile.PetHealth = {
 }
 MergeTable(Profile.PetHealth, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = true,
@@ -1503,14 +1511,15 @@ Profile.PetPower = {
 }
 MergeTable(Profile.PetPower, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = true,
@@ -1627,14 +1636,15 @@ Profile.ManaPower = {
 }
 MergeTable(Profile.ManaPower, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'MANA',
     HideNoPet = false,
@@ -1741,14 +1751,15 @@ Profile.StaggerBar = {
 }
 MergeTable(Profile.StaggerBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -1910,14 +1921,15 @@ Profile.AltPowerBar = {
 }
 MergeTable(Profile.AltPowerBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = false,
-    HideInPetBattle = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = false,
     HideIfBlizzAltPowerVisible = true,
-    HideNoCombat    = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -2077,14 +2089,15 @@ Profile.RuneBar = {
 }
 MergeTable(Profile.RuneBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -2326,14 +2339,15 @@ Profile.ComboBar = {
 
 MergeTable(Profile.ComboBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -2487,13 +2501,14 @@ Profile.HolyBar = {
 }
 MergeTable(Profile.HolyBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -2613,14 +2628,15 @@ Profile.ShardBar = {
 }
 MergeTable(Profile.ShardBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -2741,14 +2757,15 @@ Profile.FragmentBar = {
 }
 MergeTable(Profile.FragmentBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -3028,14 +3045,15 @@ Profile.ChiBar = {
 }
 MergeTable(Profile.ChiBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -3159,14 +3177,15 @@ Profile.ArcaneBar = {
 }
 MergeTable(Profile.ArcaneBar, {
   Status = {
-    ShowAlways      = false,
-    HideWhenDead    = true,
-    HideNoTarget    = false,
-    HideNoFocus     = false,
-    HideInVehicle   = true,
-    HideInPetBattle = true,
-    HideNotActive   = false,
-    HideNoCombat    = false,
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
 
     HidePowerType = 'NONE',
     HideNoPet = false,
@@ -3486,6 +3505,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 7.12
+|cff00ff00Status|r Hide in Vehicle replaced with Hide in Vehicle (UI) and Hide in Vehicle (No UI). If you're seeing bars while in a vehicle.  You'll need to set these options
 
 Version 7.10
 |cff00ff00Profiles by Specialization|r added next to the Profiles tab.  This will let you change a profile automatically by specialization
