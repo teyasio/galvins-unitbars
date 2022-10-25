@@ -16,6 +16,7 @@ local MyAddon, GUB = ...
 local Main = GUB.Main
 
 local LSM = Main.LSM
+local HyperlinkSt = Main.HyperlinkSt
 
 local AceGUI = LibStub('AceGUI-3.0')
 
@@ -26,37 +27,35 @@ local CreateFrame, strlower, strfind, strsplit, strtrim, strsub, format, sort, t
       CreateFrame, strlower, strfind, strsplit, strtrim, strsub, format, sort, tostring
 local tonumber, tconcat     , GetTime =
       tonumber, table.concat, GetTime
-local ipairs, pairs, unpack =
-      ipairs, pairs, unpack
+local pairs, unpack =
+      pairs, unpack
 local GameTooltip, ClearOverrideBindings, GetSpellInfo, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo =
       GameTooltip, ClearOverrideBindings, GetSpellInfo, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo
 local UIParent, GameFontNormal, GameFontHighlight, ChatFontNormal, OKAY, PlaySound =
       UIParent, GameFontNormal, GameFontHighlight, ChatFontNormal, OKAY, PlaySound
-local C_TradeSkillUIGetTradeSkillLineForRecipe  =
-      C_TradeSkillUI.GetTradeSkillLineForRecipe
 
 -------------------------------------------------------------------------------
 -- Locals
 --
--- SpellList              Contains a list of loaded spells used in the editbox.
--- MaxSpells              Total spells to load.
--- SpellsLoaded           if true then spells are already loaded.
--- SpellsPerRun           Amount of spells to load at one time.
+-- Spells                 Contains a list of loaded spells used in the editbox
+-- CharSpellsIndex        Helps in searching faster
+-- HighestSpellID         Load spells hits when SpellID passes this number
+-- GetSpellIDsDone        if true then spell IDs are done
+-- SpellsPerRun           Amount of spells to load at one time
 -- SpellsTPS              Amount of calls per second
--- AuraMenuLines          Amount of lines used.
--- MenuLines              How many lines to show without a scroll bar.
+-- MaxSpellMenuLines      Amount of lines used
+-- MenuLines              How many lines to show without a scroll bar
 -- SpellsMenuFrameWidth   Width of the menu in pixels for spells menu
--- AuraMenuFrame          Contains the current open pulldown window for spells
+-- SpellMenuFrame         Contains the current open pulldown window for spells
 -------------------------------------------------------------------------------
-local MaxSpells = 300000            -- Total spells to load in 1 second
-local SpellsTPS = 1 / 30            -- 30 times per second
-local SpellsPerRun = MaxSpells / 30 -- Total Spells to load each run
-local SpellsLoaded = false
-local HyperLinkSt = 'spell:%s'
+local HighestSpellID = 600000
+local SpellsTPS = 1 / 30      -- 30 times per second
+local SpellsPerRun = 5000 -- Total Spells to load each run
+local GetSpellIDsDone = false
 local Ace3Widgets = {}
 local DefaultType = 0
 
-local AuraMenuLines = 100
+local MaxSpellMenuLines = 100
 local MenuLines = 10
 local SpellsMenuFrameWidth = 250
 
@@ -79,11 +78,13 @@ local SpellInfoWidgetType = 'GUB_Spell_Info'
 local DropdownSelectWidgetType = 'GUB_Dropdown_Select'
 
 local SpellsTimer = {}
-local SpellList = {}
+local Spells = {}
+local CharSpellsIndex = {}
 local WidgetUserData = {}
-local AuraMenuFrame
 
-local AuraMenuBackdrop = {
+local SpellTooltipTimer = {}
+
+local SpellMenuBackdrop = {
   bgFile   = [[Interface\ChatFrame\ChatFrameBackground]],
   edgeFile = [[Interface\DialogFrame\UI-DialogBox-Border]],
   edgeSize = 26,
@@ -706,49 +707,95 @@ end
 --*****************************************************************************
 
 -------------------------------------------------------------------------------
--- LoadSpells
---
--- Loads spells just once.  This is used for the aura menu
+-- Show tooltip with SpellID
 -------------------------------------------------------------------------------
-local function LoadSpells()
-  if not SpellsLoaded then
-    local CurrentIndex = 0
+local function UpdateSpellToolTipTimer(SpellTooltipTimer)
+  local SpellID = SpellTooltipTimer.SpellID
+  GameTooltip:ClearLines()
 
-    local function LoadSpells2(self)
-      for SpellID = CurrentIndex + 1, CurrentIndex + SpellsPerRun do
+  GameTooltip:SetHyperlink(format(HyperlinkSt, SpellID))
+  GameTooltip:AddLine(format('|cFFFFFF00SpellID:|r|cFF00FF00%s|r', SpellID))
 
+  -- Need to show to make sure the tooltip surrounds the AddLine text
+  -- after SetHyperlink
+  GameTooltip:Show()
+end
+
+local function StartSpellTooltipTimer(self, SpellID, Anchor)
+  SpellTooltipTimer.SpellID = SpellID
+
+  GameTooltip:SetOwner(self, Anchor, 8)
+  UpdateSpellToolTipTimer(SpellTooltipTimer)
+
+  Main:SetTimer(SpellTooltipTimer, UpdateSpellToolTipTimer, 1 / 10) -- 10 times per second
+end
+
+local function StopSpellTooltipTimer()
+  -- Stop timer
+  Main:SetTimer(SpellTooltipTimer, nil)
+  GameTooltip:Hide()
+end
+
+-------------------------------------------------------------------------------
+-- GetSpellIDs
+--
+-- Gets spells just once.  This is used for the aura menu
+-- This will use a lot of memory, but then release all the strings at the end
+-- I tried to make the sort work as fast as possible by avoiding using
+-- a call back sort function
+-------------------------------------------------------------------------------
+local function GetSpellIDs()
+  if not GetSpellIDsDone then
+    print("Loading Spells: Spell Menu won't work until done")
+    local SpellIndex = 0
+    local SpellID = 1
+
+    local function GetSpellIDs2(self)
+      local TotalSpells = 0
+
+      repeat
         -- Check for end
-        if SpellID > MaxSpells then
+        if SpellID > HighestSpellID then
           Main:SetTimer(self, nil)
+
+          sort(Spells)
+
+          -- Build char to spells index for faster searches in the populate aura menu
+          -- Remove all strings from Spells now that it's sorted
+          local LastFirstChar
+          for Index = 1, SpellIndex do
+            local Name = Spells[Index]
+            local NumLength = strsub(Name, #Name, -1)
+
+            -- set SpellID
+            Spells[Index] = tonumber(strsub(Name, #Name - NumLength, -2))
+
+            local FirstChar = strsub(Name, 1, 1)
+            if FirstChar ~= LastFirstChar then
+              LastFirstChar = FirstChar
+              CharSpellsIndex[FirstChar] = Index
+            end
+          end
+          print('Loading Spells: Done')
           break
         end
 
         local Name, _, Icon = GetSpellInfo(SpellID)
 
-        if Name and Icon and Name ~= '' and C_TradeSkillUIGetTradeSkillLineForRecipe(SpellID) == nil then
-          SpellList[SpellID] = Name
+        if Name and Icon and Name ~= '' then
+          SpellIndex = SpellIndex + 1
+          Spells[SpellIndex] = strlower(Name) .. SpellID .. #tostring(SpellID)
         end
-      end
-
-      -- Load spells into menu for this run
-      if AuraMenuFrame and AuraMenuFrame:IsVisible() then
-        AuraMenuFrame:PopulateAuraMenu()
-      end
-
-      -- Increment index for next run
-      CurrentIndex = CurrentIndex + SpellsPerRun
+        SpellID = SpellID + 1
+        TotalSpells = TotalSpells + 1
+      until TotalSpells > SpellsPerRun
     end -- function end
 
-    Main:SetTimer(SpellsTimer, LoadSpells2, SpellsTPS)
+    Main:SetTimer(SpellsTimer, GetSpellIDs2, SpellsTPS)
   end
-  SpellsLoaded = true
-end
 
---*****************************************************************************
---
--- Editbox for the aura menu
---
---*****************************************************************************
+  GetSpellIDsDone = true
+end
 
 -------------------------------------------------------------------------------
 -- ScrollerOnMouseWheel
@@ -766,10 +813,10 @@ end
 --
 -- Hides the scroll and disabled mouse wheel event.
 -------------------------------------------------------------------------------
-local function HideScroller(AuraMenuFrame, Hide)
-  local ScrollFrame = AuraMenuFrame.ScrollFrame
-  local Scroller = AuraMenuFrame.Scroller
-  local MenuFrame = AuraMenuFrame.MenuFrame
+local function HideScroller(ContentSpellMenuFrame, Hide)
+  local ScrollFrame = ContentSpellMenuFrame.ScrollFrame
+  local Scroller = ContentSpellMenuFrame.Scroller
+  local MenuFrame = ContentSpellMenuFrame.MenuFrame
 
   if Hide then
     Scroller:SetValue(0)
@@ -784,72 +831,21 @@ local function HideScroller(AuraMenuFrame, Hide)
   end
 end
 
-------------------------------------------------------------------------------
--- OnAcquire
---
--- Gets called after a new widget is created or reused.
-------------------------------------------------------------------------------
-local function OnAcquire(self)
-  self:SetHeight(26)
-  self:SetWidth(200)
-  self:SetDisabled(false)
-  self:SetLabel()
-  self.showButton = true
-
-  AuraMenuFrame = self.AuraMenuFrame
-  LoadSpells()
-end
-
-------------------------------------------------------------------------------
--- OnRelease
---
--- Gets called when the widget is released
-------------------------------------------------------------------------------
-local function OnRelease(self)
-  local Frame = self.frame
-
-  Frame:ClearAllPoints()
-  Frame:Hide()
-  self.AuraMenuFrame.MenuFrame:Hide()
-  self.SpellFilter = nil
-
-  AuraMenuFrame = nil
-
-  self:SetDisabled(false)
-end
-
 -------------------------------------------------------------------------------
--- EditBoxOnEnter
+-- AddSpellMenuButton
 --
--- Gets called when the mouse enters the edit box.
--------------------------------------------------------------------------------
-local function EditBoxOnEnter(self)
-  self.Widget:Fire('OnEnter')
-end
-
--------------------------------------------------------------------------------
--- EditBoxOnLeave
---
--- Gets called when the mouse leaves the edit box.
--------------------------------------------------------------------------------
-local function EditBoxOnLeave(self)
-  self.Widget:Fire('OnLeave')
-end
-
--------------------------------------------------------------------------------
--- AddAuraMenuButton
---
--- Adds a button to the aura menu frame
+-- Adds a button to the spell menu frame
 --
 -- ActiveButton    Button position to add one at.
 -- FormatText      Format string
 -- SpellID         SpellID to add to button
+-- Icon            Number: contains the icon
+-- Name            Name of the spell
 -------------------------------------------------------------------------------
-local function AddAuraMenuButton(self, ActiveButton, FormatText, SpellID)
+local function AddSpellMenuButton(self, ActiveButton, FormatText, SpellID, Icon, Name)
 
   -- Ran out of text to suggest :<
   local Button = self.Buttons[ActiveButton]
-  local Name, _, Icon = GetSpellInfo(SpellID)
 
   Button:SetFormattedText(FormatText, Icon, Name)
   Button.SpellID = SpellID
@@ -870,15 +866,10 @@ end
 --
 -- Populates the aura menu with a list of spells matching the spell name entered.
 -------------------------------------------------------------------------------
-local function SortMatches(a, b)
-   return SpellList[a] < SpellList[b]
-end
-
 local function PopulateAuraMenu(self)
   local Widget = self.Widget
   local SearchSt = strlower(Widget.EditBox:GetText())
   local AuraTrackersData = Main.AuraTrackersData
-  local Matches = {}
   local ActiveButtons = 0
 
   for _, Button in pairs(self.Buttons) do
@@ -889,12 +880,12 @@ local function PopulateAuraMenu(self)
   local All = AuraTrackersData.All
   if All then
     for SpellID, Aura in pairs(All) do
-      local Name = strlower(GetSpellInfo(SpellID))
+      local Name, _, Icon = GetSpellInfo(SpellID)
 
-      if strfind(Name, SearchSt, 1, true) == 1 then
-        if ActiveButtons < AuraMenuLines then
+      if strfind(strlower(Name), SearchSt, 1, true) == 1 then
+        if ActiveButtons < MaxSpellMenuLines then
           ActiveButtons = ActiveButtons + 1
-          AddAuraMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t |cFFFFFFFF%s|r', SpellID)
+          AddSpellMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t |cFFFFFFFF%s|r', SpellID, Icon, Name)
         else
           break
         end
@@ -902,22 +893,47 @@ local function PopulateAuraMenu(self)
     end
   end
 
-  -- Do SpellList
-  for SpellID, Name in pairs(SpellList) do
-    if strfind(strlower(Name), SearchSt, 1, true) == 1 then
-      Matches[#Matches + 1] = SpellID
-    end
+  -- Add spells
+  local FirstChar = strsub(SearchSt, 1, 1)
+  local StartingIndex = CharSpellsIndex[FirstChar]
+
+  local StartBlockSearch = false
+  local BlockLen = 1
+  if #SearchSt > 1 then
+    BlockLen = #SearchSt - 1
   end
+  local BlockSt = strsub(SearchSt, 1, BlockLen)
 
-  -- Sort only the spells from the SpellList
-  sort(Matches, SortMatches)
+  -- Only search if there is something to find
+  if StartingIndex then
+    for Index = StartingIndex, #Spells do
+      if ActiveButtons < MaxSpellMenuLines  then
+        local SpellID = Spells[Index]
+        local Name, _, Icon = GetSpellInfo(SpellID)
+        local NameLower = strlower(Name)
 
-  for _, SpellID in ipairs(Matches) do
-    if ActiveButtons < AuraMenuLines then
-      ActiveButtons = ActiveButtons + 1
-      AddAuraMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t %s', SpellID)
-    else
-      break
+        -- Abort if search goes out of block
+        if strsub(NameLower, 1, 1) == FirstChar then
+
+          -- Abort if search goes out of sub block
+          if strsub(NameLower, 1, BlockLen) == BlockSt then
+            if not StartBlockSearch then
+              StartBlockSearch = true
+            end
+            if strfind(NameLower, SearchSt, 1, true) == 1 then
+              ActiveButtons = ActiveButtons + 1
+
+              AddSpellMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t %s', SpellID, Icon, Name)
+            end
+          elseif StartBlockSearch then
+            break
+          end
+        else
+          break
+        end
+      else
+        break
+      end
     end
   end
 
@@ -942,18 +958,11 @@ local function PopulateAuraMenu(self)
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuShowButton
+-- SpellMenuShowButton
 --
 -- Shows the okay button in the editbox selector
 -------------------------------------------------------------------------------
-local function AuraMenuShowButton(self)
-  if self.LastText ~= '' then
-    self.AuraMenuFrame.SelectedButton = nil
-    PopulateAuraMenu(self.AuraMenuFrame)
-  else
-    self.AuraMenuFrame.MenuFrame:Hide()
-  end
-
+local function SpellMenuShowButton(self)
   if self.showButton then
     self.Button:Show()
     self.EditBox:SetTextInsets(0, 20, 3, 3)
@@ -961,35 +970,36 @@ local function AuraMenuShowButton(self)
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuHideButton
+-- SpellMenuHideButton
 --
 -- Hides the okay button in the editbox selector
 -------------------------------------------------------------------------------
-local function AuraMenuHideButton(self)
+local function SpellMenuHideButton(self)
   self.Button:Hide()
   self.EditBox:SetTextInsets(0, 0, 3, 3)
 
-  self.AuraMenuFrame.SelectedButton = nil
-  self.AuraMenuFrame.MenuFrame:Hide()
+  self.ContentSpellMenuFrame.SelectedButton = nil
+  self.ContentSpellMenuFrame.MenuFrame:Hide()
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuOnShow
+-- SpellMenuOnShow
 --
--- Hides the aura menu editbox and restores binds, tooltips
+-- Hides the spell menu editbox and restores binds, tooltips
 -------------------------------------------------------------------------------
-local function AuraMenuOnShow(self)
+local function SpellMenuOnShow(self)
   if self.EditBox:GetText() ~= '' then
-    self.MenuFrame:Show()
+    local MenuFrame = self.MenuFrame
+    MenuFrame:Show()
   end
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuOnHide
+-- SpellMenuOnHide
 --
--- Hides the aura menu editbox and restores binds, tooltips
+-- Hides the spell menu editbox and restores binds, tooltips
 -------------------------------------------------------------------------------
-local function AuraMenuOnHide(self)
+local function SpellMenuOnHide(self)
 
   -- Allow users to use arrows to go back and forth again without the fix
   self.Widget.EditBox:SetAltArrowKeyMode(false)
@@ -1004,9 +1014,32 @@ local function AuraMenuOnHide(self)
   self.SelectedButton = nil
   self.MenuFrame:Hide()
 
-
-  -- Reset all bindings set on this aura menu
+  -- Reset all bindings set on this spell menu
   ClearOverrideBindings(self)
+end
+
+--*****************************************************************************
+--
+-- Editbox for the spell menu
+--
+--*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- EditBoxOnEnter
+--
+-- Gets called when the mouse enters the edit box.
+-------------------------------------------------------------------------------
+local function EditBoxOnEnter(self)
+  self.Widget:Fire('OnEnter')
+end
+
+-------------------------------------------------------------------------------
+-- EditBoxOnLeave
+--
+-- Gets called when the mouse leaves the edit box.
+-------------------------------------------------------------------------------
+local function EditBoxOnLeave(self)
+  self.Widget:Fire('OnLeave')
 end
 
 -------------------------------------------------------------------------------
@@ -1016,17 +1049,17 @@ end
 -------------------------------------------------------------------------------
 local function EditBoxOnEnterPressed(self)
   local Widget = self.Widget
-  local AuraMenuFrame = Widget.AuraMenuFrame
+  local ContentSpellMenuFrame = Widget.ContentSpellMenuFrame
 
-  -- Something is selected in the aura menu, use that value instead of whatever is in the input box
-  if AuraMenuFrame.SelectedButton then
-    AuraMenuFrame.Buttons[Widget.AuraMenuFrame.SelectedButton]:Click()
+  -- Something is selected in the spell menu, use that value instead of whatever is in the input box
+  if ContentSpellMenuFrame.SelectedButton then
+    ContentSpellMenuFrame.Buttons[Widget.ContentSpellMenuFrame.SelectedButton]:Click()
     return
   end
 
   local cancel = Widget:Fire('OnEnterPressed', self:GetText())
   if not cancel then
-    AuraMenuHideButton(Widget)
+    SpellMenuHideButton(Widget)
   end
 
   -- Reactive the cursor, odds are if someone is adding spells they are adding more than one
@@ -1057,7 +1090,14 @@ local function EditBoxOnTextChanged(self)
     Widget:Fire('OnTextChanged', Value)
     Widget.LastText = Value
 
-    AuraMenuShowButton(Widget)
+    if Widget.LastText ~= '' then
+      Widget.ContentSpellMenuFrame.SelectedButton = nil
+      PopulateAuraMenu(Widget.ContentSpellMenuFrame)
+    else
+      Widget.ContentSpellMenuFrame.MenuFrame:Hide()
+    end
+
+    SpellMenuShowButton(Widget)
   end
 end
 
@@ -1067,7 +1107,8 @@ end
 -- Gets called when the edit box loses focus
 -------------------------------------------------------------------------------
 local function EditBoxOnEditFocusGained(self)
-  AuraMenuOnShow(self.Widget.AuraMenuFrame)
+  SpellMenuOnShow(self.Widget.ContentSpellMenuFrame)
+  AceGUI:SetFocus(self.Widget.MenuFrame)
 end
 
 -------------------------------------------------------------------------------
@@ -1076,7 +1117,9 @@ end
 -- Gets called when the edit box loses focus
 -------------------------------------------------------------------------------
 local function EditBoxOnEditFocusLost(self)
-  AuraMenuOnHide(self.Widget.AuraMenuFrame)
+  if Main:MouseInRect(self.Widget.MenuFrame) then
+    SpellMenuOnHide(self.Widget.ContentSpellMenuFrame)
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -1087,13 +1130,6 @@ end
 local function EditBoxButtonOnClick(self)
   EditBoxOnEnterPressed(self.Widget.EditBox)
 end
-
---*****************************************************************************
---
--- Editbox for the aura menu
--- API calls
---
---*****************************************************************************
 
 -------------------------------------------------------------------------------
 -- EditBoxSetDisabled
@@ -1129,7 +1165,7 @@ local function EditBoxSetText(self, Text, Cursor)
   EditBox:SetText(Text)
   EditBox:SetCursorPosition(Cursor or 0)
 
-  AuraMenuHideButton(self)
+  SpellMenuHideButton(self)
 end
 
 -------------------------------------------------------------------------------
@@ -1156,11 +1192,11 @@ local function EditBoxSetLabel(self, Text)
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuButtonOnClick
+-- SpellMenuButtonOnClick
 --
 -- Sets the editbox to the button that was clicked in the selector
 -------------------------------------------------------------------------------
-local function AuraMenuButtonOnClick(self)
+local function SpellMenuButtonOnClick(self, ...)
   local Name = GetSpellInfo(self.SpellID)
   local Parent = self.parent
 
@@ -1171,35 +1207,24 @@ local function AuraMenuButtonOnClick(self)
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuButtonOnEnter
+-- SpellMenuButtonOnEnter
 --
--- Highlights the aura menu button when the mouse enters the button area
+-- Highlights the spell menu button when the mouse enters the button area
 -------------------------------------------------------------------------------
-local function AuraMenuButtonOnEnter(self)
+local function SpellMenuButtonOnEnter(self)
   self.parent.SelectedButton = nil
   self:LockHighlight()
-  local SpellID = self.SpellID
-
-  GameTooltip:SetOwner(self, 'ANCHOR_BOTTOMRIGHT', 8)
-  GameTooltip:SetHyperlink(format(HyperLinkSt, SpellID))
-  GameTooltip:AddLine(format('|cFFFFFF00SpellID:|r|cFF00FF00%s|r', SpellID))
-
-  -- Need to add a blank so that spellID shows for first time on mouse over
-  GameTooltip:AddLine('')
-
-  -- Need to show to make sure the tooltip surrounds the AddLine text
-  -- after SetHyperlink
-  GameTooltip:Show()
+  StartSpellTooltipTimer(self, self.SpellID, 'ANCHOR_BOTTOMRIGHT')
 end
 
 -------------------------------------------------------------------------------
--- AuraMenuButtonOnLeave
+-- SpellMenuButtonOnLeave
 --
--- Highlights the aura menu button when the mouse enters the button area
+-- Highlights the spell menu button when the mouse enters the button area
 -------------------------------------------------------------------------------
-local function AuraMenuButtonOnLeave(self)
+local function SpellMenuButtonOnLeave(self)
   self:UnlockHighlight()
-  GameTooltip:Hide()
+  StopSpellTooltipTimer()
 end
 
 -------------------------------------------------------------------------------
@@ -1214,26 +1239,26 @@ end
 -------------------------------------------------------------------------------
 -- CreateButton
 --
--- Creates a button for the aura menu frame.
+-- Creates a button for the spell menu frame.
 --
--- AuraMenuFrame  Frame the will contain the buttons
--- EditBox        Reference to the EditBox
--- Index          Button Index, needed for setpoint
+-- ContentSpellMenuFrame  Frame the will contain the buttons
+-- EditBox                Reference to the EditBox
+-- Index                  Button Index, needed for setpoint
 --
 -- Returns
 --   Button           Created buttom.
 -------------------------------------------------------------------------------
-local function CreateButton(AuraMenuFrame, EditBox, Index)
-  local Buttons = AuraMenuFrame.Buttons
-  local Button = CreateFrame('Button', nil, AuraMenuFrame)
+local function CreateButton(ContentSpellMenuFrame, EditBox, Index)
+  local Buttons = ContentSpellMenuFrame.Buttons
+  local Button = CreateFrame('Button', nil, ContentSpellMenuFrame)
 
   Button:SetHeight(17)
   Button:SetWidth(1)
   Button:SetPushedTextOffset(-2, 0)
-  Button:SetScript('OnClick', AuraMenuButtonOnClick)
-  Button:SetScript('OnEnter', AuraMenuButtonOnEnter)
-  Button:SetScript('OnLeave', AuraMenuButtonOnLeave)
-  Button.parent = AuraMenuFrame
+  Button:SetScript('OnClick', SpellMenuButtonOnClick)
+  Button:SetScript('OnEnter', SpellMenuButtonOnEnter)
+  Button:SetScript('OnLeave', SpellMenuButtonOnLeave)
+  Button.parent = ContentSpellMenuFrame
   Button.EditBox = EditBox
   Button:Hide()
 
@@ -1241,8 +1266,8 @@ local function CreateButton(AuraMenuFrame, EditBox, Index)
     Button:SetPoint('TOPLEFT', Buttons[Index - 1], 'BOTTOMLEFT')
     Button:SetPoint('TOPRIGHT', Buttons[Index - 1], 'BOTTOMRIGHT')
   else
-    Button:SetPoint('TOPLEFT', AuraMenuFrame, 12, -1)
-    Button:SetPoint('TOPRIGHT', AuraMenuFrame, -7, 0)
+    Button:SetPoint('TOPLEFT', ContentSpellMenuFrame, 12, -1)
+    Button:SetPoint('TOPRIGHT', ContentSpellMenuFrame, -7, 0)
   end
 
   -- Create the actual text
@@ -1268,21 +1293,48 @@ local function CreateButton(AuraMenuFrame, EditBox, Index)
   return Button
 end
 
--------------------------------------------------------------------------------
--- AuraMenuConstructor
+------------------------------------------------------------------------------
+-- OnAcquire
 --
--- Creates the widget for the edit box and aura menu
+-- Gets called after a new widget is created or reused.
+------------------------------------------------------------------------------
+local function OnAcquire(self)
+  self:SetHeight(26)
+  self:SetWidth(200)
+  self:SetDisabled(false)
+  self:SetLabel()
+  self.showButton = true
+
+  GetSpellIDs()
+end
+
+------------------------------------------------------------------------------
+-- OnRelease
 --
--- Notes: If escape is pressed. Then a -1 is returned instead of what was entered
---        into the edit box
+-- Gets called when the widget is released
+------------------------------------------------------------------------------
+local function OnRelease(self)
+  local Frame = self.frame
+
+  Frame:ClearAllPoints()
+  Frame:Hide()
+  self.ContentSpellMenuFrame.MenuFrame:Hide()
+  self.SpellFilter = nil
+
+  self:SetDisabled(false)
+end
+
 -------------------------------------------------------------------------------
-local function AuraMenuConstructor()
+-- EditBoxSpellMenuWidget
+--
+-- Base for spell menu and talent menu
+-------------------------------------------------------------------------------
+local function EditBoxSpellMenuWidget()
   local Frame = CreateFrame('Frame', nil, UIParent)
   local EditBox = CreateFrame('EditBox', nil, Frame, 'InputBoxTemplate')
 
-  -- Don't feel like looking up the specific callbacks for when a widget resizes, so going to be creative with SetPoint instead!
   local MenuFrame = CreateFrame('Frame', nil, UIParent, 'BackdropTemplate')
-  MenuFrame:SetBackdrop(AuraMenuBackdrop)
+  MenuFrame:SetBackdrop(SpellMenuBackdrop)
   MenuFrame:SetBackdropColor(0, 0, 0, 0.85)
   MenuFrame:SetWidth(1)
   MenuFrame:SetHeight(150)
@@ -1297,17 +1349,17 @@ local function AuraMenuConstructor()
   ScrollFrame:SetPoint('TOPLEFT', 0, -6)
   ScrollFrame:SetPoint('BOTTOMRIGHT', -28, 6)
 
-    local AuraMenuFrame = CreateFrame('Frame', nil, ScrollFrame)
+    local ContentSpellMenuFrame = CreateFrame('Frame', nil, ScrollFrame)
     local Buttons = {}
 
-    AuraMenuFrame:SetSize(SpellsMenuFrameWidth, 2000)
-    AuraMenuFrame.PopulateAuraMenu = PopulateAuraMenu
-    AuraMenuFrame.EditBox = EditBox
-    AuraMenuFrame.Buttons = Buttons
-    AuraMenuFrame.MenuFrame = MenuFrame
-    AuraMenuFrame.ScrollFrame = ScrollFrame
+    ContentSpellMenuFrame:SetSize(SpellsMenuFrameWidth, 2000)
+    ContentSpellMenuFrame.PopulateAuraMenu = PopulateAuraMenu
+    ContentSpellMenuFrame.EditBox = EditBox
+    ContentSpellMenuFrame.Buttons = Buttons
+    ContentSpellMenuFrame.MenuFrame = MenuFrame
+    ContentSpellMenuFrame.ScrollFrame = ScrollFrame
 
-  ScrollFrame:SetScrollChild(AuraMenuFrame)
+  ScrollFrame:SetScrollChild(ContentSpellMenuFrame)
 
   -- Create the scroller
   local Scroller = CreateFrame('slider', nil, ScrollFrame, 'BackdropTemplate')
@@ -1323,17 +1375,16 @@ local function AuraMenuConstructor()
   Scroller:SetScript('OnValueChanged', ScrollerOnValueChanged)
 
   MenuFrame.Scroller = Scroller
-  AuraMenuFrame.Scroller = Scroller
+  ContentSpellMenuFrame.Scroller = Scroller
 
-  -- Create the mass of aura menu rows
-  for Index = 1, AuraMenuLines + 1 do
-    Buttons[Index] = CreateButton(AuraMenuFrame, EditBox, Index)
+  -- Create the mass of spell menu rows
+  for Index = 1, MaxSpellMenuLines + 1 do
+    Buttons[Index] = CreateButton(ContentSpellMenuFrame, EditBox, Index)
   end
 
   -- Set the main info things for this thingy
   local Widget = {}
 
-  Widget.type = EditBoxWidgetType
   Widget.frame = Frame
 
   Widget.OnRelease = OnRelease
@@ -1343,7 +1394,8 @@ local function AuraMenuConstructor()
   Widget.SetText = EditBoxSetText
   Widget.SetLabel = EditBoxSetLabel
 
-  Widget.AuraMenuFrame = AuraMenuFrame
+  Widget.MenuFrame = MenuFrame
+  Widget.ContentSpellMenuFrame = ContentSpellMenuFrame
   Widget.EditBox = EditBox
 
   Widget.alignoffset = 30
@@ -1353,7 +1405,8 @@ local function AuraMenuConstructor()
 
   Frame.Widget = Widget
   EditBox.Widget = Widget
-  AuraMenuFrame.Widget = Widget
+  MenuFrame.Widget = Widget
+  ContentSpellMenuFrame.Widget = Widget
 
   EditBox:SetScript('OnEnter', EditBoxOnEnter)
   EditBox:SetScript('OnLeave', EditBoxOnLeave)
@@ -1364,7 +1417,9 @@ local function AuraMenuConstructor()
   EditBox:SetScript('OnEnterPressed', EditBoxOnEnterPressed)
   EditBox:SetScript('OnTextChanged', EditBoxOnTextChanged)
   EditBox:SetScript('OnEditFocusGained', EditBoxOnEditFocusGained)
-  EditBox:SetScript('OnEditFocusLost', EditBoxOnEditFocusLost)
+
+  -- Set focus takes care of this now
+  --EditBox:SetScript('OnEditFocusLost', EditBoxOnEditFocusLost)
 
   EditBox:SetTextInsets(0, 0, 3, 3)
   EditBox:SetMaxLetters(256)
@@ -1389,10 +1444,30 @@ local function AuraMenuConstructor()
   Button:SetText(OKAY)
   Button:Hide()
 
+  -- These two lines insure that the menu will get closed if clicked outside
+  MenuFrame.ClearFocus = function(self) SpellMenuOnHide(self.Widget.ContentSpellMenuFrame) end
+  Scroller:SetScript('OnMouseDown', function()  AceGUI:SetFocus(MenuFrame)  end)
+
   Widget.Button = Button
   Button.Widget = Widget
 
   AceGUI:RegisterAsWidget(Widget)
+  AceGUI:SetFocus(MenuFrame)
+
+  return Widget
+end
+
+-------------------------------------------------------------------------------
+-- AuraMenuConstructor
+--
+-- Creates the widget for the edit box and aura menu
+--
+-- Notes: If escape is pressed. Then a -1 is returned instead of what was entered
+--        into the edit box
+-------------------------------------------------------------------------------
+local function AuraMenuConstructor()
+  local Widget = EditBoxSpellMenuWidget()
+  Widget.type = EditBoxWidgetType
 
   return Widget
 end
@@ -1407,8 +1482,6 @@ end
 -- AuraEditBoxConstructor
 --
 -- Creates the widget for the Aura_EditBox
---
--- I know theres a better way of doing this than this, but not sure for the time being, works fine though!
 -------------------------------------------------------------------------------
 local function AuraEditBoxConstructor()
   return AceGUI:Create(EditBoxWidgetType)
@@ -1504,15 +1577,7 @@ end
 -- self   IconFrame
 -------------------------------------------------------------------------------
 local function IconFrameOnEnter(self)
-  local SpellID = self.SpellID
-
-  GameTooltip:SetOwner(self, 'ANCHOR_RIGHT', 8)
-  GameTooltip:SetHyperlink(format(HyperLinkSt, SpellID))
-  GameTooltip:AddLine(format('|cFFFFFF00SpellID:|r|cFF00FF00%s|r', SpellID))
-
-  -- Need to show to make sure the tooltip surrounds the AddLine text
-  -- after SetHyperlink
-  GameTooltip:Show()
+  StartSpellTooltipTimer(self, self.SpellID, 'ANCHOR_RIGHT')
 end
 
 -------------------------------------------------------------------------------
@@ -1523,11 +1588,11 @@ end
 -- self   IconFrame
 -------------------------------------------------------------------------------
 local function IconFrameOnLeave(self)
-  GameTooltip:Hide()
+  StopSpellTooltipTimer()
 end
 
 -------------------------------------------------------------------------------
--- SpellInfoContructor
+-- SpellInfoConstructor
 --
 -- Creates an icon with text.  Can mouse over icon for spell info.
 --
@@ -1639,7 +1704,7 @@ local function SetupPullout(Widget)
   -- Setup the pullout width and height
   UserData.MaxHeight = Pullout.maxHeight
   Pullout:SetMaxHeight(188)
-  Widget:SetPulloutWidth(280)
+  Widget:SetPulloutWidth(320)
 
   -- Move slider a few pixels to the left and make it easier to click
   Slider:SetHitRectInsets(-5, 0, -10, 0)
@@ -1662,11 +1727,19 @@ end
 -- Restore pullout
 local function RestorePullout(Widget)
   local UserData = WidgetUserData[Widget]
+  local ItemFonts = UserData.ItemFonts
   local SliderPoints = UserData.SliderPoints
   local ItemFramePoints = UserData.ItemFramePoints
   local Pullout = Widget.pullout
+  local Items = Pullout.items
   local Slider = Pullout.slider
   local ItemFrame = Pullout.itemFrame
+
+  -- Restore pullout item fonts
+  for ItemFontIndex = 1, #Items do
+    Items[ItemFontIndex].text:SetFontObject(ItemFonts[ItemFontIndex])
+    ItemFonts[ItemFontIndex] = nil
+  end
 
   -- Restore Slider
   Slider:SetWidth(UserData.SliderWidth)
@@ -1695,6 +1768,10 @@ end
 --
 -- This uses an existing widget, then changes it into a custom
 -- This make a menu have a scroll bar
+--
+-- In the 'name' field you specify name and font size (normal)
+-- Example: Name:normal
+-- Defaults to small if no font size specified
 -------------------------------------------------------------------------------
 local function DropdownSelectConstructor()
   local Widget = AceGUI:Create('Dropdown')
@@ -1703,9 +1780,15 @@ local function DropdownSelectConstructor()
   -- methods
   local OldOnRelease = Widget.OnRelease
   local OldOnAcquire = Widget.OnAcquire
+  local OldSetLabel  = Widget.SetLabel
+  local OldSetList   = Widget.SetList
 
   Widget.OnRelease = function(self, ...)
     RestorePullout(self)
+
+    -- Reset font size
+    WidgetUserData[self].FontObjectSize = nil
+
     OldOnRelease(self, ...)
   end
   Widget.OnAcquire = function(self, ...)
@@ -1716,6 +1799,41 @@ local function DropdownSelectConstructor()
       OldOnAcquire(self, ...)
     end
     SetupPullout(self)
+  end
+  Widget.SetLabel = function(self, ...)
+    local Text = ...
+    if Text then
+      local Name, FontSize = strsplit(':', Text)
+      OldSetLabel(self, Name)
+
+      -- Set font size
+      local FontObjectSize
+      if FontSize and FontSize == 'normal' then
+        FontObjectSize = 'GameFontNormal'
+      end
+      WidgetUserData[self].FontObjectSize = FontObjectSize
+    end
+  end
+  Widget.SetList = function(self, ...)
+    OldSetList(self, ...)
+    -- Store original values in userdata
+    local UserData = WidgetUserData[self]
+    local ItemFonts = UserData.ItemFonts
+    if ItemFonts == nil then
+      ItemFonts = {}
+      UserData.ItemFonts = ItemFonts
+    end
+    -- Store old font objects. These gets restored in OnRelease()
+    local Items = Widget.pullout.items
+    for ItemFontIndex = 1, #Items do
+      local Text = Items[ItemFontIndex].text
+      ItemFonts[ItemFontIndex] = Text:GetFontObject()
+
+      local FontObjectSize = WidgetUserData[self].FontObjectSize
+      if FontObjectSize then
+        Text:SetFontObject(FontObjectSize)
+      end
+    end
   end
 
   return AceGUI:RegisterAsWidget(Widget)
@@ -1783,22 +1901,22 @@ local function EditBoxReadOnlySelectedConstructor()
 
   EditBox:SetScript('OnEditFocusGained', EditBoxSelectedReadOnlyOnFocusGained)
   EditBox:SetScript('OnTextChanged', function(self)
-                                       if self:HasFocus() then
-                                         self:SetText(self.ReadOnlyText)
-                                         self:HighlightText()
-                                       end
-                                     end)
+    if self:HasFocus() then
+      self:SetText(self.ReadOnlyText)
+      self:HighlightText()
+    end
+  end)
   EditBox:SetScript('OnChar', function(self)
-                                if self:HasFocus() then
-                                  self:SetText(self.ReadOnlyText)
-                                  self:HighlightText()
-                                end
-                              end)
+    if self:HasFocus() then
+      self:SetText(self.ReadOnlyText)
+      self:HighlightText()
+    end
+  end)
   EditBox:SetScript('OnCursorChanged', function(self)
-                                         if self:HasFocus() then
-                                           self:HighlightText()
-                                         end
-                                       end)
+    if self:HasFocus() then
+      self:HighlightText()
+    end
+  end)
 
   Widget.SetText = EditBoxSelectedReadOnlySetText
   Widget.ClearFocus = EditBoxSelectedReadOnlyClearFocus
@@ -1878,9 +1996,7 @@ local function MultiLineEditBoxImportConstructor()
   -- blank this function so button don't get shown
   Widget.DisableButton = function() end
 
-  Widget.GetText = function()
-                     return Pasted or ''
-                   end
+  Widget.GetText = function() return Pasted or '' end
 
   local EditBox = Widget.editBox
   EditBox:SetMaxBytes(2500)
@@ -1891,17 +2007,17 @@ local function MultiLineEditBoxImportConstructor()
   -- So the paste is faked a little.
   -- This idea was taken from Weakauras
   EditBox:SetScript('OnChar', function(self, Char)
-                                if LastOnCharTime ~= GetTime() then
-                                  TextBuffer = {}
-                                  CharCount = 0
-                                  LastOnCharTime = GetTime()
-                                  -- Call ImportTextBuffer on the next frame
-                                  self:SetScript('OnUpdate', ImportTextBuffer)
-                                end
-                                -- Add character input to the buffer
-                                CharCount = CharCount + 1
-                                TextBuffer[CharCount] = Char
-                              end)
+    if LastOnCharTime ~= GetTime() then
+      TextBuffer = {}
+      CharCount = 0
+      LastOnCharTime = GetTime()
+      -- Call ImportTextBuffer on the next frame
+      self:SetScript('OnUpdate', ImportTextBuffer)
+    end
+    -- Add character input to the buffer
+    CharCount = CharCount + 1
+    TextBuffer[CharCount] = Char
+  end)
   return AceGUI:RegisterAsWidget(Widget)
 end
 
@@ -1974,17 +2090,17 @@ local function MultiLineEditBoxExportConstructor()
 
   EditBox:SetScript('OnEditFocusGained', MultiLineEditBoxExportOnFocusGained)
   EditBox:SetScript('OnChar', function(self, UserInput)
-                                if self:HasFocus() then
-                                  self:SetText(self.ReadOnlyText)
-                                  self:HighlightText()
-                                end
-                              end)
+    if self:HasFocus() then
+      self:SetText(self.ReadOnlyText)
+      self:HighlightText()
+    end
+  end)
   EditBox:SetScript('OnCursorChanged', function(self)
-                                         if self:HasFocus() then
-                                           self:HighlightText()
-                                         end
-                                       end)
-  EditBox:SetMaxBytes(nil)
+    if self:HasFocus() then
+      self:HighlightText()
+    end
+  end)
+  EditBox:SetMaxBytes(0)
 
   Widget.SetText = MultiLineEditBoxExportSetText
   Widget.ClearFocus = MultiLineEditBoxExportClearFocus
@@ -1993,6 +2109,4 @@ local function MultiLineEditBoxExportConstructor()
 end
 
 AceGUI:RegisterWidgetType(MultiLineEditBoxExportWidgetType, MultiLineEditBoxExportConstructor, MultiLineEditBoxExportWidgetVersion)
-
-
 

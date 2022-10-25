@@ -58,11 +58,6 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 -- AltPowerBarDisabled    - If true then all the alt power bar options are disabled. And blizzard style bars will be used.
 -- AltPowerBarShowUsed    - If true then show only bars that you used in the alt power bar options
 -- ClassTaggedColor       - Boolean.  If true then if the target is an NPC, then tagged color will be shown.
--- APBMoverOptionsDisabled - If true then blizzards alternate power bars will not be moved.
--- EABMoverOptionsDisabled - If true then extra action button will not be moved.
--- APBPos                 - Contains the position of the blizzards alternate power bar relative to UIParent
--- APBTimerPos            - Contains the position of the blizzards alternate power timer relative to UIParent
--- EABPos                 - Contains the position of the extra action button relative to UIParent
 -- CombatClassColor       - If true then then the combat colors will use player class colors.
 -- CombatTaggedColor      - If true then Tagged color will be used along with combat color if the unit is not a player..
 -- CombatColor            - Table containing the colors hostile, attack, friendly, flagged, none.
@@ -234,7 +229,7 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 --     Inverse                    -- default setting true or false
 --     ClassName                  -- default settting: string
 --     [ClassName]
---       UseAll                   -- default setting true or false
+--       UseAll                   --  default setting true or false
 --       [Spec]                   --  String: Name of the class in uppercase
 --         true or false          --  This is from {T} or {F}. Defaults all the stance options to true or false
 --         -100                   --  Defaults the 'No Stance' option to false
@@ -246,8 +241,8 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 --     None                       -- The options uses the defaults to check for this
 --     All                        -- If true then matches for all classes and stances. Ignores stance checks
 --     Inverse                    -- Inverts the logic test for stances. Does the opposite
---     ClassName                  -- Lower case except first letter
---     OtherClasses               -- If checked will treat other classes no in the list as if they had a working stance
+--     ClassName                  -- Lower case except first letter. Used by options
+--     OtherClasses               -- If checked, will treat classes with no stances as if they had a working stance
 --     [ClassName]                -- ClassName is all uppercase
 --       Spec                     -- Contains the selected player specializaion
 --       UseAll                   -- Boolean. If true then uses the All specialization
@@ -312,7 +307,7 @@ local DefaultTriggers = {
   Static = false,
   Disabled = false,
   SpecEnabled = false,
-  StanceEnables = false,
+  StanceEnabled = false,
   OneTime = false,
   -- ClassSpecs is deepcopied in down below in each bar
   -- ClassSpecs = SetClassSpecs(ClassSpecs, false),
@@ -357,12 +352,14 @@ for ClassIndex = 1, GetNumClasses() do
   local Specs = {}
   local _, Class = GetClassInfo(ClassIndex)
 
-  ClassSpecializations[Class] = Specs
+  if Class ~='Adventurer' then
+    ClassSpecializations[Class] = Specs
 
-  for ClassSpec = 1, GetNumSpecializationsForClassID(ClassIndex) do
-    local _, SpecName = GetSpecializationInfoForClassID(ClassIndex, ClassSpec)
+    for ClassSpec = 1, GetNumSpecializationsForClassID(ClassIndex) do
+      local _, SpecName = GetSpecializationInfoForClassID(ClassIndex, ClassSpec)
 
-    Specs[ClassSpec] = SpecName
+      Specs[ClassSpec] = SpecName
+    end
   end
 end
 GUB.DefaultUB.ClassSpecializations = ClassSpecializations
@@ -387,15 +384,19 @@ GUB.DefaultUB.ClassSpecializations = {
 local NoStanceSt = 'No Stance'
 
 local ClassStanceNames = {
-  -- HUNTER, MAGE, WARLOCK, SHAMAN have no stances
+  -- HUNTER, MAGE, WARLOCK, MONK, DEMONHUNTER, DEATHKNIGHT, EVOKER
 
-  DRUID = {                          -- Stance   ID (GetShapeshiftFormID)
-    [0] = NoStanceSt,                -- 0
-    'Bear',                          -- 1         5    8 (dire bear)
-    'Aquatic',                       -- 2         4
-    'Cat',                           -- 3         1
-    'Travel',                        -- 4         3
-    'Moonkin',                       -- 5         31
+  DRUID = {                          -- Stance    ID (GetShapeshiftFormID)
+    [0] =  NoStanceSt,               -- 0
+           'Bear',                   -- 1         5
+           'Cat',                    -- 2         1
+           'Moonkin',                -- 3         31
+           'Treant',                 -- 4         36
+           'Mount',                  -- 5         3
+           'Tree of Life',           -- 6         2
+    [50] = 'Ground (travel)',        -- 50        3
+    [51] = 'Flying (travel)',        -- 51        27
+    [52] = 'Aquatic (travel)',       -- 52        4
   },
   PALADIN = {
     [0] = NoStanceSt,                -- 0
@@ -417,25 +418,59 @@ local ClassStanceNames = {
     [0] = NoStanceSt,                -- 0
    'Ghost Wolf',                     -- 1         16
   },
+  WARRIOR = { -- no stance bar
+    [0] = NoStanceSt,                -- 0
+    'Battle',                        -- 1
+    'Defensive',                     -- 2
+    'Berserker',                     -- 3
+  },
 }
 
 -- These are used in GetPlayerStance() only
 -- These convert form to stance
-local FormIDStance = {
-  DRUID  = { [8]  = 1,    -- bear
-             [4]  = 2,    -- Aquatic
-             [1]  = 3,    -- Cat
-             [27] = 4,    -- Travel
-             [31] = 5  }, -- Moonkin
+local FormIDStances = {
+  DRUID  = { [2]  = 6,     -- Tree of Life
+             [3]  = 50,    -- Ground
+             [27] = 51,    -- Flying
+             [4]  = 52  }, -- Aquatic
 
-                          -- Shadow form comes from GetShapeshiftFormInfo()
-  PRIEST = { [32] = 2  }, -- Spirit of Redmeption
+  PRIEST = { [32] = 2   }, -- Spirit of Redmeption
 
-  SHAMAN = { [16] = 1  }, -- Ghost wolf
+  ROGUE  = { [30] = 1   }, -- Stealth. NOTE: This is here because sometimes they'll be no spellID, but a valid formID
+
+  SHAMAN = { [16] = 1   }  -- Ghost wolf
+}
+
+-- These are used in GetPlayerStance() only
+-- Convert spellID to stance
+-- If the syancespellID is negative or ID is negative, then get ShapeShiftformID() instead
+local SpellIDStances = { -- Stance#    -- ID
+  DRUID   = { [5487]   =     1,         -- 5      Bear form
+              [768]    =     2,         -- 1      Cat form
+              [783]    =    -1,         --        Travel form (flying (27), aquatic (4), ground (3))
+              [24858]  =     3,         -- 31     Moonkin form
+              [114282] =     4,         -- 36     Treant form
+              [210053] =     5  },      -- 3      Mount form
+
+  PALADIN = { [32223]  =     1,         --        Crusader aura
+              [465]    =     2,         --        Devotion aura
+              [183435] =     3,         --        Retribution aura
+              [317920] =     4  },      --        Cencentration aura
+
+  PRIEST  = { [232698] =     1  },      -- 28     Shadow form
+
+  ROGUE   = { [1784]   =     1  },      -- 30     Stealth
+
+  SHAMAN  = { [-1]     =    -1  },      --        No spell ID so it'll go to ShapeShiftformID
+
+  WARRIOR = { [386164] =     1,         --        Battle stance
+              [386208] =     2,         --        Defensive stance
+              [386196] =     3  },      --        Berserker stance
 }
 
 GUB.DefaultUB.ClassStanceNames = ClassStanceNames
-GUB.DefaultUB.FormIDStance = FormIDStance
+GUB.DefaultUB.FormIDStances = FormIDStances
+GUB.DefaultUB.SpellIDStances = SpellIDStances
 
 local function MergeTable(Source, Dest)
   for k, v in pairs(Dest) do
@@ -468,7 +503,7 @@ local function DeepCopy(Source, AddTablesWithKey)
 end
 
 -- Flag = false: set everything to false
--- True doesn't do anything
+-- True doesn't do anything, same as nil for Flag
 -- Negative number means false for that spec
 local function SetClassSpecs(ClassSpecs, Flag)
   local CS = {}
@@ -484,6 +519,7 @@ local function SetClassSpecs(ClassSpecs, Flag)
         assert(false, format('Class Table Empty: %s', ClassName))
       end
 
+      -- Check for true or false as the only value in the table
       if #ClassSpec == 1 and type(ClassSpec[1]) == 'boolean' then
         local SpecFlag = Flag
 
@@ -512,9 +548,8 @@ local function SetClassSpecs(ClassSpecs, Flag)
 end
 
 -- Flag = false: set everything to false
--- True doesn't do anything
+-- True doesn't do anything, same as nil for flag
 -- Negative number means false for that stance
--- See CheckClassStance() in Main.lua for data structure.
 -- This adds the enabled flag
 local function SetClassStances(ClassStanceData, Flag)
   local CS = {}
@@ -554,7 +589,7 @@ local function SetClassStances(ClassStanceData, Flag)
               end
             end
           else
-            -- Table size > 1 and not boolean
+            -- Table size > 0 and not boolean
             -- -100 = No Stance or formless false
             --  100 = No Stance or formless true
             for _, StanceNumber in pairs(ClassStances) do
@@ -629,11 +664,6 @@ GUB.DefaultUB.Default = {
     AuraListOn = false,
     AuraListUnits = 'player',
     DebugOn = false,
-    APBMoverOptionsDisabled = true,
-    APBPos = {},
-    APBTimerPos = {},
-    EABMoverOptionsDisabled = true,
-    EABPos = {},
     ClassTaggedColor = false,
     CombatClassColor = false,
     CombatTaggedColor = false,
@@ -661,7 +691,7 @@ local F = false
 local ClassSpecs
 local ClassSpecsAll = { -- This is used for all health and power bars
   All = true, Inverse = false, ClassName = '',
-  DEATHKNIGHT = {T}, DEMONHUNTER = {T}, DRUID = {T}, HUNTER = {T}, MAGE    = {T}, MONK    = {T},
+  DEATHKNIGHT = {T}, DEMONHUNTER = {T}, DRUID = {T}, EVOKER = {T}, HUNTER  = {T}, MAGE    = {T}, MONK    = {T},
   PALADIN     = {T}, PRIEST      = {T}, ROGUE = {T}, SHAMAN = {T}, WARLOCK = {T}, WARRIOR = {T}
 }
 local ClassStances
@@ -677,6 +707,8 @@ local ClassStancesHAP = { -- This is used for all health and power bars
               [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
   SHAMAN  = { UseAll = true,
               [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
+  WARRIOR = { UseAll = true,
+              [0] = {T}, [1] = {100, 1, 2}, [2] = {100, 3, 2}, [3] = {100, 2, 1} },
 }
 local ClassStancesNone = {}
 
@@ -715,7 +747,7 @@ MergeTable(Profile.PlayerHealth, {
     PredictedHealth = 0.25,
     AbsorbHealth = 0.25,
     UnitLevel = 1,
-    ScaledLevel = 1
+    ScaledLevel = 1,
   },
   Layout = {
     EnableTriggers = false,
@@ -1377,7 +1409,7 @@ ClassSpecs = { -- This is used for pet health and power
   WARLOCK     = { 1, 2, 3 },
   HUNTER      = { 1, 2, 3 },
   MAGE        = { -1, -2, 3 },
-  DEMONHUNTER = {F}, DRUID = {F}, MONK   = {F}, PALADIN = {F},
+  DEMONHUNTER = {F}, DRUID = {F}, EVOKER = {F}, MONK    = {F}, PALADIN = {F},
   PRIEST      = {F}, ROGUE = {F}, SHAMAN = {F}, WARRIOR = {F}
 }
 
@@ -1616,9 +1648,9 @@ ClassSpecs = {
 ClassStances = {
   All = false, Inverse = false, ClassName = '', OtherClasses = true,
   DRUID  = { UseAll = false,
-             [0] = {T}, [1] = { 100, 5 }, [2] = {F}, [3] = {F}, [4] = {F} },
+             [0] = {T}, [1] = { 100, 5 }, [2] = {F}, [3] = {F}, [4] = {100, 5} },
   PRIEST = { UseAll = false,
-             [0] = {T}, [1] = { -100 }, [2] = { -100, 2 }, [3] = { 100, 1 } },
+             [0] = {T}, [1] = { -100 }, [2] = { -100, -2 }, [3] = { 100, 1 } },
   SHAMAN = { UseAll = false,
              [0] = { 100, -1 }, [1] = { 100, -1 }, [2] = { -100, -1 }, [3] = { -100, -1 } },
 }
@@ -1789,7 +1821,7 @@ MergeTable(Profile.StaggerBar, {
     _More = 1,
 
     Layered = true,
-    Overlay = false,
+    LayeredHidden = true,
     SideBySide = false,
     PauseTimer = false,
     PauseTimerAutoHide = false,
@@ -2323,8 +2355,11 @@ ClassStances = {
   ROGUE = { UseAll = true,
             [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T}},
   DRUID = { UseAll = true,
-            [0] = { -100, -1, -2, 3, -4, -5 }, [1] = { -100, -1, -2, 3, -4, -5 }, [2] = { -100, -1, -2, 3, -4, -5 },
-            [3] = { -100, -1, -2, 3, -4, -5 }, [4] = { -100, -1, -2, 3, -4, -5 } },
+            [0] = { -100, -1, 2, -3, -4, -5, -6, -50, -51, -52 },
+            [1] = { -100, -1, 2, -3, -4, -5, -6, -50, -51, -52 },
+            [2] = { -100, -1, 2, -3, -4, -5, -6, -50, -51, -52 },
+            [3] = { -100, -1, 2, -3, -4, -5, -6, -50, -51, -52 },
+            [4] = { -100, -1, 2, -3, -4, -5, -6, -50, -51, -52 } },
 }
 
 Profile.ComboBar = {
@@ -2355,8 +2390,8 @@ MergeTable(Profile.ComboBar, {
   },
   TestMode = {
     ComboPoints = 0,
-    AnimachargeComboPoint = 0,
-    DeeperStratagem = false,
+    AnimachargeComboPoints = 0,
+    ExtraComboPoints = 5,
   },
   Layout = {
     BoxMode = false,
@@ -2421,6 +2456,7 @@ MergeTable(Profile.ComboBar, {
       {r = 0, g = 0, b = 0, a = 1},  -- Combo point 4
       {r = 0, g = 0, b = 0, a = 1},  -- Combo point 5
       {r = 0, g = 0, b = 0, a = 1},  -- Combo point 6
+      {r = 0, g = 0, b = 0, a = 1},  -- Combo point 7
     },
     EnableBorderColor = false,
     BorderColor = {
@@ -2432,6 +2468,7 @@ MergeTable(Profile.ComboBar, {
       {r = 1, g = 1, b = 1, a = 1},  -- Combo point 4
       {r = 1, g = 1, b = 1, a = 1},  -- Combo point 5
       {r = 1, g = 1, b = 1, a = 1},  -- Combo point 6
+      {r = 1, g = 1, b = 1, a = 1},  -- Combo point 7
     },
     -- Animacharge options
     AnimaColor = {r = 0, g = 0, b = 0, a = 1},
@@ -2461,6 +2498,7 @@ MergeTable(Profile.ComboBar, {
       {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 4
       {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 5
       {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 6
+      {r = 0.784, g = 0.031, b = 0.031, a = 1}, -- Combo point 7
     },
     -- Animacharge options
     AnimaAdvanced = false,
@@ -3424,9 +3462,9 @@ If there are no triggers. Then you will only be able to add a trigger.  Click ad
 Talents, auras and conditions edit functions are the same.  They're self explanatory.
     |cffff00ffSpecialization|r Works the same way for bars except things are unchecked by default.
     |cffff00ffStances|r Works the same way for bars except things are unchecked by default.
-    |cffff00ffTalents|r There are two pull down menus one for PvE and PvP.  Just pick a talent and it'll appear above.  Selecting 'none' from the menu will remove the talent.
+    |cffff00ffTalents|r There are three pull down menus Talents, Talents (not in use), and for PvP.  Just pick a talent and it'll appear above.  Selecting 'none' from the menu will remove the talent. Highlighted talents in the Talent menu means that was given freely. Higlighted in the PvP menu means that talent is in use
     |cffff00ffAuras|r By default an aura can match any debuff or buff based on the options picked. So for example you want to find any debuff that was of type disease.  You would click 'Buff' till it turns into 'Debuff'. Then click 'Check Debuff Types' and check off disease.
-      |cffa6c4ffAura input box|r This will auto match spell names as you type.  Or you can type in the spell ID of the aura instead.  If you want to use an aura that was on you.  Then start to type that aura name and it'll be the first in the list. To remove the aura listed above. Just hit enter without typing anything.
+      |cffa6c4ffAura input box|r This will auto match spell names as you type.  Or you can type in the spell ID of the aura instead.  If you want to use an aura that was on you.  Then start to type that aura name and it'll be the first in the list. To remove the aura listed above. Just hit enter without typing anything. The mud must have tracked the aura first before it'll appear highlighted and at the top of the search menu. Tracking auras thru enabling Aura List or any aura trigger watching a unit
     |cffff00ffConditions|r Self explanatory. But some bars will have input value names with a number after it.  That number matches the box of the bar.
 
 |cff00ffffDisplay Tab|r
@@ -3434,7 +3472,7 @@ Some bars only have one component.  So the name pulldown menu will only have one
 
 
 |cff00ff00Aura List|r
-Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box seperated by a space.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
+Found under General.  This will list any auras the addon comes in contact with.  Type the different units into the unit box seperated by a space.  The addon will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
 
 
 |cff00ff00Frames|r
@@ -3442,15 +3480,11 @@ Found under General.
 
 |cff00ffffPORTRAITS|r Leave these unchecked to avoid conflicting with another addon doing the same thing.  Clicking on the option again changes it to 'show' and clicking again changes it back to unchecked.
 
-|cff00ffffBLIZZARD ALTERNATE POWER BAR|r This lets you move the blizzard style alternate power bar and the timer.  The timers are used in places like the Darkmoon Faire.  Leave disabled to avoid conflicting with another addon doing the same thing.
-
-|cff00ffffEXTRA ACTION BUTTON|r This lets you move the extra action button.  Leave disabled to avoid conflicting with another addon doing the same thing.
-
 
 |cff00ff00Alt Power Bar|r
-Found under General.  This lists all the alternate power bars in the game.  You can use this information to create triggers that go off of bar ID.  Not every bar will use a color, since blizzards alternate power bar uses textures that may have the color already baked in.
+Found under General.  This lists all the alternate power bars in the game.  You can use this information to create triggers that go off of the bar ID.  Not every bar will use a color, since blizzards alternate power bar uses textures that may have the color already baked in.
 
-So a trigger may have to be created to solve the problem. Also a history is kept of which area alternate power bars were used.
+So a trigger may have to be created to solve the problem. Also a history is kept of which area the alternate power bars were used.
 
 To use the blizzard style alternate power bar.  Just check off the bar in the list.  Or if you want to use the blizzard style for all just disable.
 
@@ -3498,13 +3532,34 @@ LinksText[#LinksText + 1] = [[https://youtu.be/g8WgT_6tid8]]
 LinksText[#LinksText + 1] = [[
 
 UI escape codes:]]
-LinksText[#LinksText + 1] = [[http://wow.gamepedia.com/UI_escape_sequences]]
+LinksText[#LinksText + 1] = [[https://wowpedia.fandom.com/wiki/UI_escape_sequences]]
 
 -- Message Text
 local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 8.00
+|cff00ff00Bar.lua|r: If animation was fading or scaling in. Then switched to play 'out' would cause the frame to get shown after instead of being hidden
+|cff00ff00Controls.lua|r: The aura box menu was not letting the user click a spell and would have to enter the spellID instead
+|cff00ff00Options.lua|r, |cff00ff00Main.lua|r: Frame moving options removed and replaced by blizzard's edit mode
+|cff00ff00Options.lua|r: stances: Added druid forms and warrior stances
+|cff00ff00Controls.lua|r: Aura menu works much faster now when typing in the name of a spell
+|cff00ff00Controls.lua|r: Sometimes the spellID would not show in the tooltip when mousing over an aura in aura menu
+|cff00ff00Main.lua|r: Maelstrom power type was missing.  This will now show up in power colors
+|cff00ff00Main.lua|r: Predicted power should work in more langauges
+|cff00ff00Main.lua|r: Talents recoded
+|cff00ff00Options.lua|r: Talent menus: Highlighted talents mean free. Highlighted pvp talent means selected
+|cff00ff00Controls.lua|r: Made the pulldown menu for talents have a slightly larger font
+|cff00ff00ComboBar.lua|r: Animacharged added to triggers
+|cff00ff00ComboBar.lua|r: Animacharge options removed from Region
+|cff00ff00StaggerBar.lua|r: Blackout kick + Purify Brew will trigger the pause timer
+|cff00ff00StaggerBar.lua|r: Pause Timer: Sync Fill Direction and Clipping settings wasn't working
+|cff00ff00StaggerBar.lua|r: To make this less confusing.  Overlay removed and replaced with Layered (hidden). Check your settings if something isn't right. These options were bugged. Should work correctly now
+|cff00ff00StaggerBar.lua|r: Autohide pause bar will make the stagger bar shift position. To fix this use floating mode or change the anchor point.  Made this change since moving the staggar bar around the pause bar was causing both bars to move around in floating mode
+|cff00ff00Triggers.lua|r: Stances now will not be enabled on bars that don't have stances
+|cff00ff00Options.lua|r: Padding All was not working correctly for region backgrounds
 
 Version 7.14
 |cff00ff00Status|r Hide in Vehicle replaced with Hide in Vehicle (UI) and Hide in Vehicle (No UI). If you're seeing bars while in a vehicle.  You'll need to set these options

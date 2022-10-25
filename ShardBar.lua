@@ -260,7 +260,7 @@ function Main.UnitBarsF.ShardBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, ShardSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotationTexture(0, ShardSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetFillRotationTexture(0, ShardSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ShardSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTextureFrame(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -294,8 +294,8 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Names = {}
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 1)
-    BBar:CreateTexture(0, BoxMode, ShardSBar, 'statusbar')
+  BBar:CreateTextureFrame(0, BoxMode, 1, 'statusbar')
+    BBar:CreateTexture(0, BoxMode, ShardSBar, 'statusbar', 1)
 
   -- Create texture mode.
   for ShardIndex = 1, MaxSoulShards do

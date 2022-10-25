@@ -14,10 +14,10 @@ local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
 -- localize some globals.
-local _, _G, print =
-      _, _G, print
-local GetTime, UnitStagger, UnitHealthMax =
-      GetTime, UnitStagger, UnitHealthMax
+local _, print =
+      _, print
+local GetTime, UnitStagger, UnitHealthMax, C_UnitAurasGetPlayerAuraBySpellID  =
+      GetTime, UnitStagger, UnitHealthMax, C_UnitAuras.GetPlayerAuraBySpellID
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -36,7 +36,7 @@ local Update = false
 local SetLayoutChanged = false
 
 local BlackoutComboAura = 228563
-local IronskinBrewSpellID = 115308
+local PurifyingBrewSpellID = 119582
 local StaggerPauseTime = 3 -- in seconds
 
 -- Stagger texture constants
@@ -152,8 +152,8 @@ end
 -- Message      See Main.lua for list of messages
 -------------------------------------------------------------------------------
 local function Casting(UnitBarF, SpellID, Message)
-  if SpellID == IronskinBrewSpellID and Message == 'done' then
-    if Main:CheckAura('a', BlackoutComboAura) then
+  if SpellID == PurifyingBrewSpellID and Message == 'done' then
+    if C_UnitAurasGetPlayerAuraBySpellID(BlackoutComboAura) then
       local BBar = UnitBarF.BBar
       local Layout = UnitBarF.UnitBar.Layout
 
@@ -228,7 +228,10 @@ function Main.UnitBarsF.StaggerBar:Update()
 
     PauseTime = StaggerPause
     Stagger = TestMode.StaggerPercent * MaxValue
-    Value = Stagger / MaxValue
+
+    if MaxValue > 0 then
+      Value = Stagger / MaxValue
+    end
 
     BBar:SetFillTexture(StaggerPauseBox, StaggerPauseSBar, StaggerPause / StaggerPauseTime)
 
@@ -264,8 +267,6 @@ function Main.UnitBarsF.StaggerBar:Update()
     BBar:SetTriggers('Stagger', Stagger)
     BBar:SetTriggers('Stagger (percent)', Stagger, MaxValue)
     BBar:SetTriggers('Time', PauseTime)
-    BBar:SetTriggers('Stagger', Stagger)
-    BBar:SetTriggers('Stagger (percent)', Stagger, MaxValue)
     BBar:DoTriggers()
   end
 end
@@ -290,50 +291,42 @@ local function SetLayout(BBar, UB)
   local SideBySide = Layout.SideBySide
   local BarStagger = UB.BarStagger
 
-  BBar:SetHiddenTexture(StaggerBarBox, BStaggerSBar, false)
-
   -- Set total length of the stagger bar
   local MaxPercentStagger = BarStagger.MaxPercent
   local MaxPercentBStagger = BarStagger.MaxPercentBStagger - BarStagger.MaxPercent
   local TotalPercent = BarStagger.MaxPercentBStagger
 
-  BBar:SetFillMaxValueTexture(StaggerBarBox, StaggerSBar, TotalPercent)
+  -- Single statusbar
+  if not Layered and not SideBySide then
+    BBar:UnLinkFillTexture(StaggerBarBox, StaggerSBar)
 
-  -- Clear existing link
-  BBar:ClearTagTexture(StaggerBarBox, StaggerSBar)
-  -- Set length of first stagger bar
-  BBar:SetFillLengthTexture(StaggerBarBox, StaggerSBar, MaxPercentStagger)
+    BBar:SetFillMaxRangeTexture(StaggerBarBox, StaggerSBar, TotalPercent)
+    BBar:SetFillMaxValueTexture(StaggerBarBox, StaggerSBar, TotalPercent)
 
-  if Layered then
-    BBar:SetFillHideMaxValueTexture(StaggerBarBox, StaggerSBar, not Layout.Overlay)
+    BBar:SetHiddenTexture(StaggerBarBox, StaggerSBar, false)
+    BBar:SetHiddenTexture(StaggerBarBox, BStaggerSBar, true)
 
-    -- Set scale
-    BBar:SetFillScaleTexture(StaggerBarBox, StaggerSBar, TotalPercent / MaxPercentStagger)
-    BBar:SetFillScaleTexture(StaggerBarBox, BStaggerSBar, TotalPercent / MaxPercentBStagger)
-
-    -- Set lengths of second stagger bar
-    BBar:SetFillLengthTexture(StaggerBarBox, BStaggerSBar, MaxPercentBStagger)
-
-    BBar:LinkTagTexture(StaggerBarBox, StaggerSBar, true, BStaggerSBar)
+  -- linked texture side by side or layered
   else
-    -- Set scale
-    BBar:SetFillScaleTexture(StaggerBarBox, StaggerSBar, 1)
-    BBar:SetFillScaleTexture(StaggerBarBox, BStaggerSBar, 1)
+    BBar:LinkFillTexture(StaggerBarBox, StaggerSBar, BStaggerSBar)
 
     if SideBySide then
-      BBar:SetFillHideMaxValueTexture(StaggerBarBox, StaggerSBar, false)
-
-      -- Set lengths of second stagger bar
-      BBar:SetFillLengthTexture(StaggerBarBox, BStaggerSBar, MaxPercentBStagger)
-
-      BBar:LinkTagTexture(StaggerBarBox, StaggerSBar, false, BStaggerSBar)
-
-    else -- not Layered and SideBySide
-      BBar:SetHiddenTexture(StaggerBarBox, StaggerSBar, false)
-      BBar:SetHiddenTexture(StaggerBarBox, BStaggerSBar, true)
-      BBar:SetFillMaxValueTexture(StaggerBarBox, StaggerSBar, MaxPercentStagger)
+      BBar:SetFillHideFullTexture(StaggerBarBox, StaggerSBar, false)
+      BBar:SetFillOverlapTexture(StaggerBarBox, StaggerSBar, false)
+    elseif Layered then
+      BBar:SetFillHideFullTexture(StaggerBarBox, StaggerSBar, Layout.LayeredHidden)
+      BBar:SetFillOverlapTexture(StaggerBarBox, StaggerSBar, true)
     end
+
+    -- Set the max range of the linked texture or main texture if not in side by side or overlap
+    BBar:SetFillMaxRangeTexture(StaggerBarBox, StaggerSBar, TotalPercent)
+
+    -- Set the max value of each texture in the link. This will cause the
+    -- each texture to fill the whole statusbar in overlay mode
+    BBar:SetFillMaxValueTexture(StaggerBarBox, StaggerSBar, MaxPercentStagger)
+    BBar:SetFillMaxValueTexture(StaggerBarBox, BStaggerSBar, MaxPercentBStagger)
   end
+
   Update = true
   SetLayoutChanged = true
 end
@@ -387,12 +380,12 @@ function Main.UnitBarsF.StaggerBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'AlignPaddingY',      function(v) BBar:SetAlignPaddingBar(nil, v) Display = true end)
     BBar:SO('Layout', 'AlignOffsetX',       function(v) BBar:SetAlignOffsetBar(v, nil) Display = true end)
     BBar:SO('Layout', 'AlignOffsetY',       function(v) BBar:SetAlignOffsetBar(nil, v) Display = true end)
-    BBar:SO('Layout', 'SmoothFillMaxTime',  function(v) BBar:SetSmoothFillMaxTime(StaggerBarBox, StaggerSBar, v) end)
+    BBar:SO('Layout', 'SmoothFillMaxTime',  function(v) BBar:SetSmoothFillMaxTimeTexture(StaggerBarBox, StaggerSBar, v) end)
     BBar:SO('Layout', 'SmoothFillSpeed',    function(v) BBar:SetFillSpeedTexture(StaggerBarBox, StaggerSBar, v) end)
 
     -- More layout
     BBar:SO('Layout', 'Layered',            function(v, UB) SetLayout(BBar, UB) end)
-    BBar:SO('Layout', 'Overlay',            function(v, UB) SetLayout(BBar, UB) end)
+    BBar:SO('Layout', 'LayeredHidden',      function(v, UB) SetLayout(BBar, UB) end)
     BBar:SO('Layout', 'SideBySide',         function(v, UB) SetLayout(BBar, UB) end)
     BBar:SO('Layout', 'PauseTimer',         function(v, UB) BBar:SetHidden(StaggerPauseBox, nil, UB.Layout.PauseTimerAutoHide or not v) Display = true end)
     BBar:SO('Layout', 'PauseTimerAutoHide', function(v)     BBar:DoOption('Layout', 'PauseTimer') end)
@@ -418,10 +411,10 @@ function Main.UnitBarsF.StaggerBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v, UB, OD) BBar:SetTexture(OD.p1, OD.p3, v) end)
     BBar:SO('Bar', 'BStaggerBarTexture',  function(v, UB)     BBar:SetTexture(StaggerBarBox, BStaggerSBar, v) end)
-    BBar:SO('Bar', 'SyncFillDirection',   function(v)         BBar:SyncFillDirectionTexture(StaggerBarBox, StaggerSBar, v) Update = true end)
-    BBar:SO('Bar', 'Clipping',            function(v)         BBar:SetClippingTexture(StaggerBarBox, StaggerSBar, v) Update = true end)
+    BBar:SO('Bar', 'SyncFillDirection',   function(v, UB, OD) BBar:SyncFillDirectionTexture(OD.p1, OD.p3, v) Update = true end)
+    BBar:SO('Bar', 'Clipping',            function(v, UB, OD) BBar:SetFillClippingTexture(OD.p1, OD.p3, v) Update = true end)
     BBar:SO('Bar', 'FillDirection',       function(v, UB, OD) BBar:SetFillDirectionTexture(OD.p1, OD.p3, v) Update = true end)
-    BBar:SO('Bar', 'RotateTexture',       function(v, UB, OD) BBar:SetRotationTexture(OD.p1, OD.p3, v) end)
+    BBar:SO('Bar', 'RotateTexture',       function(v, UB, OD) BBar:SetFillRotationTexture(OD.p1, OD.p3, v) end)
     BBar:SO('Bar', 'Color',               function(v, UB, OD) BBar:SetColorTexture(OD.p1, OD.p3, v.r, v.g, v.b, v.a) end)
     BBar:SO('Bar', 'BStaggerColor',       function(v, UB)     BBar:SetColorTexture(StaggerBarBox, BStaggerSBar, v.r, v.g, v.b, v.a) end)
     BBar:SO('Bar', 'MaxPercent',          function(v, UB)     SetLayout(BBar, UB) end)
@@ -457,13 +450,13 @@ function GUB.StaggerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 2)
 
   -- Create the stagger bar
-  BBar:CreateTextureFrame(StaggerBarBox, StaggerBarTFrame, 1)
-    BBar:CreateTexture(StaggerBarBox, StaggerBarTFrame, StaggerSBar, 'statusbar')
-    BBar:CreateTexture(StaggerBarBox, StaggerBarTFrame, BStaggerSBar)
+  BBar:CreateTextureFrame(StaggerBarBox, StaggerBarTFrame, 1, 'statusbar')
+    BBar:CreateTexture(StaggerBarBox, StaggerBarTFrame, StaggerSBar, 'statusbar', 1)
+    BBar:CreateTexture(StaggerBarBox, StaggerBarTFrame, BStaggerSBar, 'statusbar', 2)
 
   -- Create the stagger pause bar
-  BBar:CreateTextureFrame(StaggerPauseBox, StaggerPauseTFrame, 1)
-    BBar:CreateTexture(StaggerPauseBox, StaggerPauseTFrame, StaggerPauseSBar, 'statusbar')
+  BBar:CreateTextureFrame(StaggerPauseBox, StaggerPauseTFrame, 1, 'statusbar')
+    BBar:CreateTexture(StaggerPauseBox, StaggerPauseTFrame, StaggerPauseSBar, 'statusbar', 1)
 
   -- Create font for both boxes.
   BBar:CreateFont('Text', StaggerBarBox)
@@ -480,10 +473,6 @@ function GUB.StaggerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(StaggerBarBox, BStaggerSBar, false)
   BBar:SetHiddenTexture(StaggerPauseBox, StaggerPauseSBar, false)
 
-  -- Link textures, no overlap for deault.  Need to link here
-  -- So rotation, etc work properly before SetLayout() gets called
-  BBar:LinkTagTexture(StaggerBarBox, StaggerSBar, false, BStaggerSBar)
-
   BBar:SetSizeTextureFrame(StaggerBarBox, StaggerBarTFrame, UB.BarStagger.Width, UB.BarStagger.Height)
   BBar:SetSizeTextureFrame(StaggerPauseBox, StaggerPauseTFrame, UB.BarPause.Width, UB.BarPause.Height)
 
@@ -492,7 +481,8 @@ function GUB.StaggerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetOffsetTextureFrame(StaggerPauseBox, StaggerPauseTFrame, 0, 0, 0, 0)
 
   -- Make it so the pause box doesn't cause the stagger bar to shift around.
-  BBar:SetIgnoreBorderBox(StaggerPauseBox, true)
+  -- Took this out for now since it was causing the stagger bar to shift around when dragged in float mode
+  -- BBar:SetIgnoreBorderBox(StaggerPauseBox, true)
 
   UnitBarF.PauseTime = 0 -- to have a timer on the stagger bar
   UnitBarF.BBar = BBar

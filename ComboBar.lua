@@ -17,8 +17,8 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G, print =
       _, _G, print
-local ipairs =
-      ipairs
+local ipairs, wipe =
+      ipairs, wipe
 local UnitPower, UnitPowerMax, GetUnitChargedPowerPoints =
       UnitPower, UnitPowerMax, GetUnitChargedPowerPoints
 
@@ -29,7 +29,8 @@ local UnitPower, UnitPowerMax, GetUnitChargedPowerPoints =
 --
 -- UnitBarF.BBar                     Contains an instance of bar functions for combo bar.
 -------------------------------------------------------------------------------
-local MaxComboPoints = 6
+local MaxComboPoints = 7
+local BaseComboPoints = 5
 local Display = false
 local Update = false
 
@@ -72,6 +73,7 @@ local GroupsInfo = { -- BoxNumber, Name, ValueTypes
   ValueNames = {
     'whole', 'Combo Points',
     'whole', 'Maximum Points',
+    'state', 'Animacharged',
   },
   {1,    'Combo Point 1',     ObjectsInfo},       -- 1
   {2,    'Combo Point 2',     ObjectsInfo},       -- 2
@@ -79,12 +81,12 @@ local GroupsInfo = { -- BoxNumber, Name, ValueTypes
   {4,    'Combo Point 4',     ObjectsInfo},       -- 4
   {5,    'Combo Point 5',     ObjectsInfo},       -- 5
   {6,    'Combo Point 6',     ObjectsInfo},       -- 6
-  {'a',  'All',               ObjectsInfo},       -- 7
-  {'aa', 'All Active',        ObjectsInfo},       -- 8
-  {'ai', 'All Inactive',      ObjectsInfo},       -- 9
-  {'r',  'Region',            ObjectsInfoRegion}, -- 10
-  {'c',  'Animacharge (lit)', ObjectsInfo},       -- 11
-  {'c',  'Animacharge'      , ObjectsInfo},       -- 12
+  {7,    'Combo Point 7',     ObjectsInfo},       -- 7
+  {'a',  'All',               ObjectsInfo},       -- 8
+  {'aa', 'All Active',        ObjectsInfo},       -- 9
+  {'ai', 'All Inactive',      ObjectsInfo},       -- 10
+  {'r',  'Region',            ObjectsInfoRegion}, -- 11
+  {'c',  'Animacharge (lit)', ObjectsInfo},       -- 12
 }
 
 local AtlasComboDarkTexture = 'ComboPoints-PointBg'
@@ -188,27 +190,30 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   ------------
   -- Test Mode
   ------------
-  local AnimachargeComboPoint = GetUnitChargedPowerPoints('player')
-  AnimachargeComboPoint = AnimachargeComboPoint and AnimachargeComboPoint[1] or 0
+  local Animacharges = GetUnitChargedPowerPoints('player')
+  local NumAnimacharges = Animacharges and #Animacharges or 0
 
   local BBar = self.BBar
   local NumPoints = UnitPowerMax('player', PowerPoint)
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
-
-    if TestMode.DeeperStratagem then
-      NumPoints = MaxComboPoints
-    else
-      NumPoints = MaxComboPoints - 1
-    end
     ComboPoints = TestMode.ComboPoints
-    AnimachargeComboPoint = TestMode.AnimachargeComboPoint
+    NumPoints = BaseComboPoints + TestMode.ExtraComboPoints
+    -- Clip num points to max combo points
+    if NumPoints > MaxComboPoints then
+      NumPoints = MaxComboPoints
+    end
 
-   -- Clip combo points
-   -- if ComboPoints > NumPoints then
-   --   ComboPoints = NumPoints
-   -- end
+    if Animacharges == nil then
+      Animacharges = {}
+    else
+      wipe(Animacharges)
+    end
+    NumAnimacharges = TestMode.AnimachargeComboPoints
+    for AnimachargeIndex = 1, NumAnimacharges do
+      Animacharges[AnimachargeIndex] = AnimachargeIndex
+    end
   end
 
   -------
@@ -217,24 +222,27 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   if NumPoints > 0 and NumPoints ~= self.NumPoints then
     self.NumPoints = NumPoints
 
-    -- Change the number of boxes in the bar.
-    BBar:SetHidden(MaxComboPoints, nil, NumPoints ~= MaxComboPoints)
-
+    for ComboIndex = BaseComboPoints, MaxComboPoints do
+      -- Change the number of boxes in the bar.
+      BBar:SetHidden(ComboIndex, nil, ComboIndex > NumPoints)
+    end
     BBar:Display()
   end
 
   local UB = self.UnitBar
   local Layout = UB.Layout
   local EnableTriggers = Layout.EnableTriggers
-  local SelfAnimachargeComboPoint = self.AnimachargeComboPoint or 0
+  local NumSelfAnimacharges = self.NumAnimacharges or 0
 
-  if AnimachargeComboPoint > 0 or SelfAnimachargeComboPoint > 0 then
+  if NumAnimacharges > 0 or NumSelfAnimacharges > 0 then
     local Bar = UB.Bar
     local Bg = UB.Background
     local BgPadding = Bg.Padding
     local BarPadding = Bar.Padding
     local DisableAnimacharge = Layout.DisableAnimacharge
-    self.AnimachargeComboPoint = AnimachargeComboPoint
+    -- Save current number of anima charges so when they clear. This can be cleared on the
+    -- next pass
+    self.NumAnimacharges = NumAnimacharges
 
     -- Reset all (background)
     SetColorAll(Bg.Color, BBar, BoxMode, 'SetBackdropColor')
@@ -255,32 +263,37 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
     BBar:SetAtlasTexture(0, ComboLightTexture, AtlasComboLightTexture)
 
     -- Set anima
-    if not DisableAnimacharge and AnimachargeComboPoint > 0 then
-      local AnimaBarColor = Bar.AnimaBarColor
-      local AnimaColor = Bg.AnimaColor
-      local AnimaBorderColor = Bg.AnimaBorderColor
-      local BgAnimaPadding = Bg.AnimaPadding
-      local BarAnimaPadding = Bar.AnimaPadding
+    if not DisableAnimacharge then
+      for AnimaChargeIndex = 1, NumAnimacharges do
+        local Animacharge = Animacharges[AnimaChargeIndex]
 
-      -- Box
-      BBar:SetBackdropColor(AnimachargeComboPoint, BoxMode, AnimaColor.r, AnimaColor.g, AnimaColor.b, AnimaColor.a)
-      BBar:SetBackdropBorderColor(AnimachargeComboPoint, BoxMode, AnimaBorderColor.r, AnimaBorderColor.g, AnimaBorderColor.b, AnimaBorderColor.a)
-      BBar:SetBackdrop(AnimachargeComboPoint, BoxMode, Bg.AnimaBgTexture)
-      BBar:SetBackdropBorder(AnimachargeComboPoint, BoxMode, Bg.AnimaBorderTexture)
-      BBar:SetBackdropTile(AnimachargeComboPoint, BoxMode, Bg.AnimaBgTile)
-      BBar:SetBackdropTileSize(AnimachargeComboPoint, BoxMode, Bg.AnimaBgTileSize)
-      BBar:SetBackdropBorderSize(AnimachargeComboPoint, BoxMode, Bg.AnimaBorderSize)
-      BBar:SetBackdropPadding(AnimachargeComboPoint, BoxMode, BgAnimaPadding.Left, BgAnimaPadding.Right, BgAnimaPadding.Top, BgAnimaPadding.Bottom)
-      BBar:SetPaddingTextureFrame(AnimachargeComboPoint, BoxMode, BarAnimaPadding.Left, BarAnimaPadding.Right, BarAnimaPadding.Top, BarAnimaPadding.Bottom)
+        local AnimaBarColor = Bar.AnimaBarColor
+        local AnimaColor = Bg.AnimaColor
+        local AnimaBorderColor = Bg.AnimaBorderColor
+        local BgAnimaPadding = Bg.AnimaPadding
+        local BarAnimaPadding = Bar.AnimaPadding
 
-      -- Texture
-      BBar:SetTexture(AnimachargeComboPoint, ComboSBar, Bar.AnimaStatusBarTexture)
+        -- Box
+        BBar:SetBackdropColor(Animacharge, BoxMode, AnimaColor.r, AnimaColor.g, AnimaColor.b, AnimaColor.a)
+        BBar:SetBackdropBorderColor(Animacharge, BoxMode, AnimaBorderColor.r, AnimaBorderColor.g, AnimaBorderColor.b, AnimaBorderColor.a)
+        BBar:SetBackdrop(Animacharge, BoxMode, Bg.AnimaBgTexture)
+        BBar:SetBackdropBorder(Animacharge, BoxMode, Bg.AnimaBorderTexture)
+        BBar:SetBackdropTile(Animacharge, BoxMode, Bg.AnimaBgTile)
+        BBar:SetBackdropTileSize(Animacharge, BoxMode, Bg.AnimaBgTileSize)
+        BBar:SetBackdropBorderSize(Animacharge, BoxMode, Bg.AnimaBorderSize)
+        BBar:SetBackdropPadding(Animacharge, BoxMode, BgAnimaPadding.Left, BgAnimaPadding.Right, BgAnimaPadding.Top, BgAnimaPadding.Bottom)
+        BBar:SetPaddingTextureFrame(Animacharge, BoxMode, BarAnimaPadding.Left, BarAnimaPadding.Right, BarAnimaPadding.Top, BarAnimaPadding.Bottom)
 
-      BBar:SetColorTexture(AnimachargeComboPoint, ComboSBar, AnimaBarColor.r, AnimaBarColor.g, AnimaBarColor.b, AnimaBarColor.a)
-      BBar:SetAtlasTexture(AnimachargeComboPoint, ComboDarkTexture, AtlasComboDarkAnimaTexture)
-      BBar:SetAtlasTexture(AnimachargeComboPoint, ComboLightTexture, AtlasComboLightAnimaTexture)
+        -- Texture
+        BBar:SetTexture(Animacharge, ComboSBar, Bar.AnimaStatusBarTexture)
+
+        BBar:SetColorTexture(Animacharge, ComboSBar, AnimaBarColor.r, AnimaBarColor.g, AnimaBarColor.b, AnimaBarColor.a)
+        BBar:SetAtlasTexture(Animacharge, ComboDarkTexture, AtlasComboDarkAnimaTexture)
+        BBar:SetAtlasTexture(Animacharge, ComboLightTexture, AtlasComboLightAnimaTexture)
+      end
     end
   end
+
 
   for ComboIndex = 1, MaxComboPoints do
     BBar:ChangeTexture(ChangePoints, 'SetHiddenTexture', ComboIndex, ComboIndex > ComboPoints)
@@ -293,9 +306,9 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   if EnableTriggers then
     BBar:SetTriggers('Combo Points', ComboPoints)
     BBar:SetTriggers('Maximum Points', NumPoints)
+    BBar:SetTriggers('Animacharged', NumAnimacharges > 0)
 
-    BBar:SetTriggersCustomGroup('Animacharge (lit)', AnimachargeComboPoint > 0 and ComboPoints >= AnimachargeComboPoint, AnimachargeComboPoint)
-    BBar:SetTriggersCustomGroup('Animacharge', AnimachargeComboPoint > 0, AnimachargeComboPoint)
+    BBar:SetTriggersCustomGroup('Animacharge (lit)', NumAnimacharges > 0, Animacharges)
     BBar:DoTriggers()
   end
 end
@@ -382,7 +395,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v, UB, OD) BBar:ChangeBox(ChangeComboPoints, 'SetTexture', ComboSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(ChangeComboPoints, 'SetRotationTexture', ComboSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v, UB, OD) BBar:ChangeBox(ChangeComboPoints, 'SetFillRotationTexture', ComboSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ComboSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v, UB, OD) BBar:ChangeBox(ChangeComboPoints, 'SetSizeTextureFrame', BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v, UB, OD) BBar:ChangeBox(ChangeComboPoints, 'SetPaddingTextureFrame', BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -417,8 +430,8 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Name
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 1)
-    BBar:CreateTexture(0, BoxMode, ComboSBar, 'statusbar')
+  BBar:CreateTextureFrame(0, BoxMode, 1, 'statusbar')
+    BBar:CreateTexture(0, BoxMode, ComboSBar, 'statusbar', 1)
 
   -- Create texture mode.
   for ComboIndex = 1, MaxComboPoints do
@@ -441,7 +454,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(0, ComboSBar, true)
   BBar:SetHiddenTexture(0, ComboDarkTexture, false)
 
-  BBar:SetChangeBox(ChangeComboPoints, 1, 2, 3, 4, 5, 6)
+  BBar:SetChangeBox(ChangeComboPoints, 1, 2, 3, 4, 5, 6, 7)
 
   BBar:ChangeBox(ChangeComboPoints, 'SetSizeTextureFrame', BoxMode, UB.Bar.Width, UB.Bar.Height)
 

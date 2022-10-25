@@ -17,8 +17,8 @@ local ConvertPowerType = Main.ConvertPowerType
 -- localize some globals.
 local _, _G, print =
       _, _G, print
-local floor, pairs, ipairs, type, format =
-      floor, pairs, ipairs, type, format
+local floor, pairs, ipairs, type =
+      floor, pairs, ipairs, type
 local UnitPower, IsSpellKnown =
       UnitPower, IsSpellKnown
 
@@ -210,7 +210,6 @@ local ShardData = {
   [TextureModeEmber] = {
     { -- Level 1
       TextureNumber = EmberBgTexture,
-      Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height = 39,
       Texture = EmberTexture,
@@ -218,7 +217,6 @@ local ShardData = {
     },
     { -- Level 2
       TextureNumber = EmberFillTexture,
-      Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY - 1.5, -- position within the texture frame
       Width = 20, Height = 22,
       Texture = EmberTexture,
@@ -226,7 +224,6 @@ local ShardData = {
     },
     { -- Level 3
       TextureNumber = EmberFullTexture,
-      Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height = 39,
       Texture = EmberTexture,
@@ -236,7 +233,6 @@ local ShardData = {
   [TextureModeEmberGreen] = {
     { -- Level 1
       TextureNumber = GreenEmberBgTexture,
-      Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height= 39,
       Texture = EmberTextureGreen,
@@ -244,7 +240,6 @@ local ShardData = {
     },
     { -- Level 2
       TextureNumber = GreenEmberFillTexture,
-      Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY - 1.5, -- position within the texture frame
       Width = 20, Height = 22,
       Texture = EmberTextureGreen,
@@ -252,7 +247,6 @@ local ShardData = {
     },
     { -- Level 3
       TextureNumber = GreenEmberFullTexture,
-      Point = 'CENTER',
       OffsetX = BarOffsetX, OffsetY = BarOffsetY, -- position within the texture frame
       Width = 36, Height = 39,
       Texture = EmberTextureGreen,
@@ -478,7 +472,7 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
                                                        Display = true end)
     BBar:SO('Layout', 'AnimationInTime',   function(v) BBar:ChangeTexture(ShardFull, 'SetAnimationDurationTexture', 0, 'in', v) end)
     BBar:SO('Layout', 'AnimationOutTime',  function(v) BBar:ChangeTexture(ShardFull, 'SetAnimationDurationTexture', 0, 'out', v) end)
-    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(ShardFill, 'SetSmoothFillMaxTime', 0, v) end)
+    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:ChangeTexture(ShardFill, 'SetSmoothFillMaxTimeTexture', 0, v) end)
     BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:ChangeTexture(ShardFill, 'SetFillSpeedTexture', 0, v) end)
     BBar:SO('Layout', 'Align',             function(v) BBar:SetAlignBar(v) end)
     BBar:SO('Layout', 'AlignPaddingX',     function(v) BBar:SetAlignPaddingBar(v, nil) Display = true end)
@@ -544,10 +538,10 @@ function Main.UnitBarsF.FragmentBar:SetAttr(TableName, KeyName)
     BBar:SO('Bar', 'StatusBarTexture',  function(v, UB, OD) BBar:SetTexture(0, OD.p2, v) end)
     BBar:SO('Bar', 'FullBarTexture',    function(v, UB, OD) BBar:SetTexture(0, OD.p3, v) end)
     BBar:SO('Bar', 'SyncFillDirection', function(v, UB, OD) BBar:SyncFillDirectionTexture(0, OD.p2, v) end)
-    BBar:SO('Bar', 'Clipping',          function(v, UB, OD) BBar:SetClippingTexture(0, OD.p2, v) end)
+    BBar:SO('Bar', 'Clipping',          function(v, UB, OD) BBar:SetFillClippingTexture(0, OD.p2, v) end)
     BBar:SO('Bar', 'FillDirection',     function(v, UB, OD) BBar:SetFillDirectionTexture(0, OD.p2, v) end)
-    BBar:SO('Bar', 'RotateTexture',     function(v, UB, OD) BBar:SetRotationTexture(0, OD.p2, v)
-                                                            BBar:SetRotationTexture(0, OD.p3, v) end)
+    BBar:SO('Bar', 'RotateTexture',     function(v, UB, OD) BBar:SetFillRotationTexture(0, OD.p2, v)
+                                                            BBar:SetFillRotationTexture(0, OD.p3, v) end)
     BBar:SO('Bar', 'Color',             function(v, UB, OD)
       if not self.GreenFire then
         BBar:SetColorTexture(OD.Index, OD.p2, OD.r, OD.g, OD.b, OD.a)
@@ -600,23 +594,24 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Names = {}
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 1)
-    BBar:CreateTexture(0, BoxMode, ShardFillSBar, 'statusbar')
-    BBar:CreateTexture(0, BoxMode, ShardFullSBar)
-  BBar:CreateTextureFrame(0, BoxModeEmber, 1)
-    BBar:CreateTexture(0, BoxModeEmber, EmberFillSBar, 'statusbar')
-    BBar:CreateTexture(0, BoxModeEmber, EmberFullSBar)
+  BBar:CreateTextureFrame(0, BoxMode, 1, 'statusbar')
+    BBar:CreateTexture(0, BoxMode, ShardFillSBar, 'statusbar', 1)
+    BBar:CreateTexture(0, BoxMode, ShardFullSBar, 'statusbar', 2)
+
+  BBar:CreateTextureFrame(0, BoxModeEmber, 1, 'statusbar')
+    BBar:CreateTexture(0, BoxModeEmber, EmberFillSBar, 'statusbar', 1)
+    BBar:CreateTexture(0, BoxModeEmber, EmberFullSBar, 'statusbar', 2)
 
   -- Create texture mode.
   for ShardIndex = 1, MaxSoulShards do
     for ModeType, SD in pairs(ShardData) do
       if type(ModeType) == 'number' then
-        BBar:CreateTextureFrame(ShardIndex, ModeType, 1)
+        BBar:CreateTextureFrame(ShardIndex, ModeType, 1, 'statusbar')
 
         for Index, SSD in ipairs(SD) do
           local TextureNumber = SSD.TextureNumber
 
-          BBar:CreateTexture(ShardIndex, ModeType, TextureNumber, 'statusbar')
+          BBar:CreateTexture(ShardIndex, ModeType, TextureNumber, 'statusbar', Index) -- use index for layer
           if SSD.Texture then
             BBar:SetTexture(ShardIndex, TextureNumber, SSD.Texture)
           else
@@ -625,10 +620,10 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
           if SSD.Left then
             BBar:SetCoordTexture(ShardIndex, TextureNumber, SSD.Left, SSD.Right, SSD.Top, SSD.Bottom)
           end
-          BBar:SetSizeTexture(ShardIndex, TextureNumber, SSD.Width, SSD.Height)
-          if SSD.Point then
-            BBar:SetPointTexture(ShardIndex, TextureNumber, SSD.Point, SSD.OffsetX, SSD.OffsetY)
-          end
+          BBar:SetFillPixelSizeTexture(ShardIndex, TextureNumber, SSD.Width, SSD.Height)
+--          if SSD.Point then
+            BBar:SetFillPointPixelTexture(ShardIndex, TextureNumber, 'CENTER', SSD.OffsetX, SSD.OffsetY)
+  --        end
           if TextureNumber == ShardBgTexture or TextureNumber == GreenShardBgTexture then
             BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
             BBar:SetColorTexture(ShardIndex, TextureNumber, ShardBgColor.r, ShardBgColor.g, ShardBgColor.b, ShardBgColor.a)

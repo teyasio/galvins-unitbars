@@ -3,6 +3,8 @@
 --
 -- Displays health and power bars.
 
+--==========================================================================================================
+
 -------------------------------------------------------------------------------
 -- GUB   shared data table between all parts of the addon
 -------------------------------------------------------------------------------
@@ -370,13 +372,13 @@ local function UpdateHealthBar(self, Event, Unit)
 
     -- Do predicted healing
     if self.LastPredictedHealing ~= PredictedHealing then
-      BBar:SetFillLengthTexture(HapBox, PredictedBar, PredictedValue)
+      BBar:SetFillMaxValueTexture(HapBox, PredictedBar, PredictedValue)
       self.LastPredictedHealing = PredictedHealing
     end
 
     -- Do absorb health
     if self.LastAbsorbValue ~= AbsorbValue then
-      BBar:SetFillLengthTexture(HapBox, AbsorbBar, AbsorbValue)
+      BBar:SetFillMaxValueTexture(HapBox, AbsorbBar, AbsorbValue)
       self.LastAbsorbValue = AbsorbValue
     end
   end
@@ -434,6 +436,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   local BarType = self.BarType
   local PowerType
   Unit = DUB[self.BarType]._UnitType
+
   PowerToken = ConvertPowerType[PowerToken]
 
   if BarType ~= 'ManaPower' then
@@ -549,13 +552,13 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
 
     -- Do predicted power
     if self.LastPredictedPower ~= PredictedPower then
-      BBar:SetFillLengthTexture(HapBox, PredictedBar, PredictedPower / MaxValue)
+      BBar:SetFillMaxValueTexture(HapBox, PredictedBar, PredictedPower / MaxValue)
       self.LastPredictedPower = PredictedPower
     end
 
     -- Do predicted cost
     if self.LastPredictedCost ~= PredictedCost then
-      BBar:SetFillLengthTexture(HapBox, PredictedCostBar, PredictedCost / MaxValue)
+      BBar:SetFillMaxValueTexture(HapBox, PredictedCostBar, PredictedCost / MaxValue)
       self.LastPredictedCost = PredictedCost
     end
   end
@@ -636,8 +639,9 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
         Update = true
       end
     end)
-    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:SetSmoothFillMaxTime(HapBox, StatusBar, v) end)
+    BBar:SO('Layout', 'SmoothFillMaxTime', function(v) BBar:SetSmoothFillMaxTimeTexture(HapBox, StatusBar, v) end)
     BBar:SO('Layout', 'SmoothFillSpeed',   function(v) BBar:SetFillSpeedTexture(HapBox, StatusBar, v) end)
+
 
     if DLayout then
       -- More layout
@@ -690,12 +694,9 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(HapBox, StatusBar, v) end)
     BBar:SO('Bar', 'SyncFillDirection',   function(v) BBar:SyncFillDirectionTexture(HapBox, StatusBar, v) Update = true end)
-    BBar:SO('Bar', 'Clipping',            function(v) BBar:SetClippingTexture(HapBox, StatusBar, v) Update = true end)
+    BBar:SO('Bar', 'Clipping',            function(v) BBar:SetFillClippingTexture(HapBox, StatusBar, v) Update = true end)
     BBar:SO('Bar', 'FillDirection',       function(v) BBar:SetFillDirectionTexture(HapBox, StatusBar, v) Update = true end)
-    BBar:SO('Bar', 'RotateTexture',       function(v)
-
-
-    BBar:SetRotationTexture(HapBox, StatusBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',       function(v) BBar:SetFillRotationTexture(HapBox, StatusBar, v) end)
 
     if DBar.PredictedColor ~= nil then
       BBar:SO('Bar', 'PredictedBarTexture', function(v) BBar:SetTexture(HapBox, PredictedBar, v) end)
@@ -749,11 +750,11 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, 1)
 
   -- Create the health and predicted bar
-  BBar:CreateTextureFrame(HapBox, HapTFrame, 1)
-    BBar:CreateTexture(HapBox, HapTFrame, StatusBar, 'statusbar')
-    BBar:CreateTexture(HapBox, HapTFrame, PredictedBar)
-    BBar:CreateTexture(HapBox, HapTFrame, AbsorbBar)
-    BBar:CreateTexture(HapBox, HapTFrame, PredictedCostBar)
+  BBar:CreateTextureFrame(HapBox, HapTFrame, 1, 'statusbar')
+  BBar:CreateTexture(HapBox, HapTFrame, StatusBar, 'statusbar', 1)
+  BBar:CreateTexture(HapBox, HapTFrame, PredictedBar, 'statusbar', 2)
+  BBar:CreateTexture(HapBox, HapTFrame, AbsorbBar, 'statusbar', 3)
+  BBar:CreateTexture(HapBox, HapTFrame, PredictedCostBar, 'statusbar', 4)
 
   -- Create font text for the box frame.
   BBar:CreateFont('Text', HapBox)
@@ -763,6 +764,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   -- Show the bar.
   BBar:SetHidden(HapBox, HapTFrame, false)
+
   BBar:SetHiddenTexture(HapBox, StatusBar, false)
   BBar:SetHiddenTexture(HapBox, PredictedBar, false)
   BBar:SetHiddenTexture(HapBox, PredictedCostBar, false)
@@ -770,23 +772,27 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
 
   BBar:SetFillTexture(HapBox, StatusBar, 0)
   BBar:SetFillTexture(HapBox, PredictedBar, 1)
-  BBar:SetFillTexture(HapBox, PredictedCostBar, 1)
   BBar:SetFillTexture(HapBox, AbsorbBar, 1)
+  BBar:SetFillTexture(HapBox, PredictedCostBar, 1)
 
   -- Set this for trigger bar offsets
   BBar:SetOffsetTextureFrame(HapBox, HapTFrame, 0, 0, 0, 0)
 
-  -- Set the tagged bars
-  BBar:TagTexture(HapBox, StatusBar, PredictedBar, AbsorbBar)
-  BBar:TagTexture(HapBox, StatusBar, PredictedCostBar)
+  -- Create a link texture
+  BBar:LinkFillTexture(HapBox, PredictedBar, AbsorbBar)
 
-  BBar:SetFillLengthTexture(HapBox, AbsorbBar, 0)
-  BBar:SetFillLengthTexture(HapBox, PredictedBar, 0)
-  BBar:SetFillLengthTexture(HapBox, PredictedCostBar, 0)
-  BBar:TagLeftTexture(HapBox, PredictedCostBar, true)
+  -- Tag the bars to the statusbar
+  BBar:TagFillTexture(HapBox, PredictedBar, 'left-right', StatusBar)
+  BBar:TagFillTexture(HapBox, PredictedCostBar, 'right-left', StatusBar)
+
+  -- Set the max values of the tags
+  BBar:SetFillMaxValueTexture(HapBox, AbsorbBar, 0)
+  BBar:SetFillMaxValueTexture(HapBox, PredictedBar, 0)
+  BBar:SetFillMaxValueTexture(HapBox, PredictedCostBar, 0)
 
   UnitBarF.BBar = BBar
 end
+
 
 --*****************************************************************************
 --

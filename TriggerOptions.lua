@@ -36,8 +36,8 @@ local strupper, strtrim, strfind, format, strsplit, strsub, tostring =
       strupper, strtrim, strfind, format, strsplit, strsub, tostring
 local tonumber, gsub, tremove, tinsert, tconcat     , wipe, strsub =
       tonumber, gsub, tremove, tinsert, table.concat, wipe, strsub
-local ipairs, pairs, type, select =
-      ipairs, pairs, type, select
+local ipairs, pairs, type, select, next =
+      ipairs, pairs, type, select, next
 local GetSpellInfo, IsModifierKeyDown =
       GetSpellInfo, IsModifierKeyDown
 
@@ -1404,8 +1404,10 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
   local SpellIDs = TalentTrackersData.SpellIDs
   local TalentIsPvP = Main.TalentTrackersData.TalentIsPvP
   local PvEDropdown = TalentTrackersData.PvEDropdown
-  local PvPDropdown = TalentTrackersData.PvPDropdown
   local PvEIconDropdown = TalentTrackersData.PvEIconDropdown
+  local PvENotUseDropdown = TalentTrackersData.PvENotUseDropdown
+  local PvENotUseIconDropdown = TalentTrackersData.PvENotUseIconDropdown
+  local PvPDropdown = TalentTrackersData.PvPDropdown
   local PvPIconDropdown = TalentTrackersData.PvPIconDropdown
 
   TOA[TalentGroup] = {
@@ -1433,6 +1435,8 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
             else
               if KeyName == 'TalentName' then
                 Dropdown = PvEDropdown
+              elseif KeyName == 'TalentNameNotUse' then
+                Dropdown = PvENotUseDropdown
               else
                 Dropdown = PvPDropdown
               end
@@ -1487,17 +1491,26 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
           TalentName = {
             type = 'select',
             dialogControl = 'GUB_Dropdown_Select',
-            name = 'Talent Name',
+            name = 'Talent Name:normal',
             order = 1,
             values = function()
                        return PvEIconDropdown
                      end,
           },
+          TalentNameNotUse = {
+            type = 'select',
+            dialogControl = 'GUB_Dropdown_Select',
+            name = 'Talent Name (not in use):normal',
+            order = 2,
+            values = function()
+                       return PvENotUseIconDropdown
+                     end,
+          },
           TalentNamePvP = {
             type = 'select',
             dialogControl = 'GUB_Dropdown_Select',
-            name = 'Talent Name (PvP)',
-            order = 2,
+            name = 'Talent Name (PvP):normal',
+            order = 3,
             values = function()
                        return PvPIconDropdown
                      end,
@@ -1506,7 +1519,7 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
             type = 'toggle',
             name = 'Match',
             desc = "If unchecked, then the talent can't match",
-            order = 3,
+            order = 4,
           },
         },
       },
@@ -1808,6 +1821,9 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, EditLis
         type = 'group',
         name = 'Stances',
         order = 2,
+        disabled = function()
+                     return next(DUB[BarType].Triggers.Default.ClassStances) == nil
+                   end,
         args = {
           StanceEnabled = {
             type = 'toggle',
@@ -2197,7 +2213,6 @@ local function EditTriggerListOptions(BarType, UBF, BBar, Action, TLA, TOA, Trig
 
                          MenuKey = nil
                        end
-
                        -- Do this here before options updating
                        BBar:CheckTriggers()
 

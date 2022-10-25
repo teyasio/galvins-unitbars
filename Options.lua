@@ -34,8 +34,8 @@ local tonumber, gsub, tinsert, wipe, strsub =
       tonumber, gsub, tinsert, wipe, strsub
 local ipairs, pairs, type, next, sort =
       ipairs, pairs, type, next, sort
-local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, GameTooltip, GetSpellInfo =
-      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, GameTooltip, GetSpellInfo
+local LibStub, GameTooltip, GetSpellInfo =
+      LibStub, GameTooltip, GetSpellInfo
 local GetUnitPowerBarInfoByID, GetUnitPowerBarStringsByID =
       GetUnitPowerBarInfoByID, GetUnitPowerBarStringsByID
 
@@ -121,7 +121,9 @@ local o = {
   TestModeChiMin = 0,
   TestModeChiMax = 6,
   TestModePointsMin = 0,
-  TestModePointsMax = 6,
+  TestModePointsMax = 7,
+  TestModeExtraPointsMin = 0,
+  TestModeExtraPointsMax = 2,
   TestModeArcaneChargesMin = 0,
   TestModeArcaneChargesMax = 4,
   TestModeStaggerMin = 0,
@@ -266,6 +268,7 @@ local ConvertPlayerClass = {
   DEATHKNIGHT      = 'Death Knight',
   DEMONHUNTER      = 'Demon Hunter',
   DRUID            = 'Druid',
+  EVOKER           = 'Evoker',
   HUNTER           = 'Hunter',
   MAGE             = 'Mage',
   MONK             = 'Monk',
@@ -278,6 +281,7 @@ local ConvertPlayerClass = {
   ['Death Knight'] = 'DEATHKNIGHT',
   ['Demon Hunter'] = 'DEMONHUNTER',
   Druid            = 'DRUID',
+  Evoker           = 'EVOKER',
   Hunter           = 'HUNTER',
   Mage             = 'MAGE',
   Monk             = 'MONK',
@@ -292,15 +296,16 @@ local ConvertPlayerClass = {
   'DEATHKNIGHT',   -- 1
   'DEMONHUNTER',   -- 2
   'DRUID',         -- 3
-  'HUNTER',        -- 4
-  'MAGE',          -- 5
-  'MONK',          -- 6
-  'PALADIN',       -- 7
-  'PRIEST',        -- 8
-  'ROGUE',         -- 9
-  'SHAMAN',        -- 10
-  'WARLOCK',       -- 11
-  'WARRIOR'        -- 12
+  'EVOKER',        -- 4
+  'HUNTER',        -- 5
+  'MAGE',          -- 6
+  'MONK',          -- 7
+  'PALADIN',       -- 8
+  'PRIEST',        -- 9
+  'ROGUE',         -- 10
+  'SHAMAN',        -- 11
+  'WARLOCK',       -- 12
+  'WARRIOR'        -- 13
 }
 
 local LSMDropdown = {
@@ -383,7 +388,6 @@ local PowerTypeHAPDropdown = {}
 do
   local PowerName = {
     RUNIC_POWER = 'Runic Power',
-    LUNAR_POWER = 'Astral Power',
   }
   for PowerType, Index in pairs(ConvertPowerTypeHAP) do
     PowerTypeHAPDropdown[Index] = PowerName[PowerType] or gsub(strlower(PowerType), '%a', strupper, 1)
@@ -404,6 +408,15 @@ Options.PositionDropdown = PositionDropdown
 -- Options Utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- ImportExportHidden
+--
+-- Returns true of false if import/export options are open
+-------------------------------------------------------------------------------
+local function ImportExportHidden()
+  return Options.Importing or Options.Exporting
+end
 
 -------------------------------------------------------------------------------
 -- FindMenuItem
@@ -813,11 +826,12 @@ local function OpenOptionsOOC()
   OutOfCombatFrame:SetScript('OnEvent', nil)
 
   -- Hide blizz blizz options if it's opened.
-  if InterfaceOptionsFrame:IsVisible() then
-    InterfaceOptionsFrame:Hide()
+--  if SettingsPanel:IsVisible() then
+--    SettingsPanel:Hide()
     -- Hide the UI panel behind blizz options.
-    HideUIPanel(GameMenuFrame)
-  end
+--    HideUIPanel(GameMenuFrame)
+--  end
+
   Bar:SetHighlightFont('on', Main.UnitBars.HideTextHighlight)
   Options.MainOptionsOpen = true
   -- Open a movable options frame.
@@ -1163,7 +1177,8 @@ end
 -------------------------------------------------------------------------------
 local function CreatePaddingOptions(BarType, TableName, Order, Name, Prefix)
   local UBF = Main.UnitBarsF[BarType]
-  local Neg = strfind(strlower(TableName), 'background') and 1 or -1
+  local TableNameLower = strlower(TableName)
+  local Neg = ( strfind(TableNameLower, 'background') or strfind(TableNameLower, 'region') ) and 1 or -1
   Prefix = Prefix or ''
 
   local PaddingKey = Prefix .. 'Padding'
@@ -1499,7 +1514,7 @@ local function CreateBackdropOptions(BarType, TableName, Order, Name)
   BackdropArgs.Padding = CreatePaddingOptions(BarType, TableName, 10, 'Padding')
 
   -- Animacharge Options ComboBar
-  if BarType == 'ComboBar' then
+  if BarType == 'ComboBar' and TableName ~= 'Region' then
     BackdropArgs.Animacharge = {
       type = 'group',
       name = 'Animacharge',
@@ -3342,18 +3357,11 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = o.TestModeChiMax,
     }
   end
-  if UBD.TestMode.DeeperStratagem ~= nil then
-    TestModeArgs.DeeperStratagem = {
-      type = 'toggle',
-      name = 'Deeper Stratagem',
-      order = 600,
-    }
-  end
   if UBD.TestMode.ComboPoints ~= nil then
     TestModeArgs.ComboPoints = {
       type = 'range',
       name = 'Combo Points',
-      order = 602,
+      order = 600,
       desc = 'Change how many combo points are lit',
       width = 'full',
       step = 1,
@@ -3361,16 +3369,28 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = o.TestModePointsMax,
     }
   end
-  if UBD.TestMode.AnimachargeComboPoint ~= nil then
-    TestModeArgs.AnimachargeComboPoint = {
+  if UBD.TestMode.AnimachargeComboPoints ~= nil then
+    TestModeArgs.AnimachargeComboPoints = {
       type = 'range',
       name = 'Animacharge Combo Point',
-      order = 603,
+      order = 601,
       desc = 'Change the animacharge combo point',
       width = 'full',
       step = 1,
       min = o.TestModePointsMin,
       max = o.TestModePointsMax,
+    }
+  end
+  if UBD.TestMode.ExtraComboPoints ~= nil then
+    TestModeArgs.ExtraComboPoints = {
+      type = 'range',
+      name = 'Extra Combo Points',
+      order = 602,
+      desc = 'Add additional combo points',
+      width = 'full',
+      step = 1,
+      min = o.TestModeExtraPointsMin,
+      max = o.TestModeExtraPointsMax,
     }
   end
   if UBD.TestMode.ArcaneCharges ~= nil then
@@ -3671,16 +3691,16 @@ local function CreateMoreLayoutStaggerBarOptions(BarType, Order)
         type = 'toggle',
         name = 'Layered',
         order = 1,
-        desc = 'When the main stagger bar is full, it will be hidden while the second bar fills. Bar will have new options when this is active',
+        desc = 'When the main stagger bar is full, it will be visible while the second bar fills. Bar will have new options when this is active',
         disabled = function()
                      return UBF.UnitBar.Layout.SideBySide
                    end,
       },
-      Overlay = {
+      LayeredHidden = {
         type = 'toggle',
-        name = 'Overlay',
+        name = 'Layered (hidden)',
         order = 2,
-        desc = 'When the main stagger bar is full it will remain visible while the second bar fills',
+        desc = 'When the main stagger bar is full it will be hidden while the second bar fills',
         disabled = function()
                      return UBF.UnitBar.Layout.SideBySide or not UBF.UnitBar.Layout.Layered
                    end,
@@ -4062,6 +4082,12 @@ local function CreateLayoutOptions(BarType, Order, Name)
       order = 22,
       desc = 'Hides all text',
     }
+    local HideText = GeneralArgs.HideText
+    if BarType == 'StaggerBar' then
+      HideText.name = 'Hide Text (stagger)'
+    elseif BarType == 'AltPowerBar' then
+      HideText.name = 'Hide Text (power)'
+    end
   end
 
   if BarType == 'StaggerBar' or BarType == 'AltPowerBar' then
@@ -6054,12 +6080,13 @@ local function CreatePowerColorOptions(Order, Name)
     DEMONHUNTER = {FURY = 1, PAIN = 1},
   }
   local PowerWidth = {
+    MAELSTROM   = 'normal',
     RUNIC_POWER = 'normal',
     LUNAR_POWER = 'normal',
   }
   local PowerName = {
     RUNIC_POWER = 'Runic Power',
-    LUNAR_POWER = 'Astral Power',
+    LUNAR_POWER = 'Astral Power', -- tooltips use Astral instead of Luna
   }
 
   -- Set up a power order.  half goes first, then normal
@@ -6506,157 +6533,6 @@ local function CreateFrameOptions(Order, Name)
                        return 'Show Target Frame'
                      end
                    end,
-          },
-        },
-      },
-      APBGroup = {
-        type = 'group',
-        order = 2,
-        name = 'Blizzard Alternate Power Bar',
-        dialogInline = true,
-        get = function(Info)
-                local KeyName = Info[#Info]
-                return Main.UnitBars[KeyName]
-              end,
-        set = function(Info, Value)
-                local KeyName = Info[#Info]
-                Main.UnitBars[KeyName] = Value
-
-                if KeyName == 'APBMoverOptionsDisabled' then
-                  Main:APBSetMover()
-                end
-              end,
-        args = {
-          Notes = {
-            type = 'description',
-            name = 'This will let you move the blizzard alternate power bar and the timer like those in the Darkmoon Faire\nIf this conflicts with other addons just disable.  May have to reload UI',
-            order = 1,
-          },
-          APBMoverOptionsDisabled = {
-            type = 'toggle',
-            name = 'Disable mover',
-            width = 'normal',
-            order = 2,
-          },
-          Spacer5 = CreateSpacer(5, 'normal'),
-          Reset = {
-            type = 'execute',
-            name = 'Reset',
-            width = 'half',
-            order = 6,
-            confirm = function()
-                        return 'Are you sure?'
-                      end,
-            func = function()
-                     Main:APBReset()
-                   end,
-            disabled = function()
-                         return Main.UnitBars.APBMoverOptionsDisabled
-                       end,
-          },
-          Spacer7 = CreateSpacer(7),
-          MoveAPB = {
-            type = 'execute',
-            name = function()
-                     if Main.APBMoverEnabled then
-                       return 'Stop Moving APB'
-                     else
-                       return 'Move APB'
-                     end
-                   end,
-            order = 8,
-            func = function()
-                     Main.APBMoverEnabled = not Main.APBMoverEnabled
-                     Main:APBSetMover('apb')
-                   end,
-            disabled = function()
-                         return Main.UnitBars.APBMoverOptionsDisabled
-                       end,
-          },
-          Spacer10 = CreateSpacer(10),
-          MoveAPBTimer = {
-            type = 'execute',
-            name = function()
-                     if Main.APBBuffTimerMoverEnabled then
-                       return 'Stop moving Timer'
-                     else
-                       return 'Move Timer'
-                     end
-                   end,
-            order = 11,
-            func = function()
-                     Main.APBBuffTimerMoverEnabled = not Main.APBBuffTimerMoverEnabled
-                     Main:APBSetMover('timer')
-                   end,
-            disabled = function()
-                         return Main.UnitBars.APBMoverOptionsDisabled
-                       end,
-          },
-        },
-      },
-      EABGroup = {
-        type = 'group',
-        order = 3,
-        name = 'Extra Action Button',
-        dialogInline = true,
-        get = function(Info)
-                local KeyName = Info[#Info]
-                return Main.UnitBars[KeyName]
-              end,
-        set = function(Info, Value)
-                local KeyName = Info[#Info]
-                Main.UnitBars[KeyName] = Value
-
-                if KeyName == 'EABMoverOptionsDisabled' then
-                  Main:DoExtraActionButton()
-                end
-              end,
-        args = {
-          Notes = {
-            type = 'description',
-            name = 'This will let you move the extra action button. If this conflicts with other addons just disable.  May have to reload UI',
-            order = 1,
-          },
-          EABMoverOptionsDisabled = {
-            type = 'toggle',
-            name = 'Disable mover',
-            width = 'normal',
-            order = 2,
-          },
-          Spacer5 = CreateSpacer(5, 'normal'),
-          Reset = {
-            type = 'execute',
-            name = 'Reset',
-            width = 'half',
-            order = 6,
-            confirm = function()
-                        return 'Are you sure?'
-                      end,
-            func = function()
-                     Main:EABReset()
-                   end,
-            disabled = function()
-                         return Main.UnitBars.EABMoverOptionsDisabled
-                       end,
-          },
-          Spacer7 = CreateSpacer(7),
-          MoveEAB = {
-            type = 'execute',
-            name = function()
-                     if Main.EABMoverEnabled then
-                       return 'Stop Moving EAB'
-                     else
-                       return 'Move EAB'
-                     end
-                   end,
-            order = 8,
-            func = function()
-                     Main.EABMoverEnabled = not Main.EABMoverEnabled
-                     Main:DoExtraActionButton()
-                   end,
-            disabled = function()
-                         return Main.UnitBars.EABMoverOptionsDisabled
-                       end,
           },
         },
       },
@@ -7130,7 +7006,6 @@ local function CreateProfilesBySpecOptions(Order, Name)
   local PlayerClass = Main.PlayerClass
   local ClassSpecializations = DefaultUB.ClassSpecializations
   local ProfilesBySpec = Gdata.ProfilesBySpec
-  local DBobject = Main.DBobject
   local ClassDropdown = {}
   local SelectClassDropdown = {}
   local Index = 1
@@ -7185,6 +7060,7 @@ local function CreateProfilesBySpecOptions(Order, Name)
              return Name
            end,
     order = Order,
+    hidden = ImportExportHidden,
     args = {
       Enable = {
         type = 'toggle',
@@ -7233,7 +7109,7 @@ local function CreateProfilesBySpecOptions(Order, Name)
         func = function()
                  for ClassName, ProfileBySpec in pairs(ProfilesBySpec) do
                    for _, PBS in pairs(ProfileBySpec) do
-                     PBS.Name = ''
+                     PBS.Name = Main.ProfileList[1]
                      PBS.Enabled = false
                    end
                  end
@@ -7327,10 +7203,6 @@ end
 --
 -- Returns the main options table.
 -------------------------------------------------------------------------------
-local function ImportExportHidden()
-  return Options.Importing or Options.Exporting
-end
-
 local function CreateMainOptions()
   MainOptions = {
     name = AddonName,
@@ -7530,10 +7402,10 @@ local function CreateMainOptions()
             name = 'Colors',
             order = 5,
             args = {
-              PowerColors = CreatePowerColorOptions(5, 'Power Color'),
-              ClassColors = CreateClassColorOptions(6, 'Class Color'),
-              CombatColors = CreateCombatColorOptions(7, 'Combat Color'),
-              TaggedColor = CreateTaggedColorOptions(8, 'Tagged color'),
+              PowerColors = CreatePowerColorOptions(1, 'Power Color'),
+              ClassColors = CreateClassColorOptions(2, 'Class Color'),
+              CombatColors = CreateCombatColorOptions(3, 'Combat Color'),
+              TaggedColor = CreateTaggedColorOptions(4, 'Tagged color'),
             },
           },
           AuraOptions = CreateAuraOptions(6, 'Aura List'),

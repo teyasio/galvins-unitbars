@@ -282,7 +282,7 @@ function Main.UnitBarsF.ChiBar:SetAttr(TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture', function(v) BBar:SetTexture(0, ChiSBar, v) end)
-    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetRotationTexture(0, ChiSBar, v) end)
+    BBar:SO('Bar', 'RotateTexture',    function(v) BBar:SetFillRotationTexture(0, ChiSBar, v) end)
     BBar:SO('Bar', 'Color',            function(v, UB, OD) BBar:SetColorTexture(OD.Index, ChiSBar, OD.r, OD.g, OD.b, OD.a) end)
     BBar:SO('Bar', '_Size',            function(v) BBar:SetSizeTextureFrame(0, BoxMode, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',          function(v) BBar:SetPaddingTextureFrame(0, BoxMode, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
@@ -316,8 +316,8 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local Names = {}
 
   -- Create box mode.
-  BBar:CreateTextureFrame(0, BoxMode, 0)
-    BBar:CreateTexture(0, BoxMode, ChiSBar, 'statusbar')
+  BBar:CreateTextureFrame(0, BoxMode, 0, 'statusbar')
+    BBar:CreateTexture(0, BoxMode, ChiSBar, 'statusbar', 1)
 
   -- Create texture mode.
   for ChiIndex = 1, MaxChiOrbs do

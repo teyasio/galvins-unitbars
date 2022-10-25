@@ -24,8 +24,8 @@ local abs, max, floor, ceil, sqrt,      mhuge =
       abs, max, floor, ceil, math.sqrt, math.huge
 local strfind, strmatch, strsub, strtrim, strsplit, strlower, strupper, format, gsub =
       strfind, strmatch, strsub, strtrim, strsplit, strlower, strupper, format, gsub
-local GetTime, ipairs, pairs, pcall, print, select, tonumber, tostring, tremove, type, unpack =
-      GetTime, ipairs, pairs, pcall, print, select, tonumber, tostring, tremove, type, unpack
+local GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack =
+      GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type, unpack
 local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
       IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists
 
@@ -76,8 +76,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   AGroups                         Used by animation to keep track of animation groups. Created by GetAnimation() in SetAnimationBar()
 --   AGroup                          Used to play animation when showing or hiding the bar. Created by GetAnimation() in SetAnimationBar()
 --
--- BoxFrame data structure
---
+-- BoxFrame
 --   Name                            Name of the boxframe.  This will appear on tooltips.
 --   BoxNumber                       Current box number.  Needed for swapping.
 --   Padding                         Amount of distance in pixels between the current box and the next one.
@@ -93,12 +92,10 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   Backdrop                        Table containing the backdrop.
 --   TextData                        This gets added by CreateFont()
 --
--- TextureFrame data structure
---
+-- TextureFrame
 --   _Width, _Height                 Width and height
 --   TextureFrameNumber              Used for debugging
 --   Hidden                          If true then the textureframe is hidden.
---   Textures[]                      Textures contained in TextureFrame.
 --   ValueTime                       Used by SetValueTime()
 --   MaxFrameLevel                   Contains the max frame level used by its children
 --   BorderFrame                     Contains the backdrop. Child of TextureFrame
@@ -109,33 +106,27 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --     AGroup                          Animation used when scaling the texture thru SetScaleTexture()
 --   SizeFrame                       Child of ScaleFrame.  This manages relative size of Texture.Frame
 --     ScaleFrame                      Used by OnSizeChangedFrame().
---     Frames[]                      Contains one or more Frames that hold each texture.
+--     Frames[]                      Contains one or more Frames that hold each texture. Used by OnSizeChangedFrame()
 --                                   Also can contain cooldown frames
+--   SBF                             Statusbar frame if the TextureFrame was created with a type of statusbar, otherwise nil
+--                                   Used by CreateTexture()
 --
--- Texture data structure            Texture is only a texture if created a statusbar, otherwise its a frame containing the texture.
---
---   Type                            'statusbar' or 'texture'
---   Texture                         Contains the statusbar or texture or cooldown
+-- Texture                           Texture is only a texture if created a statusbar, otherwise its a frame containing the texture.
+--   Type                            'statusbar', 'texture' or 'cooldown'
+--   Texture                         Contains the statusbar, texture or cooldown
 --
 --   ScaleFrame                      Reference of TextureFrame.ScaleFrame used by SetScaleAllTexture()
 --   BorderFrame                     Reference of TextureFrame.BorderFrame used by SetOffsetTextureFrame()
 --
---   StatusBars only
---   ---------------
---
---   Frame                           Frame child of ScaleFrame.  This is used to manage frame levels
+--   Frame  (nil if statusbar)       Frame child of ScaleFrame.  This is used to manage frame levels
 --                                   and size and position of the texture.
 --     _Width, _Height               used by SetSizeTexture() and OnSizeChanged() to scale
 --
---     SBF                           StatusBar Frame -- Child of Frame
---                                     This only exists for the primary statusbar frame.
---                                     if a texture is type 'statusbar' and has no frame then
---                                     that texture is a child of the statusbar frame.
---     MaxValue                        Specifies the maximum value that can reached for setfill
---     Sublayer                      Counter for the layer when creating a new texture in a statusbar frame
---                                   used by CreateTexture()
 --
+--   StatusBars only
+--   ---------------
 --   Value                           Keeps track of the current value of the fill
+--   MaxValue                        Specifies the maximum value that can reached for setfill
 --
 --   StartTime
 --   Duration
@@ -147,14 +138,10 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   Speed                           How fast animation draws. Between 0.01 and 1.
 --                                   or 5secs from 0 to 0.5 or 0.25 to 0.75.
 --                                   Used by SetFillSpeedTexture() and SetFillTexture()
---   Spark                           If the startusbar has a spark attached to it. It'll be here
---                                   When spark is hidden this equals false
---   HiddenSpark                     Contains the spark texture as a backup when spark is hidden
 --
 --
 --   Textures only
 --   -------------
---
 --   Frame                           Child of ScaleFrame. Holds the Texture
 --   CooldownFrame                   Frame used to do a cooldown on the texture.
 --                                     This works like Frame
@@ -170,13 +157,11 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   TexTop
 --   TexBottom                       Text coords for a texture.  Used by SetTexCoord()
 --
-
 --   Backdrop                        Table containing the backdrop.  Created by GetBackdrop()
 --   AGroup                          Contains the animation to play when showing or hiding a texture.  Created by GetAnimation() in SetAnimationTexture()
 --
 --
 --  Upvalues                         Used by bars.lua
---
 --    RotationPoint                    Used by Display() to rotate the bar.
 --    BoxFrames                        Used by NextBox() for iteration.
 --    DoOptionData                     Reusable table for passing back information. Used by DoOption().
@@ -190,8 +175,10 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --    AnchorPointWord                  Displays anchor point in text when moving bars around. Used by BoxInfo()
 --
 --    LastSBF[]                        Used by CreateTexture()
+--    RotationFillDirection[]          Converts Rotation to a fill direction used by statusbars
+--    ConvertSubLayer[]                Converts a number from 1 to 16 to a sub layer.
 --
---  RotationPoint data structure
+--  RotationPoint
 --
 --  [Rotation]                       from 45 to 360.  Determines which direction to go in.
 --    x, y                           Determines direction by using negative or positive values.
@@ -205,7 +192,6 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --                                   So boxframe 2 Point would be attached to boxframe 1 ParentPoint.
 --
 --  Frame structure
---
 --    ParentFrame
 --      Region                              Bar border
 --      BoxFrame                            border and BoxFrame
@@ -214,19 +200,14 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --            PaddingFrame                  Used by SetPaddingTextureFrame()
 --              SizeFrame                   For texture size management.  Used by OnSizeChangedFrame()
 --                ScaleFrame                For scaling without changing the size of the textureframe
---                  Frame[] (Texture.Frame) Frame for the texture. or the primary SBF
---                    SBF                   Statusbar Frame child of Frame
---                                          If the texture was created without a type, then the Frame points to the primary
---                                          statusbar frame. And the texture is a child of the statusbar frame
+--                  Frame[] (Texture.Frame) Frame for the texture
 --                                          Frame is also used for SetPointTexture, Padding, Backdrops.
---                                          When dealing with statusbar textures, doing a setpoint, padding, or backdrop
---                                          Any texture will always reference the primary statusbar frame border.
 --                    Texture               Statusbar texture or texture. Child of Frame
 --                  CooldownFrame           Child of ScaleFrame. Optional, only exists if the 'cooldown' option was specified in CreateTexture()
 --
--- NOTES:   When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
---          Will cause GetLeft() etc to return a bad value.  But if you pass the frame
---          instead of nil you'll get a good values.
+-- NOTES: When clearing all points on a frame.  Then do a SetPoint(Point, nil, Point)
+--        Will cause GetLeft() etc to return a bad value.  But if you pass the frame
+--        instead of nil you'll get a good values.
 --
 -- Bar Display notes:
 --
@@ -283,7 +264,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 -- for the current BarType.  This can partially match.  After that it takes the full name of the table
 -- found in the default unitbar.  And looks for it in the unitbar profile.  If found then then
 -- the KeyName has to be an exact match to UnitBar[TableName][KeyName].  Unless KeyName is virtual.
-
+--
 -- Virtual Key Name.
 --   A virtual key starts with an underscore.  It still follows the matching rules of a normal
 --   key except it doesn't get searched in the UnitBar data.
@@ -309,7 +290,6 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 -- If the tablename matches exactly to what was passed from SetOptionData.  Then p1..pN get added to OD.
 --
 --
--- Options Data structure
 -- Options[]                   Array containing all the options.
 --   TableName                 string: TableName this is looked up in DoOption()
 --   KeyNames[]                Array containing a list of KeyName and Functions.
@@ -330,25 +310,25 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --                      This is used to help display the text frame boxes when options is opened.
 --
 -- TextData
---   Multi                Can support more than one text line.
---   BarType              Type of bar that created the fontstring.
---   TextFrames[TextLine] Contains one or more frames used by the fontstrings.
---   PercentFn            Function used to calculate percentages from CurrentValue and MaximumValue.
---   Texts[]              Reference to the current Text data found in UnitBars[BarType].Text
---     ErrorMessage       Used to pass back format error message in custom mode to the options UI. Created by ParseLayoutFont()
---     SampleText         Same as above except for valid formatted text.  Shows a sample of what it'll look like. Created by ParseLayoutFont()
---   TextTableName        Contains the name of the table being used for text. UnitBars[BarType][TextTableName]
---   ValueLayouts[]       Array containing parsed layouts.  This sets the order the layouts are shown. Created by ParseLayoutFont()
+--   Multi                 Can support more than one text line.
+--   BarType               Type of bar that created the fontstring.
+--   TextFrames[TextLine]  Contains one or more frames used by the fontstrings.
+--   PercentFn             Function used to calculate percentages from CurrentValue and MaximumValue.
+--   Texts[]               Reference to the current Text data found in UnitBars[BarType].Text
+--     ErrorMessage        Used to pass back format error message in custom mode to the options UI. Created by ParseLayoutFont()
+--     SampleText          Same as above except for valid formatted text.  Shows a sample of what it'll look like. Created by ParseLayoutFont()
+--   TextTableName         Contains the name of the table being used for text. UnitBars[BarType][TextTableName]
+--   ValueLayouts[]        Array containing parsed layouts.  This sets the order the layouts are shown. Created by ParseLayoutFont()
 --
--- TextData[TextLine]     Array used to store the fontstring for each textline
---   LastSize             For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
+-- TextData[TextLine]      Array used to store the fontstring for each textline
+--   LastSize              For animation. Contains the last size set by a text font size trigger.  SetSizeFont()
 --   LastX
---   LastY                For animation. Contains the last position set by an offset trigger.  SetOffsetFont()
---   AGroupSSF            Animation for changing text size. Used by SetSizeFont()
---   AGroupOSF            Animation for changing the offset. Used by SetOffsetFont()
+--   LastY                 For animation. Contains the last position set by an offset trigger.  SetOffsetFont()
+--   AGroupSSF             Animation for changing text size. Used by SetSizeFont()
+--   AGroupOSF             Animation for changing the offset. Used by SetOffsetFont()
 --
 --
--- Parsed Layouts data structure
+-- Parsed Layouts
 --   ValueLayouts[TextIndex]
 --     ValueOrder[Index]         -- Contains the real Value Index.  This sets the order that the
 --                                  values will appear in.
@@ -364,7 +344,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 -- Triggers
 --
 --  InputValueTypesCheck             Checks the value type of the InputValue. Used by EnableTriggers()
---  DebuffTypesCheck                 Used to build code for checking debuff magic types in CreateTriggerAuraCode()
+--  DebuffTypesCheck                 Used for checking debuff magic types in CreateTriggerAuraCode()
 --  TriggerObjectTypes[Type]         Types of triggers. Border, border color, font color, etc
 --  TriggerMenuItems[Type]           This table is used to build the menus to pick what you are changing in the options
 --  TriggerFns[Type]                 BarDB function to call to modify the bar object based on the Trigger Type
@@ -374,10 +354,10 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --  TriggerConvertColorIndex[]       Converts index into a color type or vise versa
 --  TriggerConvertRegionBackdrop[]   Converts between region and backdrop type IDs
 --
---  Settings data structure
+--  Settings
 --  Settings[Bar function name]      Hash table using the function name that it was called by to store
 --    [BoxNumber:Number]             BoxNumber:Number is stored as a string.
---                                     BoxNumber: -1 means region. otherwise boxnumber staritng from 1
+--                                     BoxNumber: -1 means region. otherwise boxnumber starting from 1
 --                                     Number:    -1 means no BoxNumber and Number
 --      Par[]                        Array containing the parameters for the settings
 --
@@ -510,102 +490,145 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 -------------------------------------------------------------------------------
 -- StatusBar Texture Frame
 --
--- These work like blizzard status bars, except they can use 2 or more textures
--- as one statusbar. Have more than one statusbar. Can also have textures added
--- as tags, attached to a statusbar texture.  The tag will always move along with
--- the status bar value. Tags are used to show predicted power, health, etc
---
--- Also these statusbars do not stretch textures, which looks better.
+-- These work like blizzard status bars, except this can use 2 or more textures
+-- as one statusbar. Can have as many statusbars or linked status bars as you want
 --
 -- To avoid conflicts and to make using this code in my bar code.  All keys start with
 -- an underscore
 --
 --
--- StatusBarTexture data structure
+-- Status Bar Frame
 --
 -- SBF              Status bar texture frame
 -- SBF[Texture]     Hash lookup for texture
 -- SBF[]            Array keeps track of all textures
 --
--- Values stored in SBF
---   _MaxValue            Max value of the bar
---   _Width               Current width of the SBF
---   _Height              Current height of the SBF
---   _SparkFrame          Textures created in this frame are always on tops of clipped textures.
---                        And don't get clipped
---   _ScrollFrame
---   _ContentFrame        ScrollFrame and ContentFrame is how clipping is done.  Any textures
---                        created in the ContentFrame will get clipped.
+-- SBF
+--   _Width
+--   _Height              Width and Height gets updated when ever something causes the statusbar to change size
+--   _ScrollFrame         This combined with ContentFrame creates a way to do clipping.
+--   _ContentFrame        Child of ScrollFrame.  This is where the textures go
+--
+-- OrientTexture          This keeps track of the where the Texure is positioned inside the statusbar frame.
+--                        The perpose of OrientTexture is to be able to freely position the Texture anywhere
+--                        while the Texture gets filled.
+--                        In order to show the Texture getting filled. Its size needs to be changed. If the Texture
+--                        below was position directly. It would effect were the Texture would appear
+--                        using PixelOffsetX and PixelOffsetY. So the OrientTexture gets offset instead
+--                        This is hard to explain.  Hope I was clear enough. Offsets are used by Fragment.lua
 --
 -- Texture
 --   _SBF                 Reference to the SBF table
---   _OffsetX             Texture offsetted horizontally in pixels
---   _OffsetY             Texture offsetted vertically in pixels
+--   _OrientTexture       Rerrence to OrientTexture above
 --
---   _IsSpark             if not nil then texture is a spark
---   _PixelWidth          Sparks only: Size in pixels
---   _ScaledHeight        Sparks only: Texture height scaled. 2.3 works good with the blizzard spark
+--   _Value               Current value of the texture. This is needed for StatusBarDrawTexture() when not
+--                        specifying a value. Set by StatusBarSetValue()
+--   _MaxRange            The maximum value it takes to draw all of the texture
+--                        In a linktexture it sets the range of all the linked texture as a whole
 --
---   _Value               Current value of the status bar
---   _ValueScale          Changes the scale of Value
---   _HideMaxValue        Hides the texture if the value reached max
+--   _MaxValue            Limits the texture to this value.  Textures will be clipped to this value
+--                        Used by StatusBarSetValue() and StatusBarDrawTexture()
 --
---   _Rotation            -90     : Rotated 90 degrees counter clockwise
---                        0       : No rotation. Texture is displayed from left to right
---                        90      : Rotated 90 degrees clockwise
---                        180     : Rotated 180 degrees.  This makes the texture upsidedown
+--                        NOTES: In a linktexture in overlap mode.  If the value is equal to MaxValue then
+--                               the whole texture will be drawn
 --
---   _SyncFillDirection   Makes it so the fill direction changed based on _FillDirection
---   _FillDirection       'HORIZONTAL'  : Draw from left to right
---                        'VERTICAL'    : Draw from bottom to top
+--   _ScaleHorizontalX    Only applies in horizontal mode
+--   _ScaleHorizontalY    Only applies in horizontal mode
+--   _ScaleVerticalX      Only applies in vertical mode
+--   _ScaleVerticalY      Only applies in vertical mode
 --
---   _ReverseFill         true  : Reverse the fill direction.
+--                        NOTES: ScaleX and ScaleY change the size of the texture. That's it.  ScaleX and ScaleY is relative
+--                               to size of the statusbar frame
 --
 --   _Hidden              If true then the texture is hidden, otherwise false
---   _Length              Good for when you want the texture to be shorter than the length of the bar
---                        Used by StatusBarSetValue() and StatusBarDrawTexture()
 --
 --   _TexLeft
 --   _TexRight
 --   _TexTop
---   _TexBottom               Texture coordinates
+--   _TexBottom           Texture coordinates
+--
+--   _PixelPoint
+--   _PixelOffsetX
+--   _PixelOffsetY        These 3 values are a setpoint(PixelPoint, PixelOffsetX, PixelOffsetY
+--                        if not set then these values are nil
+--
+--   _PixelWidth          Width of the texture in pixels. Overrides _Width
+--   _PixelHeight         Height of the texture in pixels. Overrides _Height
+--   _PixelLength         Overrides _PixelWidth when FillDirection is horizontal
+--                        Overrides _PixelHeight when FillDirection is vertical
+--                        NOTES: _PixelWidth, _PixelHeight, and _PixelLength are nil
+--                               if not set
+--
+--   _EdgeFrames[Texture] Contains a pool of edgeframes for reuse
 --
 --
---   Tagged                   Tagged textures always inehrit:
---   ------                     Rotation, FillDirection, ReverseFill, and SyncFillDirection
+--   In a link. Only the first texture is used for these values
+--   ----------------------------------------------------------
+--   _Rotation            -90  : Rotated 90 degrees counter clockwise
+--                         0   : No rotation. Textures are displayed from left to right
+--                         90  : Rotated 90 degrees clockwise
+--                         180 : Rotated 180 degrees.  This makes the textures upsidedown
+--   _FillDirection       'HORIZONTAL'  : Draw from left to right
+--                        'VERTICAL'    : Draw from bottom to top
+--   _SyncFillDirection   true or false : Makes it so the fill direction changes based on _Rotation
+--   _ReverseFill         true or false : Reverse the fill direction
+--   _Clipping            true or false : Texture is clipped instead of being stretched
 --
 --
---   _TaggedTextures[]        List of textures that are tagged to the first texture
---   _LinkedTaggedTextures[]  Same as _TaggedTextures except it contains the first texture as well
---   _PointTexture            Texture that will be setpointed to
---   _FirstTexture            The very start of the tagged or linked textures. FirstTexture
---                            Isn't tagged or linked to anything.
---   _Overlap                 For linked textures. Makes linked textures overlap eachother instead
---                            of side by side.
---                            Also used to determin if tag or link
---   _TagLeft                 if true this tells a tagged texture to grow to the left instead of right
---                            otherwise false.
---   _LinkedValue             Keeps track of the overall value for all linked textures. Used by StatusBarSetValue()
+--   Linked (first texture only)
+--   ---------------------------
+--   _Textures             Array containing all the textures linked. Only exists in the first texture of a link
+--   _Textures[Texture]    Hash table used to find matching textures used by StatusBarLink()
+--   _HideFull             true or false : Hides the texture if full in a linked texture
+--   _Overlap              true or false : Makes linked textures overlap eachother instead of next to eachother
 --
--- ConvertSubLayer[]  Converts a number from 1 onward to a sub layer.
+--
+--   Linked
+--   ---------------------
+--   _Link                 (in all textures)             Means the texture is part of a link. Also contains a reference
+--                                                       to the first texture in the link
+--   _Prev                 (Isn't in the first texture)  Previous texture in the link. Doesn't exist in the first link
+--
+--
+--   Tagged
+--   ------
+--   _Tagged[]          Hash table of all the textures or linked. Tagged to this one
+--   _TaggedToTexture   Contains the texture or linked texture that it's tagged to. Used by StatusBarTag()
+--
+--   _TagRightToLeft    Tagged textures will grow from right to left from the texture they're tagged to
+--                      If nil then the tagged textures will grow from left to right instead
+--   _EdgeFrame         A frame that keeps the same length of a texture or link textures. Used by tagged
+--                      textures. StatusBarTag()
+--   _TagInherit        true or false : if false, then it will not pull stats like FILLDIRECTION from the
+--                      texture it's tagged to
+--
+--
+--   Frame/Texture layout
+--   --------------------
+--   StatusBar Frame
+--     ScrollFrame           Scroller for the ContentFrame. Except this will never scroll
+--       ContentFrame        All textures that need clipping are contained in here
+--         OrientTexture     This holds the texture in place as the texture changes size
+--                           to grow or shrink
+--         Texture           One or more textures
+--     NoClipFrame           Only difference is textures don't get clipped
+--         OrientTexture     This holds the texture in place as the texture changes size
+--                           to grow or shrink
+--         Texture           One or more textures
+--
 --
 -- NOTES: Theres no limit to how many statusbars you can have. But there's a max of
 --        16 sublayers. Don't think I'll ever need more than this.
 --
---        Offsets were added mainly for non status bar like textures. Offsets work in pixels
---        Scaled width and height added for textures that can have a certain size.
---        and keep their shape when rotated.
+--        Can have as many linked textures as you want
+--        Can only tag a texture or a link texture to another texture or linked texture
+--        Can not tag a texture or linked texture that is already tagged to something else
 --
---        For tagged textures.  You just simply tag a texture or link textures.
---        Tagged or linked texture inherit the fill direction, reversefill, and rotation from the
---        first texture. This lets tagged or linked texture to draw and rotate in the
---        same way
+--        Each texture has its own maxvalue and maxrange.  The texture can never draw past this
 --
---        The statusbar frame uses a scrollframe to do clipping.  Easier for the UI to do the
---        clipping.
---
---        To create a spark, the 'spark' option needs to be used with StatusBarCreateTexture
---        For a spark to work correctly it needs to be tagged to the primary statusbar texture
+--        Linked textures use Rotation, SyncFillDirection, FillDirection, ReverseFill from
+--        the first texture in the link.  If the texture or linked texture is tagged to something. Then
+--        these values are pulled from that texture or first texture if its a linked texture.
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -630,8 +653,9 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   Type                      string. See GetAnimation() for a list.
 --   StopPlayingFn             Call back function.  This gets called when ever StopPlaying() is called
 --
---   -----------------------   These keys are only used for alpha and scale, otherwise nil
 --
+--   These keys are only used for alpha and scale, otherwise nil
+--   -----------------------------------------------------------
 --   Direction                 'in' or 'out' out means will hide after done, otherwise show.
 --   DurationIn                Duration in seconds to play animation after showing an Object.
 --   DurationOut               Duration in seconds to play animation before hiding an object.
@@ -657,10 +681,6 @@ local BoxFrames
 local NextBoxFrame = 0
 local LastBox = true
 
-local TextureSpark = [[Interface\CastingBar\UI-CastingBar-Spark]]
-local TextureSparkWidth = 16
-local TextureSparkScaledHeight = 2.0 --2.3
-
 -- Used by ParseLayoutFont() for validating formatted text.
 local TestFontString = CreateFrame('Frame'):CreateFontString()
       TestFontString:SetFont(LSM:Fetch('font', Type), 10, 'NONE')
@@ -673,7 +693,13 @@ local ThousandFormat = '%s%d' .. Thousands ..'%03d'
 
                        -- 1   2   3   4   5   6   7   8  9 10 11 12 13 14 15 16
 local ConvertSublayer = {-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7}
-local LastSBF = {}
+
+local RotationFillDirection = {
+  [-90] = 'VERTICAL',
+  [0]   = 'HORIZONTAL',
+  [90]  = 'VERTICAL',
+  [180] = 'HORIZONTAL',
+}
 
 local RotationPoint = {
   [45]  = {x = 1,  y = 1,
@@ -1115,6 +1141,7 @@ end
 --        Maybe once blizzard gets rid of backdrops and makes it part of the frame
 --        its self these types of bugs won't happen.
 -------------------------------------------------------------------------------
+--[[
 local function RestoreFrameOnUpdate(RestoreFrame)
   RestoreFrame:SetScript('OnUpdate', nil)
 
@@ -1155,7 +1182,7 @@ local function RestoreBackdrops(Frame)
     return Found
   end
   --RestoreBackdrop(Frame)
-end
+end ]]
 
 -------------------------------------------------------------------------------
 -- GetSpeed
@@ -1363,8 +1390,7 @@ end
 -- SetBackdrop
 --
 -- Sets a backdrop while preserving the backdrop color and border color.
--- These colors will get reset each time backdrop is set. My hope is one
--- day they make it so a backdrop table isn't needed anymore.
+-- These colors will get reset each time backdrop is set.
 --
 -- Frame       Frame that backdrop is being set to
 -------------------------------------------------------------------------------
@@ -1374,8 +1400,8 @@ local function SetBackdrop(Frame)
 
   -- Call ApplyBackdrop. Frame.backdropInfo gets used there
   Frame:ApplyBackdrop()
-  Frame:SetBackdropColor(r, g, b, a)
-  Frame:SetBackdropBorderColor(r1, g1, b1, a1)
+  Frame:SetBackdropColor(r or 1, g or 1, b or 1, a or 1)
+  Frame:SetBackdropBorderColor(r1 or 1, g1 or 1, b1 or 1, a1 or 1)
 end
 
 -------------------------------------------------------------------------------
@@ -1531,8 +1557,8 @@ end
 -- OffsetY  Amount of vertical offset.
 --
 -- NOTES: The reason for two loops is incase the frames have been setpoint to
--- another frame.  So we need to get all the locations first then set their
--- points again
+--        another frame.  So we need to get all the locations first then set their
+--        points again
 -------------------------------------------------------------------------------
 local function SetFrames(ParentFrame, Frames, OffsetX, OffsetY)
   local PointFrame
@@ -1870,150 +1896,129 @@ end
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -------------------------------------------------------------------------------
--- StatusBarGetSyncFillDirection
---
--- Returns a fill direction based on rotation
--------------------------------------------------------------------------------
-local function StatusBarGetSyncFillDirection(Rotation)
-  if Rotation == 0 or Rotation == 180 then
-    return 'HORIZONTAL'
-  else
-    return 'VERTICAL'
-  end
-end
-
--------------------------------------------------------------------------------
 -- StatusBarDrawTexture
 --
 -- Draws a texture in the statusbar frame.
+--
+-- Subfunction of StatusBarSetValue()
 --
 -- NOTES: When using texcoord to rotate texture 90 degrees clockwise
 --        BOTTOM and TOP work horizontally for clipping the texture
 --
 -- ULx ULy   LLx LLy    URx URy   LRx LRy
 -------------------------------------------------------------------------------
-local function StatusBarDrawTexture(SBF, Texture, Value)
-  local IsSpark = Texture._IsSpark
-  local TexLeft, TexRight, TexTop, TexBottom = Texture._TexLeft, Texture._TexRight, Texture._TexTop, Texture._TexBottom
-
-  local SBFWidth = SBF._Width
-  local SBFHeight = SBF._Height
-  local Width = SBFWidth
-  local Height = SBFHeight
-
-  -- Inherit if first texture
-  local T = Texture._FirstTexture or Texture
-
-  local FillDirection = T._FillDirection
-  local SyncFillDirection = T._SyncFillDirection
-  local ReverseFill = T._ReverseFill
-  local Clipping = T._Clipping
-  local Rotation = T._Rotation
-
-  if SyncFillDirection then
-    FillDirection = StatusBarGetSyncFillDirection(T._Rotation)
+local function StatusBarDrawTexture(SBF, Texture, Value, MaxValue, SBFWidth, SBFHeight, Rotation, FillDirection, ReverseFill, Clipping)
+  if Value == nil then
+    assert(false, "DrawTexture - Value can't be nill")
+  elseif Value > 1 then
+    assert(false, "DrawTexture - Value can't be greater than 1")
   end
 
-  if not IsSpark then
-    -- Flip ReverseFill flag if TagLeft flag is true
-    if Texture._TagLeft then
-      ReverseFill = not ReverseFill
-    end
+  local TexLeft, TexRight, TexTop, TexBottom = Texture._TexLeft, Texture._TexRight, Texture._TexTop, Texture._TexBottom
+  local Width = Texture._PixelWidth or SBFWidth
+  local Height = Texture._PixelHeight or SBFHeight
+  local OrientWidth = Width
+  local OrientHeight = Height
 
-    if Value == nil then
-      Value = Texture._Value
-    else
-      Texture._Value = Value
-    end
+  -- Texcoords can't be greater than 1
+  if FillDirection == 'HORIZONTAL' then
+    -- Get pixel width
+    Width = Texture._PixelLength or Width
+    OrientWidth = Width * MaxValue
+    Width = Width * Value
 
-    local Length = Texture._Length
-    if Length and Value > Length then
-      Value = Length
-    end
-
-    Value = Value * Texture._ValueScale
-
-    -- Scale value down to a range of 0 to 1
-    local Value = Value / SBF._MaxValue
-
-    if FillDirection == 'HORIZONTAL' then
-      Width = Width * Value
-
-      if Clipping then
-        if Rotation == 0 or Rotation == 180 then -- Horizontal or Upsidedown
-          if ReverseFill then
-            if Rotation == 0 then
-              TexLeft = TexRight - (TexRight - TexLeft) * Value
-            else
-              TexRight = TexLeft + (TexRight - TexLeft) * Value
-            end
-          elseif Rotation == 0 then
-            TexRight = TexLeft + (TexRight - TexLeft) * Value
-          else
+    if Clipping then
+      if Rotation == 0 or Rotation == 180 then -- Horizontal or Upsidedown
+        if ReverseFill then
+          if Rotation == 0 then
             TexLeft = TexRight - (TexRight - TexLeft) * Value
+          else
+            TexRight = TexLeft + (TexRight - TexLeft) * Value
           end
-        -- OTHER drawing rotations
-        elseif ReverseFill then
-          if Rotation == 90 then
+        elseif Rotation == 0 then
+          TexRight = TexLeft + (TexRight - TexLeft) * Value
+        else
+          TexLeft = TexRight - (TexRight - TexLeft) * Value
+        end
+      -- OTHER drawing rotations
+      elseif ReverseFill then
+        if Rotation == 90 then
+          TexBottom = TexTop + (TexBottom - TexTop) * Value
+        elseif Rotation == -90 then
+          TexTop = TexBottom - (TexBottom - TexTop) * Value
+        end
+      elseif Rotation == 90 then
+        TexTop = TexBottom - (TexBottom - TexTop) * Value
+      elseif Rotation == -90 then
+        TexBottom = TexTop + (TexBottom - TexTop) * Value
+      end
+    end
+
+  -- VERTICAL fill direction
+  else
+    -- Get pixel height
+    Height = Texture._PixelLength or Height
+    OrientHeight = Height * MaxValue
+    Height = Height * Value
+
+    if Clipping then
+      if Rotation == 0 or Rotation == 180 then -- Horizontal or Upsidedown
+        if ReverseFill then
+          if Rotation == 0 then
             TexBottom = TexTop + (TexBottom - TexTop) * Value
-          elseif Rotation == -90 then
+          else
             TexTop = TexBottom - (TexBottom - TexTop) * Value
           end
-        elseif Rotation == 90 then
+        elseif Rotation == 0 then
           TexTop = TexBottom - (TexBottom - TexTop) * Value
-        elseif Rotation == -90 then
+        else
           TexBottom = TexTop + (TexBottom - TexTop) * Value
         end
-      end
-
-    -- VERTICAL fill direction
-    else
-      Height = Height * Value
-
-      if Clipping then
-        if Rotation == 0 or Rotation == 180 then -- Horizontal or Upsidedown
-          if ReverseFill then
-            if Rotation == 0 then
-              TexBottom = TexTop + (TexBottom - TexTop) * Value
-            else
-              TexTop = TexBottom - (TexBottom - TexTop) * Value
-            end
-          elseif Rotation == 0 then
-            TexTop = TexBottom - (TexBottom - TexTop) * Value
-          else
-            TexBottom = TexTop + (TexBottom - TexTop) * Value
-          end
-        -- OTHER drawing rotation
-        elseif ReverseFill then
-          if Rotation == 90 then
-            TexRight = TexLeft + (TexRight - TexLeft) * Value
-          elseif Rotation == -90 then
-            TexLeft = TexRight - (TexRight - TexLeft) * Value
-          end
-        elseif Rotation == 90 then
-          TexLeft = TexRight - (TexRight - TexLeft) * Value
-        elseif Rotation == -90 then
+      -- OTHER drawing rotation
+      elseif ReverseFill then
+        if Rotation == 90 then
           TexRight = TexLeft + (TexRight - TexLeft) * Value
+        elseif Rotation == -90 then
+           TexLeft = TexRight - (TexRight - TexLeft) * Value
         end
+      elseif Rotation == 90 then
+        TexLeft = TexRight - (TexRight - TexLeft) * Value
+      elseif Rotation == -90 then
+        TexRight = TexLeft + (TexRight - TexLeft) * Value
       end
     end
-  -- Spark stuff here
-  elseif FillDirection == 'HORIZONTAL' then
-    Width = Texture._PixelWidth
-    Height = Height * Texture._ScaledHeight
+  end
+
+  -- Scale if set
+  if FillDirection == 'HORIZONTAL' then
+    local ScaleHorizontalX = Texture._ScaleHorizontalX
+    local ScaleHorizontalY = Texture._ScaleHorizontalY
+
+    Width = Width * ScaleHorizontalX
+    Height = Height * ScaleHorizontalY
+    OrientWidth = OrientWidth * ScaleHorizontalX
+    OrientHeight = OrientHeight * ScaleHorizontalY
   else
-    Width = Width * Texture._ScaledHeight
-    Height = Texture._PixelWidth
+    local ScaleVerticalX = Texture._ScaleVerticalX
+    local ScaleVerticalY = Texture._ScaleVerticalY
+
+    Width = Width * ScaleVerticalX
+    Height = Height * ScaleVerticalY
+    OrientWidth = OrientWidth * ScaleVerticalX
+    OrientHeight = OrientHeight * ScaleVerticalY
   end
 
   -- Need to use a very small number since Size cant be set to zero
   Texture:SetSize(Width > 0 and Width or 0.00001, Height > 0 and Height or 0.00001)
 
--- ULx ULy   LLx LLy    URx URy   LRx LRy
-  if Rotation == 90 and not IsSpark or IsSpark and FillDirection == 'VERTICAL' then
-    -- Rotate spark or texture 90 degrees clockwise
+  -- Orient texture needs to be set to thefull size of the texture above
+  Texture._OrientTexture:SetSize(OrientWidth > 0 and OrientWidth or 0.00001, OrientHeight > 0 and OrientHeight or 0.00001)
+
+  -- ULx ULy   LLx LLy    URx URy   LRx LRy
+  if Rotation == 90 then
+    -- Rotate texture 90 degrees clockwise
     Texture:oSetTexCoord(TexLeft, TexBottom,     TexRight, TexBottom,   TexLeft, TexTop,       TexRight, TexTop)
-  elseif Rotation == 0 or IsSpark then
+  elseif Rotation == 0 then
     -- No rotation: horizontal
     Texture:oSetTexCoord(TexLeft, TexTop,        TexLeft, TexBottom,    TexRight, TexTop,      TexRight, TexBottom)
   elseif Rotation == -90 then
@@ -2023,6 +2028,7 @@ local function StatusBarDrawTexture(SBF, Texture, Value)
     -- Rotate 180 degrees clockwise. This draws upsidedown
     Texture:oSetTexCoord(TexRight, TexBottom,    TexRight, TexTop,      TexLeft, TexBottom,    TexLeft, TexTop)
   end
+  return Width, Height
 end
 
 -------------------------------------------------------------------------------
@@ -2033,61 +2039,154 @@ end
 --
 -- Texture       if not specified all textures will get redrawn
 --               otherwise just that texture gets drawn
+-- Value         For non linked textures this will draw the bar
+--
+-- NOTES: For linked textures.  MaxRange limits the range of the linked texture.
+--        MaxRange is used from the first texture in the link.
+--        When in overlap mode.  Each bar in the link fills the whole statusbar frame
+--        The range is 0 to MaxValue
 -------------------------------------------------------------------------------
 local function StatusBarSetValue(Texture, Value)
   local SBF = Texture._SBF
-  local MaxValue = SBF._MaxValue
-  local LinkedTaggedTextures = Texture._LinkedTaggedTextures
+  local SBFWidth = SBF._Width
+  local SBFHeight = SBF._Height
+  local MaxRange = Texture._MaxRange
 
-  -- Get starting value if not specified
-  if Value == nil then
-    Value = Texture._LinkedValue or Texture._Value
+  -- Get values before possible texture jump
+  local TagRightToLeft = Texture._TagRightToLeft
+  local TagInherit = Texture._TagInherit
+  local T = (TagInherit == nil or TagInherit) and Texture._TaggedToTexture or Texture
+
+  local Rotation = T._Rotation
+  local FillDirection
+  local SyncFillDirection = T._SyncFillDirection
+  local ReverseFill = T._ReverseFill
+  local Clipping = T._Clipping or false
+
+  if TagRightToLeft then
+    ReverseFill = not ReverseFill
+  end
+
+  if SyncFillDirection then
+    FillDirection = RotationFillDirection[Rotation]
   else
+    FillDirection = T._FillDirection
+  end
+
+  if Value then
+    Texture._Value = Value
+  else
+    Value = Texture._Value
+  end
+
+  -- Not a linked texture
+  if Texture._Link == nil then
+
+    -- Clip value if greater than texture max value
+    local MaxValue = Texture._MaxValue
+
+    if MaxValue > MaxRange then
+      MaxValue = MaxRange
+    end
     if Value > MaxValue then
       Value = MaxValue
     end
-  end
+    MaxValue = MaxValue / MaxRange
 
-  if LinkedTaggedTextures == nil then
-    StatusBarDrawTexture(SBF, Texture, Value)
+    StatusBarDrawTexture(SBF, Texture, Value / MaxRange, MaxValue, SBFWidth, SBFHeight, Rotation, FillDirection, ReverseFill, Clipping)
   else
-    local TotalLength = 0
+    -- Linked textures
+    local Textures = Texture._Textures
+    if Textures == nil then
+      assert(false, 'SetValue - Must be the first texture in the link')
+    end
 
-    Texture._LinkedValue = Value
+    local LastTexture
+    local HideRemaining = false
+    local TotalMaxValue = 0
+    local HideFull = Texture._HideFull or false
+    local Overlap = Texture._Overlap or false
+    local EdgeFrame = Texture._EdgeFrame
+    local EdgeWidth = 0
+    local EdgeHeight = 0
 
-    for Index = 1, #LinkedTaggedTextures do
-      Texture = LinkedTaggedTextures[Index]
-      local Length = Texture._Length or MaxValue
+    -- Clip value to texture max range
+    if Value > MaxRange then
+      Value = MaxRange
+    end
+    if not Overlap then
+      Value = Value / MaxRange
+    end
 
-      if Texture._Hidden then
-        Texture:Show()
-      end
+    local Width, Height = 0, 0
 
-      -- Hide max value texture if set
-      if Index > 1 then
-        local LastTexture = LinkedTaggedTextures[Index - 1]
+    for Index = 1, #Textures do
+      local Texture = Textures[Index]
 
-        if LastTexture._HideMaxValue then
+      if HideRemaining then
+        if not Texture._Hidden then
+          Texture:Hide()
+        end
+      else
+        local MaxValue = Texture._MaxValue or 1
+
+        -- clip max value
+        if not Overlap then
+          if MaxValue > MaxRange then
+            MaxValue = MaxRange
+          end
+          MaxValue = MaxValue / MaxRange
+        end
+
+        if Texture._Hidden then
+          Texture:Show()
+        end
+
+        -- Hide the previous texture since it's full
+        if Index > 1 and HideFull then
           LastTexture:Hide()
         end
-      end
+        LastTexture = Texture
 
-      -- Just draw the texture
-      if Value <= TotalLength + Length then
-        StatusBarDrawTexture(SBF, Texture, Value - TotalLength)
+        -- Just draw the texture
+        if TotalMaxValue + MaxValue >= Value then
+          -- Overlap then scale texture
+          -- this is the final iteration so it's safe to modify value
+          if Overlap then
+            Value = Value - TotalMaxValue
+            Value = Value / MaxValue
+            TotalMaxValue = 0
+          end
+          Width, Height = StatusBarDrawTexture(SBF, Texture, Value - TotalMaxValue, Overlap and 1 or MaxValue, SBFWidth, SBFHeight, Rotation, FillDirection, ReverseFill, Clipping)
 
-        -- Hide remaining textures
-        for TextureIndex = Index + 1, #LinkedTaggedTextures do
-          if not Texture._Hidden then
-            LinkedTaggedTextures[TextureIndex]:Hide()
+          -- Hide remaining textures
+          HideRemaining = true
+        else
+          -- Draw the texture in value of max value
+          -- In overlap the whole texture needs to be drawn and fill the bar
+          local NewMaxValue = Overlap and 1 or MaxValue
+          Width, Height = StatusBarDrawTexture(SBF, Texture, NewMaxValue, NewMaxValue, SBFWidth, SBFHeight, Rotation, FillDirection, ReverseFill, Clipping)
+          TotalMaxValue = TotalMaxValue + MaxValue
+        end
+
+        -- calc size of edgeframe in pixels
+        if EdgeFrame then
+          if Overlap then
+            EdgeWidth = Width
+            EdgeHeight = Height
+          elseif FillDirection == 'HORIZONTAL' then
+            EdgeWidth = EdgeWidth + Width
+            EdgeHeight = Height
+          else
+            EdgeWidth = Width
+            EdgeHeight = EdgeHeight + Height
           end
         end
-        break
-      else
-        -- Draw the texture in value of length
-        StatusBarDrawTexture(SBF, Texture, Length)
-        TotalLength = TotalLength + Length
       end
+    end
+    -- Set edgeframe size
+    if EdgeFrame then
+      EdgeFrame:SetSize(EdgeWidth > 0 and EdgeWidth or 0.00001, EdgeHeight > 0 and EdgeHeight or 0.00001)
     end
   end
 end
@@ -2099,95 +2198,181 @@ end
 -------------------------------------------------------------------------------
 local function StatusBarDrawAllTextures(SBF)
   for Index = 1, #SBF do
-    StatusBarDrawTexture(SBF, SBF[Index])
+    local Texture = SBF[Index]
+
+    -- Setvalue if first texture in a link, or a normal texture
+    if Texture._Textures or Texture._Link == nil then
+      StatusBarSetValue(Texture)
+    end
   end
 end
 
 -------------------------------------------------------------------------------
 -- StatusBarOrientTextures
 --
--- Repositions one or more textures to based on fill direction or reverse fill
+-- Repositions one or more textures based on fill direction or reverse fill
 -------------------------------------------------------------------------------
 local function StatusBarOrientTextures(SBF)
   for Index = 1, #SBF do
     local Texture = SBF[Index]
-    local PointTexture
-    local Overlap = Texture._Overlap or false
+    local OrientTexture = Texture._OrientTexture
+    local FillDirection
+    local Link = Texture._Link
+    local EdgeFrame = Texture._EdgeFrame
 
-    if Overlap then
-      PointTexture = nil
-    else
-      PointTexture = Texture._PointTexture
-    end
+    -- Check for settings from first texture in a link, then normal texture
+    local T = Link or Texture
 
-    local OffsetX = Texture._OffsetX
-    local OffsetY = Texture._OffsetY
+    -- Get values before possible texture jump
+    local TagRightToLeft = T._TagRightToLeft
+    local Overlap = T._Overlap
+    local TaggedToTexture = T._TaggedToTexture
 
-    -- Inherit if first texture
-    local T = Texture._FirstTexture or Texture
+    local TagInherit = T._TagInherit
+    T = (TagInherit == nil or TagInherit) and TaggedToTexture or T
 
-    local FillDirection = T._FillDirection
     local SyncFillDirection = T._SyncFillDirection
     local ReverseFill = T._ReverseFill
 
     if SyncFillDirection then
-      FillDirection = StatusBarGetSyncFillDirection(T._Rotation)
+      FillDirection = RotationFillDirection[T._Rotation]
+    else
+      FillDirection = T._FillDirection
     end
 
+    -- Setpoint the edgeframe to the content frame
+    if EdgeFrame and Link then
+      EdgeFrame:ClearAllPoints()
+
+      -- Set points
+      if FillDirection == 'HORIZONTAL' then
+        if ReverseFill then
+          EdgeFrame:SetPoint('RIGHT', Texture, 'RIGHT')
+        else
+          EdgeFrame:SetPoint('LEFT', Texture, 'LEFT')
+        end
+      -- Vertical
+      elseif ReverseFill then
+        EdgeFrame:SetPoint('TOP', Texture, 'TOP')
+      else
+        EdgeFrame:SetPoint('BOTTOM', Texture, 'BOTTOM')
+      end
+    end
+
+    OrientTexture:ClearAllPoints()
     Texture:ClearAllPoints()
 
-    -- Linked or tagged textures
-    if PointTexture then
-      local TagLeft = Texture._TagLeft
-      local IsSpark = Texture._IsSpark
+    -- Do first link texture or normal texture
+    if Link == nil or Texture._Textures or Overlap then
+      local Point = Texture._PixelPoint
+      local OffsetX = Texture._PixelOffsetX or 0
+      local OffsetY = Texture._PixelOffsetY or 0
+
+      -- A texture or link texture that has an edgeframe can not be used
+      -- to setpoint. Basically a texture/link can't attach its self to its own edgeframe
+      if EdgeFrame == nil then
+        if Link and Link._EdgeFrame == nil or Link == nil then
+          EdgeFrame = TaggedToTexture and TaggedToTexture._EdgeFrame
+        end
+      else
+        EdgeFrame = nil
+      end
 
       if FillDirection == 'HORIZONTAL' then
         if ReverseFill then
-          if IsSpark then
-            Texture:SetPoint('CENTER', PointTexture, 'LEFT')
-          -- tagged or linked textures
-          elseif TagLeft then
-            Texture:SetPoint('LEFT', PointTexture, 'LEFT')
+          if EdgeFrame then
+            if TagRightToLeft then
+              OrientTexture:SetPoint(Point or 'LEFT', EdgeFrame, 'LEFT', OffsetX, OffsetY)
+              Texture:SetPoint('LEFT', OrientTexture, 'LEFT')
+            else
+              OrientTexture:SetPoint(Point or 'RIGHT', EdgeFrame, 'LEFT', OffsetX, OffsetY)
+              Texture:SetPoint('RIGHT', OrientTexture, 'RIGHT')
+            end
           else
-            Texture:SetPoint('RIGHT', PointTexture, 'LEFT')
+            OrientTexture:SetPoint(Point or 'RIGHT', OffsetX, OffsetY)
+            Texture:SetPoint('RIGHT', OrientTexture, 'RIGHT')
           end
-        elseif IsSpark then
-          Texture:SetPoint('CENTER', PointTexture, 'RIGHT')
-        elseif TagLeft then
-          Texture:SetPoint('RIGHT', PointTexture, 'RIGHT')
+        -- not reversefill
+        elseif EdgeFrame then
+          if TagRightToLeft then
+            OrientTexture:SetPoint(Point or 'RIGHT', EdgeFrame, 'RIGHT', OffsetX, OffsetY)
+            Texture:SetPoint('RIGHT', OrientTexture, 'RIGHT')
+          else
+            OrientTexture:SetPoint(Point or 'LEFT', EdgeFrame, 'RIGHT', OffsetX, OffsetY)
+            Texture:SetPoint('LEFT', OrientTexture, 'LEFT')
+          end
         else
-          Texture:SetPoint('LEFT', PointTexture, 'RIGHT')
+          OrientTexture:SetPoint(Point or 'LEFT', OffsetX, OffsetY)
+          Texture:SetPoint('LEFT', OrientTexture, 'LEFT')
         end
-      -- Vertical fill direction
+      -- VERTICAL
       elseif ReverseFill then
-        if IsSpark then
-          Texture:SetPoint('CENTER', PointTexture, 'BOTTOM')
-        -- tagged or linked textures
-        elseif TagLeft then
-          Texture:SetPoint('BOTTOM', PointTexture, 'BOTTOM')
+        if EdgeFrame then
+          if TagRightToLeft then
+            OrientTexture:SetPoint(Point or 'BOTTOM', EdgeFrame, 'BOTTOM', OffsetX, OffsetY)
+            Texture:SetPoint('BOTTOM', OrientTexture, 'BOTTOM')
+          else
+            OrientTexture:SetPoint(Point or 'TOP', EdgeFrame, 'BOTTOM', OffsetX, OffsetY)
+            Texture:SetPoint('TOP', OrientTexture, 'TOP')
+          end
         else
-          Texture:SetPoint('TOP', PointTexture, 'BOTTOM')
+          OrientTexture:SetPoint(Point or 'TOP', OffsetX, OffsetY)
+          Texture:SetPoint('TOP', OrientTexture, 'TOP')
         end
-      elseif IsSpark then
-        Texture:SetPoint('CENTER', PointTexture, 'TOP')
-      elseif TagLeft then
-        Texture:SetPoint('TOP', PointTexture, 'TOP')
+      -- not reversefill
+      elseif EdgeFrame then
+        if TagRightToLeft then
+          OrientTexture:SetPoint(Point or 'TOP', EdgeFrame, 'TOP', OffsetX, OffsetY)
+          Texture:SetPoint('TOP', OrientTexture, 'TOP')
+        else
+          OrientTexture:SetPoint(Point or 'BOTTOM', EdgeFrame, 'TOP', OffsetX, OffsetY)
+          Texture:SetPoint('BOTTOM', OrientTexture, 'BOTTOM')
+        end
       else
-        Texture:SetPoint('BOTTOM', PointTexture, 'TOP')
+        OrientTexture:SetPoint(Point or 'BOTTOM', OffsetX, OffsetY)
+        Texture:SetPoint('BOTTOM', OrientTexture, 'BOTTOM')
       end
-
-    -- Normal textures
-    elseif FillDirection == 'HORIZONTAL' then
-      if ReverseFill then
-        Texture:SetPoint('TOPRIGHT', OffsetX, OffsetY)
-      else
-        Texture:SetPoint('TOPLEFT', OffsetX, OffsetY)
-      end
-    -- Vertical fill direction
-    elseif ReverseFill then
-      Texture:SetPoint('TOPLEFT', OffsetX, OffsetY)
     else
-      Texture:SetPoint('BOTTOMLEFT', OffsetX, OffsetY)
+      -- Linked
+      local OrientPrev = Texture._OrientPrev
+
+      -------------------
+      -- Do link textures
+      -------------------
+      if FillDirection == 'HORIZONTAL' then
+        if ReverseFill then
+          if TagRightToLeft then
+            OrientTexture:SetPoint('LEFT', OrientPrev, 'RIGHT')
+            Texture:SetPoint('LEFT', OrientTexture, 'LEFT')
+          else
+            OrientTexture:SetPoint('RIGHT', OrientPrev, 'LEFT')
+            Texture:SetPoint('RIGHT', OrientTexture, 'RIGHT')
+          end
+        -- not reversefill
+        elseif TagRightToLeft then
+          OrientTexture:SetPoint('RIGHT', OrientPrev, 'LEFT')
+          Texture:SetPoint('RIGHT', OrientTexture, 'RIGHT')
+        else
+          OrientTexture:SetPoint('LEFT', OrientPrev, 'RIGHT')
+          Texture:SetPoint('LEFT', OrientTexture, 'LEFT')
+        end
+      -- VERTICAL fill direction
+      elseif ReverseFill then
+        if TagRightToLeft then
+          OrientTexture:SetPoint('BOTTOM', OrientPrev, 'TOP')
+          Texture:SetPoint('BOTTOM', OrientTexture, 'BOTTOM')
+        else
+          OrientTexture:SetPoint('TOP', OrientPrev, 'BOTTOM')
+          Texture:SetPoint('TOP', OrientTexture, 'TOP')
+        end
+      -- not reversefill
+      elseif TagRightToLeft then
+        OrientTexture:SetPoint('TOP', OrientPrev, 'BOTTOM')
+        Texture:SetPoint('TOP', OrientTexture, 'TOP')
+      else
+        OrientTexture:SetPoint('BOTTOM', OrientPrev, 'TOP')
+        Texture:SetPoint('BOTTOM', OrientTexture, 'BOTTOM')
+      end
     end
   end
   -- Draw all textures
@@ -2195,139 +2380,114 @@ local function StatusBarOrientTextures(SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarSetValueScale (texture method)
+-- StatusBarSetPointPixel
 --
--- Changes the scale of the value for this texture
+-- Setpoint(Point, OffsetX, OffsetY)
+--
+-- NOTES: Only works on normal texture or first texture in a link
+--        Set nil to clear on Point, OffsetX, OffsetY
 -------------------------------------------------------------------------------
-local function StatusBarSetValueScale(Texture, ValueScale)
-  if type(ValueScale) ~= 'number' then
-    assert(false, 'SetValueScale - Scale must be a number')
+local function StatusBarSetPointPixel(Texture, Point, OffsetX, OffsetY)
+  if Texture._Link and Texture._Textures == nil then
+    assert(false, 'SetPointPixel - Texture must be first when centering a texture in a link')
   end
-  Texture._ValueScale = ValueScale
-
-  StatusBarDrawTexture(Texture._SBF, Texture)
-end
-
--------------------------------------------------------------------------------
--- StatusBarHideMaxValue (texture method)
---
--- Hides the texture when its max value is reached
--------------------------------------------------------------------------------
-local function StatusBarHideMaxValue(Texture, HideMaxValue)
-  if type(HideMaxValue) ~= 'boolean' then
-    assert(false, 'HideMaxValue - Must be true or false')
-  end
-  Texture._HideMaxValue = HideMaxValue
-
-  StatusBarSetValue(Texture)
-end
-
--------------------------------------------------------------------------------
--- StatusBarSetLength (texture method)
---
--- Limits the texture to length. Good for making some textures shorter than
--- the width of the texture frame.
---
--- NOTES: Length is stored based on value and not pixels
--------------------------------------------------------------------------------
-local function StatusBarSetLength(Texture, Length)
-  Texture._Length = Length
-
-  StatusBarSetValue(Texture)
-end
-
--------------------------------------------------------------------------------
--- StatusBarOnSizeChanged (called by event)
---
--- Keeps track of the width and height, and redraws the bar when ever
--- there is a change in size
--------------------------------------------------------------------------------
-local function StatusBarOnSizeChanged(SBF, Width, Height)
-  SBF._Width = Width
-  SBF._Height = Height
-
-  -- Content Frame must be the same size ass the statusbar frame
-  SBF._ContentFrame:SetSize(Width, Height)
-
-  -- do nothing if no textures been created
-  if #SBF > 0 then
-    StatusBarOrientTextures(SBF)
-  end
-end
-
--------------------------------------------------------------------------------
--- StatusBarSetRotation (texture method)
---
--- Rotates the texture vertical or horizontal
--- true for vertical
--------------------------------------------------------------------------------
-local function StatusBarSetRotation(Texture, Rotation)
-  if Rotation ~= 0 and Rotation ~= 180 and abs(Rotation) ~= 90 then
-    assert(false, 'SetRotation - Invalid Rotation: 0, 90 or 180')
-  end
-  Texture._Rotation = Rotation
+  Texture._PixelPoint = Point
+  Texture._PixelOffsetX = OffsetX
+  Texture._PixelOffsetY = OffsetY
 
   StatusBarOrientTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarSyncFilLDirection (texture method)
+-- StatusBarSetPixelSize
 --
--- Makes it so the fill direction will change based on the rotation
+-- Sets the width and height of the statusbar in pixels
 -------------------------------------------------------------------------------
-local function StatusBarSyncFillDirection(Texture, Action)
-  if type(Action) ~= 'boolean' then
-    assert(false, 'SetRotation - Invalid Action: true of false')
-  end
-  Texture._SyncFillDirection = Action
+local function StatusBarSetPixelSize(Texture, PixelWidth, PixelHeight)
+  Texture._PixelWidth = PixelWidth
+  Texture._PixelHeight = PixelHeight
 
-  StatusBarOrientTextures(Texture._SBF)
+  StatusBarDrawAllTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarSetFillDirection (texture method)
+-- StatusbarSetPixelWidth
 --
--- Sets fill direction for horizontal or vertical
+-- Sets the width of the statusbar in pixels
 --
--- Direction    'HORIZONTAL'   Fill from left to right.
---              'VERTICAL'     Fill from bottom to top.
+-- PixelWidth   Width in pixels, use nil to clear
+--
+-- NOTES: Overrides Width
 -------------------------------------------------------------------------------
-local function StatusBarSetFillDirection(Texture, Direction)
-  if Direction ~= 'HORIZONTAL' and Direction ~= 'VERTICAL' then
-    assert(false, 'SetFillDirection - Invalid Direction: HORIZONTAL or VERTICAL')
-  end
-  Texture._FillDirection = Direction
+local function StatusBarSetPixelWidth(Texture, PixelWidth)
+  Texture._PixelWidth = PixelWidth
 
-  StatusBarOrientTextures(Texture._SBF)
+  StatusBarDrawAllTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarSetFillReverse (texture method)
+-- StatusbarSetPixelHeight
 --
--- Changes the fill direction to reverse
+-- Sets the height of the statusbar in pixels
 --
--- Action    true         The fill will be reversed.  Right to left or top to bottom.
---           false        Default fill.  Left to right or bottom to top.
+-- PixelHeight   Height in pixels, use nil to clear
+--
+-- NOTES: Overrides Height
 -------------------------------------------------------------------------------
-local function StatusBarSetFillReverse(Texture, Action)
-  if type(Action) ~= 'boolean' then
-    assert(false, 'SetReverseFill - Invalid Action: true or false')
-  end
-  Texture._ReverseFill = Action
+local function StatusBarSetPixelHeight(Texture, PixelHeight)
+  Texture._PixelHeight = PixelHeight
 
-  StatusBarOrientTextures(Texture._SBF)
+  StatusBarDrawAllTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarSetClipping
+-- StatusbarSetPixelLength
 --
--- Makes the textures stretch instead of clipping
+-- Sets the length of a statusbar in pixels
+--
+-- PixelLength  Length in pixels, use nil to clear
+--
+-- NOTES: Overrides width in horizontal mode or
+--        overrides height in vertical mode
 -------------------------------------------------------------------------------
-local function StatusBarSetClipping(Texture, Action)
-  if type(Action) ~= 'boolean' then
-    assert(false, 'SetClipping - Invalid Action: true or false')
+local function StatusBarSetPixelLength(Texture, PixelLength)
+  Texture._PixelLength = PixelLength
+
+  StatusBarDrawAllTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetScaleHorizontal (texture method)
+--
+-- Sets the scale of a statusbar by x and y only when the bar is horizontal
+--
+-- Use 1 for scale to not do scaling
+-------------------------------------------------------------------------------
+local function StatusBarSetScaleHorizontal(Texture, ScaleX, ScaleY)
+  if type(ScaleX) ~= 'number' or type(ScaleY) ~= 'number' then
+    assert(false, 'SetScale - Must be a number')
   end
-  Texture._Clipping = Action
+
+  Texture._ScaleHorizontalX = ScaleX
+  Texture._ScaleHorizontalY = ScaleY
+
+  StatusBarDrawAllTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetScaleVertical (texture method)
+--
+-- Sets the scale of a statusbar by x and y only when the bar is vertical
+--
+-- Use 1 for scale to not do scaling
+-------------------------------------------------------------------------------
+local function StatusBarSetScaleVertical(Texture, ScaleX, ScaleY)
+  if type(ScaleX) ~= 'number' or type(ScaleY) ~= 'number' then
+    assert(false, 'SetScale - Must be a number')
+  end
+
+  Texture._ScaleVerticalX = ScaleX
+  Texture._ScaleVerticalY = ScaleY
 
   StatusBarDrawAllTextures(Texture._SBF)
 end
@@ -2335,7 +2495,7 @@ end
 -------------------------------------------------------------------------------
 -- StatusBarSetTexCoord (texture method)
 --
--- Sets the texture coordinates.  This can be used to usse a whole texture
+-- Sets the texture coordinates.  This can be used to use a whole texture
 -- or part of one.
 -------------------------------------------------------------------------------
 local function StatusBarSetTexCoord(Texture, Left, Right, Top, Bottom)
@@ -2345,36 +2505,7 @@ local function StatusBarSetTexCoord(Texture, Left, Right, Top, Bottom)
   Texture._TexBottom = Bottom
 
   -- Draw texture
-  StatusBarDrawTexture(Texture._SBF, Texture)
-end
-
--------------------------------------------------------------------------------
--- StatusBarSetOffset (texture method)
---
--- Offsets a texture by x, y. In pixels
---
--- NOTES: This is made for textures that may not line up properly
--- for x: Negative values go left
--- for y: Positive values go up
--------------------------------------------------------------------------------
-local function StatusBarSetOffset(Texture, x, y)
-  Texture._OffsetX = x
-  Texture._OffsetY = y
-
-  StatusBarOrientTextures(Texture._SBF)
-end
-
--------------------------------------------------------------------------------
--- StatusBarSetSizeSpark (texture method)
---
--- Sets the size of the spark
--------------------------------------------------------------------------------
-local function StatusBarSetSizeSpark(Texture, Width, ScaledHeight)
-  Texture._PixelWidth = Width
-  Texture._ScaledHeight = ScaledHeight
-
-  -- Draw texture
-  StatusBarDrawTexture(Texture._SBF, Texture)
+  StatusBarDrawAllTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
@@ -2394,165 +2525,386 @@ local function StatusBarShow(Texture)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarDoTag
+-- StatusBarHideFull (texture method)
 --
--- Tags one or more textures to the texture. Tags always appear in the order
--- they are listed.
+-- Linked textures
 --
---
--- Linked     if true, then the tags act as one texture.  Including the
---            primary texture that is getting tagged to.  Otherwise
---            false for normal tags
--- Overlap    Linked only.  If true then the textures will overlap
---            instead of being drawn side by side.
--- ...        One or more textures to tag
+-- Hides the texture when its full (linked textures)
 -------------------------------------------------------------------------------
-local function StatusBarDoTag(Type, Texture, Linked, Overlap, ...)
-  if Texture._FirstTexture then
-    assert(false, Type .. ' - First texture already tagged to another texture')
-  elseif type(Linked) ~= 'boolean' then
-    assert(false, Type .. ' - Invalid link: true or false')
-  elseif type(Overlap) ~= 'boolean' then
-    assert(false, Type .. ' - Invalid overlap: true or false')
-  elseif ... == nil then
-    assert(false, Type .. ' - Missing textures to tag')
+local function StatusBarHideFull(Texture, HideFull)
+  if type(HideFull) ~= 'boolean' then
+    assert(false, 'HideFull - Must be true or false')
+  elseif Texture._Link == nil then
+    assert(false, 'HideFull - Texture is not linked')
+  elseif Texture._Textures == nil then
+    assert(false, 'HideFull - Texture must be the first in the link')
   end
-  local SBF = Texture._SBF
-  local PointTexture = Texture
-  local TaggedTextures
+  Texture._HideFull = HideFull
 
-  if Linked then
-    if Texture._LinkedTaggedTextures then
-      assert(false, Type .. ' - First texture already linked')
-    end
-    Texture._LinkedTaggedTextures = {Texture, ...}
-  else
-    TaggedTextures = Texture._TaggedTextures
-    if TaggedTextures == nil then
-      TaggedTextures = {}
-      Texture._TaggedTextures = TaggedTextures
-    end
+  StatusBarSetValue(Texture)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetOverlap (texture method)
+--
+-- Linked textures
+--
+-- Hides the texture when its full (linked textures only)
+-------------------------------------------------------------------------------
+local function StatusBarSetOverlap(Texture, Overlap)
+  if type(Overlap) ~= 'boolean' then
+    assert(false, 'SetOverlap - Must be true or false')
+  elseif Texture._Link == nil then
+    assert(false, 'SetOverlap - Texture is not linked')
+  elseif Texture._Textures == nil then
+    assert(false, 'SetOverlap - Texture must be the first in the link')
+  end
+  Texture._Overlap = Overlap
+
+  StatusBarOrientTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetRotation (texture method)
+--
+-- Rotates the texture vertical or horizontal
+-- true for vertical
+-------------------------------------------------------------------------------
+local function StatusBarSetRotation(Texture, Rotation)
+  if Rotation ~= 0 and Rotation ~= 180 and abs(Rotation) ~= 90 then
+    assert(false, 'SetRotation - Must be -90, 0, 90 or 180')
+  end
+  Texture._Rotation = Rotation
+
+  StatusBarOrientTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSyncFillDirection (texture method)
+--
+-- Makes it so the fill direction will change based on the rotation
+-------------------------------------------------------------------------------
+local function StatusBarSyncFillDirection(Texture, Action)
+  if type(Action) ~= 'boolean' then
+    assert(false, 'SyncFillDirection - Must be true or false')
+  end
+  Texture._SyncFillDirection = Action
+
+  StatusBarOrientTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetFillDirection (texture method)
+--
+-- Sets fill direction for horizontal or vertical
+--
+-- Direction    'HORIZONTAL'   Fill from left to right.
+--              'VERTICAL'     Fill from bottom to top.
+-------------------------------------------------------------------------------
+local function StatusBarSetFillDirection(Texture, Direction)
+  if Direction ~= 'HORIZONTAL' and Direction ~= 'VERTICAL' then
+    assert(false, 'SetFillDirection - Must be HORIZONTAL or VERTICAL')
+  end
+  Texture._FillDirection = Direction
+
+  StatusBarOrientTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetFillReverse (texture method)
+--
+-- Changes the fill direction to reverse
+--
+-- Action    true         The fill will be reversed.  Right to left or top to bottom.
+--           false        Default fill.  Left to right or bottom to top.
+-------------------------------------------------------------------------------
+local function StatusBarSetFillReverse(Texture, Action)
+  if type(Action) ~= 'boolean' then
+    assert(false, 'SetReverseFill - Must be true or false')
+  end
+  Texture._ReverseFill = Action
+
+  StatusBarOrientTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarSetClipping (texture method)
+--
+-- Texture is clipped instead of being stretched
+-------------------------------------------------------------------------------
+local function StatusBarSetClipping(Texture, Action)
+  if type(Action) ~= 'boolean' then
+    assert(false, 'SetClipping - Must be true or false')
+  end
+  Texture._Clipping = Action
+
+  StatusBarDrawAllTextures(Texture._SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarLink (texture method)
+--
+-- Links two or more textures into a linked texture
+--
+-- FirstTexture  Starting texture in the link
+-- ...           One or more textures to form a link
+-------------------------------------------------------------------------------
+local function StatusBarLink(FirstTexture, ...)
+
+  -- do nothing if already linked
+  if FirstTexture and FirstTexture._Textures then
+    return
   end
 
-  -- Validate and add to list
-  for Index = 1, select('#', ...) do
-    local TaggedTexture = select(Index, ...)
+  local FnName = 'Link'
+  local SBF = FirstTexture._SBF
 
-    if SBF[TaggedTexture] == nil then
-      assert(false, Type .. ' - Texture list - invalid texture')
-    elseif TaggedTexture._TaggedTextures or TaggedTexture._LinkedTaggedTextures or TaggedTexture._FirstTexture then
-      assert(false, Type .. ' - Texture list - already tagged')
+  local Textures = {FirstTexture, ...}
+  local NumTextures = #Textures
+
+  if NumTextures < 2 then
+    assert(false, FnName .. ' - Need at least two textures to link')
+  end
+
+  -- Validate first
+  for Index = 1, NumTextures do
+    local Texture = Textures[Index]
+
+    if SBF[Texture] == nil then
+      assert(false, FnName .. ' - Texture #' .. (Index - 1) .. " doesn't exist")
+    elseif Texture._Link then
+      assert(false, FnName .. ' - Texture #' .. (Index - 1) .. ' already linked')
+    elseif Textures[Texture] then
+      assert(false, FnName .. ' - Two textures found matching each other')
+    elseif Texture._EdgeFrame then
+      assert(false, FnName .. ' - Texture #' .. (Index - 1) .. ' currently has textures tagged to it')
+    elseif Texture._TaggedTexture then
+      assert(false, FnName .. ' - Texture #' .. (Index - 1) .. ' currently tagged to another texture')
     end
+    Textures[Texture] = 1
+  end
 
-    -- Add to tag list if not linked
-    if not Linked then
-      TaggedTextures[#TaggedTextures + 1] = TaggedTexture
-    end
-    TaggedTexture._PointTexture = PointTexture
-    TaggedTexture._FirstTexture = Texture
+  FirstTexture._Link = FirstTexture
+  FirstTexture._Textures = Textures
+  FirstTexture._HideFull = false
+  FirstTexture._Overlap = false
 
-    TaggedTexture._Overlap = Overlap
-    TaggedTexture._TagLeft = false
-    PointTexture = TaggedTexture
+  for Index = 2, NumTextures do
+    local Texture = Textures[Index]
+
+    Texture._Link = FirstTexture
+    Texture._OrientPrev = Textures[Index - 1]._OrientTexture
   end
 
   StatusBarOrientTextures(SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarLinkTag (Texture method)
+-- StatusBarUnLink (texture method)
 --
--- Creates a textures that are tagged but in a link
+-- Remove links from textures, returning them back to normal textures
+--
+-- Texture    Must be the start of the link
 -------------------------------------------------------------------------------
-local function StatusBarLinkTag(Texture, Overlap, ...)
-  StatusBarDoTag('StatusBarLinkTag', Texture, true, Overlap, ...)
-end
+local function StatusBarUnLink(Texture)
 
--------------------------------------------------------------------------------
--- StatusBarTag (Texture method)
---
--- Creates a tagged texture
--------------------------------------------------------------------------------
-local function StatusBarTag(Texture, ...)
-  StatusBarDoTag('StatusBarTag', Texture, false, false, ...)
-end
-
--------------------------------------------------------------------------------
--- StatusBarTagLeft (Texture method)
---
--- Changes the texture to be tagged to the left instead of the left.
---
--- Action   if true texture is tagged left otherwise right
---
--- NOTES:  Normally a texture grows to the right of the texture its tagged to
---         Instead the tagged texture grows to the left from the right side
--------------------------------------------------------------------------------
-local function StatusBarTagLeft(Texture, Action)
-  if Texture._TaggedTextures then
-    assert(false, 'StatusBarTagLeft - Texture is part of a link')
-  elseif Texture._PointTexture == nil then
-    assert(false, 'StatusBarTagLeft - Texture is not a tag')
-  elseif type(Action) ~= 'boolean' then
-    assert(false, 'StatusBarTagLeft - Invalid action: true or false')
+  -- do nothing if already unlinked
+  if Texture and Texture._Textures == nil then
+    return
   end
-  Texture._TagLeft = Action
+
+  local FnName = 'UnLink'
+  local SBF = Texture._SBF
+  local Textures
+
+  if SBF[Texture] == nil then
+    assert(false, FnName .. " - Texture doesn't exist")
+  elseif Texture._Link == nil then
+    assert(false, FnName .. ' - Texture must be linked')
+  else
+    Textures = Texture._Textures
+    if Textures == nil then
+      assert(false, FnName .. ' - Texture must be the first in the link')
+    end
+  end
+
+  -- Unlink this texture link
+  for Index = 1, #Textures do
+    local T = Textures[Index]
+
+    T._Link = nil
+    T._Prev = nil
+
+    T._HideFull = nil
+    T._Overlap = nil
+  end
+  Texture._Textures = nil
+
+  StatusBarOrientTextures(SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarTag (texture method)
+--
+-- Tags one texture or linked texture to another texture or linked texture
+-- Can't tag a texture already tagged
+--
+-- Texture           Texture or linked texture that is being tagged to TargetTexture
+-- Action
+--   left-right      Tagged textures will grow from left to right starting from the target links edge
+--   right-left      Tagged textures will grow from right to left starting from the target links edge
+-- TargetTexture     Texture or linked texture
+-------------------------------------------------------------------------------
+local function StatusBarTag(Texture, Action, TargetTexture)
+
+  -- do nothing if already tagged
+  if Texture and Texture._TaggedToTexture then
+    return
+  end
+
+  local FnName = 'Tag'
+  local SBF = Texture._SBF
+
+  if SBF[Texture] == nil then
+    assert(false, FnName .. " - Texture doesn't exist")
+  elseif SBF[TargetTexture] == nil then
+    assert(false, FnName .. " - Target Texture doesn't exist")
+  -- Don't check target texture for a tag, since more than one texture can be tagged to the other texture
+  elseif Texture._EdgeFrame then
+    assert(false, FnName .. " - Texture already has one or more textures tagged to it")
+  elseif TargetTexture._TaggedToTexture then
+    assert(false, FnName .. " - Target Texture already tagged to another texture")
+  elseif TargetTexture == Texture then
+    assert(false, FnName .. " - Target texture and texture can't be the same")
+  elseif Texture._Link and Texture._Textures == nil then
+    assert(false, FnName .. ' - Texture must be first when tagging a linked texture')
+  elseif TargetTexture._Link and TargetTexture._Textures == nil then
+    assert(false, FnName .. ' - Target texture must be first when tagging to a link')
+  end
+
+  if Action == 'right-left' then
+    Action = '_TagRightToLeft'
+  elseif Action == 'left-right' then
+    Action = nil
+  else
+    assert(false, FnName .. ' - Action must be left-right or right-left')
+  end
+
+  -- Create edge frame if it doesn't exist
+  local EdgeFrames = SBF._EdgeFrames
+  local EdgeFrame = EdgeFrames[TargetTexture]
+  if EdgeFrame == nil then
+    EdgeFrame = CreateFrame('Frame', nil, SBF)
+    EdgeFrames[TargetTexture] = EdgeFrame
+  end
+  TargetTexture._EdgeFrame = EdgeFrame
+
+  -- Set all points if not a link texture
+  if EdgeFrame and TargetTexture._Link == nil then
+    EdgeFrame:SetAllPoints(TargetTexture)
+  end
+
+  local Tagged = TargetTexture._Tagged
+  if Tagged == nil then
+    Tagged = {}
+    TargetTexture._Tagged = Tagged
+  end
+  Tagged[Texture] = 1
+
+  Texture._TaggedToTexture = TargetTexture
+
+  if Action then
+    Texture[Action] = 1
+  end
+
+  StatusBarOrientTextures(SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarUnTag (texture method)
+--
+-- Removes a tag from a texture or linked textures
+--
+-- Texture     The texture that will be untagged
+-------------------------------------------------------------------------------
+local function StatusBarUnTag(Texture)
+
+  -- do nothing if already untagged
+  if Texture and Texture._TaggedToTexture == nil then
+    return
+  end
+
+  local FnName = 'UnTag'
+  local SBF = Texture._SBF
+
+  if SBF[Texture] == nil then
+    assert(false, FnName .. " - Texture doesn't exist")
+  end
+
+  -- Remove texture from tagged list
+  local TaggedToTexture = Texture._TaggedToTexture
+  local Tagged = TaggedToTexture._Tagged
+  Tagged[Texture] = nil
+
+  -- Remove tagged if empty
+  if next(Tagged) == nil then
+    TaggedToTexture._Tagged = nil
+    TaggedToTexture._EdgeFrame:ClearAllPoints()
+    TaggedToTexture._EdgeFrame = nil
+  end
+  Texture._TagRightToLeft = nil
+  Texture._TaggedToTexture = nil
+  Texture._TagInherit = nil
+
+  StatusBarOrientTextures(SBF)
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarTagInherit
+--
+-- A texture will not inherit the stats from the texture it's tagged to
+--
+-- Inherit    false then don't inherit, otherwise true
+-------------------------------------------------------------------------------
+local function StatusBarTagInherit(Texture, Inherit)
+  local FnName = 'TagInherit'
+
+  if Texture._TaggedToTexture == nil then
+    assert(false, FnName .. ' - Texture must be tagged to another texture')
+  elseif type(Inherit) ~= 'boolean' then
+    assert(false, FnName .. ' - Inherit: must be true or false')
+  end
+
+  Texture._TagInherit = Inherit
 
   StatusBarOrientTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
--- ClearTags
+-- StatusBarSetMaxRange (texture method)
 --
--- Clears the tags found in textures table
+-- Sets the maximum value it takes to to draw all of the bar
 -------------------------------------------------------------------------------
-local function ClearTags(Textures)
-  local Found = false
+local function StatusBarSetMaxRange(Texture, MaxRange)
+  Texture._MaxRange = MaxRange
 
-  if Textures then
-    Found = true
-    for Index = 1, #Textures do
-      local Texture = Textures[Index]
-
-      Texture._PointTexture = nil
-      Texture._FirstTexture = nil
-      Texture._Overlap = nil
-      Texture._TagLeft = nil
-      Texture._LinkedValue = nil
-    end
-  end
-  return Found
+  StatusBarDrawAllTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
--- StatusBarClearTag (Texture method)
+-- StatusBarSetMaxValue (texture method)
 --
--- Removes the texture that is tagged to the main texture
+-- Limits the texture to maxvalue. Good for making some textures shorter than
+-- the width of the texture frame.
 --
--- NOTES: Must specify the first texture in the tag list
+-- NOTES: MaxValue is stored based on value and not pixels. Can be greater than 1
+--        MaxValue will always get clipped to the maxvalue of the statusbar frame
 -------------------------------------------------------------------------------
-local function StatusBarClearTag(Texture)
-  local Found, Found2 = ClearTags(Texture._LinkedTaggedTextures), ClearTags(Texture._TaggedTextures)
-
-  Texture._LinkedTaggedTextures = nil
-  Texture._TaggedTextures = nil
-
-  if Found or Found2 then
-    StatusBarOrientTextures(Texture._SBF)
-  end
-end
-
--------------------------------------------------------------------------------
--- StatusBarSetMaxValue (SBF method)
---
--- Sets the maximum value the status bar will draw up to
--------------------------------------------------------------------------------
-local function StatusBarSetMaxValue(SBF, Max)
-  SBF._MaxValue = Max
+local function StatusBarSetMaxValue(Texture, MaxValue)
+  Texture._MaxValue = MaxValue
 
   -- Draw all textures
-  if #SBF > 0 then
-    StatusBarOrientTextures(SBF)
-  end
+  StatusBarDrawAllTextures(Texture._SBF)
 end
 
 -------------------------------------------------------------------------------
@@ -2579,60 +2931,76 @@ end
 -- Sublayer          To make things simple this takes a value from 1 onward.
 --                   2 is drawn above 1, etc
 --
--- Action            Optional.  'spark' then the texture will be a spark
---
 -- Methods:
+--   SetPointPixel(Point, Point, OffsetX, OffsetY)
+--   SetPixelSize(Width, Height)
+--   SetPixelWidth(Width)
+--   SetPixelHeight(Height)
+--   SetPixelWidth(Width)
+--
 --   SetValue(Value)
---   SetValueScale(ValueScale)
---   HideMaxValue(true or false)
---   SetRotation(-90, 0, 90, or 180)
---   SyncFillDirection(true or false)
---   SetFillDirection(VERTICAL or HORIZONTAL)
---   SetLength(Length)
---   SetReverseFill(true or false)
---   SetClipping(true or false)
+--   SetMaxRange(MaxRange)
+--   SetMaxValue(MaxValue)
+--   SetScaleHorizontal(ScaleX, ScaleY)
+--   SetScaleVertical(ScaleX, ScaleY)
 --   SetTexCoord(Texture, Left, Right, Top, Bottom)
---   SetOffset(x, y)
---   SetSizeSpark(Width, ScaledHeight)
 --   Hide()
 --   Show()
 --
---   Tag(...)
---   TagLeft(true or false)
---   ClearTag()
+--   HideFull(true or false)
+--   SetOverlap(true or false)
+--
+--   SetFillDirection(VERTICAL or HORIZONTAL)
+--   SyncFillDirection(true or false)
+--   SetRotation(-90, 0, 90, or 180)
+--   SetReverseFill(true or false)
+--   SetClipping(true or false)
+--
+--   Texture:Link(...)
+--   Texture:UnLink()
+--   Texture:Tag(Action, TargetTexture)
+--   Texture:UnTag()
+--   Texture:TagInherit(true or false)
+--
+-- NOTES: Since noclip is in a different frame. It can use it's own sublayers
+--        and will not conflict with textures in the content frame
 -------------------------------------------------------------------------------
 local function StatusBarCreateTexture(SBF, Sublayer, Action)
-  if Action ~= nil and Action ~= 'spark' then
-    assert(false, 'StatusBarCreateTexture - Invalid action: spark')
+  if Action ~= nil and Action ~= 'noclip' then
+    assert(false, 'CreateTexture - Invalid action: must be noclip or nil')
   end
 
   Sublayer = ConvertSublayer[Sublayer]
   if Sublayer == nil then
-    assert(false, format('StatusBarCreateTexture - Invalid Sublayer: 1 to %s', #ConvertSublayer))
+    assert(false, format('CreateTexture - Invalid Sublayer: 1 to %s', #ConvertSublayer))
   end
 
   local Texture
-  if Action == 'spark' then
-    Texture = SBF._SparkFrame:CreateTexture(nil, 'ARTWORK', nil, Sublayer)
-    Texture:SetBlendMode('ADD')
-    Texture._IsSpark = true
-    Texture._PixelWidth = 32
-    Texture._ScaledHeight = 1
+  local OrientTexture
+  if Action == 'noclip' then
+    Texture = SBF._NoClipFrame:CreateTexture(nil, 'ARTWORK', nil, Sublayer)
+    OrientTexture = SBF._NoClipFrame:CreateTexture(nil, 'ARTWORK', nil, Sublayer)
+    Texture._NOCLIP = 1
   else
     Texture = SBF._ContentFrame:CreateTexture(nil, 'ARTWORK', nil, Sublayer)
+    OrientTexture = SBF._ContentFrame:CreateTexture(nil, 'ARTWORK', nil, Sublayer)
   end
 
+  Texture._OrientTexture = OrientTexture
+
   Texture._Value = 0
-  Texture._ValueScale = 1
+  Texture._MaxRange = 1
+  Texture._MaxValue = 1
+  Texture._ScaleHorizontalX = 1
+  Texture._ScaleHorizontalY = 1
+  Texture._ScaleVerticalX = 1
+  Texture._ScaleVerticalY = 1
 
   Texture._Hidden = false
-  Texture._HideMaxValue = false
-  Texture._OffsetX = 0
-  Texture._OffsetY = 0
-  Texture._ScaledHeight = 1
 
   Texture._Rotation = 0
   Texture._FillDirection = 'HORIZONTAL'
+  Texture._SyncFillDirection = false
   Texture._ReverseFill = false
   Texture._Clipping = true
 
@@ -2646,29 +3014,58 @@ local function StatusBarCreateTexture(SBF, Sublayer, Action)
   SBF[#SBF + 1] = Texture
 
   -- Set methods
-  StatusBarSetMethod(Texture, 'SetValue',          StatusBarSetValue)
-  StatusBarSetMethod(Texture, 'SetValueScale',     StatusBarSetValueScale)
-  StatusBarSetMethod(Texture, 'HideMaxValue',      StatusBarHideMaxValue)
-  StatusBarSetMethod(Texture, 'SetRotation',       StatusBarSetRotation)
-  StatusBarSetMethod(Texture, 'SyncFillDirection', StatusBarSyncFillDirection)
-  StatusBarSetMethod(Texture, 'SetFillDirection',  StatusBarSetFillDirection)
-  StatusBarSetMethod(Texture, 'SetFillReverse',    StatusBarSetFillReverse)
-  StatusBarSetMethod(Texture, 'SetClipping',       StatusBarSetClipping)
-  StatusBarSetMethod(Texture, 'SetLength',         StatusBarSetLength)
-  StatusBarSetMethod(Texture, 'SetTexCoord',       StatusBarSetTexCoord)
-  StatusBarSetMethod(Texture, 'SetOffset',         StatusBarSetOffset)
-  StatusBarSetMethod(Texture, 'SetSizeSpark',      StatusBarSetSizeSpark)
-  StatusBarSetMethod(Texture, 'Hide',              StatusBarHide)
-  StatusBarSetMethod(Texture, 'Show',              StatusBarShow)
+  StatusBarSetMethod(Texture, 'SetPointPixel',       StatusBarSetPointPixel)
+  StatusBarSetMethod(Texture, 'SetPixelSize',        StatusBarSetPixelSize)
+  StatusBarSetMethod(Texture, 'SetPixelWidth',       StatusBarSetPixelWidth)
+  StatusBarSetMethod(Texture, 'SetPixelHeight',      StatusBarSetPixelHeight)
+  StatusBarSetMethod(Texture, 'SetPixelLength',      StatusBarSetPixelLength)
 
-  StatusBarSetMethod(Texture, 'Tag',               StatusBarTag)
-  StatusBarSetMethod(Texture, 'LinkTag',           StatusBarLinkTag)
-  StatusBarSetMethod(Texture, 'TagLeft',           StatusBarTagLeft)
-  StatusBarSetMethod(Texture, 'ClearTag',          StatusBarClearTag)
+  StatusBarSetMethod(Texture, 'SetValue',            StatusBarSetValue)
+  StatusBarSetMethod(Texture, 'SetScaleHorizontal',  StatusBarSetScaleHorizontal)
+  StatusBarSetMethod(Texture, 'SetScaleVertical',    StatusBarSetScaleVertical)
+  StatusBarSetMethod(Texture, 'SetMaxRange',         StatusBarSetMaxRange)
+  StatusBarSetMethod(Texture, 'SetMaxValue',         StatusBarSetMaxValue)
+  StatusBarSetMethod(Texture, 'SetTexCoord',         StatusBarSetTexCoord)
+  StatusBarSetMethod(Texture, 'Hide',                StatusBarHide)
+  StatusBarSetMethod(Texture, 'Show',                StatusBarShow)
+
+  StatusBarSetMethod(Texture, 'HideFull',            StatusBarHideFull)
+  StatusBarSetMethod(Texture, 'SetOverlap',          StatusBarSetOverlap)
+
+  StatusBarSetMethod(Texture, 'SetRotation',         StatusBarSetRotation)
+  StatusBarSetMethod(Texture, 'SyncFillDirection',   StatusBarSyncFillDirection)
+  StatusBarSetMethod(Texture, 'SetFillDirection',    StatusBarSetFillDirection)
+  StatusBarSetMethod(Texture, 'SetFillReverse',      StatusBarSetFillReverse)
+  StatusBarSetMethod(Texture, 'SetClipping',         StatusBarSetClipping)
+
+  StatusBarSetMethod(Texture, 'Link',                StatusBarLink)
+  StatusBarSetMethod(Texture, 'UnLink',              StatusBarUnLink)
+  StatusBarSetMethod(Texture, 'TagInherit',          StatusBarTagInherit)
+  StatusBarSetMethod(Texture, 'Tag',                 StatusBarTag)
+  StatusBarSetMethod(Texture, 'UnTag',               StatusBarUnTag)
 
   StatusBarOrientTextures(Texture._SBF)
 
   return Texture
+end
+
+-------------------------------------------------------------------------------
+-- StatusBarOnSizeChanged (called by event)
+--
+-- Keeps track of the width and height, and redraws the bar when ever
+-- there is a change in size
+-------------------------------------------------------------------------------
+local function StatusBarOnSizeChanged(SBF, Width, Height)
+  SBF._Width = Width
+  SBF._Height = Height
+
+  -- Content Frame must be the same size ass the statusbar frame
+  SBF._ContentFrame:SetSize(Width, Height)
+
+  -- do nothing if no textures been created
+  if #SBF > 0 then
+    StatusBarOrientTextures(SBF)
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -2677,17 +3074,22 @@ end
 -- Creates a status bar that can contain one or more textures
 --
 -- Methods:
---   SetMaxValue(Max)
---   CreateTexture(Sublayer, [spark])  -- Returns texture created
+--   CreateTexture(Sublayer)  -- Returns texture created
+--
+-- NOTES: Using a contentframe and scroll frame. Makes the texture clipping
+--        less jittery. It's very faint, but you can see it. Maybe this doesn't
+--        happen in 10.0. Also just need the clipping so textures don't go beyond
+--        the bounds
 -------------------------------------------------------------------------------
 local function CreateStatusBarFrame(ParentFrame)
   local SBF = CreateFrame('Frame', nil, ParentFrame)
 
-  local SparkFrame = CreateFrame('Frame', nil, SBF)
-  SparkFrame:SetAllPoints()
-  -- Make sure the spark frame is above the content frame
-  SparkFrame:SetFrameLevel(SBF:GetFrameLevel() + 3)
-  SBF._SparkFrame = SparkFrame
+  local NoClipFrame = CreateFrame('Frame', nil, SBF)
+  NoClipFrame:SetAllPoints()
+
+  -- Make sure the noclip frame is above the content frame
+  NoClipFrame:SetFrameLevel(SBF:GetFrameLevel() + 3)
+  SBF._NoClipFrame = NoClipFrame
 
   -- Use Scrollframe and content frame to handle clipping
   local ScrollFrame = CreateFrame('ScrollFrame', nil, SBF)
@@ -2700,13 +3102,13 @@ local function CreateStatusBarFrame(ParentFrame)
 
   SBF._Width = 1
   SBF._Height = 1
-  SBF._MaxValue = 1
+
+  SBF._EdgeFrames = {}
 
   SBF:SetScript('OnSizeChanged', StatusBarOnSizeChanged)
 
   -- Set methods
-  StatusBarSetMethod(SBF, 'SetMaxValue',      StatusBarSetMaxValue)
-  StatusBarSetMethod(SBF, 'CreateTexture',    StatusBarCreateTexture)
+  StatusBarSetMethod(SBF, 'CreateTexture', StatusBarCreateTexture)
 
   return SBF
 end
@@ -2909,7 +3311,7 @@ end
 -- AGroup      Animation group from GetAnimation()
 -- GroupType  'parent' or 'children' or 'all'
 --
--- NOTES:  If GroupType is 'all' then all animation is stopped
+-- NOTES: If GroupType is 'all' then all animation is stopped
 -------------------------------------------------------------------------------
 local function StopPlaying(AGroup, GroupType)
   for _, AG in pairs(AGroup.InUse) do
@@ -2949,7 +3351,7 @@ end
 -- ReverseAnimation   If true just stops playing.
 --
 -- NOTES: Only alpha and scale support the call back AGroup.Fn
---        This functions returns the current x, y of a Move animation.
+--        This function returns the current x, y of a Move animation.
 -------------------------------------------------------------------------------
 local function StopAnimation(AGroup, ReverseAnimation)
   local Type = AGroup.Type
@@ -2988,7 +3390,7 @@ local function StopAnimation(AGroup, ReverseAnimation)
 
           -- Restore anchor
           if Object.IsAnchor then
-            -- AnimationFrame needs no restorting. Leave here for reference
+            -- AnimationFrame needs no restoring. Leave here for reference
           end
           OnObject:SetScale(1)
         end
@@ -3048,8 +3450,8 @@ end
 --        Blizzard built in animation scaling doesn't work well with child frames.
 --        So this has to be done instead.
 --
---        I haven't rechecked these for WoW 8.x.  Basically don't try to fix what's not
---        broken.
+--        I haven't rechecked these for WoW 8.x or after.  Basically don't try to
+--        fix what's not broken.
 -------------------------------------------------------------------------------
 local function OnObjectAlpha(AGroup)
   local Value = AGroup.FromValue
@@ -3153,7 +3555,6 @@ local function PlayAnimation(AGroup, ...)
 
   if Type == 'alpha' or Type == 'scale' then
     Direction = ...
-    AGroup.Direction = Direction
 
     Object:Show()
     if Direction == 'in' then
@@ -3209,8 +3610,8 @@ local function PlayAnimation(AGroup, ...)
       AGroup.FromValue = FromScale
       AGroup.ToValue = ToScale
 
-      Animation:SetFromScale(FromScale, FromScale)
-      Animation:SetToScale(ToScale, ToScale)
+      Animation:SetScaleFrom(FromScale, FromScale)
+      Animation:SetScaleTo(ToScale, ToScale)
       Animation:SetOrigin('CENTER', 0, 0)
 
       OnObject:SetScale(FromScale)
@@ -3232,7 +3633,7 @@ local function PlayAnimation(AGroup, ...)
       AGroup.ToValueTop = ToTop
       AGroup.ToValueBottom = ToBottom
 
-      Animation:SetFromAlpha(0)
+      Animation:SetFromAlpha(0) -- Use From and To alpha as a way to fake offset
       Animation:SetToAlpha(1)
 
       SetOffsetFrame(OnObject, FromLeft, FromRight, FromTop, FromBottom)
@@ -3242,12 +3643,14 @@ local function PlayAnimation(AGroup, ...)
 
   -- Check if frame is invisible or nothing to do.
   if Duration == 0 or (OffsetX == 0 and OffsetY == 0) or not Object:IsVisible() then
+
+    -- Need to set direction here for StopAnimation(), since the animation never played
+    AGroup.Direction = Direction
     StopAnimation(AGroup)
     return
   end
 
   if AGroup:IsPlaying() then
-
     -- Check for reverse animation for alpha or scale.
     if Direction then
       if Main.UnitBars.ReverseAnimation then
@@ -3285,9 +3688,10 @@ local function PlayAnimation(AGroup, ...)
       if OnObject then
         AGroup:SetScript('OnUpdate', OnObjectAlpha)
       end
+    -- Scale
     else
-      Animation:SetFromScale(FromValue, FromValue)
-      Animation:SetToScale(ToValue, ToValue)
+      Animation:SetScaleFrom(FromValue, FromValue)
+      Animation:SetScaleTo(ToValue, ToValue)
       Animation:SetOrigin('CENTER', 0, 0)
 
       if OnObject then
@@ -3301,6 +3705,12 @@ local function PlayAnimation(AGroup, ...)
       end
     end
   end
+
+  -- Need to set direction here since StopAnimation() gets called.
+  -- StopAnimation() clears the direction. So direction needs to be
+  -- set here.
+  -- If direction is nil then nothing is set
+  AGroup.Direction = Direction
 
   Animation:SetDuration(Duration)
   AGroup:SetScript('OnFinished', StopAnimation)
@@ -3358,12 +3768,17 @@ end
 -- Type  'scale' or 'alpha'
 --
 -- NOTES: This function must be called before any animation can be done.
---        if type is 'stopall' then all children animation gets stopped.
+--        if type is 'stopall' will stop both the parent and the children animation
+--        if type is 'stopchildren' then all children animation gets stopped.
 -------------------------------------------------------------------------------
 function BarDB:SetAnimationBar(Type)
   local AGroup = self.AGroup
 
   if Type == 'stopall' then
+    if AGroup then
+      StopPlaying(AGroup, 'all')
+    end
+  elseif Type == 'stopchildren' then
     if AGroup then
       StopPlaying(AGroup, 'children')
     end
@@ -3641,8 +4056,8 @@ end
 -- Enabled    if true the region is shown and ShowRegion and HideRegion work again.
 --            if false the region is hidden and ShowRegion and HideRegion no longer work.
 --
--- NOTES:  HideRegion and ShowRegion will still update the state of the region.  Its just not
---         shown.  Once the region is enabled its state is restored on screen.
+-- NOTES: HideRegion and ShowRegion will still update the state of the region.  Its just not
+--        shown.  Once the region is enabled its state is restored on screen.
 -------------------------------------------------------------------------------
 function BarDB:EnableRegion(Enabled)
   self.RegionEnabled = Enabled
@@ -3697,7 +4112,7 @@ function BarDB:SetHidden(BoxNumber, TextureFrameNumber, Hide)
       Frame:Hide()
     else
       Frame:Show()
-      RestoreBackdrops(Frame)
+      --RestoreBackdrops(Frame)
     end
     Frame.Hidden = Hide
   until LastBox
@@ -3723,7 +4138,7 @@ function BarDB:SetBackdropRegion(TextureName, PathName)
   local Region = self.Region
   local Backdrop = GetBackdrop(Region)
 
-  Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName)
+  Backdrop.bgFile = PathName and TextureName or LSM:Fetch('background', TextureName) or DefaultBackdrop.bgFile
   SetBackdrop(Region, Backdrop)
 end
 
@@ -3741,7 +4156,7 @@ function BarDB:SetBackdropBorderRegion(TextureName, PathName)
   local Region = self.Region
   local Backdrop = GetBackdrop(Region)
 
-  Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName)
+  Backdrop.edgeFile = PathName and TextureName or LSM:Fetch('border', TextureName) or DefaultBackdrop.edgeFile
   SetBackdrop(Region, Backdrop)
 end
 
@@ -3756,7 +4171,7 @@ function BarDB:SetBackdropTileRegion(Tile)
   local Region = self.Region
   local Backdrop = GetBackdrop(Region)
 
-  Backdrop.tile = Tile
+  Backdrop.tile = Tile or DefaultBackdrop.tile
   SetBackdrop(Region, Backdrop)
 end
 
@@ -3771,7 +4186,7 @@ function BarDB:SetBackdropTileSizeRegion(TileSize)
   local Region = self.Region
   local Backdrop = GetBackdrop(Region)
 
-  Backdrop.tileSize = TileSize
+  Backdrop.tileSize = TileSize or DefaultBackdrop.tileSize
   SetBackdrop(Region, Backdrop)
 end
 
@@ -3786,7 +4201,7 @@ function BarDB:SetBackdropBorderSizeRegion(BorderSize)
   local Region = self.Region
   local Backdrop = GetBackdrop(Region)
 
-  Backdrop.edgeSize = BorderSize
+  Backdrop.edgeSize = BorderSize or DefaultBackdrop.edgeSize
   SetBackdrop(Region, Backdrop)
 end
 
@@ -3801,11 +4216,12 @@ function BarDB:SetBackdropPaddingRegion(Left, Right, Top, Bottom)
   local Region = self.Region
   local Backdrop = GetBackdrop(Region)
   local Insets = Backdrop.insets
+  local DefaultInsets = DefaultBackdrop.insets
 
-  Insets.left = Left
-  Insets.right = Right
-  Insets.top = Top
-  Insets.bottom = Bottom
+  Insets.left =   Left   or DefaultInsets.left
+  Insets.right =  Right  or DefaultInsets.right
+  Insets.top =    Top    or DefaultInsets.top
+  Insets.bottom = Bottom or DefaultInsets.bottom
 
   SetBackdrop(Region, Backdrop)
 end
@@ -3821,7 +4237,7 @@ function BarDB:SetBackdropColorRegion(r, g, b, a)
   SaveSettings(self, 'SetBackdropColorRegion', nil, nil, r, g, b, a)
 
   local Region = self.Region
-  Region:SetBackdropColor(r, g, b, a)
+  Region:SetBackdropColor(r or 1, g or 1, b or 1, a or 1)
 end
 
 -------------------------------------------------------------------------------
@@ -3838,11 +4254,7 @@ function BarDB:SetBackdropBorderColorRegion(r, g, b, a)
 
   local Region = self.Region
 
-  -- Clear if no color is specified.
-  if r == nil then
-    r, g, b, a = 1, 1, 1, 1
-  end
-  Region:SetBackdropBorderColor(r, g, b, a)
+  Region:SetBackdropBorderColor(r or 1, g or 1, b or 1, a or 1)
 end
 
 -------------------------------------------------------------------------------
@@ -3867,7 +4279,7 @@ function BarDB:SetPaddingBorder(BorderPadding)
   self.BorderPadding = BorderPadding
 end
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- SetRotationBar
 --
 -- Sets the rotation the bar will be displayed in.
@@ -4230,7 +4642,7 @@ function BarDB:SetBackdropColor(BoxNumber, TextureFrameNumber, r, g, b, a)
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
 
-    Frame:SetBackdropColor(r, g, b, a)
+    Frame:SetBackdropColor(r or 1, g or 1, b or 1, a or 1)
   until LastBox
 end
 
@@ -4255,11 +4667,7 @@ function BarDB:SetBackdropBorderColor(BoxNumber, TextureFrameNumber, r, g, b, a)
       Frame = Frame.TextureFrames[TextureFrameNumber].BorderFrame
     end
 
-    -- Clear if no color is specified.
-    if r == nil then
-      r, g, b, a = 1, 1, 1, 1
-    end
-    Frame:SetBackdropBorderColor(r, g, b, a)
+    Frame:SetBackdropBorderColor(r or 1, g or 1, b or 1, a or 1)
   until LastBox
 end
 
@@ -4301,7 +4709,7 @@ end
 -- TextureFrameNumber  Texture frame to change size.
 -- Width, Height       New width and height to set.
 --
--- NOTES:  The BoxFrame will be resized to fit the new size of the TextureFrame.
+-- NOTES: The BoxFrame will be resized to fit the new size of the TextureFrame.
 -------------------------------------------------------------------------------
 function BarDB:SetSizeTextureFrame(BoxNumber, TextureFrameNumber, Width, Height)
   SaveSettings(self, 'SetSizeTextureFrame', BoxNumber, TextureFrameNumber, Width, Height)
@@ -4451,8 +4859,8 @@ end
 -- RelativePoint               Reference to another textureframes point.
 -- OffsetX, OffsetY            Offsets from point. 0, 0 us used if nil.
 --
--- NOTES:  This will only allow one point active at anytime.
---         If point is nil then the TextureFrame is set to boxframe.
+-- NOTES: This will only allow one point active at anytime.
+--        If point is nil then the TextureFrame is set to boxframe.
 -------------------------------------------------------------------------------
 function BarDB:SetPointTextureFrame(BoxNumber, TextureFrameNumber, Point, RelativeTextureFrameNumber, RelativePoint, OffsetX, OffsetY)
   repeat
@@ -4508,7 +4916,6 @@ end
 function BarDB:SetHiddenTexture(BoxNumber, TextureNumber, Hide)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-
     local Hidden = Texture.Hidden
     local ShowHideFn = Texture.ShowHideFn
 
@@ -4723,7 +5130,7 @@ function BarDB:SetBackdropColorTexture(BoxNumber, TextureNumber, r, g, b, a)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture.Frame:SetBackdropColor(r, g, b, a)
+    Texture.Frame:SetBackdropColor(r or 1, g or 1, b or 1, a or 1)
   until LastBox
 end
 
@@ -4745,13 +5152,7 @@ function BarDB:SetBackdropBorderColorTexture(BoxNumber, TextureNumber, r, g, b, 
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
     local Frame = Texture.Frame
 
-    Frame:SetBackdropBorderColor(r, g, b, a)
-
-    -- Clear if no color is specified.
-    if r == nil then
-      r, g, b, a = 1, 1, 1, 1
-    end
-    Frame:SetBackdropBorderColor(r, g, b, a)
+    Frame:SetBackdropBorderColor(r or 1, g or 1, b or 1, a or 1)
   until LastBox
 end
 
@@ -4820,7 +5221,28 @@ function BarDB:ChangeTexture(ChangeNumber, BarFn, BoxNumber, ...)
 end
 
 -------------------------------------------------------------------------------
+-- SetFillMaxRangeTexture
+--
+-- Statusbars
+--
+-- Sets the maximum value it will take to fully show the whole statusbar
+--
+-- BoxNumber           Box containing the fill texture
+-- TextureNumber       Texture frame that contains the statusbar frame
+-- MaxRange            Any value above 0
+-------------------------------------------------------------------------------
+function BarDB:SetFillMaxRangeTexture(BoxNumber, TextureNumber, MaxRange)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetMaxRange(MaxRange)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
 -- SetFillMaxValueTexture
+--
+-- Statusbars
 --
 -- Sets the max value setfill can use on any statusbar that's created in the
 -- texture frame.
@@ -4829,20 +5251,21 @@ end
 -- TextureNumber       Texture frame that contains the statusbar frame
 -- Value               New maximum for the fill part of all textures
 --
--- NOTE: This must be the texture that was created with type 'statusbar' in CreateTexture()
+-- NOTES: This must be the texture that was created with type 'statusbar' in CreateTexture()
 -------------------------------------------------------------------------------
 function BarDB:SetFillMaxValueTexture(BoxNumber, TextureNumber, Value)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Frame = Texture.Frame
 
-    Frame.SBF:SetMaxValue(Value)
-    Frame.MaxValue = Value
+    Texture:SetMaxValue(Value)
+    Texture.MaxValue = Value
   until LastBox
 end
 
 -------------------------------------------------------------------------------
 -- SetFillTimer (timer function for filling)
+--
+-- Statusbars
 --
 -- Subfunction of SetFillTime
 --
@@ -4859,7 +5282,6 @@ local function SetFillTimer(Texture)
     Texture:SetValue(Value)
     Texture.Value = Value
   else
-
     -- Stop timer
     Main:SetTimer(Texture, nil)
 
@@ -4867,16 +5289,13 @@ local function SetFillTimer(Texture)
     local EndValue = Texture.EndValue
     Texture:SetValue(EndValue)
     Texture.Value = EndValue
-
-    -- Hide spark since the bar is at zero
-    if Texture.Spark then
-      Texture.Spark:Hide()
-    end
   end
 end
 
 -------------------------------------------------------------------------------
 -- SetFillTime
+--
+-- Statusbars
 --
 -- Subfunction of SetFillTimeTexture
 --
@@ -4896,7 +5315,7 @@ end
 -------------------------------------------------------------------------------
 local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndValue, Constant)
   Main:SetTimer(Texture, nil)
-  local MaxValue = Texture.Frame.MaxValue
+  local MaxValue = Texture.MaxValue
 
   Duration = Duration or 0
   StartValue = StartValue and StartValue or Texture.Value
@@ -4927,46 +5346,45 @@ local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndVal
     Texture.StartValue = StartValue
     Texture.EndValue = EndValue
 
-    -- Show spark
-    if Texture.Spark then
-      Texture.Spark:Show()
-    end
-
     Main:SetTimer(Texture, SetFillTimer, TPS, StartTime - CurrentTime)
   else
     Texture:SetValue(EndValue)
     Texture.Value = EndValue
-
-    -- Hide spark
-    if Texture.Spark then
-      Texture.Spark:Hide()
-    end
   end
 end
 
 -------------------------------------------------------------------------------
 -- SetFillTimeDurationTexture
 --
+-- Statusbars
+--
 -- Changes the duration of a fill timer already in progress.  This will cause
 -- the bar to speed up or slow down without stutter.
 --
 -- BoxNumber         Box containing the texture being changed
 -- TextureNumber     Texture being used in fill.
--- NewDuration       The bar will fill over time using this duration from where it left off.
+-- NewDuration       Time in seconds. The bar will fill over time using this
+--                   duration from where it left off.
 -------------------------------------------------------------------------------
 function BarDB:SetFillTimeDurationTexture(BoxNumber, TextureNumber, NewDuration)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
 
-  -- Make sure a timer has already been intialized.
+  -- Make sure a timer has already been intialized
   if Texture.Duration ~= nil then
     local Time = GetTime()
     local TimeElapsed = Time - Texture.StartTime
     local Duration = Texture.Duration
 
-    -- Make sure bar is currently filling.
+    -- Bar must be currently filling
     if TimeElapsed <= Duration then
-      Texture.StartTime = Time
-      Texture.StartValue = Texture.StartValue + Texture.Range * (TimeElapsed / Duration)
+
+      -- Bring Current Value up to date
+      local Value = Texture.StartValue + Texture.Range * (TimeElapsed / Duration)
+      Texture.Value = Value
+
+      --Calc new start time based on NewDuration and Value
+      --Value is usually between 0 and 1
+      Texture.StartTime = Time - Value * NewDuration
       Texture.Duration = NewDuration
     end
   end
@@ -4974,6 +5392,8 @@ end
 
 -------------------------------------------------------------------------------
 -- SetFillTimeTexture
+--
+-- Statusbars
 --
 -- Fills a texture over a period of time.
 --
@@ -4985,7 +5405,7 @@ end
 --                   is used instead.
 -- EndValue          Ending value between 0 and MaxValue. If nill MaxValue is used.
 --
--- NOTES:  To stop a timer just call this function with just the BoxNumber and TextureNumber
+-- NOTES: To stop a timer just call this function with just the BoxNumber and TextureNumber
 -------------------------------------------------------------------------------
 function BarDB:SetFillTimeTexture(BoxNumber, TextureNumber, StartTime, Duration, StartValue, EndValue)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
@@ -4996,18 +5416,19 @@ end
 -------------------------------------------------------------------------------
 -- SetFillTexture
 --
--- Statusbar only.  Changes the value of a statusbar
+-- Statusbars
+--
+-- Changes the value of a statusbar
 --
 -- BoxNumber        Box containing texture to fill
 -- TextureNumber    Texture to apply fill to
 -- Value            A number between 0 and MaxValue
--- ShowSpark        Mostly for testmode so a spark can be shown
 --
--- NOTE: See SetFill().
---       This fills at a constant speed.  The speed is calculated from the time
---       it would take to fill the bar from empty to full.
+-- NOTES: See SetFill().
+--        This fills at a constant speed.  The speed is calculated from the time
+--        it would take to fill the bar from empty to full.
 -------------------------------------------------------------------------------
-function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
+function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value)
   local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
   local SmoothFillMaxTime = Texture.SmoothFillMaxTime
   local Speed = SmoothFillMaxTime and SmoothFillMaxTime > 0 and Texture.Speed or 0
@@ -5018,47 +5439,153 @@ function BarDB:SetFillTexture(BoxNumber, TextureNumber, Value, ShowSpark)
   else
     Texture:SetValue(Value)
     Texture.Value = Value
-
-    if ShowSpark then
-      if Texture.Spark then
-        Texture.Spark:Show()
-      end
-    end
   end
 end
 
 -------------------------------------------------------------------------------
--- SetFillScaleTexture
+-- SetFillScaleHorizontalTexture
 --
--- Changes the scale of the fill
+-- Statusbars
 --
--- BoxNumber        Box that contains the texture. Cant be 0
--- TextureNumber    Texture to change the scaling of the fill. Can't be 0
--- Scale            0 or higher
+-- Changes the scale of the fill only in horizontal mode
+--
+-- BoxNumber        Box that contains the texture
+-- TextureNumber    Texture to change the scaling of the fill
+-- ScaleX           Scale in horizontal
+-- ScaleY           Scale in vertical
 -------------------------------------------------------------------------------
-function BarDB:SetFillScaleTexture(BoxNumber, TextureNumber, Scale)
-  local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
+function BarDB:SetFillScaleHorizontalTexture(BoxNumber, TextureNumber, ScaleX, ScaleY)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-  Texture:SetValueScale(Scale)
+    Texture:SetScaleHorizontal(ScaleX, ScaleY)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
--- SetFillHideMaxValueTexture
+-- SetFillScaleVerticalTexture
 --
--- Hides the texture when fill has reached max
+-- Statusbars
+--
+-- Changes the scale of the fill only in horizontal mode
+--
+-- BoxNumber        Box that contains the texture
+-- TextureNumber    Texture to change the scaling of the fill
+-- ScaleX           Scale in horizontal
+-- ScaleY           Scale in vertical
+-------------------------------------------------------------------------------
+function BarDB:SetFillScaleVerticalTexture(BoxNumber, TextureNumber, ScaleX, ScaleY)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetScaleVertical(ScaleX, ScaleY)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillPointPixelTexture
+--
+-- statusbars
+--
+-- BoxNumber              Box containing texture.
+-- TextureNumber          Texture to modify.
+-- Point                  String. Point to set. Set nil to clear
+-- OffsetX, OffsetY       X, Y offset in pixels from Point. Set nill to clear
+--
+-- NOTES: If Point is nil then OffSetX, OffsetY is only used unless nil also
+-------------------------------------------------------------------------------
+function BarDB:SetFillPointPixelTexture(BoxNumber, TextureNumber, Point, OffsetX, OffsetY)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetPointPixel(Point, OffsetX, OffsetY)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillPixelSizeTexture
+--
+-- Statusbars
+--
+-- Sets the width and height in pixels instead of in value
 --
 -- BoxNumber        Box containing texture
--- TextureNumber    Texture to hide
--- HideMaxValue     true or false
+-- TextureNumber    Texture to set width
+-- PixelWidth       Width in pixels. Use nil to clear
+-- PixelHeight      Height in pixels. Use nil to clear
 -------------------------------------------------------------------------------
-function BarDB:SetFillHideMaxValueTexture(BoxNumber, TextureNumber, HideMaxValue)
-  local Texture = self.BoxFrames[BoxNumber].TFTextures[TextureNumber]
+function BarDB:SetFillPixelSizeTexture(BoxNumber, TextureNumber, PixelWidth, PixelHeight)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-  Texture:HideMaxValue(HideMaxValue)
+    Texture:SetPixelSize(PixelWidth, PixelHeight)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillPixelWidthTexture
+--
+-- Statusbars
+--
+-- Sets the width in pixels instead of in value
+--
+-- BoxNumber        Box containing texture
+-- TextureNumber    Texture to set width
+-- PixelWidth       Width in pixels. Use nil to clear
+-------------------------------------------------------------------------------
+function BarDB:SetFillPixelWidthTexture(BoxNumber, TextureNumber, PixelWidth)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetPixelWidth(PixelWidth)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillPixelHeightTexture
+--
+-- Statusbars
+--
+-- Sets the height in pixels instead of in value
+--
+-- BoxNumber        Box containing texture
+-- TextureNumber    Texture to set height
+-- PixelHeight      Height in pixels. Use nil to clear
+-------------------------------------------------------------------------------
+function BarDB:SetFillPixelHeightTexture(BoxNumber, TextureNumber, PixelHeight)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetPixelHeight(PixelHeight)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillPixelLengthTexture
+--
+-- Statusbars
+--
+-- Sets the length in pixels instead of in value
+--
+-- BoxNumber        Box containing texture
+-- TextureNumber    Texture to set width
+-- PixelLength      Length in pixels. Use nil to clear
+--
+-- NOTES: Overrides width in horizontal mode and overrirdes
+--        height in vertical mode
+-------------------------------------------------------------------------------
+function BarDB:SetFillPixelLengthTexture(BoxNumber, TextureNumber, PixelLength)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetPixelLength(PixelLength)
+  until LastBox
 end
 
 -------------------------------------------------------------------------------
 -- SetFillReverseTexture
+--
+-- Statusbars
 --
 -- BoxNumber        Box containing texture
 -- TextureNumber    Texture to reverse fill
@@ -5076,6 +5603,8 @@ end
 -------------------------------------------------------------------------------
 -- SyncFillDirectionTexture
 --
+-- Statusbars
+--
 -- Makes it so the fill direction changes based on rotation
 --
 -- BoxNumber        Box containing texture
@@ -5091,7 +5620,30 @@ function BarDB:SyncFillDirectionTexture(BoxNumber, TextureNumber, Action)
 end
 
 -------------------------------------------------------------------------------
--- SetClippingTexture
+-- SetFillRotationTexture
+--
+-- Statusbars
+--
+-- Rotates a statusbar texture.
+--
+-- BoxNumber      Box containing the texture.
+-- TextureNumber  Texture to rotate.
+-- Rotation       Can be -90, 0, 90, 180
+-------------------------------------------------------------------------------
+function BarDB:SetFillRotationTexture(BoxNumber, TextureNumber, Rotation)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    if Texture.Type == 'statusbar' then
+      Texture:SetRotation(Rotation)
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillClippingTexture
+--
+-- Statusbars
 --
 -- Turns off and on clipping. Causing textures to stretch instead
 --
@@ -5099,7 +5651,7 @@ end
 -- TextureNumber    Texture to change clipping
 -- Action           false then the texture will not be clipped
 -------------------------------------------------------------------------------
-function BarDB:SetClippingTexture(BoxNumber, TextureNumber, Action)
+function BarDB:SetFillClippingTexture(BoxNumber, TextureNumber, Action)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
@@ -5109,6 +5661,8 @@ end
 
 -------------------------------------------------------------------------------
 -- SetFillDirectionTexture
+--
+-- Statusbars
 --
 -- BoxNumber        Box containing texture
 -- TextureNumber    Texture to apply the fill direction to
@@ -5124,24 +5678,166 @@ function BarDB:SetFillDirectionTexture(BoxNumber, TextureNumber, Direction)
 end
 
 -------------------------------------------------------------------------------
--- SetFillLengthTexture
+-- SetFillMaxValueTexture
+--
+-- Statusbars
 --
 -- Sets the length of a texture in a statusbar
 --
 -- BoxNumber      Box containing the texture.
--- TextureNumber  Texture to change the length of
--- Length         Length of texture in scale.  This is not in pixels
+-- TextureNumber  Texture to change the max value of
+-- MaxValue         Max value of texture in scale.  This is not in pixels
 -------------------------------------------------------------------------------
-function BarDB:SetFillLengthTexture(BoxNumber, TextureNumber, Length)
+function BarDB:SetFillMaxValueTexture(BoxNumber, TextureNumber, MaxValue)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture:SetLength(Length)
+    Texture:SetMaxValue(MaxValue)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillHideFullTexture
+--
+-- Statusbars
+--
+-- Hides the texture when fill has reached max
+--
+-- BoxNumber        Box containing texture
+-- TextureNumber    Texture to hide
+-- HideFull     true or false
+-------------------------------------------------------------------------------
+function BarDB:SetFillHideFullTexture(BoxNumber, TextureNumber, HideFull)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:HideFull(HideFull)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetFillOverlapTexture
+--
+-- Statusbars
+--
+-- Hides the texture when fill has reached max
+--
+-- BoxNumber        Box containing texture
+-- TextureNumber    Texture to hide
+-- Overlap          true or false
+-------------------------------------------------------------------------------
+function BarDB:SetFillOverlapTexture(BoxNumber, TextureNumber, Overlap)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetOverlap(Overlap)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- LinkFillTexture
+--
+-- Statusbars
+--
+-- Links one or more textures to another texture
+--
+-- BoxNumber           Box containing texture frame
+-- FirstTextureNumber  First texture in the link
+-- ...                 One or or more textures linked to FirstTexture
+-------------------------------------------------------------------------------
+function BarDB:LinkFillTexture(BoxNumber, FirstTextureNumber, ...)
+  repeat
+    local TFTextures = NextBox(self, BoxNumber).TFTextures
+    local FirstTexture = TFTextures[FirstTextureNumber]
+    local Textures = {...}
+
+    for Index = 1, #Textures do
+      Textures[Index] = TFTextures[Textures[Index]]
+    end
+
+    FirstTexture:Link(unpack(Textures))
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- UnLinkFillTexture
+--
+-- Statusbars
+--
+-- Removes one or all linked textures
+--
+-- BoxNumber            Box containing texture frame
+-- TextureNumber        Must be the start of the link
+-------------------------------------------------------------------------------
+function BarDB:UnLinkFillTexture(BoxNumber, TextureNumber)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:UnLink()
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- TagTexture
+--
+-- Statusbars
+--
+-- Tags a texture to another. Texture can be a linked texture
+--
+-- BoxNumber            Box containing texture frame
+-- TextureNumber        Texture that will be tagged to another texture
+-- Action
+--   left               Tagged textures will grow from left to right starting from the target links edge
+--   right              Tagged textures will grow from right to left starting from the target links edge
+-- TargetTextureNumber  Texture or linked texture that the texture is being tagged to
+-------------------------------------------------------------------------------
+function BarDB:TagFillTexture(BoxNumber, TextureNumber, Action, TargetTextureNumber)
+  repeat
+    local TFTextures = NextBox(self, BoxNumber).TFTextures
+
+    TFTextures[TextureNumber]:Tag(Action, TFTextures[TargetTextureNumber])
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- UnTagFillTexture
+--
+-- Statusbars
+--
+-- Removes a tag on a texturem, returning it to normal
+--
+-- BoxNumber            Box containing texture frame
+-- TextureNumber        Texture to remove the tag from
+-------------------------------------------------------------------------------
+function BarDB:UnTagFillTexture(BoxNumber, TextureNumber)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:UnTag()
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- TagInheritTexture
+--
+-- A texture will not inherit the stats from the texture it's tagged to
+--
+-- BoxNumber            Box containing texture frame
+-- TextureNumber
+-- Inherit              true or false: if false it will not inherit
+-------------------------------------------------------------------------------
+function BarDB:TagFillInheritTexture(BoxNumber, TextureNumber, Inherit)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:TagInherit(Inherit)
   until LastBox
 end
 
 -------------------------------------------------------------------------------
 -- SetFillSpeedTexture
+--
+-- Statusbars
 --
 -- Changes the speed from the bar will fill at.
 --
@@ -5165,11 +5861,6 @@ function BarDB:SetFillSpeedTexture(BoxNumber, TextureNumber, Speed)
       Texture.Value = EndValue
 
       Texture.Duration = 0
-
-      --Hide spark since this is a stopped timer
-      if Texture.Spark then
-        Texture.Spark:Hide()
-      end
     end
 
     Texture.Speed = Speed
@@ -5177,7 +5868,9 @@ function BarDB:SetFillSpeedTexture(BoxNumber, TextureNumber, Speed)
 end
 
 -------------------------------------------------------------------------------
--- SetSmoothFillMaxTime
+-- SetSmoothFillMaxTimeTexture
+--
+-- Statusbars
 --
 -- Set the amount of time in seconds a smooth fill animation can take.
 --
@@ -5185,151 +5878,11 @@ end
 -- TextureNumber   Texture to smooth fill on.
 -- SmoothFill      Time in seconds, if 0 then smooth fill is disabled.
 -------------------------------------------------------------------------------
-function BarDB:SetSmoothFillMaxTime(BoxNumber, TextureNumber, SmoothFillMaxTime)
+function BarDB:SetSmoothFillMaxTimeTexture(BoxNumber, TextureNumber, SmoothFillMaxTime)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     Texture.SmoothFillMaxTime = SmoothFillMaxTime
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- SetHiddenSpark
---
--- Shows or hides a spark during using SetFillTime
---
--- BoxNumber       Box containing the texture.
--- TextureNumber   Texture to apply the spark to during filling over time.
---
--- NOTES: Must be the texture that contains the statusbar frame
--------------------------------------------------------------------------------
-function BarDB:SetHiddenSpark(BoxNumber, TextureNumber, Hide)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Spark = Texture.Spark
-
-    if Spark == nil then
-      -- use sublayer 16 highest there is
-      Spark = Texture.Frame.SBF:CreateTexture(16, 'spark')
-      Spark:SetTexture(TextureSpark)
-      Texture:Tag(Spark)
-      Spark:SetSizeSpark(TextureSparkWidth, TextureSparkScaledHeight)
-      Texture.HiddenSpark = Spark
-    end
-
-    -- Hide spark since spark is only shown during a timer
-    if Hide then
-      if Spark then
-        Spark:Hide()
-        Texture.HiddenSpark = Spark
-        Texture.Spark = false
-      end
-    else
-      local Spark = Texture.HiddenSpark
-      Spark:Hide()
-      Texture.Spark = Spark
-    end
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- SetRotationTexture
---
--- Rotates a statusbar texture.
---
--- BoxNumber      Box containing the texture.
--- TextureNumber  Texture to rotate.
--- Rotation       Can be -90, 0, 90, 180
--------------------------------------------------------------------------------
-function BarDB:SetRotationTexture(BoxNumber, TextureNumber, Rotation)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-
-    if Texture.Type == 'statusbar' then
-      Texture:SetRotation(Rotation)
-    end
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- LinkTagTexture
---
--- Links one or more textures to a texture in a statusbar
---
--- BoxNumber        Box containing the textures to link
--- TextureNumber    Textures will be linked to this one.
--- Overlap          if true then the textures overlap each other.
--- ...              One or more texture numbers to link
--------------------------------------------------------------------------------
-function BarDB:LinkTagTexture(BoxNumber, TextureNumber, Overlap, ...)
-  repeat
-    local TFTextures = NextBox(self, BoxNumber).TFTextures
-    local Texture = TFTextures[TextureNumber]
-
-    -- Convert numbers to textures
-    local Textures = {}
-    for Index = 1, select('#', ...) do
-      Textures[Index] = TFTextures[select(Index, ...)]
-    end
-
-    Texture:LinkTag(Overlap, unpack(Textures))
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- TagTexture
---
--- Tags one or more textures to a texture in a statusbar
---
--- BoxNumber        Box containing the textures to tag
--- TextureNumber    Textures will be tagged to this one.
--- ...              One or more texture numbers to tag
--------------------------------------------------------------------------------
-function BarDB:TagTexture(BoxNumber, TextureNumber, ...)
-  repeat
-    local TFTextures = NextBox(self, BoxNumber).TFTextures
-    local Texture = TFTextures[TextureNumber]
-
-    -- Convert numbers to textures
-    local Textures = {}
-    for Index = 1, select('#', ...) do
-      Textures[Index] = TFTextures[select(Index, ...)]
-    end
-
-    Texture:Tag(unpack(Textures))
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- TagLeftTexture
---
--- Makes it so a tagged texture can grow to the left of the texture it taggged to
---
--- BoxNumber       Box containing the textures to clear tag
--- TextureNumber   Tagged Texture to change the direction it grows in
--- Action          true or false
--------------------------------------------------------------------------------
-function BarDB:TagLeftTexture(BoxNumber, TextureNumber, Action)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-
-    Texture:TagLeft(Action)
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- ClearTagTexture
---
--- Undoes the tagged textures. Must use the same texture number in TagTexture()
---
--- BoxNumber       Box containing the textures to clear tag
--- TextureNumber   Texture that has textures tagged to it
--------------------------------------------------------------------------------
-function BarDB:ClearTagTexture(BoxNumber, TextureNumber)
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-
-    Texture:ClearTag()
   until LastBox
 end
 
@@ -5343,7 +5896,7 @@ end
 -- StartTime        Starting time. if nill then starts instantly
 -- Duration         Time it will take to cooldown the texture. If duration is 0 timer is stopped.
 --
--- NOTES:  To stop timer just set duration to 0
+-- NOTES: To stop timer just set duration to 0
 -------------------------------------------------------------------------------
 function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration)
   repeat
@@ -5355,7 +5908,7 @@ function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration)
 end
 
 -------------------------------------------------------------------------------
--- SetCooldownReverse
+-- SetCooldownReverseTexture
 --
 -- Inverts the bright and dark portions of the cooldown animation
 --
@@ -5363,7 +5916,7 @@ end
 -- TextureNumber    Texture to cooldown.
 -- Reverse          If true then invert.
 -------------------------------------------------------------------------------
-function BarDB:SetCooldownReverse(BoxNumber, TextureNumber, Reverse)
+function BarDB:SetCooldownReverseTexture(BoxNumber, TextureNumber, Reverse)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
@@ -5372,7 +5925,7 @@ function BarDB:SetCooldownReverse(BoxNumber, TextureNumber, Reverse)
 end
 
 -------------------------------------------------------------------------------
--- SetCooldownCircular
+-- SetCooldownCircularTexture
 --
 -- Changes a cooldown to use a round border instead of a square
 --
@@ -5380,7 +5933,7 @@ end
 -- TextureNumber    Texture to cooldown.
 -- Circular         If true then use a circular border
 -------------------------------------------------------------------------------
-function BarDB:SetCooldownCircular(BoxNumber, TextureNumber, Circular)
+function BarDB:SetCooldownCircularTexture(BoxNumber, TextureNumber, Circular)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
@@ -5389,7 +5942,7 @@ function BarDB:SetCooldownCircular(BoxNumber, TextureNumber, Circular)
 end
 
 -------------------------------------------------------------------------------
--- SetCooldownDrawEdge
+-- SetCooldownDrawEdgeTexture
 --
 -- Hides or shows the edge texture thats drawn during a cooldown animation
 --
@@ -5397,7 +5950,7 @@ end
 -- TextureNumber    Texture to cooldown.
 -- Edge             If true then show the edge texture
 -------------------------------------------------------------------------------
-function BarDB:SetCooldownDrawEdge(BoxNumber, TextureNumber, Edge)
+function BarDB:SetCooldownDrawEdgeTexture(BoxNumber, TextureNumber, Edge)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
@@ -5406,7 +5959,7 @@ function BarDB:SetCooldownDrawEdge(BoxNumber, TextureNumber, Edge)
 end
 
 -------------------------------------------------------------------------------
--- SetCooldownDrawFlash
+-- SetCooldownDrawFlashTexture
 --
 -- Hides or shows the flash animation at the end of a cooldown
 --
@@ -5414,7 +5967,7 @@ end
 -- TextureNumber    Texture to cooldown.
 -- Flash            If true then show then show the flash animation
 -------------------------------------------------------------------------------
-function BarDB:SetCooldownDrawFlash(BoxNumber, TextureNumber, Flash)
+function BarDB:SetCooldownDrawFlashTexture(BoxNumber, TextureNumber, Flash)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
@@ -5435,7 +5988,7 @@ function BarDB:SetCooldownSwipeColorTexture(BoxNumber, TextureNumber, r, g, b, a
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture.CooldownFrame:SetSwipeColor(r, g, b, a)
+    Texture.CooldownFrame:SetSwipeColor(r or 1, g or 1, b or 1, a or 1)
   until LastBox
 end
 
@@ -5574,7 +6127,24 @@ function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    Texture:SetVertexColor(r, g, b, a)
+    Texture:SetVertexColor(r or 1, g or 1, b or 1, a or 1)
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetBlendModeTexture
+--
+-- Does Texture:SetBlendMode(Type)
+--
+-- BoxNumber      Box containing texture
+-- TextureNumber  Texture to blend
+-- Type           Type of blend
+-------------------------------------------------------------------------------
+function BarDB:SetBlendModeTexture(BoxNumber, TextureNumber, Type)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture:SetBlendMode(Type)
   until LastBox
 end
 
@@ -5602,7 +6172,7 @@ end
 --
 -- BoxNumber         BoxNumber to change the texture in.
 -- TextureNumber     Texture to change.
--- TextureName       Name if its statusbar otherwise its the path to the texture.
+-- TextureName       Name if its statusbar otherwise it's the path to the texture.
 -------------------------------------------------------------------------------
 function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
   SaveSettings(self, 'SetTexture', BoxNumber, TextureNumber, TextureName)
@@ -5636,32 +6206,6 @@ function BarDB:SetAtlasTexture(BoxNumber, TextureNumber, AtlasName, UseSize)
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
     Texture:SetAtlas(AtlasName, UseSize or false)
-  until LastBox
-end
-
--------------------------------------------------------------------------------
--- SetPointTexture
---
--- Sets the texture location inside of the texture frame.
---
--- Usage: SetPointTexture(BoxNumber, TextureNumber, Point, [OffsetX, OffsetY])
---
--- BoxNumber              Box containing texture.
--- TextureNumber          Texture to modify.
--- Point                  String. Point to set.
--- RelativePoint          If specified then the texture point is set to the relative texture point.
--- OffsetX, OffsetY       X, Y offset in pixels from Point.
--------------------------------------------------------------------------------
-function BarDB:SetPointTexture(BoxNumber, TextureNumber, Point, OffsetX, OffsetY)
-  OffsetX = OffsetX or 0
-  OffsetY = OffsetY or 0
-
-  repeat
-    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
-    local Frame = Texture.Frame
-
-    Frame:ClearAllPoints()
-    Frame:SetPoint(Point, OffsetX, OffsetY)
   until LastBox
 end
 
@@ -5768,7 +6312,7 @@ end
 -- Returns:
 --   BarDB            Bar database containing everything to work with the bar.
 --
--- Note:  All bar functions are called thru the returned table.
+-- NOTES: All bar functions are called thru the returned table.
 --        CreateBar will embed certain functions like dragging/moving.
 -------------------------------------------------------------------------------
 function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
@@ -5848,8 +6392,8 @@ end
 -- SizeFrame       Frame whos size has changed
 -- Width, Height   Width and Height of the StatusBar
 --
--- NOTES:  This makes sure that Texture.Frame size stays relative to the
---         size of the SizeFrame.  Things like padding, offsets etc can effect size
+-- NOTES: This makes sure that Texture.Frame size stays relative to the
+--        size of the SizeFrame.  Things like padding, offsets etc can effect size
 -------------------------------------------------------------------------------
 local function OnSizeChangedFrame(SizeFrame, Width, Height)
   local TextureFrame = SizeFrame.TextureFrame
@@ -5879,19 +6423,20 @@ end
 -------------------------------------------------------------------------------
 -- CreateTextureFrame
 --
--- Usage: CreateTextureFrame(BoxNumber, TextureFrameNumber, Type, FrameLevel) or
---        CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
+-- Usage: CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
+--        CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel, 'statusbar')
 --
 -- BoxNumber            Which box you're creating a TexureFrame in.
 -- TextureFrameNumber   A number assigned to the TextureFrame
 -- FrameLevel           FrameLevel for the texture frame.
-
+-- statusbar            Works the same as a texture frame, plus it can store statusbar
+--                      frome create texture
 --
--- NOTES:   TextureFrames are always the same size as BoxFrame, unless you do a SetPoint on it.
---          TextureFrameNumber must be linier.  So you can't do a TextureFrameNumber of 1 then 2, and 5.
---          Must be 1,2,3.  You can create them out of order so long as there's no holes.
+-- NOTES: TextureFrames are always the same size as BoxFrame, unless you do a SetPoint on it.
+--        TextureFrameNumber must be linier.  So you can't do a TextureFrameNumber of 1 then 2, and 5.
+--        Must be 1,2,3.  You can create them out of order so long as there's no holes.
 -------------------------------------------------------------------------------
-function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
+function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel, TextureFrameType)
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrames = BoxFrame.TextureFrames
@@ -5909,6 +6454,16 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
     local SizeFrame = CreateFrame('Frame', nil, PaddingFrame)
     local ScaleFrame = CreateFrame('Frame', nil, SizeFrame)
 
+    if TextureFrameType == 'statusbar' then
+      local SBF = CreateStatusBarFrame(ScaleFrame)
+      SBF:ClearAllPoints()
+      SBF:SetAllPoints()
+
+      TF.SBF = SBF
+    elseif TextureFrameType then
+      assert(false, 'CreateTextureFrame - Invalid texture type')
+    end
+
     SizeFrame:SetScript('OnSizeChanged', OnSizeChangedFrame)
 
     SizeFrame.Frames = {}
@@ -5921,9 +6476,9 @@ function BarDB:CreateTextureFrame(BoxNumber, TextureFrameNumber, FrameLevel)
     -- Scale frame's size is done thru OnSizeChangedFrame().  So ScaleFrame has to be
     -- set CENTER. SetScale() doesn't work well with frames that have SetAllPoints()
     ScaleFrame:SetPoint('CENTER')
-    SizeFrame:SetAllPoints(PaddingFrame)
+    SizeFrame:SetAllPoints()
 
-    FrameLevel = FrameLevel + 6
+    FrameLevel = FrameLevel + 7
 
     TF:Hide()
     TF.Hidden = true
@@ -5952,14 +6507,27 @@ end
 -- TextureNumber          Must be a unique number per box.  Only time the number
 --                        can be the same is if the same texture used in two or more
 --                        different boxes.
--- TextureType            'cooldown' is the same as texture Except it can use SetCooldownTexture()
---                        if nil then defaults to the type set in CreateTextureFrame()
+-- TextureType             cooldown          is the same as texture Except it can use SetCooldownTexture()
+--                         statusbar         can only be used if the TextureFrame was created with type statusbar
+--                         statusbar_noclip  same as statusbar except it will not get clipped by the statusbar frame
+--                         texture           standard texture, nothing special
+-- StatusBarSubLayer      Statusbar only.  Set the layer for the statusbar texture. layer can be 1 to 16.
+--                        If nil defaults to 1
 --
--- NOTES:  When creating a texture of type statusbar.  That texture becomes a texture
---         that holds the statusbar frame along with the first texture in the statusbar frame.
---         Any textures you make after that don't have a texture type.  Will be added to the last statusbar frame
+-- NOTES: When creating a texture of type statusbar.  The textureframe must be of type statusbar too
 -------------------------------------------------------------------------------
-function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, TextureType)
+function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, TextureType, StatusBarSubLayer)
+  local TextureTypes = {cooldown = 1, statusbar = 1, statusbar_noclip = 1, texture = 1}
+  if TextureTypes[TextureType] == nil then
+    assert(false, 'CreateTexture - Invalid texture type')
+  end
+
+  local TextureTypeNoClip = false
+  if TextureType == 'statusbar_noclip' then
+    TextureType = 'statusbar'
+    TextureTypeNoClip = true
+  end
+
   repeat
     local BoxFrame = NextBox(self, BoxNumber)
     local TextureFrame = BoxFrame.TextureFrames[TextureFrameNumber]
@@ -5969,40 +6537,28 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, Textu
     local Texture
     local Frame
 
-    -- Create a statusbar or texture.
-    if TextureType == nil  or TextureType == 'statusbar' then
-      if TextureType == 'statusbar' then
-        Frame = CreateFrame('Frame', nil, ScaleFrame, 'BackdropTemplate')
-        Frame:SetPoint('CENTER')
-        Frame:SetFrameLevel(MaxFrameLevel)
+    -- Add a statusbar to the statusbar frame created with CreateTextureFrame
+    -- Frame don't need to be stored since the StatusBar freme is in the textureframe
+    if TextureType == 'statusbar' then
+      local SBF = TextureFrame.SBF
 
-        local SBF = CreateStatusBarFrame(Frame)
-        SBF:SetAllPoints()
-        SBF:SetMaxValue(1)
-        Frame.MaxValue = 1
-        Frame.Sublayer = 1
-        Frame.SBF = SBF
-
-        Frames[#Frames + 1] = Frame
-
-        LastSBF[TextureFrame] = Frame
-
-        MaxFrameLevel = MaxFrameLevel + 5
-      else
-        Frame = LastSBF[TextureFrame]
-        TextureType = 'statusbar'
+      if SBF == nil then
+        assert(false, 'CreateTexture - Texture frame is not of type statusbar')
+      elseif type(StatusBarSubLayer) ~= 'number' then
+        assert(false, 'CreateTexture - SubLayer is invalid')
       end
-
-      local Sublayer = Frame.Sublayer
-      Frame.Sublayer = Sublayer + 1
-
-      Texture = Frame.SBF:CreateTexture(Sublayer)
+      if TextureTypeNoClip then
+        Texture = SBF:CreateTexture(StatusBarSubLayer, 'noclip')
+      else
+        Texture = SBF:CreateTexture(StatusBarSubLayer)
+      end
       Texture:SetRotation(0) -- horizontal
 
-      Texture.Frame = Frame
+      Texture.SBF = SBF
 
       -- Statusbars default to zero when first created
       Texture.Value = 0
+
     elseif TextureType == 'texture' or TextureType == 'cooldown' then
       Frame = CreateFrame('Frame', nil, ScaleFrame)
       Frame:SetPoint('CENTER')
@@ -6061,7 +6617,6 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, Textu
 
     Texture.Type = TextureType
 
-    TextureFrame.Textures[TextureNumber] = Texture
     BoxFrame.TFTextures[TextureNumber] = Texture
   until LastBox
 end
@@ -6429,7 +6984,7 @@ function BarDB:SetColorFont(BoxNumber, TextLine, r, g, b, a)
       local FontString = TextData[TextLine]
 
       if FontString then
-        FontString:SetTextColor(r, g, b, a)
+        FontString:SetTextColor(r or 1, g or 1, b or 1, a or 1)
       end
     end
   until LastBox
@@ -7199,7 +7754,9 @@ end
 -- SetTriggersCustomGroup
 --
 -- Works with custom groups only
--- Like SetTriggers accept it turns off an off a custom groups boxnumber
+-- Like SetTriggers accept it turns on or off a custom groups boxnumber
+--
+-- NOTES: ... can be a index table containing the boxes or parms
 -------------------------------------------------------------------------------
 function BarDB:SetTriggersCustomGroup(GroupName, Active, ...)
   local TriggerData = self.TriggerData
@@ -7220,10 +7777,18 @@ function BarDB:SetTriggersCustomGroup(GroupName, Active, ...)
     end
 
     if Active then
-      for Index = 1, select('#', ...) do
-        local BoxNumber = select(Index, ...) or -1
+      if type(...) == 'table' then
+        local BoxNumbers = ...
 
-        ActiveBoxes[Index] = BoxNumber
+        for Index = 1, #BoxNumbers do
+          ActiveBoxes[Index] = BoxNumbers[Index] or -1
+        end
+      else
+        for Index = 1, select('#', ...) do
+          local BoxNumber = select(Index, ...) or -1
+
+          ActiveBoxes[Index] = BoxNumber
+        end
       end
     end
   end
@@ -7281,8 +7846,6 @@ local UndoTriggers = BarDB.UndoTriggers
 -- CheckTriggersAuras
 --
 -- Subfunction of CheckTriggers()
---
--- NOTES: Upvalues named Input mean they came from the game
 -------------------------------------------------------------------------------
 function BarDB:CheckTriggersAuras()
   local ActiveTriggers = self.TriggerData.ActiveTriggers
@@ -7303,66 +7866,66 @@ function BarDB:CheckTriggersAuras()
       for UnitIndex = 1, #Units do
         local Unit = Units[UnitIndex]
         -- Unit must exist for valid results
-        local InputAuras = UnitExists(Unit) and AuraTrackersData[Unit]
+        local GameAuras = UnitExists(Unit) and AuraTrackersData[Unit]
         Result = false
 
-        if InputAuras then
+        if GameAuras then
           local Own = Aura.Own
           local Stacks = Aura.Stacks
           local StackOperator = Aura.StackOperator
           local Type = Aura.Type
           local CheckDebuffTypes = Aura.CheckDebuffTypes
-          local InputAura
-          local InputActive
-          local InputStacks
-          local InputOwn
-          local InputType
+          local GameAura
+          local GameActive
+          local GameStacks
+          local GameOwn
+          local GameType
 
           if SpellID > 0 then
-            InputAura = InputAuras[SpellID]
-            if InputAura then
-              InputActive = InputAura.Active
-              InputStacks = InputAura.Stacks
-              InputOwn = InputAura.Own
-              InputType = InputAura.Type
+            GameAura = GameAuras[SpellID]
+            if GameAura then
+              GameActive = GameAura.Active
+              GameStacks = GameAura.Stacks
+              GameOwn = GameAura.Own
+              GameType = GameAura.Type
             end
           else
             -- NO spell ID, check any spell
             -- Check for buff or debuffs
             -- Type:  1 = buff      2 = debuff
             if Type == 1 then
-              InputAuras = InputAuras.HELPFUL
-              InputType = 1
+              GameAuras = GameAuras.Buff
+              GameType = 1
             elseif Type == 2 then
-              InputAuras = InputAuras.HARMFUL
-              InputType = 2
+              GameAuras = GameAuras.Debuff
+              GameType = 2
             end
-            InputActive = InputAuras.Active
-            InputStacks = InputAuras.Stacks
-            InputOwn = InputAuras.Own
+            GameActive = GameAuras.Active
+            GameStacks = GameAuras.Stacks
+            GameOwn = GameAuras.Own
           end
 
           -- Aura must be active
-          if InputActive then
+          if GameActive then
             -- Check stacks
-            Result = StackOperator == '<'  and InputStacks <  Stacks or
-                     StackOperator == '>'  and InputStacks >  Stacks or
-                     StackOperator == '<=' and InputStacks <= Stacks or
-                     StackOperator == '>=' and InputStacks >= Stacks or
-                     StackOperator == '='  and InputStacks == Stacks or
-                     StackOperator == '<>' and InputStacks ~= Stacks or false
+            Result = StackOperator == '<'  and GameStacks <  Stacks or
+                     StackOperator == '>'  and GameStacks >  Stacks or
+                     StackOperator == '<=' and GameStacks <= Stacks or
+                     StackOperator == '>=' and GameStacks >= Stacks or
+                     StackOperator == '='  and GameStacks == Stacks or
+                     StackOperator == '<>' and GameStacks ~= Stacks or false
 
             -- Own:  0 = option not selected. 1 = own     2 = not own
-            Result = Result and ( Own == 0 or InputOwn == (Own == 1) ) and
-                                ( Type == 0 or InputType == Type )
+            Result = Result and ( Own == 0 or GameOwn == (Own == 1) ) and
+                                ( Type == 0 or GameType == Type )
             if Result then
               -- Check debuff   1 = buff    2 = debuff    0 = both
-              if CheckDebuffTypes and Aura.Type ~= 1 and InputType ~= 1 then
+              if CheckDebuffTypes and Aura.Type ~= 1 and GameType ~= 1 then
                 if SpellID > 0 then
-                  Result = Aura[InputAura.DebuffType] or false
+                  Result = Aura[GameAura.DebuffType] or false
                 else
                   -- Check debuff for any aura
-                  local InputDebuffTypes = InputAuras.DebuffTypes
+                  local GameDebuffTypes = GameAuras.DebuffTypes
                   local NumDebuffTypesCheck = #DebuffTypesCheck
                   Result = false
 
@@ -7370,7 +7933,7 @@ function BarDB:CheckTriggersAuras()
                     local DebuffTypeCheck = DebuffTypesCheck[DebuffIndex]
 
                     -- Check to see if debuff type option is selected
-                    if Aura[DebuffTypeCheck] and InputDebuffTypes[DebuffTypeCheck] then
+                    if Aura[DebuffTypeCheck] and GameDebuffTypes[DebuffTypeCheck] then
                       Result = true
                       break
                     end
@@ -7409,11 +7972,9 @@ end
 --
 -- Sunfunction of CheckTriggers()
 --
--- Match the talents and sets OrderNumber for options
---
--- NOTES: Upvalues named Input mean they came from the game
+-- Match the talents
 -------------------------------------------------------------------------------
-local function CheckTriggersTalents(Trigger, InputTalents)
+local function CheckTriggersTalents(Trigger, GameTalents)
   local Talents = Trigger.Talents
   local All = Talents.All
   local Result = true
@@ -7422,9 +7983,9 @@ local function CheckTriggersTalents(Trigger, InputTalents)
     local Talent = Talents[TalentIndex]
     local SpellID = Talent.SpellID
     local Match = Talent.Match
-    local InputTalent = InputTalents[SpellID]
+    local GameTalent = GameTalents[SpellID]
 
-    if type(SpellID) == 'number' and SpellID > 0 and (Match and InputTalent or not Match and InputTalent == nil) then
+    if type(SpellID) == 'number' and SpellID > 0 and (Match and GameTalent or not Match and GameTalent == nil) then
       Result = true
     else
       Result = false
@@ -7463,6 +8024,7 @@ function BarDB:CheckTriggers(Action)
   local Units = ''
   local TrackTalents = false
   local TriggerIndex = 1
+  local TriggersHasStances = next(DUB[BarType].Triggers.Default.ClassStances) ~= nil
 
   -- Undo triggers first
   UndoTriggers(self)
@@ -7484,8 +8046,8 @@ function BarDB:CheckTriggers(Action)
   -- Turn on TalentTracking for the talenttracking data
   Main:SetTalentTracker(UnitBarF, 'fn', function() end)
   local TalentTrackersData = Main.TalentTrackersData
-  local InputTalents = TalentTrackersData.Active
-  local InputTalentsSpellIDs = TalentTrackersData.SpellIDs
+  local GameTalents = TalentTrackersData.Active
+  local GameTalentsSpellIDs = TalentTrackersData.SpellIDs
 
   while TriggerIndex <= #Triggers do
     local Trigger = Triggers[TriggerIndex]
@@ -7547,6 +8109,7 @@ function BarDB:CheckTriggers(Action)
       local Auras = Trigger.Auras
       local Conditions = Trigger.Conditions
       local TalentsDisabled = Talents.Disabled
+      local ClassStances = Trigger.ClassStances
 
       -- Par Defaults
       if Trigger.Par1 == nil then
@@ -7699,9 +8262,9 @@ function BarDB:CheckTriggers(Action)
         local SpellID = Talent.SpellID
 
         -- If SpellID is a string, that means it was from a converted from an earlier version
-        -- Try to convery to a spellID, if fail then skip incase its from a different class
+        -- Try to convert to a spellID, if fail then skip incase its from a different class
         if type(SpellID) == 'string' then
-          SpellID = InputTalentsSpellIDs[SpellID] or SpellID
+          SpellID = GameTalentsSpellIDs[SpellID] or SpellID
         else
           SpellID = tonumber(Talent.SpellID) or 0
         end
@@ -7715,7 +8278,10 @@ function BarDB:CheckTriggers(Action)
       end
 
       -- Update stance data
-      Main:UpdatePlayerStances(BarType, Trigger.ClassStances)
+      Main:UpdatePlayerStances(BarType, ClassStances, true)  -- true for triggers
+      if not TriggersHasStances then
+        Trigger.StanceEnabled = false
+      end
 
       Trigger.AurasOn      = not Auras.Disabled      and #Auras > 0
       Trigger.ConditionsOn = not Conditions.Disabled and #Conditions > 0
@@ -7724,9 +8290,10 @@ function BarDB:CheckTriggers(Action)
 
       if not Disabled then
         local ClassSpecs = Trigger.ClassSpecs
-        Main:UpdateClassSpecs(BarType, ClassSpecs, true)
+        Main:UpdateClassSpecs(BarType, ClassSpecs, true) -- true for triggers
         if Static or ( not Trigger.SpecEnabled or Main:CheckClassSpecs(BarType, ClassSpecs) ) and
-                     ( TalentsDisabled or CheckTriggersTalents(Trigger, InputTalents)             ) then
+                     ( TalentsDisabled or CheckTriggersTalents(Trigger, GameTalents)        ) and
+                     ( not Trigger.StanceEnabled or Main:CheckPlayerStances(BarType, ClassStances) ) then
           ActiveTriggers[#ActiveTriggers + 1] = Trigger
         end
       end
@@ -7917,8 +8484,8 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       self:CheckTriggers()
     end
   elseif self.TriggerData then
-    -- disable triggers
 
+    -- disable triggers
     UndoTriggers(self)
 
     local UnitBarF = self.UnitBarF
@@ -7974,7 +8541,7 @@ local function DoTriggerConditions(TriggerData, Conditions)
     local InputValueName = Condition.InputValueName
     local InputValue = InputValues[InputValueName]
 
-    -- InputValue can be nill if that particular value hasn't been set yet
+    -- InputValue can be nil if that particular value hasn't been set yet
     -- So skip if nil
     if InputValue then
       local Operator = Condition.Operator
@@ -8016,7 +8583,6 @@ end
 -- Executes triggers based on talents, auras, conditions, etc
 -------------------------------------------------------------------------------
 function BarDB:DoTriggers()
-  local BarType = self.BarType
   local TriggerData = self.TriggerData
   local ActiveTriggers = TriggerData.ActiveTriggers
   local ActiveObjects = TriggerData.ActiveObjects
@@ -8036,7 +8602,6 @@ function BarDB:DoTriggers()
 
     -- Check active status
     local Active = ActiveTrigger.Static or
-                   ( not ActiveTrigger.StanceEnabled or Main:CheckPlayerStances(BarType, ActiveTrigger.ClassStances) ) and
                    ( not ActiveTrigger.AurasOn       or ActiveTrigger.ActiveAuras   ) and
                    ( not ActiveTrigger.ConditionsOn  or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
 
