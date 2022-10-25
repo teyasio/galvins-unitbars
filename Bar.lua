@@ -250,15 +250,21 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 -- TableName is nil   - Then will match any SO TableName.
 -- KeyName is nil     - Then will match any SO KeyName.
 --
+--   The way SO TableName is searched, is the TableNames set with SO is partially matched
+--   in the SO TableName. For exmaple it could be 'BAR BACKGROUND' and it would match
+--   any tablenames that have BAR or BACKGROUND.
+
 --   Each time an SO TableName is found.  Then the SO TableName has to be found in the
 --   default unitbar data first then its checked to see if its in the UnitBar data second.
 --   Each time an SO KeyName is found.  Then it has to match exactly to a key in the
 --   unitbar data.
 --
--- TableName is not nil - Then can partially match SO TableName.
+-- TableName is not nil - The SO TableName can be found in TableName, doesn't have to be an exact match
 -- KeyName is not nil   - Then has to exact match SO KeyName.
---                        If its '_' then its a empty virtual key name and will match any SO KeyName.
---                        Empty virtual key names don't get searched in the unitbar data.
+--                        If its '_' then its an empty virtual key name and will match any SO KeyName.
+--                        Empty virtual key names don't get searched in the unitbar data. NOTE: the '_'
+--                        can be found anywhere in the KeyName, but to keep it simple I always use it
+--                        at the start of the name
 --
 -- After TableName and KeyName are found in the SO data.  Then the TableName is searched in the default UnitBarData
 -- for the current BarType.  This can partially match.  After that it takes the full name of the table
@@ -7575,7 +7581,7 @@ end
 -----------------------------------------------------------------------------
 -- OptionsSet
 --
--- Returns true if any onptions were set by SO
+-- Returns true if any options were set by SO
 -----------------------------------------------------------------------------
 function BarDB:OptionsSet()
   return self.Options ~= nil
@@ -7659,12 +7665,12 @@ end
 --
 -- Calls a function thats set to TableName and KeyName
 --
--- If OTableName is nil then matches all TableNames
--- If OKeyName is nil then it matches all KeyNames
+-- If PTableName is nil then matches all TableNames
+-- If PKeyName is nil then it matches all KeyNames
 --
 -- Read the notes at the top for details.
 -------------------------------------------------------------------------------
-function BarDB:DoOption(OTableName, OKeyName)
+function BarDB:DoOption(PTableName, PKeyName)
   local UB = self.UnitBarF.UnitBar
   local UBD = DUB[self.BarType]
 
@@ -7677,8 +7683,8 @@ function BarDB:DoOption(OTableName, OKeyName)
     local TName = Option.TableName
     local KeyNames = Option.KeyNames
 
-    if OTableName == nil or strfind(OTableName, TName) then
-      local TableName2 = OTableName or TName
+    if PTableName == nil or strfind(PTableName, TName) then
+      local TableName2 = PTableName or TName
 
       -- Search KeyName in Option.
       for KeyNameIndex = 1, #KeyNames do
@@ -7686,7 +7692,7 @@ function BarDB:DoOption(OTableName, OKeyName)
         local KName = KeyName.Name
 
         -- Check for recursion.  We don't want to recursivly call the same function.
-        if not KeyName.Recursive and (OKeyName == nil or KName == '_' or KName == OKeyName) then
+        if not KeyName.Recursive and (PKeyName == nil or KName == '_' or KName == PKeyName) then
 
           -- Search for the tablename found in the unitbar defaults data.
           for DUBTableName, DUBData in pairs(UBD) do
