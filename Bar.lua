@@ -3463,7 +3463,7 @@ local function OnObjectAlpha(AGroup)
   local Value = AGroup.FromValue
   local Alpha = Value + (AGroup.ToValue - Value) * AGroup:GetProgress()
 
-  AGroup.OnObject:SetAlpha(Alpha)
+  AGroup.OnObject:SetAlpha(Alpha < 0 and 0 or Alpha > 1 and 1 or Alpha)
 end
 
 local function OnObjectScale(AGroup)
