@@ -2,9 +2,10 @@
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
-## Version: 8.03
+## Version: 8.08
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB, GalvinUnitBarsData
+## X-Curse-Project-ID: 26391
 #@no-lib-strip@
 # Ace Libraries
 
@@ -41,6 +42,7 @@ ShardBar.lua
 FragmentBar.lua
 ChiBar.lua
 ArcaneBar.lua
+EssenceBar.lua
 Options.lua
 TextOptions.lua
 TriggerOptions.lua
