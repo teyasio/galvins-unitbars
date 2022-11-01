@@ -1,1 +1,0 @@
-- uses: BigWigsMods/packager@v2
