@@ -5471,8 +5471,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 62 then
-    Gdata.ShowMessage = 62
+  if Gdata.ShowMessage ~= 63 then
+    Gdata.ShowMessage = 63
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

@@ -57,20 +57,22 @@ local EssenceCooldownSpinnerTexture = 31
 local EssenceSBarSparkTexture = [[Interface\CastingBar\UI-CastingBar-Spark]]
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
-  { OT.BackgroundBorder,      1,  '', BoxMode                },
-  { OT.BackgroundBorderColor, 2,  '', BoxMode                },
-  { OT.BackgroundBackground,  3,  '', BoxMode                },
-  { OT.BackgroundColor,       4,  '', BoxMode                },
-  { OT.BarTexture,            5,  '', EssenceSBar            },
-  { OT.BarColor,              6,  '', EssenceSBar            },
-  { OT.BarOffset,             7,  '', BoxMode                },
-  { OT.TextureScale,          8,  '', EssenceCooldownTexture },
-  { OT.TextFontColor,         9,  ''                         },
-  { OT.TextFontOffset,        10, ''                         },
-  { OT.TextFontSize,          11, ''                         },
-  { OT.TextFontType,          12, ''                         },
-  { OT.TextFontStyle,         13, ''                         },
-  { OT.Sound,                 14, ''                         },
+  { OT.BackgroundBorder,      1,  '',        BoxMode                },
+  { OT.BackgroundBorderColor, 2,  '',        BoxMode                },
+  { OT.BackgroundBackground,  3,  '',        BoxMode                },
+  { OT.BackgroundColor,       4,  '',        BoxMode                },
+  { OT.BarTexture,            5,  '',        EssenceSBar            },
+  { OT.BarTexture,            6,  ' (full)', EssenceFullSBar        },
+  { OT.BarColor,              7,  '',        EssenceSBar            },
+  { OT.BarColor,              8,  ' (full)', EssenceFullSBar        },
+  { OT.BarOffset,             9,  '',        BoxMode                },
+  { OT.TextureScale,          10, '',        EssenceCooldownTexture },
+  { OT.TextFontColor,         11, ''                                },
+  { OT.TextFontOffset,        12, ''                                },
+  { OT.TextFontSize,          13, ''                                },
+  { OT.TextFontType,          14, ''                                },
+  { OT.TextFontStyle,         15, ''                                },
+  { OT.Sound,                 16, ''                                },
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
