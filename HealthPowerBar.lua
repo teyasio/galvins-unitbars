@@ -770,7 +770,6 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(HapBox, PredictedCostBar, false)
   BBar:SetHiddenTexture(HapBox, AbsorbBar, false)
 
-  BBar:SetFillTexture(HapBox, StatusBar, 0)
   BBar:SetFillTexture(HapBox, PredictedBar, 1)
   BBar:SetFillTexture(HapBox, AbsorbBar, 1)
   BBar:SetFillTexture(HapBox, PredictedCostBar, 1)

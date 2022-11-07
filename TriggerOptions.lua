@@ -386,6 +386,10 @@ local function CreateTriggerDisplayOptions(Order, UBF, BBar, Trigger)
         set = function(Info, Value)
                 local KeyName = Info[#Info]
 
+                if KeyName == 'ColorUnit' then
+                  Value = strsplit(' ', Value)
+                end
+
                 Trigger[KeyName] = Value
 
                 if KeyName == 'TextLine' then

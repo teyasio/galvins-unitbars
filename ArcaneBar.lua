@@ -40,22 +40,20 @@ local TextureMode = 2
 
 local ChangeArcane = 3
 
-local AllTextures = 11
-
 local ArcaneSBar = 10
 local ArcaneDarkTexture = 11
 local ArcaneLightTexture = 12
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
-  { OT.BackgroundBorder,      1, '', BoxMode     },
-  { OT.BackgroundBorderColor, 2, '', BoxMode     },
-  { OT.BackgroundBackground,  3, '', BoxMode     },
-  { OT.BackgroundColor,       4, '', BoxMode     },
-  { OT.BarTexture,            5, '', ArcaneSBar  },
-  { OT.BarColor,              6, '', ArcaneSBar  },
-  { OT.BarOffset,             7, '', BoxMode     },
-  { OT.TextureScale,          8, '', AllTextures },
-  { OT.Sound,                 9, '', Sound       }
+  { OT.BackgroundBorder,      1, '', BoxMode           },
+  { OT.BackgroundBorderColor, 2, '', BoxMode           },
+  { OT.BackgroundBackground,  3, '', BoxMode           },
+  { OT.BackgroundColor,       4, '', BoxMode           },
+  { OT.BarTexture,            5, '', ArcaneSBar        },
+  { OT.BarColor,              6, '', ArcaneSBar        },
+  { OT.BarOffset,             7, '', BoxMode           },
+  { OT.TextureScale,          8, '', ArcaneDarkTexture },
+  { OT.Sound,                 9, '', Sound             }
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
@@ -321,7 +319,7 @@ function GUB.ArcaneBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(ChangeArcane, ArcaneLightTexture, ArcaneSBar)
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleAllTexture(0, AllTextures, 1)
+  BBar:SetScaleAllTexture(0, ArcaneDarkTexture, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

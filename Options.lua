@@ -120,6 +120,8 @@ local o = {
   TestModeHolyPowerMax = 5,
   TestModeChiMin = 0,
   TestModeChiMax = 6,
+  TestModeExtraChiMin = 0,
+  TestModeExtraChiMax = 1,
   TestModePointsMin = 0,
   TestModePointsMax = 7,
   TestModeExtraPointsMin = 0,
@@ -138,6 +140,10 @@ local o = {
   TestModeAltPowerBarIDMax = 500,
   TestModeAltPowerTimeMin = 0,
   TestModeAltPowerTimeMax = 60,
+  TestModeEssenceMin = 0,
+  TestModeEssenceMax = 6,
+  TestModeExtraEssenceMin = 0,
+  TestModeExtraEssenceMax = 1,
 
   -- Animation for all unitbars.
   AnimationOutTime = 1,
@@ -342,10 +348,10 @@ local DirectionDropdown = {
   VERTICAL = 'Vertical'
 }
 
-local RuneModeDropdown = {
-  rune = 'Runes',
-  bar = 'Bars',
-  runebar = 'Bars and Runes'
+local ModeDropdown = {
+  texture = 'Textures',
+  box = 'Boxes',
+  texturebox = 'Textures and Boxes',
 }
 
 local FrameStrataDropdown = {
@@ -1960,7 +1966,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   -- For fragment bar
   -- Can use the same order numbers as predictedbartexture
   -- since both of these never happen at the same time.
-  if BarType == 'FragmentBar' then
+  if BarType == 'FragmentBar' or BarType == 'EssenceBar' then
     GeneralArgs.Spacer20 = CreateSpacer(20)
 
     GeneralArgs.FullBarTexture = {
@@ -1970,8 +1976,22 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
       dialogControl = 'LSM30_Statusbar',
       values = LSMDropdown.StatusBar,
       disabled = function()
-                   return GroupDisabled(BarType, TableName, UBF)
+                   if BarType == 'FragmentBar' then
+                     return GroupDisabled(BarType, TableName, UBF)
+                   else
+                     return not UBF.UnitBar.Bar.ShowFull
+                   end
                  end,
+    }
+  end
+  if BarType == 'EssenceBar' then
+    GeneralArgs.Spacer22 = CreateSpacer(22, 'half')
+
+    GeneralArgs.ShowFull = {
+      type = 'toggle',
+      name = 'Show Full',
+      order = 23,
+      desc = 'Shows the full texture when essence comes off cooldown',
     }
   end
 
@@ -2128,6 +2148,15 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
   local Color = UBD[TableName].Color
   if Color and Color.All ~= nil then
     BarArgs.ColorAll = CreateColorAllOptions(BarType, TableName, TableName .. '.Color', 'Color', 2, 'Color')
+  end
+  if BarType == 'EssenceBar' then
+    local Color = UBD[TableName].ColorFull
+    if Color and Color.All ~= nil then
+      BarArgs.ColorAllFull = CreateColorAllOptions(BarType, TableName, TableName .. '.ColorFull', 'ColorFull', 3, 'Color (full)')
+      BarArgs.ColorAllFull.disabled = function()
+                                        return not UBF.UnitBar.Bar.ShowFull
+                                      end
+    end
   end
 
   -- Fragment bar options
@@ -3338,23 +3367,28 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = o.TestModeHolyPowerMax,
     }
   end
-  if UBD.TestMode.Ascension ~= nil then
-    TestModeArgs.Ascension = {
-      type = 'toggle',
-      name = 'Ascension',
-      order = 500,
-    }
-  end
   if UBD.TestMode.Chi ~= nil then
     TestModeArgs.Chi = {
       type = 'range',
       name = 'Chi',
-      order = 501,
+      order = 500,
       desc = 'Change how many chi orbs are lit',
       width = 'full',
       step = 1,
       min = o.TestModeChiMin,
       max = o.TestModeChiMax,
+    }
+  end
+  if UBD.TestMode.ExtraChi ~= nil then
+    TestModeArgs.ExtraChi = {
+      type = 'range',
+      name = 'Extra Chi',
+      order = 501,
+      desc = 'Add additional chi',
+      width = 'full',
+      step = 1,
+      min = o.TestModeExtraChiMin,
+      max = o.TestModeExtraChiMax,
     }
   end
   if UBD.TestMode.ComboPoints ~= nil then
@@ -3527,24 +3561,62 @@ local function CreateTestModeOptions(BarType, Order, Name)
                  end,
     }
   end
+  if UBD.TestMode.EssenceTime ~= nil then
+    TestModeArgs.EssenceTime = {
+      type = 'range',
+      name = 'Time',
+      order = 1000,
+      desc = '',
+      step = .01,
+      width = 'full',
+      isPercent = true,
+      min = 0,
+      max = 1,
+    }
+  end
+  if UBD.TestMode.Essence ~= nil then
+    TestModeArgs.Essence = {
+      type = 'range',
+      name = 'Essence',
+      order = 1001,
+      desc = 'Change how many essence is lit',
+      width = 'full',
+      step = 1,
+      min = o.TestModeEssenceMin,
+      max = o.TestModeEssenceMax,
+    }
+  end
+  if UBD.TestMode.ExtraEssence ~= nil then
+    TestModeArgs.ExtraEssence = {
+      type = 'range',
+      name = 'Extra Essence',
+      order = 1002,
+      desc = 'Add additional essence',
+      width = 'full',
+      step = 1,
+      min = o.TestModeExtraEssenceMin,
+      max = o.TestModeExtraEssenceMax,
+    }
+  end
 
   return TestModeOptions
 end
 
 -------------------------------------------------------------------------------
--- CreateMoreLayoutRuneBarOptions
+-- CreateMoreLayoutMultiOptions
 --
--- Creates additional options that appear under layout for the rune bar.
+-- Creates additional options that appear under layout for the
+-- rune bar or essence bar
 --
 -- Subfunction of CreateLayoutOptions
 --
 -- BarType   Type of options being created.
 -- Order     Position in the options list.
 -------------------------------------------------------------------------------
-local function CreateMoreLayoutRuneBarOptions(BarType, Order)
+local function CreateMoreLayoutMultiOptions(BarType, Order)
   local UBF = Main.UnitBarsF[BarType]
 
-  local MoreLayoutRuneBarOptions = {
+  local MoreLayoutMultiOptions = {
     type = 'group',
     name = '',
     dialogInline = true,
@@ -3560,12 +3632,12 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
             UBF:SetAttr('Layout', KeyName)
           end,
     args = {
-      RuneMode = {
+      Mode = {
         type = 'select',
-        name = 'Rune Mode',
+        name = 'Mode Type',
         order = 1,
-        desc = 'Select the way runes are shown',
-        values = RuneModeDropdown,
+        desc = 'Select the way the bar is shown',
+        values = ModeDropdown,
         style = 'dropdown',
       },
       Spacer20 = CreateSpacer(20),
@@ -3574,7 +3646,7 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
         name = 'Cooldown Animation',
         order = 21,
         hidden = function()
-                   return strfind(UBF.UnitBar.Layout.RuneMode, 'rune') == nil
+                   return strfind(UBF.UnitBar.Layout.Mode, 'texture') == nil
                  end,
         desc = 'Shows the cooldown animation',
       },
@@ -3583,51 +3655,70 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
         name = 'Cooldown Flash',
         order = 22,
         hidden = function()
-                   return strfind(UBF.UnitBar.Layout.RuneMode, 'rune') == nil
+                   return strfind(UBF.UnitBar.Layout.Mode, 'texture') == nil
                  end,
         disabled = function()
                      return not UBF.UnitBar.Layout.CooldownAnimation
                    end,
-        desc = 'Shows the flash animation after a rune comes off cooldown',
+        desc = 'Shows a flash animation after a cooldown animation'
       },
       Spacer30 = CreateSpacer(30),
-      BarSpark = {
-        type = 'toggle',
-        name = 'Bar Spark',
-        order = 31,
-        hidden = function()
-                   return UBF.UnitBar.Layout.RuneMode == 'rune'
-                 end,
-        desc = 'Shows a spark on the bar animation',
-      },
       CooldownLine = {
         type = 'toggle',
         name = 'Cooldown Line',
-        order = 32,
+        order = 31,
         hidden = function()
-                   return strfind(UBF.UnitBar.Layout.RuneMode, 'rune') == nil
+                   return strfind(UBF.UnitBar.Layout.Mode, 'texture') == nil
                  end,
         disabled = function()
                      return not UBF.UnitBar.Layout.CooldownAnimation
                    end,
         desc = 'Shows a line on the cooldown animation',
       },
-      RuneLocation = {
-        type = 'group',
-        name = 'Rune Location',
-        dialogInline = true,
+      BarSpark = {
+        type = 'toggle',
+        name = 'Bar Spark',
         order = 32,
+        hidden = function()
+                   return UBF.UnitBar.Layout.Mode == 'texture'
+                 end,
+        desc = 'Shows a spark on the bar animation fill',
+      },
+      Spacer40 = CreateSpacer(40),
+      CooldownEssence = {
+        type = 'toggle',
+        name = 'Cooldown Essence',
+        order = 41,
+        hidden = function()
+                   return BarType ~= 'EssenceBar'
+                 end,
+        desc = 'Shows some additional artwork on the edge of the cooldown',
+      },
+      CooldownFill = {
+        type = 'toggle',
+        name = 'Cooldown Fill',
+        order = 42,
+        hidden = function()
+                   return BarType ~= 'EssenceBar'
+                 end,
+        desc = 'Shows the fill around the edge of the cooldown',
+      },
+      TextureLocation = {
+        type = 'group',
+        name = 'Texture Location',
+        dialogInline = true,
+        order = 50,
         set = function(Info, Value)
                 UBF.UnitBar.Layout[Info[#Info]] = Value
 
                 -- Update the rune location.
-                UBF:SetAttr('Layout', '_RuneLocation')
+                UBF:SetAttr('Layout', '_TextureLocation')
               end,
         hidden = function()
-                   return UBF.UnitBar.Layout.RuneMode ~= 'runebar'
+                   return UBF.UnitBar.Layout.Mode ~= 'texturebox'
                  end,
         args = {
-          RuneOffsetX = {
+          TextureOffsetX = {
             type = 'range',
             name = 'Horizontal Offset',
             order = 1,
@@ -3635,7 +3726,7 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
             max = o.RuneOffsetYMax,
             step = 1,
           },
-          RuneOffsetY = {
+          TextureOffsetY = {
             type = 'range',
             name = 'Vertical Offset',
             order = 2,
@@ -3643,9 +3734,9 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
             max = o.RuneOffsetYMax,
             step = 1,
           },
-          RunePosition = {
+          TexturePosition = {
             type = 'select',
-            name = 'Rune Position',
+            name = 'Texture Position',
             order = 3,
             values = PositionDropdown,
             style = 'dropdown',
@@ -3655,7 +3746,7 @@ local function CreateMoreLayoutRuneBarOptions(BarType, Order)
       },
     },
   }
-  return MoreLayoutRuneBarOptions
+  return MoreLayoutMultiOptions
 end
 
 -------------------------------------------------------------------------------
@@ -4005,8 +4096,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
 
   -- Create more layout options.
   if UBD.Layout._More then
-    if BarType == 'RuneBar' then
-      GeneralArgs.MoreLayout = CreateMoreLayoutRuneBarOptions(BarType, 1)
+    if BarType == 'RuneBar' or BarType == 'EssenceBar' then
+      GeneralArgs.MoreLayout = CreateMoreLayoutMultiOptions(BarType, 1)
     elseif BarType == 'StaggerBar' then
       GeneralArgs.MoreLayout = CreateMoreLayoutStaggerBarOptions(BarType, 1)
     elseif BarType == 'AltPowerBar' then
@@ -4324,8 +4415,8 @@ local function CreateLayoutOptions(BarType, Order, Name)
       step = 0.01,
       isPercent = true,
       disabled = function()
-                   return BarType ~= 'RuneBar' and Flag(true, UBF.UnitBar.Layout.BoxMode) or
-                          BarType == 'RuneBar' and strsub(UBF.UnitBar.Layout.RuneMode, 1, 4) ~= 'rune'
+                   return BarType ~= 'RuneBar' and BarType ~= 'EssenceBar' and Flag(true, UBF.UnitBar.Layout.BoxMode) or
+                          (BarType == 'RuneBar' or  BarType == 'EssenceBar') and strfind(UBF.UnitBar.Layout.Mode, 'texture') == nil
                  end,
       min = o.LayoutTextureScaleMin,
       max = o.LayoutTextureScaleMax,
@@ -4341,7 +4432,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
     ObjectsFlag = true
     ObjectsArgs.AnimationInTime = {
       type = 'range',
-      name = BarType ~= 'FragmentBar' and 'Animation-in' or 'Animation-in (full)',
+      name = BarType ~= 'FragmentBar' and BarType ~= 'EssenceBar' and 'Animation-in' or 'Animation-in (full)',
       order = 51,
       desc = 'The amount of time in seconds to play animation after showing a bar object',
       step = 0.1,
@@ -4354,7 +4445,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
     ObjectsFlag = true
     ObjectsArgs.AnimationOutTime = {
       type = 'range',
-      name = BarType ~= 'FragmentBar' and 'Animation-out' or 'Animation-out (full)',
+      name = BarType ~= 'FragmentBar' and BarType ~= 'EssenceBar' and 'Animation-out' or 'Animation-out (full)',
       order = 52,
       desc = 'The amount of time in seconds to play animation after showing a bar object',
       step = 0.1,
@@ -5348,7 +5439,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
     BackgroundOptions = CreateBackdropOptions(BarType, 'Background', 1002, 'Background')
     if BarType == 'RuneBar' then
       BackgroundOptions.hidden = function()
-                                   return UBF.UnitBar.Layout.RuneMode == 'rune'
+                                   return UBF.UnitBar.Layout.Mode == 'texture'
                                  end
     else
       BackgroundOptions.hidden = function()
@@ -5406,7 +5497,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
     BarOptions = CreateBarOptions(BarType, 'Bar', 1003, 'Bar')
     if BarType == 'RuneBar' then
       BarOptions.hidden = function()
-                            return UBF.UnitBar.Layout.RuneMode == 'rune'
+                            return UBF.UnitBar.Layout.Mode == 'texture'
                           end
     else
       BarOptions.hidden = function()

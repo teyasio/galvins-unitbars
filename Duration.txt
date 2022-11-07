@@ -1,0 +1,84 @@
+This is a technical explanation on how to change the duration of a cooldown bar already in progress
+using my own statusbar code
+
+You have a bar that's at 75% full with a total duration of 18 seconds.  With a starting time of 0 seconds
+For statusbars I always use values from 0 to 1
+
+Start Time     0 sec
+Start Value    0 sec
+Current Value  0.75
+Duration       18 sec
+New Duration   12 sec
+Range          1  (0 left side. 1 right side. As shown below)
+
+   0 sec
+   +---------------------------------------------------------------------------------+
+   |                                                             |                   |
+   |             this part of the bar is already filled          |                   |
+   |                                                             |                   |
+   +---------------------------------------------------------------------------------+
+   0                                                             ^                   1
+                                                                 Current Value (0.75)
+
+So now lets say the duration due to haste or some talent or what not causes the duration
+to change to 12 seconds. The Time Elapsed has to be calculated from the time the bar
+started to the current time.
+
+So the new duration came in at when the bar is currently at 75% full. This would cause
+the current time to be at 13.5 seconds. First thing need to calculate the time elapsed.
+-------------------------------------------------------------------------------
+Time Elapsed = Current Time (13.5 sec) - StartTime (0 sec)
+Time Elapsed = 13.5 sec
+-------------------------------------------------------------------------------
+
+To help figure out the new position. First the Time Elapsed and Duration needs to be
+changed into a percentage between 0 and 1.
+-------------------------------------------------------------------------------
+Percentage = Time Elapsed (13.5 sec) / Duration (18 sec)
+Percantage = 0.75
+-------------------------------------------------------------------------------
+
+Now the Percentage needs to be applied to the Range of the bar which is at 1.
+-------------------------------------------------------------------------------
+Percentage = Range (1) * Percentage
+Percentage = 0.75
+-------------------------------------------------------------------------------
+
+Since I always have bars that start with a value of 0 and end with 1.  I can just apply
+the Percentage directly as a bar value.
+-------------------------------------------------------------------------------
+Value = Start Value (0) + Percentage (0.75)
+Value = 0.75
+-------------------------------------------------------------------------------
+
+So now the trick is to redraw the bar in such a way that original size doesn't change.
+To do this we need to create a new start time in the past. So we need to figure how far
+back to go.
+-------------------------------------------------------------------------------
+Back In Time = Value (0.75) * New Duration (12 sec)
+Back In Time = 9 sec
+-------------------------------------------------------------------------------
+
+Then need to take Current Time from above and subtract Back In Time from it
+-------------------------------------------------------------------------------
+New Start Time = Current Time (13.5 sec) - Back In Time (9 sec)
+New Start Time = 4.5 sec (9 seconds ago)
+New Duration   = 12 sec
+-------------------------------------------------------------------------------
+
+So now the bar fill 0.75 is now equal to Back In Time (9 sec)
+-------------------------------------------------------------------------------
+New Value       = Back In Time (9 sec) / New Duration (12 sec)
+New Value       = 0.75
+Time To finish  = New Duration (12 sec) - Back In Time (9 sec)
+Time to Finish  = 3 sec
+-------------------------------------------------------------------------------
+
+And the above math is applied over and over with the new values fed back in to show a bar
+speeding up or slowing down as talents and haste cause the duration to change on the fly.
+
+Perfect example of this is runebar code in RuneBar.lua and essence code in EssenceBar.lua
+
+I assume this math can work with bars that have a different range. But i'll probably never
+use it in that way. But it's there incase I ever do.  I wrote this so I don't forget
+how this works. It's amazing how easy you can forget stuff.

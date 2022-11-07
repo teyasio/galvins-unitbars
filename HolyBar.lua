@@ -40,22 +40,20 @@ local TextureMode = 2
 
 local ChangeHoly = 3
 
-local AllTextures = 12
-
 local HolySBar = 10
 local HolyDarkTexture = 12
 local HolyLightTexture = 13
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
-  { OT.BackgroundBorder,      1, '', BoxMode     },
-  { OT.BackgroundBorderColor, 2, '', BoxMode     },
-  { OT.BackgroundBackground,  3, '', BoxMode     },
-  { OT.BackgroundColor,       4, '', BoxMode     },
-  { OT.BarTexture,            5, '', HolySBar    },
-  { OT.BarColor,              6, '', HolySBar    },
-  { OT.BarOffset,             7, '', BoxMode     },
-  { OT.TextureScale,          8, '', AllTextures },
-  { OT.Sound,                 9, '',             }
+  { OT.BackgroundBorder,      1, '', BoxMode         },
+  { OT.BackgroundBorderColor, 2, '', BoxMode         },
+  { OT.BackgroundBackground,  3, '', BoxMode         },
+  { OT.BackgroundColor,       4, '', BoxMode         },
+  { OT.BarTexture,            5, '', HolySBar        },
+  { OT.BarColor,              6, '', HolySBar        },
+  { OT.BarOffset,             7, '', BoxMode         },
+  { OT.TextureScale,          8, '', HolyDarkTexture },
+  { OT.Sound,                 9, '',                 }
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
@@ -342,7 +340,7 @@ function GUB.HolyBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetSizeTextureFrame(0, TextureMode, HolyData.BoxWidth, HolyData.BoxHeight)
 
   -- Set the texture scale for Texture Size triggers.
-  BBar:SetScaleAllTexture(0, AllTextures, 1)
+  BBar:SetScaleAllTexture(0, HolyDarkTexture, 1)
   BBar:SetScaleTextureFrame(0, BoxMode, 1)
 
   BBar:SetChangeTexture(ChangeHoly, HolyLightTexture, HolySBar)

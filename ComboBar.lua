@@ -43,22 +43,20 @@ local TextureMode = 2
 local ChangePoints = 3
 local ChangeComboPoints = 4
 
-local AllTextures = 11
-
 local ComboSBar = 10
 local ComboDarkTexture = 11
 local ComboLightTexture = 12
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
-  { OT.BackgroundBorder,      1,   '', BoxMode     },
-  { OT.BackgroundBorderColor, 2,   '', BoxMode     },
-  { OT.BackgroundBackground,  3,   '', BoxMode     },
-  { OT.BackgroundColor,       4,   '', BoxMode     },
-  { OT.BarTexture,            5,   '', ComboSBar   },
-  { OT.BarColor,              6,   '', ComboSBar   },
-  { OT.BarOffset,             7,   '', BoxMode     },
-  { OT.TextureScale,          8,   '', AllTextures },
-  { OT.Sound,                 9,   ''              },
+  { OT.BackgroundBorder,      1,   '', BoxMode          },
+  { OT.BackgroundBorderColor, 2,   '', BoxMode          },
+  { OT.BackgroundBackground,  3,   '', BoxMode          },
+  { OT.BackgroundColor,       4,   '', BoxMode          },
+  { OT.BarTexture,            5,   '', ComboSBar        },
+  { OT.BarColor,              6,   '', ComboSBar        },
+  { OT.BarOffset,             7,   '', BoxMode          },
+  { OT.TextureScale,          8,   '', ComboDarkTexture },
+  { OT.Sound,                 9,   ''                   },
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
@@ -192,17 +190,22 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   ------------
   local Animacharges = GetUnitChargedPowerPoints('player')
   local NumAnimacharges = Animacharges and #Animacharges or 0
+  local NumPoints = UnitPowerMax('player', PowerPoint)
 
   local BBar = self.BBar
-  local NumPoints = UnitPowerMax('player', PowerPoint)
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
     ComboPoints = TestMode.ComboPoints
     NumPoints = BaseComboPoints + TestMode.ExtraComboPoints
+
     -- Clip num points to max combo points
     if NumPoints > MaxComboPoints then
       NumPoints = MaxComboPoints
+    end
+    -- clip combo points to num combo points
+    if ComboPoints > NumPoints then
+      ComboPoints = NumPoints
     end
 
     if Animacharges == nil then
@@ -465,7 +468,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleAllTexture(0, AllTextures, 1)
+  BBar:SetScaleAllTexture(0, ComboDarkTexture, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

@@ -40,22 +40,20 @@ local TextureMode = 2
 
 local ChangeShards = 3
 
-local AllTextures = 11
-
 local ShardSBar = 10
 local ShardDarkTexture = 11
 local ShardLightTexture = 12
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
-  {OT.BackgroundBorder,      1, '', BoxMode     },
-  {OT.BackgroundBorderColor, 2, '', BoxMode     },
-  {OT.BackgroundBackground,  3, '', BoxMode     },
-  {OT.BackgroundColor,       4, '', BoxMode     },
-  {OT.BarTexture,            5, '', ShardSBar   },
-  {OT.BarColor,              6, '', ShardSBar   },
-  {OT.BarOffset,             7, '', BoxMode     },
-  {OT.TextureScale,          8, '', AllTextures },
-  {OT.Sound,                 9, ''              }
+  {OT.BackgroundBorder,      1, '', BoxMode          },
+  {OT.BackgroundBorderColor, 2, '', BoxMode          },
+  {OT.BackgroundBackground,  3, '', BoxMode          },
+  {OT.BackgroundColor,       4, '', BoxMode          },
+  {OT.BarTexture,            5, '', ShardSBar        },
+  {OT.BarColor,              6, '', ShardSBar        },
+  {OT.BarOffset,             7, '', BoxMode          },
+  {OT.TextureScale,          8, '', ShardDarkTexture },
+  {OT.Sound,                 9, ''                   }
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
@@ -330,7 +328,7 @@ function GUB.ShardBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetChangeTexture(ChangeShards, ShardLightTexture, ShardSBar)
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleAllTexture(0, AllTextures, 1)
+  BBar:SetScaleAllTexture(0, ShardDarkTexture, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

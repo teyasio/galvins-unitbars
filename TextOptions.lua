@@ -119,6 +119,7 @@ local ValueNameMenuDropdown = {
   rune         = ValueName_RuneDropdown,
   stagger      = ValueName_StaggerDropdown,
   staggerpause = ValueName_RuneDropdown,
+  essence      = ValueName_RuneDropdown,
   altpower     = ValueName_AltPowerDropdown,
   altcounter   = ValueName_AltCounterDropdown,
 }
@@ -375,8 +376,8 @@ local function CreateTextFontOptions(BarType, TableName, UBF, TLA, Texts, TextLi
     },
   }
 
-  -- Add color all text option for the runebar only.
-  if BarType == 'RuneBar' then
+  -- Add color all text option for the runebar and essecenbar only.
+  if BarType == 'RuneBar' or BarType == 'EssenceBar' then
     TLA.TextColors = CreateColorAllOptions(BarType, 'Text', TableName .. '.1.Color', '_Font', Order, 'Color')
   else
     TLA.FontOptions.args.TextColor = {

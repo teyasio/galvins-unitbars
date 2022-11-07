@@ -5255,7 +5255,7 @@ end
 --
 -- BoxNumber           Box containing the fill texture
 -- TextureNumber       Texture frame that contains the statusbar frame
--- Value               New maximum for the fill part of all textures
+-- Value               New maximum for the fill part of all textures. Value ranges between 0 and 1
 --
 -- NOTES: This must be the texture that was created with type 'statusbar' in CreateTexture()
 -------------------------------------------------------------------------------
@@ -5311,7 +5311,7 @@ end
 -- TPS               Times per second.  This is how many times per second
 --                   The timer will be called. The higher the number the smoother
 --                   the animation but also the more cpu is consumed.
--- StartTime         Starting time if nil then starts instantly.
+-- StartTime         Starting time in seconds, if nil then starts instantly.
 -- Duration          Time it will take to go from StartValue to EndValue.
 -- StartValue        Starting value between 0 and MaxValue.  If nill the current value
 --                   is used instead.
@@ -5321,7 +5321,7 @@ end
 -------------------------------------------------------------------------------
 local function SetFillTime(Texture, TPS, StartTime, Duration, StartValue, EndValue, Constant)
   Main:SetTimer(Texture, nil)
-  local MaxValue = Texture.MaxValue
+  local MaxValue = Texture.MaxValue -- MaxValue is between 0 and 1
 
   Duration = Duration or 0
   StartValue = StartValue and StartValue or Texture.Value
@@ -5914,6 +5914,29 @@ function BarDB:SetCooldownTexture(BoxNumber, TextureNumber, StartTime, Duration)
 end
 
 -------------------------------------------------------------------------------
+-- SetCooldownTexture
+--
+-- Starts a cooldown animation for the current texture.
+--
+-- BoxNumber        Box containing the texture to cooldown to pause or resume.
+-- TextureNumber    Texture to cooldown.
+-- Pause            true: Pause the cooldown
+--                  false: Resume the cooldown
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownPauseTexture(BoxNumber, TextureNumber, Pause)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local CooldownFrame = Texture.CooldownFrame
+
+    if Pause then
+      CooldownFrame:Pause()
+    else
+      CooldownFrame:Resume()
+    end
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
 -- SetCooldownReverseTexture
 --
 -- Inverts the bright and dark portions of the cooldown animation
@@ -6006,15 +6029,38 @@ end
 -- BoxNumber        Box containing the texture to cooldown.
 -- TextureNumber    Texture to cooldown.
 -- SwipeTexture     New texture used for the cooldown animation.
+--
+-- NOTES: If an empty string is used, swipe texture will not be drawn
 -------------------------------------------------------------------------------
 function BarDB:SetCooldownSwipeTexture(BoxNumber, TextureNumber, SwipeTexture)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local CooldownFrame = Texture.CooldownFrame
 
-    Texture.CooldownFrame:SetSwipeTexture(SwipeTexture)
+    if SwipeTexture then
+      CooldownFrame:SetSwipeTexture(SwipeTexture)
 
-    -- Set color so colored textures have color.
-    Texture.CooldownFrame:SetSwipeColor(1, 1, 1, 1)
+      -- Set color so colored textures have color.
+      CooldownFrame:SetSwipeColor(1, 1, 1, 1)
+    end
+    CooldownFrame:SetDrawSwipe(SwipeTexture ~= '')
+  until LastBox
+end
+
+-------------------------------------------------------------------------------
+-- SetCooldownDrawSwipeTexture
+--
+-- Hides or shows the texture used in the cooldown clock animation
+--
+-- BoxNumber        Box containing the texture to cooldown.
+-- TextureNumber    Texture to cooldown.
+-- Swipe            If true then show the swipe texture
+-------------------------------------------------------------------------------
+function BarDB:SetCooldownDrawSwipeTexture(BoxNumber, TextureNumber, Swipe)
+  repeat
+    local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+
+    Texture.CooldownFrame:SetDrawSwipe(Swipe)
   until LastBox
 end
 
@@ -6027,12 +6073,16 @@ end
 -- BoxNumber        Box containing the texture to cooldown.
 -- TextureNumber    Texture to cooldown.
 -- EdgeTexture      New bright line texture to use.
+--
+-- NOTES: If an empty string is used, edge texture will not be drawn
 -------------------------------------------------------------------------------
 function BarDB:SetCooldownEdgeTexture(BoxNumber, TextureNumber, EdgeTexture)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local CooldownFrame = Texture.CooldownFrame
 
-    Texture.CooldownFrame:SetEdgeTexture(EdgeTexture)
+    CooldownFrame:SetEdgeTexture(EdgeTexture)
+    CooldownFrame:SetDrawEdge(EdgeTexture ~= '')
   until LastBox
 end
 
@@ -6186,8 +6236,12 @@ function BarDB:SetTexture(BoxNumber, TextureNumber, TextureName)
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
 
-    if LSM:IsValid('statusbar', TextureName) then
-      Texture:SetTexture(LSM:Fetch('statusbar', TextureName))
+    if Texture.SBF then
+      if LSM:IsValid('statusbar', TextureName) then
+        Texture:SetTexture(LSM:Fetch('statusbar', TextureName))
+      else
+        Texture:SetTexture(TextureName)
+      end
     else
       Texture:SetTexture(TextureName)
     end
@@ -6560,7 +6614,8 @@ function BarDB:CreateTexture(BoxNumber, TextureFrameNumber, TextureNumber, Textu
       end
       Texture:SetRotation(0) -- horizontal
 
-      Texture.SBF = SBF
+      Texture.SBF = SBF -- if this ever gets removed. SetTexture() needs to be
+                        -- updated since it uses this to detect statusbar
 
       -- Statusbars default to zero when first created
       Texture.Value = 0
@@ -7762,7 +7817,7 @@ end
 -- Works with custom groups only
 -- Like SetTriggers accept it turns on or off a custom groups boxnumber
 --
--- NOTES: ... can be a index table containing the boxes or parms
+-- NOTES: ... can be an index table containing the boxes or parms
 -------------------------------------------------------------------------------
 function BarDB:SetTriggersCustomGroup(GroupName, Active, ...)
   local TriggerData = self.TriggerData

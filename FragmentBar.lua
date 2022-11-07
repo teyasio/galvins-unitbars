@@ -59,22 +59,18 @@ local ShardFullSBar = 21
 local EmberFillSBar = 22
 local EmberFullSBar = 23
 
-local ShardAllTexture = 50
 local ShardBgTexture = 50
 local ShardFillTexture = 51
 local ShardFullTexture = 52
 
-local EmberAllTexture = 60
 local EmberBgTexture = 60
 local EmberFillTexture = 61
 local EmberFullTexture = 62
 
-local GreenShardAllTexture = 70
 local GreenShardBgTexture = 70
 local GreenShardFillTexture = 71
 local GreenShardFullTexture = 72
 
-local GreenEmberAllTexture = 80
 local GreenEmberBgTexture = 80
 local GreenEmberFillTexture = 81
 local GreenEmberFullTexture = 82
@@ -84,44 +80,44 @@ local BarOffsetY = 0.5
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
   -- BACKGROUND border
-  { OT.BackgroundBorder,      1,  '  [ Shard ]',        BoxMode                                    },
-  { OT.BackgroundBorder,      2,  '  [ Ember ]',        BoxModeEmber                               },
+  { OT.BackgroundBorder,      1,  '  [ Shard ]',        BoxMode                                  },
+  { OT.BackgroundBorder,      2,  '  [ Ember ]',        BoxModeEmber                             },
 
   -- BACKGROUND border color
-  { OT.BackgroundBorderColor, 3,  '  [ Shard ]',        BoxMode                                    },
-  { OT.BackgroundBorderColor, 4,  '  [ Ember ]',        BoxModeEmber                               },
+  { OT.BackgroundBorderColor, 3,  '  [ Shard ]',        BoxMode                                  },
+  { OT.BackgroundBorderColor, 4,  '  [ Ember ]',        BoxModeEmber                             },
 
   -- BG BACKGROUND
-  { OT.BackgroundBackground,  5,  '   [ Shard ]',       BoxMode                                    },
-  { OT.BackgroundBackground,  6,  '   [ Ember ]',       BoxModeEmber                               },
+  { OT.BackgroundBackground,  5,  '   [ Shard ]',       BoxMode                                  },
+  { OT.BackgroundBackground,  6,  '   [ Ember ]',       BoxModeEmber                             },
 
   -- BACKGROUND color
-  { OT.BackgroundColor,       7,  '   [ Shard ]',       BoxMode                                    },
-  { OT.BackgroundColor,       8,  '   [ Ember ]',       BoxModeEmber                               },
+  { OT.BackgroundColor,       7,  '   [ Shard ]',       BoxMode                                  },
+  { OT.BackgroundColor,       8,  '   [ Ember ]',       BoxModeEmber                             },
 
   -- BAR texture
-  { OT.BarTexture,            9,  '   [ Shard ]',       ShardFillSBar                              },
-  { OT.BarTexture,            10, '   [ Ember ]',       EmberFillSBar                              },
+  { OT.BarTexture,            9,  '   [ Shard ]',       ShardFillSBar                            },
+  { OT.BarTexture,            10, '   [ Ember ]',       EmberFillSBar                            },
 
   -- BAR texture full
-  { OT.BarTexture,            11, ' (full)  [ Shard ]', ShardFullSBar                              },
-  { OT.BarTexture,            12, ' (full)  [ Ember ]', EmberFullSBar                              },
+  { OT.BarTexture,            11, ' (full)  [ Shard ]', ShardFullSBar                            },
+  { OT.BarTexture,            12, ' (full)  [ Ember ]', EmberFullSBar                            },
 
   -- BAR color
-  { OT.BarColor,              13, '  [ Shard ]',        ShardFillSBar                              },
-  { OT.BarColor,              14, '  [ Ember ]',        EmberFillSBar                              },
+  { OT.BarColor,              13, '  [ Shard ]',        ShardFillSBar                            },
+  { OT.BarColor,              14, '  [ Ember ]',        EmberFillSBar                            },
 
   -- BAR color full
   -- Shard
-  { OT.BarColor,              15, ' (full)  [ Shard ]', ShardFullSBar                              },
-  { OT.BarColor,              16, ' (full)  [ Ember ]', EmberFullSBar                              },
+  { OT.BarColor,              15, ' (full)  [ Shard ]', ShardFullSBar                            },
+  { OT.BarColor,              16, ' (full)  [ Ember ]', EmberFullSBar                            },
 
-  { OT.BarOffset,             17, '  [ Shard ]',        BoxMode                                    },
-  { OT.BarOffset,             18, '  [ Ember ]',        BoxModeEmber                               },
+  { OT.BarOffset,             17, '  [ Shard ]',        BoxMode                                  },
+  { OT.BarOffset,             18, '  [ Ember ]',        BoxModeEmber                             },
 
-  { OT.TextureScale,          19, '',                   ShardAllTexture, EmberAllTexture,
-                                                        GreenShardAllTexture, GreenEmberAllTexture },
-  { OT.Sound,                 20, ''                                                               }
+  { OT.TextureScale,          19, '',                   ShardBgTexture, EmberBgTexture,
+                                                        GreenShardBgTexture, GreenEmberBgTexture },
+  { OT.Sound,                 20, ''                                                             }
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
@@ -621,9 +617,7 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
             BBar:SetCoordTexture(ShardIndex, TextureNumber, SSD.Left, SSD.Right, SSD.Top, SSD.Bottom)
           end
           BBar:SetFillPixelSizeTexture(ShardIndex, TextureNumber, SSD.Width, SSD.Height)
---          if SSD.Point then
-            BBar:SetFillPointPixelTexture(ShardIndex, TextureNumber, 'CENTER', SSD.OffsetX, SSD.OffsetY)
-  --        end
+          BBar:SetFillPointPixelTexture(ShardIndex, TextureNumber, 'CENTER', SSD.OffsetX, SSD.OffsetY)
           if TextureNumber == ShardBgTexture or TextureNumber == GreenShardBgTexture then
             BBar:SetGreyscaleTexture(ShardIndex, TextureNumber, true)
             BBar:SetColorTexture(ShardIndex, TextureNumber, ShardBgColor.r, ShardBgColor.g, ShardBgColor.b, ShardBgColor.a)
@@ -671,10 +665,10 @@ function GUB.FragmentBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:ChangeTexture(ShardFill, 'SetFillDirectionTexture', 0, 'VERTICAL')
 
   -- Set the texture scale triggers.
-  BBar:SetScaleAllTexture(0, ShardAllTexture, 1)
-  BBar:SetScaleAllTexture(0, EmberAllTexture, 1)
-  BBar:SetScaleAllTexture(0, GreenShardAllTexture, 1)
-  BBar:SetScaleAllTexture(0, GreenEmberAllTexture, 1)
+  BBar:SetScaleAllTexture(0, ShardBgTexture, 1)
+  BBar:SetScaleAllTexture(0, EmberBgTexture, 1)
+  BBar:SetScaleAllTexture(0, GreenShardBgTexture, 1)
+  BBar:SetScaleAllTexture(0, GreenEmberBgTexture, 1)
 
   -- Set bar offsets for triggers
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)

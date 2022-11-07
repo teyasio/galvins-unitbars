@@ -574,9 +574,6 @@ function GUB.AltPowerBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHiddenTexture(AltPowerBarBox, AltPowerSBar, false)
   BBar:SetHiddenTexture(AltCounterBarBox, AltCounterSBar, false)
 
-  BBar:SetFillTexture(AltPowerBarBox, AltPowerSBar, 0)
-  BBar:SetFillTexture(AltCounterBarBox, AltCounterSBar, 0)
-
   -- Set this for triggeer bar offsets
   BBar:SetOffsetTextureFrame(AltPowerBarBox, AltPowerBarTFrame, 0, 0, 0, 0)
   BBar:SetOffsetTextureFrame(AltCounterBarBox, AltCounterBarTFrame, 0, 0, 0, 0)

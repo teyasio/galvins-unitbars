@@ -28,7 +28,7 @@ local ipairs, UnitPower, UnitPowerMax =
 -- UnitBarF.BBar                     Contains the ember bar displayed on screen.
 -------------------------------------------------------------------------------
 local MaxChiOrbs = 6
-local ExtraChiOrbStart = 5
+local BaseChiOrbs = 5
 local Display = false
 local Update = false
 
@@ -41,22 +41,20 @@ local TextureMode = 2
 
 local ChangeChi = 3
 
-local AllTextures = 20
-
 local ChiSBar = 10
 local ChiDarkTexture = 20
 local ChiLightTexture = 21
 
 local ObjectsInfo = { -- type, id, additional menu text, textures
-  { OT.BackgroundBorder,      1, '', BoxMode     },
-  { OT.BackgroundBorderColor, 2, '', BoxMode     },
-  { OT.BackgroundBackground,  3, '', BoxMode     },
-  { OT.BackgroundColor,       4, '', BoxMode     },
-  { OT.BarTexture,            5, '', ChiSBar     },
-  { OT.BarColor,              6, '', ChiSBar     },
-  { OT.BarOffset,             7, '', BoxMode     },
-  { OT.TextureScale,          8, '', AllTextures },
-  { OT.Sound,                 9, '', Sound       }
+  { OT.BackgroundBorder,      1, '', BoxMode        },
+  { OT.BackgroundBorderColor, 2, '', BoxMode        },
+  { OT.BackgroundBackground,  3, '', BoxMode        },
+  { OT.BackgroundColor,       4, '', BoxMode        },
+  { OT.BarTexture,            5, '', ChiSBar        },
+  { OT.BarColor,              6, '', ChiSBar        },
+  { OT.BarOffset,             7, '', BoxMode        },
+  { OT.TextureScale,          8, '', ChiDarkTexture },
+  { OT.Sound,                 9, '', Sound          }
 }
 
 local ObjectsInfoRegion = { -- type, id, additional text
@@ -162,14 +160,13 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
 
   if Main.UnitBars.Testing then
     local TestMode = self.UnitBar.TestMode
-
-    if TestMode.Ascension then
-      NumOrbs = MaxChiOrbs
-    else
-      NumOrbs = MaxChiOrbs - 1
-    end
     ChiOrbs = TestMode.Chi
+    NumOrbs = BaseChiOrbs + TestMode.ExtraChi
 
+    -- Clip chi orbs to max chi orbs
+    if NumOrbs > MaxChiOrbs then
+      NumOrbs = MaxChiOrbs
+    end
     -- clip chi
     if ChiOrbs > NumOrbs then
       ChiOrbs = NumOrbs
@@ -187,7 +184,7 @@ function Main.UnitBarsF.ChiBar:Update(Event, Unit, PowerToken)
     self.NumOrbs = NumOrbs
 
     -- Change the number of boxes in the bar.
-    for ChiIndex = ExtraChiOrbStart, MaxChiOrbs do
+    for ChiIndex = BaseChiOrbs, MaxChiOrbs do
       BBar:SetHidden(ChiIndex, nil, ChiIndex > NumOrbs)
     end
     BBar:Display()
@@ -348,7 +345,7 @@ function GUB.ChiBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetTooltipRegion(UB._Name .. ' - Region')
 
   -- Set the texture scale for bar offset triggers.
-  BBar:SetScaleAllTexture(0, AllTextures, 1)
+  BBar:SetScaleAllTexture(0, ChiDarkTexture, 1)
   BBar:SetOffsetTextureFrame(0, BoxMode, 0, 0, 0, 0)
 
   UnitBarF.Names = Names

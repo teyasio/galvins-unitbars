@@ -34,6 +34,7 @@ GUB.ShardBar = {}
 GUB.FragmentBar = {}
 GUB.ChiBar = {}
 GUB.ArcaneBar = {}
+GUB.EssenceBar = {}
 GUB.Options = Options
 
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
@@ -59,8 +60,8 @@ local GetSpellInfo, GetSpellBookItemInfo, GetSpellTabInfo, GetNumSpellTabs, GetF
       GetSpellInfo, GetSpellBookItemInfo, GetSpellTabInfo, GetNumSpellTabs, GetFlyoutInfo, GetFlyoutSlotInfo
 local GetPvpTalentInfoByID, GetCursorPosition =
       GetPvpTalentInfoByID, GetCursorPosition
-local C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, UnitAura, AuraUtil =
-      C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, UnitAura, AuraUtil
+local C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, C_Texture, AuraUtil =
+      C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, C_Texture, AuraUtil
 local UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID  =
       UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID
 local UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
@@ -119,7 +120,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 --
 -- UnitBarsF has methods which make changing the state of a bar easier.  This is done in the form of
--- UnitBarsF[BarType]:MethodCall().  BarType is used through out the mod.  Its the type of bar being referenced.
+-- UnitBarsF[BarType]:MethodCall().  BarType is used through out the addon.  Its the type of bar being referenced.
 -- Search thru the code to see how these are used.
 --
 --
@@ -160,7 +161,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --                          to draw a bar on screen and more
 --
 --
--- UnitBar mod upvalues/tables.
+-- UnitBar addon upvalues/tables.
 --
 -- Main.UnitBarsF         - Reference to UnitBarsF
 -- Main.UnitBarsFE        - Reference to UnitBarsFE
@@ -231,15 +232,13 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - String: The current power type for the player.
--- PlayerPowerTypeL       - String: Contains the language text of PowerPowerType. Used with foreign languages
+-- PlayerPowerTypeL       - String: Contains the language text of PlayerPowerType. Used with foreign languages
 -- PlayerStance           - The current form/stance the player is in.
 -- PlayerSpecialization   - The current specialization for the player, 0 for none.
 --
 -- RegEventFrames         - Table used by RegEvent()
 -- RegUnitEventFrames     - Table used by RegUnitEvent()
 -- TalentTrackersData     - Table that contains talents, active, and used by options. See TalentUpdate()
---
--- CatForm
 --
 -- MoveAlignDistance      - Amount of distance in pixels when aligning bars or bar objects.
 -- MoveSelectFrame        - Current frame that is selected when swapping or aligning bars or bar objects
@@ -821,6 +820,18 @@ end
 -- Unitbar utility
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- GetAtlasSize
+--
+-- Returns the width and height of an atlas
+-------------------------------------------------------------------------------
+function GUB.Main:GetAtlasSize(AtlasName)
+  local C_TextureGetAtlasInfo = C_Texture.GetAtlasInfo
+  local AtlasInfo = C_TextureGetAtlasInfo(AtlasName)
+
+  return AtlasInfo.width, AtlasInfo.height
+end
 
 -------------------------------------------------------------------------------
 -- HideWowFrame
@@ -1687,6 +1698,13 @@ local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey,
         end
       end
     end
+  elseif Ver == 17 then
+    local ConvertMode = {
+      rune = 'texture',
+      bar  = 'box',
+      runebar = 'texturebox',
+    }
+    SourceUB[KeyFound] = ConvertMode[ SourceUB[KeyFound] ]
   end
 end
 
@@ -1771,7 +1789,11 @@ local function ConvertUnitBarData(Ver)
     {Action = 'custom',    Source = '',                                 '=ClassStances'},
     {Action = 'custom',    Source = '',                                 '=Triggers'},
   }
-
+  local ConvertUBData17 = {
+    {Action = 'custom',    Source = 'Layout',                           'RuneMode'},
+    {Action = 'move',      Source = 'Layout', Dest = 'Layout',          'RuneMode:Mode', 'RunePosition:TexturePosition',
+                                                                        'RuneOffsetX:TextureOffsetX', 'RuneOffsetY:TextureOffsetY'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1807,6 +1829,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData15
   elseif Ver == 16 then
     ConvertUBData = ConvertUBData16
+  elseif Ver == 17 then
+    ConvertUBData = ConvertUBData17
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -5322,6 +5346,9 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 800 then -- 8.00
     ConvertUnitBarData(16)
   end
+  if Ver == nil or Ver < 810 then -- 8.10
+    ConvertUnitBarData(17)
+  end
 
   -- Make sure profile is accurate.
   Main:FixUnitBars()
@@ -5444,8 +5471,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 60 then
-    Gdata.ShowMessage = 60
+  if Gdata.ShowMessage ~= 62 then
+    Gdata.ShowMessage = 62
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

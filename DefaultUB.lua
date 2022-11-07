@@ -140,9 +140,9 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 --
 -- More Layout (Rune Bar)
 --
---   RuneMode             - 'rune'     Only rune textures are shown.
---                          'bar'      Cooldown bars only are shown.
---                          'runebar'  Rune and a Cooldown bar are shown.
+--   Mode                 - 'texture'     Only rune textures are shown.
+--                          'box'         Cooldown bars only are shown.
+--                          'texturebox'  Rune and a Cooldown bar are shown.
 --   CooldownLine         - Boolean.  If true then a line is drawn on the cooldown texture.
 --   BarSpark             - Boolean.  If true a spark is drawn on bar.
 --   HideCooldownFlash    - Boolean.  If true a flash cooldown animation is not shown when a rune comes off cooldown.
@@ -2162,14 +2162,14 @@ MergeTable(Profile.RuneBar, {
 
     _More = 1,
 
-    RuneMode = 'rune',
+    Mode = 'texture',
     CooldownLine = true,
     BarSpark = false,
     CooldownFlash = true,
     CooldownAnimation = true,
-    RunePosition = 'LEFT',
-    RuneOffsetX = 0,
-    RuneOffsetY = 0,
+    TexturePosition = 'LEFT',
+    TextureOffsetX = 0,
+    TextureOffsetY = 0,
   },
   Attributes = {
     Scale = 1,
@@ -2391,7 +2391,7 @@ MergeTable(Profile.ComboBar, {
   TestMode = {
     ComboPoints = 0,
     AnimachargeComboPoints = 0,
-    ExtraComboPoints = 5,
+    ExtraComboPoints = 2,
   },
   Layout = {
     BoxMode = false,
@@ -3099,7 +3099,7 @@ MergeTable(Profile.ChiBar, {
   },
   TestMode = {
     Chi = 0,
-    Ascension = true,
+    ExtraChi = 1,
   },
   Layout = {
     BoxMode = false,
@@ -3321,6 +3321,201 @@ MergeTable(Profile.ArcaneBar, {
                                           ClassStances = SetClassStances(ClassStancesNone, false) }),
   },
 } )
+--=============================================================================
+-- EssenceBar
+--=============================================================================
+ClassSpecs = {
+  All = false, Inverse = false, ClassName = '',
+  EVOKER = { 1, 2 },
+}
+
+Profile.EssenceBar = {
+  _Name = 'Essence Bar',
+  _OptionOrder = 19,
+  _Enabled = true,
+  ClassSpecs = SetClassSpecs(ClassSpecs),
+  ClassStances = SetClassStances(ClassStancesNone),
+  _x = 0,
+  _y = -12,
+}
+MergeTable(Profile.EssenceBar, {
+  Status = {
+    ShowAlways        = false,
+    HideWhenDead      = true,
+    HideNoTarget      = false,
+    HideNoFocus       = false,
+    HideInVehicleUI   = true,
+    HideInVehicleNoUI = false,
+    HideInPetBattle   = true,
+    HideNotActive     = false,
+    HideNoCombat      = false,
+
+    HidePowerType = 'NONE',
+    HideNoPet = false,
+    HideNoPetPower = false,
+  },
+  TestMode = {
+    EssenceTime = 0,
+    Essence = 0,
+    ExtraEssence = 1,
+  },
+  Layout = {
+    EnableTriggers = false,
+    HideRegion = false,
+    ReverseFill = false,
+    HideText = false,
+    Swap = false,
+    Float = false,
+    BorderPadding = 6,
+    Rotation = 90,
+    Slope = 0,
+    Padding = 0,
+    TextureScale = 1,
+    AnimationType = DefaultAnimationType,
+    AnimationInTime = DefaultAnimationInTime,
+    AnimationOutTime = DefaultAnimationOutTime,
+    Align = false,
+    AlignPaddingX = 0,
+    AlignPaddingY = 0,
+    AlignOffsetX = 0,
+    AlignOffsetY = 0,
+
+    _More = 1,
+
+    Mode = 'texture',
+    CooldownLine = true,
+    BarSpark = false,
+    CooldownFlash = true,
+    CooldownAnimation = true,
+    CooldownEssence = false,
+    CooldownFill = true,
+    TexturePosition = 'LEFT',
+    TextureOffsetX = 0,
+    TextureOffsetY = 0,
+  },
+  Attributes = {
+    Scale = 1,
+    Alpha = 1,
+    AnchorPoint = 'TOPLEFT',
+    FrameStrata = 'MEDIUM',
+    MainAnimationType = true,
+    AnimationTypeBar = 'alpha',
+  },
+  Region = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {r = 0.178, g = 0.074, b = 0.349, a = 1},
+    EnableBorderColor = false,
+    BorderColor = {r = 1, g = 1, b = 1, a = 1},
+  },
+  Background = {
+    PaddingAll = true,
+    BgTexture = DefaultBgTexture,
+    BorderTexture = DefaultBorderTexture,
+    BgTile = false,
+    BgTileSize = 16,
+    BorderSize = 12,
+    Padding = {Left = 4, Right = 4, Top = 4, Bottom = 4},
+    Color = {
+      All = false,
+      r = 0, g = 0, b = 0, a = 1,  -- All essence
+      {r = 0, g = 0, b = 0, a = 1}, -- 1
+      {r = 0, g = 0, b = 0, a = 1}, -- 2
+      {r = 0, g = 0, b = 0, a = 1}, -- 3
+      {r = 0, g = 0, b = 0, a = 1}, -- 4
+      {r = 0, g = 0, b = 0, a = 1}, -- 5
+      {r = 0, g = 0, b = 0, a = 1}, -- 6
+    },
+    EnableBorderColor = false,
+    BorderColor = {
+      All = false,
+      r = 1, g = 1, b = 1, a = 1,    -- All essence
+      {r = 1, g = 1, b = 1, a = 1},  -- 1
+      {r = 1, g = 1, b = 1, a = 1},  -- 2
+      {r = 1, g = 1, b = 1, a = 1},  -- 3
+      {r = 1, g = 1, b = 1, a = 1},  -- 4
+      {r = 1, g = 1, b = 1, a = 1},  -- 5
+      {r = 1, g = 1, b = 1, a = 1},  -- 6
+    },
+  },
+  Bar = {
+    Advanced = false,
+    Width = 40,
+    Height = 25,
+    SyncFillDirection = true,
+    Clipping = true,
+    FillDirection = 'HORIZONTAL',
+    RotateTexture = 0,
+    PaddingAll = true,
+    Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
+    StatusBarTexture = GUBStatusBarTexture,
+    FullBarTexture = GUBStatusBarTexture,
+    ShowFull = false,
+    Color = {
+      All = false,
+      r = 0.094, g = 0.800, b = 0.898, a = 1,   -- All essence
+      {r = 0.094, g = 0.800, b = 0.898, a = 1}, -- 1
+      {r = 0.094, g = 0.800, b = 0.898, a = 1}, -- 2
+      {r = 0.094, g = 0.800, b = 0.898, a = 1}, -- 3
+      {r = 0.094, g = 0.800, b = 0.898, a = 1}, -- 4
+      {r = 0.094, g = 0.800, b = 0.898, a = 1}, -- 5
+      {r = 0.094, g = 0.800, b = 0.898, a = 1}, -- 6
+    },
+    ColorFull = {
+      All = false,
+      r = 0.772, g = 0.305, b = 0.792, a = 1,
+      {r = 0.772, g = 0.305, b = 0.792, a = 1}, -- 1
+      {r = 0.772, g = 0.305, b = 0.792, a = 1}, -- 2
+      {r = 0.772, g = 0.305, b = 0.792, a = 1}, -- 3
+      {r = 0.772, g = 0.305, b = 0.792, a = 1}, -- 4
+      {r = 0.772, g = 0.305, b = 0.792, a = 1}, -- 5
+      {r = 0.772, g = 0.305, b = 0.792, a = 1}, -- 6
+    },
+  },
+  Text = {
+    _DC = 0,
+    _ValueNameMenu = 'essence',
+
+    { -- 1
+      Custom    = false,
+      Layout    = '',
+      ValueNames = {'time'},
+      ValueTypes = {'timeSS'},
+
+      FontType = UBFontType,
+      FontSize = 16,
+      FontStyle = 'NONE',
+      FontHAlign = 'CENTER',
+      FontVAlign = 'MIDDLE',
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
+      OffsetX = 0,
+      OffsetY = 0,
+      ShadowOffset = 0,
+      Color = {
+        All = false,
+        r = 1, g = 1, b = 1, a = 1,      -- All essence
+        {r = 1, g = 1, b = 1, a = 1},    -- 1
+        {r = 1, g = 1, b = 1, a = 1},    -- 2
+        {r = 1, g = 1, b = 1, a = 1},    -- 3
+        {r = 1, g = 1, b = 1, a = 1},    -- 4
+        {r = 1, g = 1, b = 1, a = 1},    -- 5
+        {r = 1, g = 1, b = 1, a = 1},    -- 6
+      },
+    },
+  },
+  Triggers = {
+    _DC = 0,
+    Default = DeepCopy(DefaultTriggers, { ClassSpecs = SetClassSpecs(ClassSpecs, false),
+                                          ClassStances = SetClassStances(ClassStancesNone, false) }),
+  },
+} )
+
 
 
 local HelpText = {}
@@ -3539,6 +3734,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 8.10
+|cff00ff00EssenceBar.lua|r:  Essence bar added for Evoker
+|cff00ff00RuneBar.lua|r, |cff00ff00EssenceBar.lua|r: Due to both bars having the same layout.  The layout was changed so it's easier to share code between the two.  "Runes" is "Textures", "Bars" is "Boxes", and "Bars and Runes" is "Textures and Boxes", and "Rune Location" is "Texture Location"
 
 Version 8.00
 |cff00ff00Bar.lua|r: If animation was fading or scaling in. Then switched to play 'out' would cause the frame to get shown after instead of being hidden
