@@ -333,16 +333,16 @@ local function UpdateHealthBar(self, Event, Unit)
 
   -- Get class color
   if ClassColor then
-    r, g, b, a = Main:GetClassColor(Unit, nil, nil, nil, r, g, b, a)
+    r, g, b, a = Main:GetClassColor(Unit, r, g, b, a)
 
   -- Get faction color
   elseif CombatColor then
-    r, g, b, a = Main:GetCombatColor(Unit, nil, nil, nil, r, g, b, a)
+    r, g, b, a = Main:GetCombatColor(Unit, r, g, b, a)
   end
 
   -- Get tagged color
   if TaggedColor then
-    r, g, b, a = Main:GetTaggedColor(Unit, nil, nil, nil, r, g, b, a)
+    r, g, b, a = Main:GetTaggedColor(Unit, r, g, b, a)
   end
 
   AbsorbHealth = AbsorbHealth * AbsorbBarSize
@@ -539,7 +539,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
     local Color = Bar.Color
     r, g, b, a = Color.r, Color.g, Color.b, Color.a
   else
-    r, g, b, a = Main:GetPowerColor(Unit, PowerType, nil, nil, r, g, b, a)
+    r, g, b, a = Main:GetPowerColor(Unit, PowerType, r, g, b, a)
   end
 
   local Value = 0

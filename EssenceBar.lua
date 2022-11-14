@@ -560,7 +560,7 @@ function Main.UnitBarsF.EssenceBar:Update(Event, Unit, PowerToken)
   local DarkTexture = EssenceTextures.BGTexture
   local LightTexture = EssenceTextures.BGActiveTexture
   local UB = self.UnitBar
-  local ShowFull = UB.Bar.ShowFull
+  local BarShowFull = UB.Layout.BarShowFull
   local EnableTriggers = UB.Layout.EnableTriggers
 
   -- Check for max essence change
@@ -576,12 +576,13 @@ function Main.UnitBarsF.EssenceBar:Update(Event, Unit, PowerToken)
 
   for EssenceIndex = 1, MaxEssence do
     if EssenceIndex <= Essence then
+
       -- Show full
       BBar:SetTexture(EssenceIndex, EssenceBGTexture, LightTexture)
       BBar:SetFillTexture(EssenceIndex, EssenceSBar, 1)
 
       BBar:SetHiddenTexture(EssenceIndex, EssenceIconTexture, false)
-      if ShowFull then
+      if BarShowFull then
         BBar:SetHiddenTexture(EssenceIndex, EssenceFullSBar, false)
       end
     else
@@ -591,7 +592,7 @@ function Main.UnitBarsF.EssenceBar:Update(Event, Unit, PowerToken)
         BBar:SetFillTexture(EssenceIndex, EssenceSBar, 0)
       end
       BBar:SetHiddenTexture(EssenceIndex, EssenceIconTexture, true)
-      if ShowFull then
+      if BarShowFull then
         BBar:SetHiddenTexture(EssenceIndex, EssenceFullSBar, true)
       end
     end
@@ -599,11 +600,6 @@ function Main.UnitBarsF.EssenceBar:Update(Event, Unit, PowerToken)
       BBar:SetTriggers('Recharging ' .. EssenceIndex, EssenceIndex == EssenceCooldown)
       BBar:SetTriggersActive(EssenceIndex, EssenceIndex <= Essence)
     end
-  end
-  if EnableTriggers then
-    BBar:SetTriggers('Any Recharging', EssenceCooldown ~= nil)
-    BBar:SetTriggersCustomGroup('Recharging', EssenceCooldown ~= nil, EssenceCooldown)
-    BBar:DoTriggers()
   end
 
   if Action then
@@ -615,6 +611,12 @@ function Main.UnitBarsF.EssenceBar:Update(Event, Unit, PowerToken)
     elseif Action == 'change' then
       DoEssenceCooldown(self, 'change', EssenceCooldown, StartTime, Duration)
     end
+  end
+
+  if EnableTriggers then
+    BBar:SetTriggers('Any Recharging', EssenceCooldown ~= nil)
+    BBar:SetTriggersCustomGroup('Recharging', EssenceCooldown ~= nil, EssenceCooldown)
+    BBar:DoTriggers()
   end
 end
 
@@ -673,6 +675,7 @@ function Main.UnitBarsF.EssenceBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'CooldownLine',     function(v) BBar:SetCooldownDrawEdgeTexture(0, EssenceCooldownTexture, v) end)
     BBar:SO('Layout', 'CooldownEssence',  function(v) BBar:SetHiddenTexture(0, EssenceCooldownSpinnerTexture, v) end)
     BBar:SO('Layout', 'CooldownFill',     function(v) BBar:SetCooldownDrawSwipeTexture(0, EssenceCooldownTexture, v) end)
+    BBar:SO('Layout', 'BarShowFull',      function(v) BBar:SetHiddenTexture(0, EssenceFullSBar, not v) end)
 
     BBar:SO('Layout', 'HideRegion',       function(v) BBar:SetHiddenRegion(v) Display = true end)
     BBar:SO('Layout', 'Swap',             function(v) BBar:SetSwapBar(v) end)
@@ -736,7 +739,6 @@ function Main.UnitBarsF.EssenceBar:SetAttr(TableName, KeyName)
 
     BBar:SO('Bar', 'StatusBarTexture',  function(v) BBar:SetTexture(0, EssenceSBar, v) end)
     BBar:SO('Bar', 'FullBarTexture',    function(v) BBar:SetTexture(0, EssenceFullSBar, v) end)
-    BBar:SO('Bar', 'ShowFull',          function(v) BBar:SetHiddenTexture(0, EssenceFullSBar, not v) end)
     BBar:SO('Bar', 'SyncFillDirection', function(v) BBar:SyncFillDirectionTexture(0, EssenceSBar, v) Update = true end)
     BBar:SO('Bar', 'Clipping',          function(v) BBar:SetFillClippingTexture(0, EssenceSBar, v) Update = true end)
     BBar:SO('Bar', 'FillDirection',     function(v) BBar:SetFillDirectionTexture(0, EssenceSBar, v) Update = true end)

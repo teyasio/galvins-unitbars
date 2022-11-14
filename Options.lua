@@ -1979,19 +1979,9 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
                    if BarType == 'FragmentBar' then
                      return GroupDisabled(BarType, TableName, UBF)
                    else
-                     return not UBF.UnitBar.Bar.ShowFull
+                     return not UBF.UnitBar.Layout.BarShowFull
                    end
                  end,
-    }
-  end
-  if BarType == 'EssenceBar' then
-    GeneralArgs.Spacer22 = CreateSpacer(22, 'half')
-
-    GeneralArgs.ShowFull = {
-      type = 'toggle',
-      name = 'Show Full',
-      order = 23,
-      desc = 'Shows the full texture when essence comes off cooldown',
     }
   end
 
@@ -2154,7 +2144,7 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     if Color and Color.All ~= nil then
       BarArgs.ColorAllFull = CreateColorAllOptions(BarType, TableName, TableName .. '.ColorFull', 'ColorFull', 3, 'Color (full)')
       BarArgs.ColorAllFull.disabled = function()
-                                        return not UBF.UnitBar.Bar.ShowFull
+                                        return not UBF.UnitBar.Layout.BarShowFull
                                       end
     end
   end
@@ -3662,11 +3652,10 @@ local function CreateMoreLayoutMultiOptions(BarType, Order)
                    end,
         desc = 'Shows a flash animation after a cooldown animation'
       },
-      Spacer30 = CreateSpacer(30),
       CooldownLine = {
         type = 'toggle',
         name = 'Cooldown Line',
-        order = 31,
+        order = 23,
         hidden = function()
                    return strfind(UBF.UnitBar.Layout.Mode, 'texture') == nil
                  end,
@@ -3675,10 +3664,11 @@ local function CreateMoreLayoutMultiOptions(BarType, Order)
                    end,
         desc = 'Shows a line on the cooldown animation',
       },
+      Spacer30 = CreateSpacer(30),
       BarSpark = {
         type = 'toggle',
         name = 'Bar Spark',
-        order = 32,
+        order = 31,
         hidden = function()
                    return UBF.UnitBar.Layout.Mode == 'texture'
                  end,
@@ -3702,6 +3692,15 @@ local function CreateMoreLayoutMultiOptions(BarType, Order)
                    return BarType ~= 'EssenceBar'
                  end,
         desc = 'Shows the fill around the edge of the cooldown',
+      },
+      BarShowFull = {
+        type = 'toggle',
+        name = 'Bar Show Full',
+        order = 43,
+        hidden = function()
+                   return BarType ~= 'EssenceBar' or UBF.UnitBar.Layout.Mode == 'texture'
+                 end,
+        desc = 'Shows the full texture when an essence is done recharging',
       },
       TextureLocation = {
         type = 'group',
@@ -5437,7 +5436,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
   else
     -- Add background options
     BackgroundOptions = CreateBackdropOptions(BarType, 'Background', 1002, 'Background')
-    if BarType == 'RuneBar' then
+    if BarType == 'RuneBar' or BarType == 'EssenceBar' then
       BackgroundOptions.hidden = function()
                                    return UBF.UnitBar.Layout.Mode == 'texture'
                                  end
@@ -5495,7 +5494,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
   else
     -- add bar options
     BarOptions = CreateBarOptions(BarType, 'Bar', 1003, 'Bar')
-    if BarType == 'RuneBar' then
+    if BarType == 'RuneBar' or BarType == 'EssenceBar' then
       BarOptions.hidden = function()
                             return UBF.UnitBar.Layout.Mode == 'texture'
                           end

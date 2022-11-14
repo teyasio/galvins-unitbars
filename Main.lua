@@ -967,13 +967,12 @@ end
 -- Returns the tagged color of a unit
 --
 -- Unit         Unit that may be tagged.
--- p2 .. p4     Dummy pars, not used
 -- r, g, b, a   If there is no tagged color, then these values get passed back
 --
 -- Returns:
 --   r, g, b, a     Power color
 -------------------------------------------------------------------------------
-function GUB.Main:GetTaggedColor(Unit, p2, p3, p4, r, g, b, a)
+function GUB.Main:GetTaggedColor(Unit, r, g, b, a)
   Unit = Unit or ''
 
   if UnitBars.TaggedTest or UnitExists(Unit) and not UnitPlayerControlled(Unit) and UnitIsTapDenied(Unit) then
@@ -993,13 +992,12 @@ local GetTaggedColor = Main.GetTaggedColor
 --
 -- Unit         Unit whos power color to be retrieved
 -- PowerType    Powertype of the unit. If nil uses the current power type of the unit.
--- p3 .. p4     Dummy pars, not used
 -- r, g, b, a   If there is no power color, then these values get passed back
 --
 -- Returns:
 --   r, g, b, a     Power color
 -------------------------------------------------------------------------------
-function GUB.Main:GetPowerColor(Unit, PowerType, p3, p4, r, g, b, a)
+function GUB.Main:GetPowerColor(Unit, PowerType, r, g, b, a)
   local Color
 
   Unit = Unit or ''
@@ -1020,14 +1018,13 @@ end
 --
 -- Returns the class color of a unit
 --
--- Unit     Unit whos class color to be retrieved
--- p2 .. p4     Dummy pars, not used
+-- Unit         Unit whos class color to be retrieved
 -- r, g, b, a   If there is no class color, then these values get passed back
 --
 -- Returns:
 --   r, g, b, a     Class color
 -------------------------------------------------------------------------------
-function GUB.Main:GetClassColor(Unit, p2, p3, p4, r, g, b, a)
+function GUB.Main:GetClassColor(Unit, r, g, b, a)
   Unit = Unit or ''
   if UnitExists(Unit) then
     local _, Class = UnitClass(Unit)
@@ -1038,7 +1035,7 @@ function GUB.Main:GetClassColor(Unit, p2, p3, p4, r, g, b, a)
     end
 
     if UnitBars.ClassTaggedColor then
-      return GetTaggedColor(nil, Unit, p2, p3, p4, r, g, b, a)
+      return GetTaggedColor(nil, Unit, r, g, b, a)
     end
   end
 
@@ -1052,13 +1049,12 @@ local GetClassColor = Main.GetClassColor
 -- Returns the combat state color of a target vs you.
 --
 -- Unit             Unit who you want to check the combat state of
--- p2 .. p4         Dummy pars, not used
 -- r1, g1, b1, a1   If there is no combat color, then these values get passed back
 --
 -- Returns:
 --   r, g, b, a   Combat color
 -------------------------------------------------------------------------------
-function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
+function GUB.Main:GetCombatColor(Unit, r1, g1, b1, a1)
   local Color
 
   Unit = Unit or ''
@@ -1070,7 +1066,7 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
       if UnitCanAttack(Unit, 'player') then
         -- Hostile
         if UnitBars.CombatClassColor then
-          return GetClassColor(nil, Unit, p2, p3, p4, r1, g1, b1, a1)
+          return GetClassColor(nil, Unit, r1, g1, b1, a1)
         else
           Color = PlayerCombatColor.Hostile
           return Color.r, Color.g, Color.b, Color.a
@@ -1079,7 +1075,7 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
       if UnitCanAttack('player', Unit) then
         -- can be attacked, but can't attack you
         if UnitBars.CombatClassColor then
-          return GetClassColor(nil, Unit, p2, p3, p4, r1, g1, b1, a1)
+          return GetClassColor(nil, Unit, r1, g1, b1, a1)
         else
           Color = PlayerCombatColor.Attack
           return Color.r, Color.g, Color.b, Color.a
@@ -1116,7 +1112,7 @@ function GUB.Main:GetCombatColor(Unit, p2, p3, p4, r1, g1, b1, a1)
       end
 
       if UnitBars.CombatTaggedColor then
-        return GetTaggedColor(nil, Unit, p2, p3, p4, Color.r, Color.g, Color.b, Color.a)
+        return GetTaggedColor(nil, Unit, Color.r, Color.g, Color.b, Color.a)
       else
         return Color.r, Color.g, Color.b, Color.a
       end

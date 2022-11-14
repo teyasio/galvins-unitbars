@@ -2,11 +2,12 @@
 ## Title: Galvin's UnitBars
 ## Notes: Displays resource bars that can be moved around.
 ## Author: Galvin
-## Version: 8.11
+## Version: 8.13
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsDB, GalvinUnitBarsData
 ## X-Curse-Project-ID: 26391
 ## X-WoWI-ID: 26274
+## X-Wago-ID: he54k6bL
 #@no-lib-strip@
 # Ace Libraries
 

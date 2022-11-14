@@ -318,7 +318,6 @@ local function DoRuneCooldown(RuneBar, Action, RuneIndex, StartTime, Duration)
         ShowSpark(BBar, RuneIndex, BarSpark)
         if Testing then
           local RuneTime = TestMode.RuneTime
-
           BBar:SetFillTexture(RuneIndex, RuneSBar, RuneTime)
 
           if Layout.EnableTriggers then

@@ -3389,6 +3389,7 @@ MergeTable(Profile.EssenceBar, {
     CooldownAnimation = true,
     CooldownEssence = false,
     CooldownFill = true,
+    BarShowFull = false,
     TexturePosition = 'LEFT',
     TextureOffsetX = 0,
     TextureOffsetY = 0,
@@ -3455,7 +3456,6 @@ MergeTable(Profile.EssenceBar, {
     Padding = {Left = 4, Right = -4, Top = -4, Bottom = 4},
     StatusBarTexture = GUBStatusBarTexture,
     FullBarTexture = GUBStatusBarTexture,
-    ShowFull = false,
     Color = {
       All = false,
       r = 0.094, g = 0.800, b = 0.898, a = 1,   -- All essence
@@ -3734,11 +3734,13 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 8.13
+|cff00ff00EssenceBar|r Added "full" texture support for triggers
+
 Version 8.10
 |cff00ff00EssenceBar.lua|r:  Essence bar added for Evoker
 |cff00ff00RuneBar.lua|r, |cff00ff00EssenceBar.lua|r: Due to both bars having the same layout.  The layout was changed so it's easier to share code between the two.  "Runes" is "Textures", "Bars" is "Boxes", and "Bars and Runes" is "Textures and Boxes", and "Rune Location" is "Texture Location"
 |cff00ff00ChiBar.lua|r: Changed Ascencion option to extra chi slider.  To be consistant with extra combo point slider in the combo bar
-|cff00ff00EssenceBar.lua|r: Show full option for boxes can be found under Bar options for the essence bar.  This will show a new texture when an essence has recharged
 
 Version 8.00
 |cff00ff00Bar.lua|r: If animation was fading or scaling in. Then switched to play 'out' would cause the frame to get shown after instead of being hidden

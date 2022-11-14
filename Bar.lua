@@ -901,7 +901,11 @@ local TriggerColorFnTypes = {
 
 local TriggerColorFns = {
   [TriggerColorFnTypes.ClassColor ] = Main.GetClassColor,
-  [TriggerColorFnTypes.PowerColor ] = Main.GetPowerColor,
+  [TriggerColorFnTypes.PowerColor ] = function(...)
+    local _, Unit, r, g, b, a = ...
+                           -- Unit, PowerType, r, g, b, a
+    return Main:GetPowerColor(Unit, nil,       r, g, b, a)
+  end,
   [TriggerColorFnTypes.CombatColor] = Main.GetCombatColor,
   [TriggerColorFnTypes.TaggedColor] = Main.GetTaggedColor,
 }
@@ -6176,14 +6180,21 @@ end
 -- BoxNumber       Box containging texture
 -- TextureNumber   Texture to change the color of.
 -- r, g, b, a      red, green, blue, alpha
+--
+-- NOTES: Need to check for animation to avoid conflicts with alpha fade in/out
 -------------------------------------------------------------------------------
 function BarDB:SetColorTexture(BoxNumber, TextureNumber, r, g, b, a)
   SaveSettings(self, 'SetColorTexture', BoxNumber, TextureNumber, r, g, b, a)
 
   repeat
     local Texture = NextBox(self, BoxNumber).TFTextures[TextureNumber]
+    local AGroup = Texture.AGroup
 
-    Texture:SetVertexColor(r or 1, g or 1, b or 1, a or 1)
+    if AGroup and AGroup:IsPlaying() then
+      Texture:SetVertexColor(r or 1, g or 1, b or 1)
+    else
+      Texture:SetVertexColor(r or 1, g or 1, b or 1, a or 1)
+    end
   until LastBox
 end
 
