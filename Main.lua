@@ -622,11 +622,12 @@ local function TooltipInfoGetHyperlink(St)
   return Hyperlink
 end
 
+--[[
 -- Activate backward compatability for 10.0.0
 if select(4, GetBuildInfo()) < 100002 then
   C_TooltipInfoGetHyperlink = TooltipInfoGetHyperlink
 end
-
+]]
 -------------------------------------------------------------------------------
 --
 -- Initialize the UnitBarsF table
@@ -5467,8 +5468,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 63 then
-    Gdata.ShowMessage = 63
+  if Gdata.ShowMessage ~= 65 then
+    Gdata.ShowMessage = 65
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

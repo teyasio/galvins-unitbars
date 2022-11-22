@@ -224,7 +224,7 @@ local o = {
   -- Backdrop settings (Region and Background).
   UnitBarBgTileSizeMin = 1,
   UnitBarBgTileSizeMax = 100,
-  UnitBarBorderSizeMin = 2,
+  UnitBarBorderSizeMin = 1,
   UnitBarBorderSizeMax = 32,
 
   -- Align and swap

@@ -3734,6 +3734,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 8.15
+|cff00ff00Backdrop and Regions|r can now do a border thickness of 1
+
 Version 8.13
 |cff00ff00EssenceBar|r Added "full" texture support for triggers
 
