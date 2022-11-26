@@ -654,6 +654,7 @@ GUB.DefaultUB.Default = {
     AlignSwapOffsetY = 0,
     HidePlayerFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
     HideTargetFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
+    HideFocusFrame = 0,  -- 0 means do nothing not checked 1 = hide, 2 = show
     HideTextHighlight = false,
     AlignAndSwapEnabled = true,
     ReverseAnimation = true,
@@ -3734,6 +3735,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 8.16
+|cff00ff00General -> Frames options|r Hide focus frame has been added
+
 Version 8.15
 |cff00ff00Backdrop and Regions|r can now do a border thickness of 1
 

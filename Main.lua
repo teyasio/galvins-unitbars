@@ -68,8 +68,8 @@ local UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, U
       UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
 local UnitPowerType, UnitReaction, wipe, GetMinimapZoneText, C_TooltipInfoGetHyperlink =
       UnitPowerType, UnitReaction, wipe, GetMinimapZoneText, C_TooltipInfo and C_TooltipInfo.GetHyperlink
-local GetPowerBarColor, GetClassColor, PlayerFrame, TargetFrame, GetBuildInfo, LibStub =
-      GetPowerBarColor, GetClassColor, PlayerFrame, TargetFrame, GetBuildInfo, LibStub
+local GetPowerBarColor, GetClassColor, PlayerFrame, TargetFrame, FocusFrame, GetBuildInfo, LibStub =
+      GetPowerBarColor, GetClassColor, PlayerFrame, TargetFrame, FocusFrame, GetBuildInfo, LibStub
 local SoundKit, hooksecurefunc, PlayerPowerBarAlt, InCombatLockdown, UnitAffectingCombat =
       SOUNDKIT, hooksecurefunc, PlayerPowerBarAlt, InCombatLockdown, UnitAffectingCombat
 
@@ -598,6 +598,7 @@ Main.TalentTrackersData = TalentTrackersData
 -- C_TooltipInfo emulation. This code will break in 10.0.2
 --
 --======================================================================================================================
+--[[
 local ScanTooltip
 local function TooltipInfoGetHyperlink(St)
   if ScanTooltip == nil then
@@ -621,7 +622,7 @@ local function TooltipInfoGetHyperlink(St)
   end
   return Hyperlink
 end
-
+]]
 --[[
 -- Activate backward compatability for 10.0.0
 if select(4, GetBuildInfo()) < 100002 then
@@ -844,6 +845,7 @@ end
 -- FrameName   Name of frame.
 --               'player' - Player frame
 --               'target' - Target frame
+--               'focus'  - Focus frame
 --
 -- Flag        true hides the frame otherwise false
 --
@@ -860,6 +862,11 @@ function GUB.Main:HideWowFrame(...)
       -- Don't show the target player frame if there is no target.
       if Hide or not Hide and HasTarget then
         Frame = TargetFrame
+      end
+    elseif FrameName == 'focus' then
+      -- Don't show the focus frame if there is no focus.
+      if Hide or not Hide and HasFocus then
+        Frame = FocusFrame
       end
     end
     if Frame then
@@ -4760,6 +4767,7 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
 
   local HidePlayerFrame = UnitBars.HidePlayerFrame
   local HideTargetFrame = UnitBars.HideTargetFrame
+  local HideFocusFrame = UnitBars.HideFocusFrame
 
   if Action ~= 'frames' then
     -- Update text highlight only when options window is open
@@ -4808,6 +4816,9 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
   end
   if HideTargetFrame ~= 0 then
     Main:HideWowFrame('target', HideTargetFrame == 1)
+  end
+  if HideFocusFrame ~= 0 then
+    Main:HideWowFrame('focus', HideFocusFrame == 1)
   end
 end
 
@@ -5468,8 +5479,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 65 then
-    Gdata.ShowMessage = 65
+  if Gdata.ShowMessage ~= 66 then
+    Gdata.ShowMessage = 66
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

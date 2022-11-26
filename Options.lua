@@ -6624,6 +6624,21 @@ local function CreateFrameOptions(Order, Name)
                      end
                    end,
           },
+          HideFocusFrame = {
+            type = 'toggle',
+            width = 'full',
+            order = 4,
+            tristate = true,
+            name = function()
+                     local HideFocusFrame = tonumber(Main.UnitBars.HideFocusFrame) or 0
+
+                     if HideFocusFrame <= 1 then
+                       return 'Hide Focus Frame'
+                     elseif HideFocusFrame == 2 then
+                       return 'Show Focus Frame'
+                     end
+                   end,
+          },
         },
       },
     },
