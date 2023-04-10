@@ -3845,8 +3845,12 @@ end
 -- Displays the bar. This needs to be called when ever anything causes something
 -- to move or change size.
 -------------------------------------------------------------------------------
-function BarDB:Display()
-  local ProfileChanged = Main.ProfileChanged
+local function OnUpdate_Display(self)
+  self:SetScript('OnUpdate', nil)
+
+  --local ProfileChanged = Main.ProfileChanged
+  local ProfileChanged = self.ProfileChanged
+  self.ProfileChanged = false
 
   local UBF = self.UnitBarF
   local UB = UBF.UnitBar
@@ -4036,6 +4040,11 @@ function BarDB:Display()
   if SetSize then
     Main:SetAnchorSize(Anchor, Width, Height)
   end
+end
+
+function BarDB:Display()
+  self.ProfileChanged = Main.ProfileChanged
+  self:SetScript('OnUpdate', OnUpdate_Display)
 end
 
 -------------------------------------------------------------------------------

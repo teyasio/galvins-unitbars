@@ -2099,8 +2099,8 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY, Float)
 
   if Width then
     if Float then
-      -- Check for size change to 2 decimal places
-      SizeChanged = format('%.2f', Anchor._Width) ~= format('%.2f', Width) or format('%.2f', Anchor._Height) ~= format('%.2f', Height)
+      -- Check for size change based off whole number
+      SizeChanged = floor(Anchor._Width) ~= floor(Width) or floor(Anchor._Height) ~= floor(Height)
     end
     Anchor._Width = Width
     Anchor._Height = Height
@@ -5479,8 +5479,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 66 then
-    Gdata.ShowMessage = 66
+  if Gdata.ShowMessage ~= 68 then
+    Gdata.ShowMessage = 68
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

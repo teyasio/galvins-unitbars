@@ -3735,6 +3735,10 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 8.18
+|cff00ff00Bars|r that are in floating mode will no longer keep shifting positon after each reload UI
+|cff00ff00Bar.lua: Bug fix|r After dragging a bar to a new position. It could shift one pixel one time only after reloading UI
+
 Version 8.16
 |cff00ff00General -> Frames options|r Hide focus frame has been added
 
