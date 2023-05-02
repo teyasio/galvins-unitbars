@@ -67,7 +67,7 @@ local AceDBOptions = LibStub('AceDBOptions-3.0')
 local AceConfigDialog = LibStub('AceConfigDialog-3.0')
 
 -- Addon Constants
-local AddonName = GetAddOnMetadata(MyAddon, 'Title')
+local AddonName = C_AddOns.GetAddOnMetadata(MyAddon, 'Title')
 local AddonMainOptions = MyAddon .. 'options'
 local AddonAlignSwapOptions = MyAddon .. 'options2'
 local AddonOptionsToGUB = MyAddon .. 'options3'

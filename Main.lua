@@ -4459,37 +4459,35 @@ local function SetPredictedSpellInfo(SpellID)
   -- Only need spells that have cast time.
   if Name and CastTime > 0 then
     local Hyperlink = C_TooltipInfoGetHyperlink(format(HyperlinkSt, SpellID))
+
     if Hyperlink then
       local Lines = Hyperlink.lines
 
       for LineIndex = 1, #Lines do
-        local Args = Lines[LineIndex].args
+        local Line = Lines[LineIndex]
+        local Text = Line.leftText or '' .. Line.rightText or ''
 
-        for ArgIndex = 1, #Args do
-          local Text = Args[ArgIndex].stringVal
+        if #Text > 0 then
+          -- get the chunk of text that has generates <number> <powertype>
+          local Text, Amount = strmatch(Text, '|cFFFFFFFF(.-(%d+).-|r)')
 
           if Text then
-            -- get the chunk of text that has generates <number> <powertype>
-            local Text, Amount = strmatch(Text, '|cFFFFFFFF(.-(%d+).-|r)')
+            Text = strupper(Text)
+            if strfind(Text, strupper(PlayerPowerTypeL)) then
+              -- Check to see if the power type found exists in the health and power as well
+              local PowerType = ConvertPowerTypeHAP[PlayerPowerType]
 
-            if Text then
-              Text = strupper(Text)
-              if strfind(Text, strupper(PlayerPowerTypeL)) then
-                -- Check to see if the power type found exists in the health and power as well
-                local PowerType = ConvertPowerTypeHAP[PlayerPowerType]
+              if PowerType then
+                local Amount = tonumber(Amount)
+                PredictedSpells[SpellID] = { Amount = Amount, PowerType = PowerType }
 
-                if PowerType then
-                  local Amount = tonumber(Amount)
-                  PredictedSpells[SpellID] = { Amount = Amount, PowerType = PowerType }
+                -- do call backs
+                for UnitBarF, PredictedSpell in pairs(PredictedSpells) do
+                  if UnitBarF ~= 'SpellBook' and type(UnitBarF) ~= 'number' then
+                    local Fn = PredictedSpell.Fn
 
-                  -- do call backs
-                  for UnitBarF, PredictedSpell in pairs(PredictedSpells) do
-                    if UnitBarF ~= 'SpellBook' and type(UnitBarF) ~= 'number' then
-                      local Fn = PredictedSpell.Fn
-
-                      if Fn then
-                        Fn(UnitBarF, SpellID, Amount, PowerType)
-                      end
+                    if Fn then
+                      Fn(UnitBarF, SpellID, Amount, PowerType)
                     end
                   end
                 end
