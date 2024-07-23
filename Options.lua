@@ -34,8 +34,10 @@ local tonumber, gsub, tinsert, wipe, strsub =
       tonumber, gsub, tinsert, wipe, strsub
 local ipairs, pairs, type, next, sort =
       ipairs, pairs, type, next, sort
-local LibStub, GameTooltip, GetSpellInfo =
-      LibStub, GameTooltip, GetSpellInfo
+local C_Spell_GetSpellName =
+      C_Spell.GetSpellName
+local LibStub, GameTooltip =
+      LibStub, GameTooltip
 local GetUnitPowerBarInfoByID, GetUnitPowerBarStringsByID =
       GetUnitPowerBarInfoByID, GetUnitPowerBarStringsByID
 
@@ -5710,7 +5712,7 @@ local function RefreshAuraList(AG, Unit, AuraTrackersData)
           dialogControl = 'GUB_Spell_Info',
         }
 
-        SortList[Order] = {Name = GetSpellInfo(SpellID), AuraInfo = AuraInfo}
+        SortList[Order] = {Name = C_Spell_GetSpellName(SpellID), AuraInfo = AuraInfo}
         AGA[AuraKey] = AuraInfo
       end
     end

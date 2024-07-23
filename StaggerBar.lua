@@ -16,7 +16,7 @@ local OT = Bar.TriggerObjectTypes
 -- localize some globals.
 local _, print =
       _, print
-local GetTime, UnitStagger, UnitHealthMax, C_UnitAurasGetPlayerAuraBySpellID  =
+local GetTime, UnitStagger, UnitHealthMax, C_UnitAuras_GetPlayerAuraBySpellID  =
       GetTime, UnitStagger, UnitHealthMax, C_UnitAuras.GetPlayerAuraBySpellID
 
 -------------------------------------------------------------------------------
@@ -153,7 +153,7 @@ end
 -------------------------------------------------------------------------------
 local function Casting(UnitBarF, SpellID, Message)
   if SpellID == PurifyingBrewSpellID and Message == 'done' then
-    if C_UnitAurasGetPlayerAuraBySpellID(BlackoutComboAura) then
+    if C_UnitAuras_GetPlayerAuraBySpellID(BlackoutComboAura) then
       local BBar = UnitBarF.BBar
       local Layout = UnitBarF.UnitBar.Layout
 

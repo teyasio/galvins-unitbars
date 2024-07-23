@@ -23,8 +23,8 @@ local _, _G, print =
       _, _G, print
 local floor, strfind, pairs =
       floor, strfind, pairs
-local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs =
-      GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs
+local C_Spell_GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs =
+      C_Spell.GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel, UnitEffectiveLevel, UnitGetIncomingHeals, UnitGetTotalAbsorbs
 local UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax =
       UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax
 
@@ -152,12 +152,14 @@ local function Casting(UnitBarF, SpellID, Message)
 
     -- Get predicted cost
     elseif UnitBarF.UnitBar.Layout.PredictedCost then
-      local CostTable = GetSpellPowerCost(SpellID)
+      local CostTable = C_Spell_GetSpellPowerCost(SpellID)
 
-      for _, CostInfo in pairs(CostTable) do
-        if CostInfo.type == BarPowerType then
-          UnitBarF.PredictedCost = CostInfo.cost
-          break
+      if CostTable then
+        for _, CostInfo in pairs(CostTable) do
+          if CostInfo.type == BarPowerType then
+            UnitBarF.PredictedCost = CostInfo.cost
+            break
+          end
         end
       end
     end

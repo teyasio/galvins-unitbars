@@ -38,8 +38,10 @@ local tonumber, gsub, tremove, tinsert, tconcat     , wipe, strsub =
       tonumber, gsub, tremove, tinsert, table.concat, wipe, strsub
 local ipairs, pairs, type, select, next =
       ipairs, pairs, type, select, next
-local GetSpellInfo, IsModifierKeyDown =
-      GetSpellInfo, IsModifierKeyDown
+local C_Spell_GetSpellName, C_Spell_GetSpellTexture =
+      C_Spell.GetSpellName, C_Spell.GetSpellTexture
+local IsModifierKeyDown =
+      IsModifierKeyDown
 
 local TextLineDropdown = {
   [0] = 'All',
@@ -750,7 +752,8 @@ local function AddTriggerAuraOption(UBF, BBar, AOA, Auras, Aura)
         name = function()
                  local SpellID = Aura.SpellID
                  if SpellID > 0 then
-                   local Name, _, Icon = GetSpellInfo(SpellID)
+                   local Name = C_Spell_GetSpellName(SpellID)
+                   local Icon = C_Spell_GetSpellTexture(SpellID)
 
                    if Name == nil then
                      return format('%s:20:16:%s', 0, "Aura doesn't exist.  enter Spell ID or Spell Name")

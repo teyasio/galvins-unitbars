@@ -1,6 +1,6 @@
 --
 -- Main.lua
---
+--110000
 -- Displays different bars for each class.  Rage, Energy, Mana, Runic Power, etc.
 
 -------------------------------------------------------------------------------
@@ -48,26 +48,28 @@ local _, _G, print =
       _, _G, print
 local abs, floor, sqrt      =
       abs, floor, math.sqrt
+local Enum =
+      Enum
 local strfind, strmatch, strsplit, strsub, strtrim, strupper, format =
       strfind, strmatch, strsplit, strsub, strtrim, strupper, format
 local ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, tinsert, type, sort =
       ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, tinsert, type, sort
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
+local GetFlyoutInfo, GetFlyoutSlotInfo =
+      GetFlyoutInfo, GetFlyoutSlotInfo
 local GetShapeshiftFormID, GetShapeshiftFormInfo, GetSpecialization =
       GetShapeshiftFormID, GetShapeshiftFormInfo, GetSpecialization
-local GetSpellInfo, GetSpellBookItemInfo, GetSpellTabInfo, GetNumSpellTabs, GetFlyoutInfo, GetFlyoutSlotInfo =
-      GetSpellInfo, GetSpellBookItemInfo, GetSpellTabInfo, GetNumSpellTabs, GetFlyoutInfo, GetFlyoutSlotInfo
 local GetPvpTalentInfoByID, GetCursorPosition =
       GetPvpTalentInfoByID, GetCursorPosition
-local C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, C_Texture, AuraUtil =
-      C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, C_Texture, AuraUtil
+local C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, C_Texture, C_SpellBook, C_Spell, AuraUtil =
+      C_ClassTalents, C_Traits, C_PetBattles, C_UnitAuras, C_SpecializationInfo, C_Texture, C_SpellBook, C_Spell, AuraUtil
 local UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID  =
       UnitCanAttack, UnitCastingInfo, UnitClass, UnitExists, UnitPowerBarID, GetUnitPowerBarInfoByID
 local UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
       UnitGUID, UnitHasVehicleUI, UnitInVehicle, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
-local UnitPowerType, UnitReaction, wipe, GetMinimapZoneText, C_TooltipInfoGetHyperlink =
-      UnitPowerType, UnitReaction, wipe, GetMinimapZoneText, C_TooltipInfo and C_TooltipInfo.GetHyperlink
+local UnitPowerType, UnitReaction, wipe, GetMinimapZoneText, C_TooltipInfo_GetHyperlink =
+      UnitPowerType, UnitReaction, wipe, GetMinimapZoneText, C_TooltipInfo.GetHyperlink
 local GetPowerBarColor, GetClassColor, PlayerFrame, TargetFrame, FocusFrame, GetBuildInfo, LibStub =
       GetPowerBarColor, GetClassColor, PlayerFrame, TargetFrame, FocusFrame, GetBuildInfo, LibStub
 local SoundKit, hooksecurefunc, PlayerPowerBarAlt, InCombatLockdown, UnitAffectingCombat =
@@ -626,7 +628,7 @@ end
 --[[
 -- Activate backward compatability for 10.0.0
 if select(4, GetBuildInfo()) < 100002 then
-  C_TooltipInfoGetHyperlink = TooltipInfoGetHyperlink
+  C_TooltipInfo_GetHyperlink = TooltipInfoGetHyperlink
 end
 ]]
 -------------------------------------------------------------------------------
@@ -829,8 +831,7 @@ end
 -- Returns the width and height of an atlas
 -------------------------------------------------------------------------------
 function GUB.Main:GetAtlasSize(AtlasName)
-  local C_TextureGetAtlasInfo = C_Texture.GetAtlasInfo
-  local AtlasInfo = C_TextureGetAtlasInfo(AtlasName)
+  local AtlasInfo = C_Texture.GetAtlasInfo(AtlasName)
 
   return AtlasInfo.width, AtlasInfo.height
 end
@@ -1131,7 +1132,7 @@ function GUB.Main:GetCombatColor(Unit, r1, g1, b1, a1)
 end
 
 -------------------------------------------------------------------------------
--- ShowMessage
+-- MessageBox
 --
 -- Displays a message on the screen in a box, with an Okay button.
 --
@@ -1158,16 +1159,19 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     MessageBox:SetScript('OnHide', MessageBox.StopMovingOrSizing)
     MessageBox:SetFrameStrata('TOOLTIP')
 
-    -- Create the scroll frame.
+    -- Create the scroll frame
     -- This is a window that shows a smaller part of the contentframe.
-    local ScrollFrame = CreateFrame('ScrollFrame', nil, MessageBox)
-    ScrollFrame:SetPoint('TOPLEFT', 15, -15)
-    ScrollFrame:SetPoint('BOTTOMRIGHT', -30, 44)
-    MessageBox.ScrollFrame = ScrollFrame
+    local ScrollFrame = CreateFrame('ScrollFrame', nil, MessageBox, 'ScrollFrameTemplate')
+    ScrollFrame:SetPoint('TOPLEFT', MessageBox, 15, -15)
+    ScrollFrame:SetPoint('BOTTOMRIGHT', MessageBox, -30, 44)
+
+    ScrollFrame.ScrollBar:SetPanExtentPercentage(0.025)
+    ScrollFrame.ScrollBar.SetPanExtentPercentage = _G.nop
 
     -- Create the contents that will be viewed thru the ScrollFrame.
-    local ContentFrame = CreateFrame('Frame', nil, ScrollFrame)
-      MessageBox.ContentFrame = ContentFrame
+    local ContentFrame = CreateFrame('Frame')
+    ContentFrame:SetSize(Width - 45, Height)
+    MessageBox.ContentFrame = ContentFrame
 
       local FontString = ContentFrame:CreateFontString(nil)
       FontString:SetAllPoints()
@@ -1177,18 +1181,6 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
       MessageBox.FontString = FontString
 
     ScrollFrame:SetScrollChild(ContentFrame)
-
-    -- Create the scroller that appears on the message box.
-    local Scroller = CreateFrame('slider', nil, ScrollFrame, 'UIPanelScrollBarTemplate')
-    Scroller:SetPoint('TOPRIGHT', MessageBox, -8, -25)
-    Scroller:SetPoint('BOTTOMRIGHT', MessageBox, -8, 25)
-    MessageBox.Scroller = Scroller
-
-    -- Create the dark background for the Scroller
-    local ScrollerBG = Scroller:CreateTexture(nil, 'BACKGROUND')
-    ScrollerBG:SetAllPoints()
-    ScrollerBG:SetTexture(0, 0, 0, 0.4)
-    Scroller.ScrollerBG = ScrollerBG
 
     -- Create the ok button to close the message box
     local OkButton =  CreateFrame('Button', nil, MessageBox, 'UIPanelButtonTemplate')
@@ -1203,12 +1195,6 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     OkButton:SetText('Okay')
     MessageBox.OkButton = OkButton
 
-    -- Add scroll wheel
-    MessageBox:SetScript('OnMouseWheel', function(self, Dir)
-      local Scroller = self.Scroller
-
-      Scroller:SetValue(Scroller:GetValue() + ( 17 * Dir * -1))
-    end)
     -- esc key to close
     MessageBox:SetScript('OnKeyDown', function(self, Key)
       if Key == 'ESCAPE' then
@@ -1218,22 +1204,11 @@ function GUB.Main:MessageBox(Message, Width, Height, Font, FontSize)
     end)
   end
 
-  -- Set the size of the content frame based on text
   local FontString = MessageBox.FontString
-  local ContentFrame = MessageBox.ContentFrame
-  ContentFrame:SetSize(Width - 45, 1000)
 
   FontString:SetText("Galvin's Unit Bars\n\n" .. '|cffffff00This list can be viewed under Help -> Changes|r' .. '\n\n' .. Message .. '\n')
 
-  Height = FontString:GetStringHeight()
-  local Scroller = MessageBox.Scroller
-
-  Scroller:SetMinMaxValues(1, Height - 40)
-  Scroller:SetValueStep(1)
-  Scroller:SetValue(0)
-  Scroller:SetWidth(16)
-
-  MessageBox:Show()
+  MessageBox.ContentFrame:SetHeight(FontString:GetNumLines() * FontString:GetLineHeight())
 end
 
 -------------------------------------------------------------------------------
@@ -3108,6 +3083,7 @@ local function GetPlayerStance()
     else
       -- Stance not found or less than zero
       local FormID = GetShapeshiftFormID()
+
       if FormID then
         return FormIDStances[PlayerClass][FormID]
       else
@@ -4101,10 +4077,13 @@ function GUB:TalentUpdate(Event, ...)
     wipe(NotUseDropdown)
     wipe(NotUseIconDropdown)
 
-    local C_TraitsGetNodeInfo = C_Traits.GetNodeInfo
-    local C_TraitsGetEntryInfo = C_Traits.GetEntryInfo
-    local C_TraitsGetDefinitionInfo = C_Traits.GetDefinitionInfo
-    local C_SpecializationInfoGetPvpTalentSlotInfo = C_SpecializationInfo.GetPvpTalentSlotInfo
+    local C_Traits_GetNodeInfo = C_Traits.GetNodeInfo
+    local C_Traits_GetEntryInfo = C_Traits.GetEntryInfo
+    local C_Traits_GetDefinitionInfo = C_Traits.GetDefinitionInfo
+    local C_SpecializationInfo_GetPvpTalentSlotInfo = C_SpecializationInfo.GetPvpTalentSlotInfo
+
+    local C_Spell_GetSpellName = C_Spell.GetSpellName
+    local C_Spell_GetSpellTexture = C_Spell.GetSpellTexture
 
     local ConfigID = C_ClassTalents.GetActiveConfigID()
     if ConfigID == nil then
@@ -4115,7 +4094,7 @@ function GUB:TalentUpdate(Event, ...)
 
       -- Get all the talents
       for NodeIndex = 1, #NodeIDs do
-        local NodeInfo = C_TraitsGetNodeInfo(ConfigID, NodeIDs[NodeIndex])
+        local NodeInfo = C_Traits_GetNodeInfo(ConfigID, NodeIDs[NodeIndex])
         local EntryIDs = NodeInfo.entryIDs
         local CommittedRankEntryID = NodeInfo.entryIDsWithCommittedRanks[1]
 
@@ -4129,13 +4108,14 @@ function GUB:TalentUpdate(Event, ...)
           if GrantedForFree or EntryID == CommittedRankEntryID then
             Committed = true
           end
-          local EntryInfo = C_TraitsGetEntryInfo(ConfigID, EntryID)
-          local DefinitionInfo = C_TraitsGetDefinitionInfo(EntryInfo.definitionID)
+          local EntryInfo = C_Traits_GetEntryInfo(ConfigID, EntryID)
+          local DefinitionInfo = C_Traits_GetDefinitionInfo(EntryInfo.definitionID)
           local SpellID = DefinitionInfo.spellID
 
           -- Some nodes can have bad data, so skip on nil spellID
           if SpellID then
-            local Name, _, Icon = GetSpellInfo(SpellID)
+            local Name = C_Spell_GetSpellName(SpellID)
+            local Icon = C_Spell_GetSpellTexture(SpellID)
 
             SpellIDs[Name] = SpellID
             Icons[Name] = Icon
@@ -4194,7 +4174,7 @@ function GUB:TalentUpdate(Event, ...)
 
     for SlotIndex = 1, 4 do
       -- Sometimes this returns nil, so need to check it. Why does blizzard do stuff like this.
-      local SlotInfo = C_SpecializationInfoGetPvpTalentSlotInfo(SlotIndex)
+      local SlotInfo = C_SpecializationInfo_GetPvpTalentSlotInfo(SlotIndex)
 
       if SlotInfo then
         local TalentIDs = SlotInfo.availableTalentIDs
@@ -4413,10 +4393,10 @@ function GUB:AuraUpdate(Event, Unit, Info)
       end
       -- Apply auras that changed
       if UpdatedIDs then
-        local C_UnitAurasGetAuraDataByAuraInstanceID = C_UnitAuras.GetAuraDataByAuraInstanceID
+        local C_UnitAuras_GetAuraDataByAuraInstanceID = C_UnitAuras.GetAuraDataByAuraInstanceID
         for Index = 1, #UpdatedIDs do
           local UpdatedID = UpdatedIDs[Index]
-          local UpdatedAura = C_UnitAurasGetAuraDataByAuraInstanceID(Unit, UpdatedID)
+          local UpdatedAura = C_UnitAuras_GetAuraDataByAuraInstanceID(Unit, UpdatedID)
           if UpdatedAura then
             InstanceIDsAuraSpellID[UpdatedID] = UpdatedAura.spellId
 
@@ -4454,11 +4434,12 @@ end
 -- Sub function of CheckPredictedSpells
 -------------------------------------------------------------------------------
 local function SetPredictedSpellInfo(SpellID)
-  local Name, _, _, CastTime = GetSpellInfo(SpellID)
+  local SpellInfo = C_Spell.GetSpellInfo(SpellID)
+  local Name, CastTime = SpellInfo.name, SpellInfo.castTime
 
   -- Only need spells that have cast time.
   if Name and CastTime > 0 then
-    local Hyperlink = C_TooltipInfoGetHyperlink(format(HyperlinkSt, SpellID))
+    local Hyperlink = C_TooltipInfo_GetHyperlink(format(HyperlinkSt, SpellID))
 
     if Hyperlink then
       local Lines = Hyperlink.lines
@@ -4516,25 +4497,33 @@ function GUB:CheckPredictedSpells(Event)
       PredictedSpells[Index] = nil
     end
 
-    for TabIndex = 1, GetNumSpellTabs() do
-      local Name, _, Offset, NumSlots, _, OffspecID = GetSpellTabInfo(TabIndex)
+    local C_SpellBook_GetSpellBookSkillLineInfo = C_SpellBook.GetSpellBookSkillLineInfo
+    local C_SpellBook_GetSpellBookItemInfo      = C_SpellBook.GetSpellBookItemInfo
+    local SpellBankPlayer                       = Enum.SpellBookSpellBank.Player
+    local ItemTypeFlyout                        = Enum.SpellBookItemType.Flyout
+    local ItemTypeSpell                         = Enum.SpellBookItemType.Spell
 
-      -- Only scan book tabs that have spells that can be used
-      if OffspecID == 0 then
-        for BookIndex = Offset + 1, Offset + NumSlots do
-          local SkillType, ID = GetSpellBookItemInfo(BookIndex, 'spell')
+    for SkillLine = 1, C_SpellBook.GetNumSpellBookSkillLines() do
+      local LineInfo = C_SpellBook_GetSpellBookSkillLineInfo(SkillLine)
+      local Offset = LineInfo.itemIndexOffset
+
+      -- Only scan the book that have spells that can be used
+      if LineInfo.offSpecID == nil then
+        for BookIndex = Offset + 1, Offset + LineInfo.numSpellBookItems do
+          local ItemInfo = C_SpellBook_GetSpellBookItemInfo(BookIndex, SpellBankPlayer)
+          local ItemType, SpellID, ActionID = ItemInfo.itemType, ItemInfo.spellID, ItemInfo.actionID
 
           -- Handle flyout spell IDs
-          if SkillType == 'FLYOUT' then
-            local _, _, NumFlyoutSlots = GetFlyoutInfo(ID)
+          if ItemType == ItemTypeFlyout then
+            local _, _, NumFlyoutSlots = GetFlyoutInfo(ActionID)
 
             for SlotIndex = 1, NumFlyoutSlots do
-              local SpellID = GetFlyoutSlotInfo(ID, SlotIndex)
+              local SpellID = GetFlyoutSlotInfo(ActionID, SlotIndex)
               SetPredictedSpellInfo(SpellID)
             end
           -- Handle spell IDs
-          elseif SkillType == 'SPELL' then
-            SetPredictedSpellInfo(ID)
+          elseif ItemType == ItemTypeSpell then
+            SetPredictedSpellInfo(SpellID)
           end
         end
       end
@@ -5399,8 +5388,8 @@ end
 -- until after OnEnable()
 -------------------------------------------------------------------------------
 function GUB:OnEnable()
-  if select(4, GetBuildInfo()) < 100000 then
-    message("Galvin's UnitBars\nThis will work on WoW 10.x or higher only")
+  if select(4, GetBuildInfo()) < 110000 then
+    message("Galvin's UnitBars\nThis will work on WoW 11.x or higher only")
     return
   end
 
@@ -5477,8 +5466,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 68 then
-    Gdata.ShowMessage = 68
+  if Gdata.ShowMessage ~= 100 then
+    Gdata.ShowMessage = 100
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

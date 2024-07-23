@@ -402,8 +402,10 @@ local ClassStanceNames = {
     [0] = NoStanceSt,                -- 0
     'Crusader',                      -- 1
     'Devotion',                      -- 2
-    'Retribution',                   -- 3
-    'Concentration',                 -- 4
+    'Concentration',                 -- 3
+
+ -- 'Retribution',                   -- 3   ( REMOVED FROM GAME )
+
   },
   PRIEST = {  -- no stance bar
     [0] = NoStanceSt,                -- 0
@@ -438,12 +440,13 @@ local FormIDStances = {
 
   ROGUE  = { [30] = 1   }, -- Stealth. NOTE: This is here because sometimes they'll be no spellID, but a valid formID
 
-  SHAMAN = { [16] = 1   }  -- Ghost wolf
+  SHAMAN = { [16] = 1,     -- Looks like 16 and 48 are valid for ghost wolf
+             [48] = 1   }  -- Ghost wolf
 }
 
 -- These are used in GetPlayerStance() only
 -- Convert spellID to stance
--- If the syancespellID is negative or ID is negative, then get ShapeShiftformID() instead
+-- If the stancespellID is negative or ID is negative, then get ShapeShiftformID() instead
 local SpellIDStances = { -- Stance#    -- ID
   DRUID   = { [5487]   =     1,         -- 5      Bear form
               [768]    =     2,         -- 1      Cat form
@@ -454,8 +457,10 @@ local SpellIDStances = { -- Stance#    -- ID
 
   PALADIN = { [32223]  =     1,         --        Crusader aura
               [465]    =     2,         --        Devotion aura
-              [183435] =     3,         --        Retribution aura
-              [317920] =     4  },      --        Cencentration aura
+              [317920] =     3  },      --        Cencentration aura
+
+           -- [183435] =     3,         --        Retribution aura    ( REMOVED FROM GAME )
+
 
   PRIEST  = { [232698] =     1  },      -- 28     Shadow form
 
@@ -3735,6 +3740,11 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 9.00
+Updated for World of Warcraft version 11.x
+Some stuff may not work or broken. Please report bugs
+Work in progress
+
 Version 8.18
 |cff00ff00Bars|r that are in floating mode will no longer keep shifting positon after each reload UI
 |cff00ff00Bar.lua: Bug fix|r After dragging a bar to a new position. It could shift one pixel one time only after reloading UI
@@ -3821,14 +3831,14 @@ Version 6.31
 |cff00ff00Options|r Will automatically open after combat ends if you try to open during combat
 
 Version 6.30
-|cff00ff00|cff00ff00Frames|r Extra Action Button mover added
+|cff00ff00Frames|r Extra Action Button mover added
 
 Version 6.20
-|cff00ff00|cff00ff00Frames|r Alt Power Bar settings has changed.  This now lets you move blizzards APB
-|cff00ff00|cff00ff00Alternate Power Bar|r Now lets you pick which bars you want to use as the blizzard style instead of GUB
+|cff00ff00Frames|r Alt Power Bar settings has changed.  This now lets you move blizzards APB
+|cff00ff00Alternate Power Bar|r Now lets you pick which bars you want to use as the blizzard style instead of GUB
 
 Version 6.10
-|cff00ff00|cff00ff00StatusBars|r no longer uses Blizzards.  This means no more texture stretching
+|cff00ff00StatusBars|r no longer uses Blizzards.  This means no more texture stretching
 
 |cff00ff00Bar Options|r now has 'Sync Fill Direction' and 'Clipping' for bars that fill
 |cff00ff00Rotation|r now has 4 different angles (-90, 0, 90, and 180)

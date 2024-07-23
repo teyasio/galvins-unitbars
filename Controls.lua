@@ -29,8 +29,10 @@ local tonumber, tconcat     , GetTime =
       tonumber, table.concat, GetTime
 local pairs, unpack =
       pairs, unpack
-local GameTooltip, ClearOverrideBindings, GetSpellInfo, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo =
-      GameTooltip, ClearOverrideBindings, GetSpellInfo, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo
+local C_Spell_GetSpellName, C_Spell_GetSpellTexture =
+      C_Spell.GetSpellName, C_Spell.GetSpellTexture
+local GameTooltip, ClearOverrideBindings, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo =
+      GameTooltip, ClearOverrideBindings, ACCEPT, GetCursorInfo, ClearCursor, GetMacroInfo
 local UIParent, GameFontNormal, GameFontHighlight, ChatFontNormal, OKAY, PlaySound =
       UIParent, GameFontNormal, GameFontHighlight, ChatFontNormal, OKAY, PlaySound
 
@@ -174,10 +176,11 @@ local function EditBox_OnReceiveDrag(frame)
   local self = frame.obj
   local type, id, info = GetCursorInfo()
   local name
+
   if type == "item" then
     name = info
-  elseif type == "spell" then
-    name = GetSpellInfo(id, info)
+  elseif type == "spell" then -- spellbook
+    name = C_Spell_GetSpellName(id)  --name = GetSpellInfo(id, info)
   elseif type == "macro" then
     name = GetMacroInfo(id)
   end
@@ -434,7 +437,7 @@ end
 local function OnReceiveDrag(self)                                               -- EditBox / ScrollFrame
   local type, id, info = GetCursorInfo()
   if type == "spell" then
-    info = GetSpellInfo(id, info)
+    info = C_Spell_GetSpellName(id) --info = GetSpellInfo(id, info)
   elseif type ~= "item" then
     return
   end
@@ -780,7 +783,8 @@ local function GetSpellIDs()
           break
         end
 
-        local Name, _, Icon = GetSpellInfo(SpellID)
+        local Name = C_Spell_GetSpellName(SpellID)
+        local Icon = C_Spell_GetSpellTexture(SpellID)
 
         if Name and Icon and Name ~= '' then
           SpellIndex = SpellIndex + 1
@@ -880,7 +884,8 @@ local function PopulateAuraMenu(self)
   local All = AuraTrackersData.All
   if All then
     for SpellID, Aura in pairs(All) do
-      local Name, _, Icon = GetSpellInfo(SpellID)
+      local Name = C_Spell_GetSpellName(SpellID)
+      local Icon = C_Spell_GetSpellTexture(SpellID)
 
       if strfind(strlower(Name), SearchSt, 1, true) == 1 then
         if ActiveButtons < MaxSpellMenuLines then
@@ -909,7 +914,9 @@ local function PopulateAuraMenu(self)
     for Index = StartingIndex, #Spells do
       if ActiveButtons < MaxSpellMenuLines  then
         local SpellID = Spells[Index]
-        local Name, _, Icon = GetSpellInfo(SpellID)
+
+        local Name = C_Spell_GetSpellName(SpellID)
+        local Icon = C_Spell_GetSpellTexture(SpellID)
         local NameLower = strlower(Name)
 
         -- Abort if search goes out of block
@@ -1197,7 +1204,7 @@ end
 -- Sets the editbox to the button that was clicked in the selector
 -------------------------------------------------------------------------------
 local function SpellMenuButtonOnClick(self, ...)
-  local Name = GetSpellInfo(self.SpellID)
+  local Name = C_Spell_GetSpellName(self.SpellID)
   local Parent = self.parent
 
   EditBoxSetText(self.parent.Widget, Name, #Name)
@@ -1540,7 +1547,8 @@ local function SpellInfoSetText(self, Text)
       Icon = [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]]
       Name = nil
     else
-      Name, _, Icon = GetSpellInfo(SpellID)
+      Name = C_Spell_GetSpellName(SpellID)
+      Icon = C_Spell_GetSpellTexture(SpellID)
     end
 
     IconTexture:SetTexture(Icon)
@@ -1620,7 +1628,7 @@ local function SpellInfoConstructor()
   IconFrame:SetScript('OnLeave', IconFrameOnLeave)
 
   IconLabel:SetJustifyH('LEFT')
-  IconLabel:SetJustifyV('CENTER')
+  IconLabel:SetJustifyV('MIDDLE')
 
   IconFrame:SetPoint('TOPLEFT')
   IconTexture:SetAllPoints()
