@@ -8,11 +8,12 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerType = GUB.DefaultUB.ConvertPowerType
 
 -- localize some globals.
 local _, _G, print =
@@ -255,7 +256,7 @@ local ShardBgColor = {r = 0.25, g = 0.25, b = 0.25, a = 1}
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.FragmentBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.FragmentBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -687,5 +688,5 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.FragmentBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end

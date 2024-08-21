@@ -9,11 +9,13 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-local DUB = GUB.DefaultUB.Default.profile
 local DefaultUB = GUB.DefaultUB
+local DUB = DefaultUB.Default.profile
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Options = GUB.Options
+local Bar = GUB.Bar
 
 local LSM = Main.LSM
 
@@ -354,7 +356,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --  TriggerObjectTypes[Type]         Types of triggers. Border, border color, font color, etc
 --  TriggerMenuItems[Type]           This table is used to build the menus to pick what you are changing in the options
 --  TriggerFns[Type]                 BarDB function to call to modify the bar object based on the Trigger Type
---  TriggerCanAnimate[Type]          Flags if the particular trigger type support animation
+--  TriggerCanAnimate[Type]          Flags if the particular trigger type supports animation
 --  TriggerColorFnTypes[]            Types for color functions
 --  TriggerColorFns[]                References to the functions based on ColorFnTypes
 --  TriggerConvertColorIndex[]       Converts index into a color type or vise versa
@@ -370,10 +372,10 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --  TriggerData
 --    ActiveTriggers                           Contains reference to triggers that will be used during combat
 --    ActiveBoxesAll[BoxNumber]                true or false. Used by the 'ALL' options.  This tells which boxes are active
---    ActiveBoxesCustom[Group][BoxNumber]      true or false. Used by SetTriggersCustomGroup()
+--    ActiveBoxesCustom[Group][BoxNumber]      BoxNumber or -1 if not set. Used by SetTriggersCustomGroup(), DoTriggers()
 --    ActiveObjects[BoxNumber][ObjectTypeID]   Objects actively being used. Contains the trigger index that last used the object
 --                                             Used by DoTriggers(), CheckTriggers() and EnableTriggers()
---                                               0 : means no trigger modified that object so restore it
+--                                               0 : means a trigger modified that object, so restore it
 --                                              -1 : means restored.  Can't be restored till its used again first
 --
 --    InputValueTypes[]                        string: Type of input value:
@@ -398,6 +400,8 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --                                    a   : All boxes get changed
 --                                    aa  : All active boxes get changed
 --                                    ai  : All inactive boxes get changed
+--                                    c   : when a, aa, and ai won't do the job. Then a custom
+--                                          group can handle it
 --      ObjectsDropdown[]           Pulldown menu contains the name of each object. Used by options
 --      IndexObjectTypeID[]         Converts Index from ObjectDropdown into a type id. Used by options
 --      ObjectTypeTypeID[]          Converts ObjectType into ObjectTypeID. This contains the first Type found in the objects
@@ -414,7 +418,12 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 -- Triggers                          Array: Contains all the triggers created by the user
 --   Static                          if true the trigger is always on
 --   Disabled                        if true the trigger is not active
---   SpecEnabled                     If true then specializations are used by this trigger
+--   AnyActivations                  if true then at least one (Specialization, Stances, Talents, Auras, Conditions) needs to be activated
+--                                   for the trigger to be enabled. Otherwise all have to be active
+--   OtherActivations                If true then specializations, stances, talents were picked in any of the triggers
+--                                   otherwise false
+--   SpecEnabled                     if true then specializations are used by this trigger
+--   StancesEnabled                  if true then stances are used by this trigger
 --   OneTime                         number or false. A trigger can only execute once, then has to reactivate, Unless false.
 --                                   Used by DoTriggers() and CheckTriggers()
 --   Name                            Name of the trigger
@@ -438,7 +447,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --   ActiveAuras                     true or false: Auras was found to be active based on options
 --
 --   Conditions
---     Disabled                      if true all conditions are ignored
+--     Enabled                       if false all conditions are ignored
 --     All                           if true then all conditions need to be true, otherwise just one
 --     [Index]                       Array: Contains 0 or more conditions. 0 is reserved as the default
 --        InputValueName             Name of the input being used
@@ -446,7 +455,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --        Value                      Can be string, number, boolean.  Based on the type of the InputValueName
 --
 --   Talents
---     Disabled                      if true then all talents are ignored
+--     Enabled                       if false then all talents are ignored
 --     All                           if true then all talents need to be found, otherwise just one
 --     [Index]
 --       SpellID                     The Spell ID of the talent
@@ -455,7 +464,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists =
 --       Minimized                   if true then the options are mostly hidden to save space
 --
 --   Auras
---     Disabled                      if true all auras are ignored
+--     Enabled                       if false all auras are ignored
 --     All                           if true then all auras need to be true, otherwise just one
 --     [Index]
 --       Minimized                   if true then the options are mostly hidden to save space
@@ -754,7 +763,7 @@ local TriggerObjectTypes = {
   RegionBackgroundColor = 'regionbackgroundcolor',
   Sound                 = 'sound',
 }
-GUB.Bar.TriggerObjectTypes = TriggerObjectTypes
+Bar.TriggerObjectTypes = TriggerObjectTypes
 local OT = TriggerObjectTypes
 
 local TriggerMenuItems = {
@@ -910,7 +919,7 @@ local TriggerColorFns = {
   [TriggerColorFnTypes.TaggedColor] = Main.GetTaggedColor,
 }
 
-GUB.Bar.TriggerConvertColorIndex = {
+Bar.TriggerConvertColorIndex = {
   [1] = TriggerColorFnTypes.ClassColor,
   [2] = TriggerColorFnTypes.PowerColor,
   [3] = TriggerColorFnTypes.CombatColor,
@@ -934,7 +943,7 @@ local TriggerConvertRegionBackdrop = {
   [OT.BackgroundColor      ] = OT.RegionBackgroundColor,
 }
 
-GUB.Bar.TriggerColorPulldown = {
+Bar.TriggerColorPulldown = {
   'Class Color',   -- 1
   'Power Color',   -- 2
   'Combat Color',  -- 3
@@ -6395,7 +6404,7 @@ end
 -- NOTES: All bar functions are called thru the returned table.
 --        CreateBar will embed certain functions like dragging/moving.
 -------------------------------------------------------------------------------
-function GUB.Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
+function Bar:CreateBar(UnitBarF, ParentFrame, NumBoxes)
 
   -- Make bar a frame so it can be used in onupdate for Display()
   local Bar = CreateFrame('Frame')
@@ -6721,7 +6730,7 @@ end
 --              with a green rectangle.
 -- TextIndex  The text line in the bar to highlight.
 -------------------------------------------------------------------------------
-function GUB.Bar:SetHighlightFont(BarType, HideTextHighlight, TextIndex)
+function Bar:SetHighlightFont(BarType, HideTextHighlight, TextIndex)
   local UnitBars = Main.UnitBars
 
   -- Iterate thru text data
@@ -7837,6 +7846,14 @@ end
 -- Works with custom groups only
 -- Like SetTriggers accept it turns on or off a custom groups boxnumber
 --
+
+-- GroupName    Name of group
+-- Active       If false then all boxes are cleared using a -1. Otherwise they're filled
+--              with boxnumbers
+-- ...          If this is a table. Then it needs to be an indexed array. Each element needs
+--              to contain the boxnumber
+--              Otherwise this is 1 or more boxnumbers passed as parms
+--
 -- NOTES: ... can be an index table containing the boxes or parms
 -------------------------------------------------------------------------------
 function BarDB:SetTriggersCustomGroup(GroupName, Active, ...)
@@ -7930,14 +7947,14 @@ local UndoTriggers = BarDB.UndoTriggers
 -------------------------------------------------------------------------------
 function BarDB:CheckTriggersAuras()
   local ActiveTriggers = self.TriggerData.ActiveTriggers
-  local AuraTrackersData = Main.AuraTrackersData
+  local AuraTrackersData = Util.AuraTrackersData
 
   for TriggerIndex = 1, #ActiveTriggers do
     local ActiveTrigger = ActiveTriggers[TriggerIndex]
     local Auras = ActiveTrigger.Auras
     local All = Auras.All
     local BreakLoop = false
-    local Result
+    local Result = false
 
     for AuraIndex = 1, #Auras do
       local Aura = Auras[AuraIndex]
@@ -8058,7 +8075,7 @@ end
 local function CheckTriggersTalents(Trigger, GameTalents)
   local Talents = Trigger.Talents
   local All = Talents.All
-  local Result = true
+  local Result = false
 
   for TalentIndex = 1, #Talents do
     local Talent = Talents[TalentIndex]
@@ -8081,7 +8098,6 @@ local function CheckTriggersTalents(Trigger, GameTalents)
       break
     end
   end
-
   return Result
 end
 
@@ -8125,9 +8141,9 @@ function BarDB:CheckTriggers(Action)
   end
 
   -- Turn on TalentTracking for the talenttracking data
-  Main:SetTalentTracker(UnitBarF, 'fn', function() end)
-  local TalentTrackersData = Main.TalentTrackersData
-  local GameTalents = TalentTrackersData.Active
+  Util:SetTalentTracker(UnitBarF, 'fn', function() end)
+
+  local TalentTrackersData = Util.TalentTrackersData
   local GameTalentsSpellIDs = TalentTrackersData.SpellIDs
 
   while TriggerIndex <= #Triggers do
@@ -8189,7 +8205,7 @@ function BarDB:CheckTriggers(Action)
       local Talents = Trigger.Talents
       local Auras = Trigger.Auras
       local Conditions = Trigger.Conditions
-      local TalentsDisabled = Talents.Disabled
+      local AurasEnabled = Auras.Enabled
       local ClassStances = Trigger.ClassStances
 
       -- Par Defaults
@@ -8312,7 +8328,7 @@ function BarDB:CheckTriggers(Action)
           Aura.Stacks = tonumber(Stacks) or 0
         end
 
-        if not Auras.Disabled then
+        if AurasEnabled then
           for UnitIndex = 1, #AuraUnits do
             local AuraUnit = gsub( (AuraUnits[UnitIndex] or '') , '[%c%p%s]', '')
 
@@ -8342,8 +8358,8 @@ function BarDB:CheckTriggers(Action)
         local Talent = Talents[TalentIndex]
         local SpellID = Talent.SpellID
 
-        -- If SpellID is a string, that means it was from a converted from an earlier version
-        -- Try to convert to a spellID, if fail then skip incase its from a different class
+        -- If SpellID is a string, that means it was converted from an earlier version
+        -- Try to convert to a spellID, if fail then skip incase it's from a different class
         if type(SpellID) == 'string' then
           SpellID = GameTalentsSpellIDs[SpellID] or SpellID
         else
@@ -8354,27 +8370,49 @@ function BarDB:CheckTriggers(Action)
         Talent.OrderNumber = TalentIndex
       end
 
-      if not Disabled and not Static and not TalentsDisabled and #Talents > 0 then
-        TrackTalents = true
-      end
-
       -- Update stance data
       Main:UpdatePlayerStances(BarType, ClassStances, true)  -- true for triggers
+
+      -- Update spec data
+      local ClassSpecs = Trigger.ClassSpecs
+      Main:UpdateClassSpecs(BarType, ClassSpecs, true) -- true for triggers
+
+      -- This trigger may have been copied from a stanceless class. So make sure StancesEnabled flag is false
       if not TriggersHasStances then
-        Trigger.StanceEnabled = false
+        Trigger.StancesEnabled = false
       end
 
-      Trigger.AurasOn      = not Auras.Disabled      and #Auras > 0
-      Trigger.ConditionsOn = not Conditions.Disabled and #Conditions > 0
-
-      Trigger.ActiveAuras = false
+      -- Store enabled here for DoTriggers
+      local ConditionsEnabled = Conditions.Enabled
+      Trigger.AurasEnabled = AurasEnabled
+      Trigger.ConditionsEnabled = ConditionsEnabled
 
       if not Disabled then
-        local ClassSpecs = Trigger.ClassSpecs
-        Main:UpdateClassSpecs(BarType, ClassSpecs, true) -- true for triggers
-        if Static or ( not Trigger.SpecEnabled or Main:CheckClassSpecs(BarType, ClassSpecs) ) and
-                     ( TalentsDisabled or CheckTriggersTalents(Trigger, GameTalents)        ) and
-                     ( not Trigger.StanceEnabled or Main:CheckPlayerStances(BarType, ClassStances) ) then
+        local SpecEnabled    = Trigger.SpecEnabled
+        local StancesEnabled = Trigger.StancesEnabled
+        local TalentsEnabled = Talents.Enabled
+
+        -- Need at least one activation
+        if SpecEnabled or StancesEnabled or TalentsEnabled or AurasEnabled or ConditionsEnabled then
+          if not Static then
+
+            if TalentsEnabled and #Talents > 0 then
+              TrackTalents = true
+            end
+            -- any
+            if Trigger.AnyActivations then
+              Trigger.OtherActivations =
+                SpecEnabled    and Main:CheckClassSpecs(BarType, ClassSpecs)      or
+                StancesEnabled and Main:CheckPlayerStances(BarType, ClassStances) or
+                TalentsEnabled and CheckTriggersTalents(Trigger, TalentTrackersData.Active)
+            else
+              -- not any
+              Trigger.OtherActivations =
+                (not SpecEnabled    or Main:CheckClassSpecs(BarType, ClassSpecs))      and
+                (not StancesEnabled or Main:CheckPlayerStances(BarType, ClassStances)) and
+                (not TalentsEnabled or CheckTriggersTalents(Trigger, TalentTrackersData.Active))
+            end
+          end
           ActiveTriggers[#ActiveTriggers + 1] = Trigger
         end
       end
@@ -8386,25 +8424,24 @@ function BarDB:CheckTriggers(Action)
   end
 
   if TrackTalents then
-    Main:SetTalentTracker(UnitBarF, 'fn', function()
+    Util:SetTalentTracker(UnitBarF, 'fn', function()
                                             self:CheckTriggers()
                                             self:DoTriggers()
                                           end)
   else
-    Main:SetTalentTracker(UnitBarF, 'off')
+    Util:SetTalentTracker(UnitBarF, 'off')
   end
 
   Units = strtrim(Units)
   if Units ~= '' then
-    Main:SetAuraTracker(UnitBarF, 'fn', function()
+    Util:SetAuraTracker(UnitBarF, 'fn', function()
                                           self:CheckTriggersAuras()
                                           self:DoTriggers()
                                         end)
-    Main:SetAuraTracker(UnitBarF, 'units', Main:SplitString(' ', Units))
+    Util:SetAuraTracker(UnitBarF, 'units', Main:SplitString(' ', Units))
   else
-    Main:SetAuraTracker(UnitBarF, 'off')
+    Util:SetAuraTracker(UnitBarF, 'off')
   end
-
   self:CheckTriggersAuras()
 end
 
@@ -8570,8 +8607,8 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
     UndoTriggers(self)
 
     local UnitBarF = self.UnitBarF
-    Main:SetAuraTracker(UnitBarF, 'off')
-    Main:SetTalentTracker(UnitBarF, 'off')
+    Util:SetAuraTracker(UnitBarF, 'off')
+    Util:SetTalentTracker(UnitBarF, 'off')
 
     self.TriggerData = nil
   end
@@ -8615,7 +8652,7 @@ local function DoTriggerConditions(TriggerData, Conditions)
   local InputValues = TriggerData.InputValues
   local InputValueTypes = TriggerData.InputValueTypes
   local All = Conditions.All
-  local Result
+  local Result = false
 
   for ConditionIndex = 1, #Conditions do
     local Condition = Conditions[ConditionIndex]
@@ -8671,7 +8708,6 @@ function BarDB:DoTriggers()
   local ActiveBoxesCustom = TriggerData.ActiveBoxesCustom
   local NumBoxes = self.NumBoxes
   local OTSound = OT.Sound
-
   local Groups = TriggerData.Groups
 
   for TriggerIndex = 1, #ActiveTriggers do
@@ -8680,12 +8716,27 @@ function BarDB:DoTriggers()
     local Type = Group.Type
     local BoxNumber = Group.BoxNumber
     local ObjectTypeID = ActiveTrigger.ObjectTypeID
+    local AnyActivations = ActiveTrigger.AnyActivations
 
     -- Check active status
-    local Active = ActiveTrigger.Static or
-                   ( not ActiveTrigger.AurasOn       or ActiveTrigger.ActiveAuras   ) and
-                   ( not ActiveTrigger.ConditionsOn  or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions) )
+    local Active = ActiveTrigger.Static
 
+    if not Active then
+      local AurasEnabled = ActiveTrigger.AurasEnabled
+      local ConditionsEnabled = ActiveTrigger.ConditionsEnabled
+
+      if AnyActivations then
+        -- any
+        Active = ActiveTrigger.OtherActivations or
+                 AurasEnabled      and ActiveTrigger.ActiveAuras or
+                 ConditionsEnabled and DoTriggerConditions(TriggerData, ActiveTrigger.Conditions)
+      else
+        -- not any
+        Active = ActiveTrigger.OtherActivations and
+                 (not AurasEnabled      or ActiveTrigger.ActiveAuras) and
+                 (not ConditionsEnabled or DoTriggerConditions(TriggerData, ActiveTrigger.Conditions))
+      end
+    end
     if not Active then
       if ActiveTrigger.OneTime then
         ActiveTrigger.OneTime = 0
@@ -8813,7 +8864,7 @@ end
 --
 -- Notes: No need to delete old keys since the cleaner will take care of it
 -------------------------------------------------------------------------------
-function GUB.Bar:ConvertTriggers(BarType, Triggers)
+function Bar:ConvertTriggers(BarType, Triggers)
   local TriggerIsAll = Trigger660IsAll[BarType]
   local TriggerRegion = Trigger660Region[BarType]
   local TriggerValueType = Trigger660ValueType[BarType]
@@ -8863,7 +8914,6 @@ function GUB.Bar:ConvertTriggers(BarType, Triggers)
       InputValueName = gsub(InputValueName, 'Percent', 'percent')
       InputValueName = TriggerValueType and TriggerValueType[InputValueName] or InputValueName
       Conditions.All = ConditionsOldAll
-      Conditions.Disabled = false
       Talents.All = ConditionsOldAll
 
       for ConditionIndex = 1, #ConditionsOld do
@@ -8933,4 +8983,4 @@ function GUB.Bar:ConvertTriggers(BarType, Triggers)
   end
 end
 
-GUB.Bar.GetRect = function(self, ...) return GetRect(...) end
+Bar.GetRect = function(self, ...) return GetRect(...) end

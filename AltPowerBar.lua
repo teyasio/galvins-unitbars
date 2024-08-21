@@ -8,11 +8,12 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerType = GUB.DefaultUB.ConvertPowerType
 
 -- localize some globals.
 local _, _G, print =
@@ -102,7 +103,7 @@ local GroupsInfoPower = { -- BoxNumber, Name, ValueTypes
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.AltPowerBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.AltPowerBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -593,10 +594,10 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.AltPowerBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, EventTimerUpdate, self.Update, 'player')
-  Main:RegEventFrame(Enable, self, EventPowerBarHide, self.Update, 'player')
-  Main:RegEventFrame(Enable, self, EventPowerBarShow, self.Update, 'player')
+  Util:RegEventFrame(Enable, self, EventTimerUpdate, self.Update, 'player')
+  Util:RegEventFrame(Enable, self, EventPowerBarHide, self.Update, 'player')
+  Util:RegEventFrame(Enable, self, EventPowerBarShow, self.Update, 'player')
 
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_UPDATE', self.Update, 'player')
-  Main:RegEventFrame(Enable, self, 'UNIT_MAXPOWER', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_UPDATE', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_MAXPOWER', self.Update, 'player')
 end

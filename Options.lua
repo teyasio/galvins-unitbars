@@ -11,18 +11,16 @@ local MyAddon, GUB = ...
 local DefaultUB = GUB.DefaultUB
 local DUB = DefaultUB.Default.profile
 
-local TriggerOptions = {}
-local TextOptions = {}
-GUB.TextOptions = TextOptions
-GUB.TriggerOptions = TriggerOptions
-
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local Options = GUB.Options
+local TriggerOptions = GUB.TriggerOptions
+local TextOptions = GUB.TextOptions
 
-local ConvertPowerTypeHAP = Main.ConvertPowerTypeHAP
-local ConvertPowerType = Main.ConvertPowerType
-local ConvertCombatColor = Main.ConvertCombatColor
+local ConvertPowerTypeHAP = DefaultUB.ConvertPowerTypeHAP
+local ConvertPowerType = DefaultUB.ConvertPowerType
+local ConvertCombatColor = DefaultUB.ConvertCombatColor
 local LSM = Main.LSM
 
 -- localize some globals.
@@ -106,6 +104,9 @@ local OptionsTreeData = {
 }
 
 local o = {
+  -- Main options window size
+  MainOptionsWidth = 900,
+  MainOptionsHeight = 550,
 
   -- Test mode
   TestModeUnitLevelMin = -1,
@@ -238,10 +239,6 @@ local o = {
   AlignSwapOffsetMin = -50,
   AlignSwapOffsetMax = 500,
   AlignSwapAdvancedMinMax = 25,
-
-  -- Main options window size
-  MainOptionsWidth = 850,
-  MainOptionsHeight = 500,
 
   -- Attribute options
   UnitBarScaleMin = 0.10,
@@ -462,7 +459,7 @@ end
 -- Refreshes the option panels.
 -- Use this if something needs updating.
 -------------------------------------------------------------------------------
-function GUB.Options:RefreshMainOptions()
+function Options:RefreshMainOptions()
   AceConfigRegistery:NotifyChange(AddonMainOptions)
 end
 
@@ -472,7 +469,7 @@ end
 -- Refreshes the option panels.
 -- Use this if something needs updating.
 -------------------------------------------------------------------------------
-function GUB.Options:RefreshAlignSwapOptions()
+function Options:RefreshAlignSwapOptions()
   AceConfigRegistery:NotifyChange(AddonAlignSwapOptions)
 end
 
@@ -481,7 +478,7 @@ end
 --
 -- Closes the main options window.
 -------------------------------------------------------------------------------
-function GUB.Options:CloseMainOptions()
+function Options:CloseMainOptions()
   AceConfigDialog:Close(AddonMainOptions)
 end
 
@@ -490,7 +487,7 @@ end
 --
 -- Closes the aling and swap options window
 -------------------------------------------------------------------------------
-function GUB.Options:CloseAlignSwapOptions()
+function Options:CloseAlignSwapOptions()
   AceConfigDialog:Close(AddonAlignSwapOptions)
 end
 
@@ -538,7 +535,7 @@ end
 -- Returns:
 --   Function      The function that was passed.
 -------------------------------------------------------------------------------
-function GUB.Options:DoFunction(Object, Name, Fn)
+function Options:DoFunction(Object, Name, Fn)
   if Fn then
 
     -- Save the function under Object FunctionName
@@ -597,43 +594,6 @@ local function CreateSpacer(Order, Width, HiddenFn)
 end
 
 -------------------------------------------------------------------------------
--- RefreshEnable
---
--- Does a refresh options if the enable menu tree button is clicked on
--- This causes any autoexpanded trees to be closed
---
--- NOTES:  When the enable button is clicked. A count is set to see how
---         times the name function is called inside the RefreshButton
---         this buttin is hidden so it doesn't appear in the options.
---         Then a setscript to run on the next frame will call the function
---         to check to see how many times the name function was called.
---         if its more once.  Then the enable button was clicked on.
---
---         The refreshing flag is to prevent recursion
--------------------------------------------------------------------------------
-local function RefreshFrameOnUpdate()
-  local Refreshing = OptionsTreeData.Refreshing
-
-  RefreshFrame:SetScript('OnUpdate', nil)
-  if OptionsTreeData.EnableCount > 1 and not Refreshing then
-    Refreshing = true
-    OptionsTreeData.AutoExpandBarType = false
-    Options:RefreshMainOptions()
-  else
-    Refreshing = false
-  end
-  OptionsTreeData.Refreshing = Refreshing
-  OptionsTreeData.EnableCount = 0
-end
-
-local function RefreshEnable()
-  if Main.Gdata.AutoExpand then
-    OptionsTreeData.EnableCount = OptionsTreeData.EnableCount + 1
-    RefreshFrame:SetScript('OnUpdate', RefreshFrameOnUpdate)
-  end
-end
-
--------------------------------------------------------------------------------
 -- AddOptionsTree
 --
 -- Creates and adds to an options tree. Creates a tab view on the right
@@ -679,7 +639,7 @@ local function AddOptionsTree(TreeGroups, BarType, Order, Name, Desc)
                 OptionsTreeData.AutoExpand = false
                 if not Value then
                   OptionsTreeData.AutoExpandBarType = false
-                  --Options:RefreshMainOptions()
+                  Options:RefreshMainOptions()
                 end
               end,
         disabled = function()
@@ -2692,19 +2652,7 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar, Disable
                      return DisableFn and DisableFn() or GetClassStancesTable(BarType, ClassStancesTP).All
                    end,
       },
-      OtherClasses = {
-        type = 'toggle',
-        name = 'Other Classes',
-        desc = 'If checked, will treat classes with no stances as if they had a working stance',
-        order = 3,
-        disabled = function()
-                     if DisableFn then
-                       return DisableFn()
-                     else
-                       return false
-                     end
-                   end,
-      },
+      Spacer3 = CreateSpacer(3, 'half'),
       Reset = {
         type = 'execute',
         order = 4,
@@ -5565,7 +5513,7 @@ end
 -- BarGroups   Table pointing to where the option bargroups are stored.
 --             If nil then retreives it from the source.
 -------------------------------------------------------------------------------
-function GUB.Options:AddRemoveBarGroups()
+function Options:AddRemoveBarGroups()
   local BarGroups = MainOptions.args.UnitBars.args
   local Order = 0
 
@@ -5605,15 +5553,6 @@ local function CreateEnableUnitBarOptions(BarGroups, Order, Name, Desc)
     order = Order,
     desc = Desc,
     args = {
-      EnableRefresh = { -- See RefreshEnable()
-        type = 'description',
-        name = function()
-                 RefreshEnable()
-                 return 'EnableRefresh'
-               end,
-        order = 0.1,
-        hidden = true,
-      },
       EnableClass = {
         type = 'toggle',
         name = 'Enable Class Bars',
@@ -5732,7 +5671,7 @@ local function DeleteAuraTabs(ALA)
 end
 
 local function UpdateAuraTabs(ALA, Order)
-  local AuraTrackersData = Main.AuraTrackersData
+  local AuraTrackersData = Util.AuraTrackersData
   local OrderNumber = Order
 
   for Unit in pairs(AuraTrackersData) do
@@ -5773,7 +5712,7 @@ local function CreateAuraOptions(Order, Name, Desc)
   local ALA
 
   -- This is needed so the aura list is always updated.
-  function GUB.Options:UpdateAuras()
+  function Options:UpdateAuras()
     if Main.UnitBars.AuraListOn then
       UpdateAuraTabs(ALA, 100)
     else
@@ -6090,7 +6029,7 @@ local function CreateDebugOptions(Order, Name)
   return DebugOptions
 end
 
-function GUB.Options:AddDebugLine(Text)
+function Options:AddDebugLine(Text)
   if Main.UnitBars.DebugOn then
     local Text, _, ErrorText = strsplit(':', Text, 3)
 
@@ -6678,7 +6617,6 @@ local function CreateHelpOptions(Order, Name, Text)
     if Pos then
       local Name = strsub(Text, 1, Pos - 1)
       local Link = strsub(Text, Pos)
-
       HOA[TextKey] = {
         type = 'input',
         name = Name or '',
@@ -7619,7 +7557,7 @@ end
 --
 -- Opens a message box to display a message
 -------------------------------------------------------------------------------
-function GUB.Options:MessageBox(Message)
+function Options:MessageBox(Message)
   MessageBoxOptions.args.Message.name = Message
   AceConfigDialog:Open(AddonMessageBoxOptions)
 end
@@ -7814,7 +7752,7 @@ local function OnHideAlignSwapOptions(self)
   Main:MoveFrameSetAlignPadding(Main.UnitBarsFE, 'reset')
 end
 
-function GUB.Options:OpenAlignSwapOptions(Anchor)
+function Options:OpenAlignSwapOptions(Anchor)
   if not Main.InCombat then
     AlignSwapAnchor = Anchor
 
@@ -7847,7 +7785,7 @@ end
 --
 -- Initializes the options panel and slash options
 -------------------------------------------------------------------------------
-function GUB.Options:OnInitialize()
+function Options:OnInitialize()
 
   OptionsToGUB = CreateOptionsToGUB()
   SlashOptions = CreateSlashOptions()
@@ -7874,11 +7812,11 @@ function GUB.Options:OnInitialize()
 end
 
 -- forward to text and trigger options
-GUB.Options.FindMenuItem = FindMenuItem
-GUB.Options.HideTooltip = HideTooltip
-GUB.Options.CreateSpacer = CreateSpacer
-GUB.Options.CreateSpecOptions = CreateSpecOptions
-GUB.Options.CreateStanceOptions = CreateStanceOptions
-GUB.Options.CreateColorAllOptions = CreateColorAllOptions
+Options.FindMenuItem = FindMenuItem
+Options.HideTooltip = HideTooltip
+Options.CreateSpacer = CreateSpacer
+Options.CreateSpecOptions = CreateSpecOptions
+Options.CreateStanceOptions = CreateStanceOptions
+Options.CreateColorAllOptions = CreateColorAllOptions
 
 

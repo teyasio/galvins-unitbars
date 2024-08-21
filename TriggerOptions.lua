@@ -11,9 +11,10 @@ local MyAddon, GUB = ...
 local DefaultUB = GUB.DefaultUB
 local DUB = DefaultUB.Default.profile
 
-local Options = GUB.Options
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
+local Options = GUB.Options
 
 -- tables
 local o = Options.o
@@ -685,7 +686,7 @@ local function AddTriggerAuraOption(UBF, BBar, AOA, Auras, Aura)
               return Aura.OrderNumber
             end,
     disabled = function()
-                 return Auras.Disabled
+                 return not Auras.Enabled
                end,
     get = function(Info)
             local KeyName = Info[#Info]
@@ -753,7 +754,6 @@ local function AddTriggerAuraOption(UBF, BBar, AOA, Auras, Aura)
                  local SpellID = Aura.SpellID
                  if SpellID > 0 then
                    local Name = C_Spell_GetSpellName(SpellID)
-                   local Icon = C_Spell_GetSpellTexture(SpellID)
 
                    if Name == nil then
                      return format('%s:20:16:%s', 0, "Aura doesn't exist.  enter Spell ID or Spell Name")
@@ -1017,7 +1017,9 @@ local function CreateTriggerAuraOptions(Order, UBF, BBar, Trigger)
 
   local AuraOptions = {
     type = 'group',
-    name = 'Auras',
+    name = function()
+             return 'Auras' .. (Auras.Enabled and '*' or '')
+           end,
     order = Order,
     get = function(Info)
             local KeyName = Info[#Info]
@@ -1039,9 +1041,9 @@ local function CreateTriggerAuraOptions(Order, UBF, BBar, Trigger)
 
   local AOA = AuraOptions.args
 
-  AOA.Disabled = {
+  AOA.Enabled = {
     type = 'toggle',
-    name = 'Disable',
+    name = 'Enable',
     order = 0.1,
   }
   AOA.All = {
@@ -1050,6 +1052,9 @@ local function CreateTriggerAuraOptions(Order, UBF, BBar, Trigger)
     width = 'half',
     desc = 'If checked, then all auras must be found. \nIf All then all units must match per aura',
     order = 0.2,
+    disabled = function()
+                 return not Auras.Enabled
+               end,
   }
   AOA.Add = {
     type = 'execute',
@@ -1059,7 +1064,7 @@ local function CreateTriggerAuraOptions(Order, UBF, BBar, Trigger)
                return #Auras > 0
              end,
     disabled = function()
-                 return Auras.Disabled
+                 return not Auras.Enabled
                end,
     func = function()
              local Aura = {}
@@ -1113,7 +1118,7 @@ local function AddTriggerConditionOption(UBF, BBar, COA, Conditions, Condition)
               return Condition.OrderNumber
             end,
     disabled = function()
-                 return Conditions.Disabled
+                 return not Conditions.Enabled
                end,
     get = function(Info)
             local KeyName = Info[#Info]
@@ -1324,7 +1329,9 @@ local function CreateTriggerConditionOptions(Order, UBF, BBar, Trigger)
 
   local ConditionOptions = {
     type = 'group',
-    name = 'Conditions',
+    name = function()
+             return 'Conditions' .. (Conditions.Enabled and '*' or '')
+           end,
     order = Order,
     get = function(Info)
             local KeyName = Info[#Info]
@@ -1346,9 +1353,9 @@ local function CreateTriggerConditionOptions(Order, UBF, BBar, Trigger)
 
   local COA = ConditionOptions.args
 
-  COA.Disabled = {
+  COA.Enabled = {
     type = 'toggle',
-    name = 'Disable',
+    name = 'Enable',
     order = 0.1,
   }
   COA.All = {
@@ -1357,6 +1364,9 @@ local function CreateTriggerConditionOptions(Order, UBF, BBar, Trigger)
     width = 'half',
     desc = 'If checked, then all conditions must be true',
     order = 0.2,
+    disabled = function()
+                 return not Conditions.Enabled
+               end,
   }
   COA.Add = {
     type = 'execute',
@@ -1364,11 +1374,10 @@ local function CreateTriggerConditionOptions(Order, UBF, BBar, Trigger)
     width = 'half',
     order = 1,
     hidden = function()
-
                return #Conditions > 0
              end,
     disabled = function()
-                 return Conditions.Disabled
+                 return not Conditions.Enabled
                end,
     func = function()
              local Condition = {}
@@ -1406,14 +1415,21 @@ end
 -- Talent                    Current talent that these options will use
 -------------------------------------------------------------------------------
 local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
+
+  local NotUseSt = DefaultUB.NotUseSt
+  local NoTalentsSt = DefaultUB.NoTalentsSt
+
   local TalentGroup = 'TalentGroup' .. ToHex(Talent)
-  local TalentTrackersData = Main.TalentTrackersData
+  local TalentTrackersData = Util.TalentTrackersData
   local SpellIDs = TalentTrackersData.SpellIDs
-  local TalentIsPvP = Main.TalentTrackersData.TalentIsPvP
-  local PvEDropdown = TalentTrackersData.PvEDropdown
-  local PvEIconDropdown = TalentTrackersData.PvEIconDropdown
-  local PvENotUseDropdown = TalentTrackersData.PvENotUseDropdown
-  local PvENotUseIconDropdown = TalentTrackersData.PvENotUseIconDropdown
+  local TalentIsPvP = Util.TalentTrackersData.TalentIsPvP
+  local ClassDropdown = TalentTrackersData.ClassDropdown
+  local SpecDropdown = TalentTrackersData.SpecDropdown
+  local HeroDropdown = TalentTrackersData.HeroDropdown
+  local ClassIconDropdown = TalentTrackersData.ClassIconDropdown
+  local SpecIconDropdown = TalentTrackersData.SpecIconDropdown
+  local HeroIconDropdown = TalentTrackersData.HeroIconDropdown
+
   local PvPDropdown = TalentTrackersData.PvPDropdown
   local PvPIconDropdown = TalentTrackersData.PvPIconDropdown
 
@@ -1440,18 +1456,23 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
             if KeyName == 'Match' then
               Talent.Match = Value
             else
-              if KeyName == 'TalentName' then
-                Dropdown = PvEDropdown
-              elseif KeyName == 'TalentNameNotUse' then
-                Dropdown = PvENotUseDropdown
+              if KeyName == 'TalentClass' then
+                Dropdown = ClassDropdown
+              elseif KeyName == 'TalentSpec' then
+                Dropdown = SpecDropdown
+              elseif KeyName == 'TalentHero' then
+                Dropdown = HeroDropdown
               else
                 Dropdown = PvPDropdown
               end
               local TalentName = Dropdown[Value]
-              local SpellID = SpellIDs[TalentName] or 0
 
-              Talent.SpellID = SpellID
-              Talent.IsPvP = TalentIsPvP[SpellID]
+              if TalentName ~= NotUseSt and TalentName ~= NoTalentsSt then
+                local SpellID = SpellIDs[TalentName] or 0
+
+                Talent.SpellID = SpellID
+                Talent.IsPvP = TalentIsPvP[SpellID]
+              end
             end
 
             -- Update bar to reflect trigger changes
@@ -1465,7 +1486,7 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
         name = '',
         order = 10,
       },
-      TalentNameSelected = {
+      TalentSelected = {
         type = 'description',
         width = 'full',
         order = 11,
@@ -1489,35 +1510,44 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
       MinimizeGroup = {
         type = 'group',
         name = '',
-        dialogInline = true,
+        --dialogInline = false,
         order = 20,
         hidden = function()
                    return Talent.Minimized
                  end,
         args = {
-          TalentName = {
+          TalentClass = {
             type = 'select',
-            dialogControl = 'GUB_Dropdown_Select',
-            name = 'Talent Name:normal',
+            dialogControl = 'GUB_Dropdown_Select_Normal',
+            name = 'Class',
             order = 1,
             values = function()
-                       return PvEIconDropdown
+                       return ClassIconDropdown
                      end,
           },
-          TalentNameNotUse = {
+          TalentSpec = {
             type = 'select',
-            dialogControl = 'GUB_Dropdown_Select',
-            name = 'Talent Name (not in use):normal',
+            dialogControl = 'GUB_Dropdown_Select_Normal',
+            name = 'Specialization',
             order = 2,
             values = function()
-                       return PvENotUseIconDropdown
+                       return SpecIconDropdown
                      end,
           },
-          TalentNamePvP = {
+          TalentHero = {
             type = 'select',
-            dialogControl = 'GUB_Dropdown_Select',
-            name = 'Talent Name (PvP):normal',
+            dialogControl = 'GUB_Dropdown_Select_Normal',
+            name = 'Hero',
             order = 3,
+            values = function()
+                       return HeroIconDropdown
+                     end,
+          },
+          TalentPvP = {
+            type = 'select',
+            dialogControl = 'GUB_Dropdown_Select_Normal',
+            name = 'PvP',
+            order = 4,
             values = function()
                        return PvPIconDropdown
                      end,
@@ -1526,7 +1556,7 @@ local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
             type = 'toggle',
             name = 'Match',
             desc = "If unchecked, then the talent can't match",
-            order = 4,
+            order = 5,
           },
         },
       },
@@ -1660,6 +1690,10 @@ local function CreateTriggerTalentOptions(Order, UBF, BBar, Trigger)
     type = 'group',
     name = 'Talents',
     order = Order,
+    name = function()
+             return 'Talents' .. (Talents.Enabled and '*' or '')
+           end,
+    order = Order,
     get = function(Info)
             local KeyName = Info[#Info]
 
@@ -1680,9 +1714,9 @@ local function CreateTriggerTalentOptions(Order, UBF, BBar, Trigger)
 
   local TOA = TalentOptions.args
 
-  TOA.Disabled = {
+  TOA.Enabled = {
     type = 'toggle',
-    name = 'Disable',
+    name = 'Enable',
     order = 0.1,
   }
   TOA.All = {
@@ -1691,6 +1725,9 @@ local function CreateTriggerTalentOptions(Order, UBF, BBar, Trigger)
     width = 'half',
     desc = 'If checked, then all talents must be active',
     order = 0.2,
+    disabled = function()
+                 return not Talents.Enabled
+               end,
   }
   TOA.Add = {
     type = 'execute',
@@ -1701,7 +1738,7 @@ local function CreateTriggerTalentOptions(Order, UBF, BBar, Trigger)
                return #Talents > 0
              end,
     disabled = function()
-                 return Talents.Disabled
+                 return not Talents.Enabled
                end,
     func = function()
              local Talent = {}
@@ -1785,6 +1822,21 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, EditLis
     name = 'Activate',
     order = 100,
     childGroups = 'tab',
+    get = function(Info)
+            local KeyName = Info[#Info]
+
+            return Trigger[KeyName]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            Trigger[KeyName] = Value
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
     hidden = function()
                return EditList.Edit ~= nil or Trigger ~= EditList.Trigger
              end,
@@ -1792,10 +1844,18 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, EditLis
                  return Trigger.Disabled or Trigger.Static
                end,
     args = {
+      AnyActivations = {
+        type = 'toggle',
+        name = 'Any',
+        desc = 'If checked, then any tabs below can be active',
+        order = 0.1,
+      },
       -- Specialization
       SpecTab = {
         type = 'group',
-        name = 'Specialization',
+        name = function()
+                 return 'Specialization' .. (Trigger.SpecEnabled and '*' or '')
+               end,
         order = 1,
         args = {
           SpecEnabled = {
@@ -1826,21 +1886,23 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, EditLis
       -- Stances
       StancesTab = {
         type = 'group',
-        name = 'Stances',
+        name = function()
+                 return 'Stances' .. (Trigger.StancesEnabled and '*' or '')
+               end,
         order = 2,
         disabled = function()
                      return next(DUB[BarType].Triggers.Default.ClassStances) == nil
                    end,
         args = {
-          StanceEnabled = {
+          StancesEnabled = {
             type = 'toggle',
             name = 'Enable',
             order = 1,
             get = function()
-                    return Trigger.StanceEnabled
+                    return Trigger.StancesEnabled
                   end,
             set = function(Info, Value)
-                    Trigger.StanceEnabled = Value
+                    Trigger.StancesEnabled = Value
 
                     -- Update bar to reflect trigger changes
                     BBar:CheckTriggers()
@@ -1853,7 +1915,7 @@ local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, EditLis
             name = '',
             order = 2,
           },
-          StanceOptions = CreateStanceOptions(BarType, 3, Trigger.ClassStances, BBar, function() return not Trigger.StanceEnabled end),
+          StanceOptions = CreateStanceOptions(BarType, 3, Trigger.ClassStances, BBar, function() return not Trigger.StancesEnabled end),
         },
       },
 

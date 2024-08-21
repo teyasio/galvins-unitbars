@@ -10,13 +10,14 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerType = GUB.DefaultUB.ConvertPowerType
 
 -- localize some globals.
 local _, _G, print =
@@ -144,7 +145,7 @@ local function Casting(UnitBarF, SpellID, Message)
     end
 
     -- get predicted power
-    local PredictedPower, PowerType = Main:GetPredictedSpell(UnitBarF, SpellID)
+    local PredictedPower, PowerType = Util:GetPredictedSpell(UnitBarF, SpellID)
 
     if PredictedPower > 0 and PowerType == BarPowerType then
       UnitBarF.PredictedSpellID = SpellID
@@ -157,8 +158,12 @@ local function Casting(UnitBarF, SpellID, Message)
       if CostTable then
         for _, CostInfo in pairs(CostTable) do
           if CostInfo.type == BarPowerType then
-            UnitBarF.PredictedCost = CostInfo.cost
-            break
+            local Cost = CostInfo.cost
+
+            if Cost > 0 then
+              UnitBarF.PredictedCost = Cost
+              break
+            end
           end
         end
       end
@@ -201,13 +206,13 @@ local function SetPredictedCost(UnitBarF, Action)
   UnitBarF.BBar:SetHiddenTexture(HapBox, PredictedCostBar, not Action)
 
   if Action then
-    Main:SetCastTracker(UnitBarF, 'fn', Casting)
+    Util:SetCastTracker(UnitBarF, 'fn', Casting)
 
   else
     local PredictedPower = UnitBarF.UnitBar.Layout.PredictedPower or false
 
     if not PredictedPower then
-      Main:SetCastTracker(UnitBarF, 'off')
+      Util:SetCastTracker(UnitBarF, 'off')
       UnitBarF.PredictedCost = 0
     end
   end
@@ -227,14 +232,14 @@ local function SetPredictedPower(UnitBarF, Action)
   UnitBarF.BBar:SetHiddenTexture(HapBox, PredictedBar, not Action)
 
   if Action then
-    Main:SetPredictedSpells(UnitBarF, 'on', PredictedSpells)
-    Main:SetCastTracker(UnitBarF, 'fn', Casting)
+    Util:SetPredictedSpells(UnitBarF, 'on', PredictedSpells)
+    Util:SetCastTracker(UnitBarF, 'fn', Casting)
   else
-    Main:SetPredictedSpells(UnitBarF, 'off')
+    Util:SetPredictedSpells(UnitBarF, 'off')
     local PredictedCost = UnitBarF.UnitBar.Layout.PredictedCost or false
 
     if not PredictedCost then
-      Main:SetCastTracker(UnitBarF, 'off')
+      Util:SetCastTracker(UnitBarF, 'off')
     end
 
     UnitBarF.PredictedPower = 0
@@ -802,16 +807,16 @@ end
 --*****************************************************************************
 
 local function RegEventHealth(Enable, UnitBarF, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION',       UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_ABSORB_AMOUNT_CHANGED', UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH',                UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',             UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',               UpdateHealthBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_HEAL_PREDICTION',       UpdateHealthBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_ABSORB_AMOUNT_CHANGED', UpdateHealthBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH',                UpdateHealthBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',             UpdateHealthBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',               UpdateHealthBar, ...)
 end
 
 local function RegEventPower(Enable, UnitBarF, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, ...)
+  Util:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
 end
 
 function Main.UnitBarsF.PlayerHealth:Enable(Enable)

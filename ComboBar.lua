@@ -8,11 +8,12 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerType = GUB.DefaultUB.ConvertPowerType
 
 -- localize some globals.
 local _, _G, print =
@@ -109,7 +110,7 @@ local ComboData = {
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.ComboBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.ComboBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -482,6 +483,6 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.ComboBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_POINT_CHARGE', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_POINT_CHARGE', self.Update, 'player')
 end

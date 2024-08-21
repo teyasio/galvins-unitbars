@@ -8,11 +8,12 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerType = GUB.DefaultUB.ConvertPowerType
 
 -- localize some globals.
 local _, _G, print =
@@ -110,7 +111,7 @@ local HolyData = {
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.HolyBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.HolyBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -362,6 +363,6 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.HolyBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_UPDATE', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_UPDATE', self.Update, 'player')
 end

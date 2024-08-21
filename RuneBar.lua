@@ -8,6 +8,7 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
@@ -128,7 +129,7 @@ local RuneDataAtlasEmptyRune = 'DK-Rune-CD'
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.RuneBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.RuneBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -781,5 +782,5 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.RuneBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, 'RUNE_POWER_UPDATE', self.Update)
+  Util:RegEventFrame(Enable, self, 'RUNE_POWER_UPDATE', self.Update)
 end

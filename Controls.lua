@@ -13,10 +13,11 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 
 local LSM = Main.LSM
-local HyperlinkSt = Main.HyperlinkSt
+local HyperlinkSt = GUB.DefaultUB.HyperlinkSt
 
 local AceGUI = LibStub('AceGUI-3.0')
 
@@ -78,6 +79,8 @@ local MultiLineEditBoxImportWidgetType = 'GUB_MultiLine_EditBox_Import'
 local MultiLineEditBoxExportWidgetType = 'GUB_MultiLine_EditBox_Export'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
 local DropdownSelectWidgetType = 'GUB_Dropdown_Select'
+local DropdownSelectNormalWidgetType = 'GUB_Dropdown_Select_Normal'
+
 
 local SpellsTimer = {}
 local Spells = {}
@@ -873,7 +876,7 @@ end
 local function PopulateAuraMenu(self)
   local Widget = self.Widget
   local SearchSt = strlower(Widget.EditBox:GetText())
-  local AuraTrackersData = Main.AuraTrackersData
+  local AuraTrackersData = Util.AuraTrackersData
   local ActiveButtons = 0
 
   for _, Button in pairs(self.Buttons) do
@@ -1777,9 +1780,7 @@ end
 -- This uses an existing widget, then changes it into a custom
 -- This make a menu have a scroll bar
 --
--- In the 'name' field you specify name and font size (normal)
--- Example: Name:normal
--- Defaults to small if no font size specified
+-- This uses fontsize small
 -------------------------------------------------------------------------------
 local function DropdownSelectConstructor()
   local Widget = AceGUI:Create('Dropdown')
@@ -1816,10 +1817,10 @@ local function DropdownSelectConstructor()
 
       -- Set font size
       local FontObjectSize
-      if FontSize and FontSize == 'normal' then
-        FontObjectSize = 'GameFontNormal'
-      end
-      WidgetUserData[self].FontObjectSize = FontObjectSize
+   --   if FontSize and FontSize == 'normal' then
+   --     FontObjectSize = 'GameFontNormal'
+   --   end
+   --   WidgetUserData[self].FontObjectSize = FontObjectSize
     end
   end
   Widget.SetList = function(self, ...)
@@ -1849,6 +1850,77 @@ end
 
 AceGUI:RegisterWidgetType(DropdownSelectWidgetType, DropdownSelectConstructor, DropdownSelectWidgetVersion)
 
+-------------------------------------------------------------------------------
+-- DropdownSelectConstructorNormal
+--
+-- This uses an existing widget, then changes it into a custom
+-- This make a menu have a scroll bar
+--
+-- Same as above. Except it uses normal font size
+-------------------------------------------------------------------------------
+local function DropdownSelectNormalConstructor()
+  local Widget = AceGUI:Create('Dropdown')
+  Widget.type = DropdownSelectNormalWidgetType
+
+  -- methods
+  local OldOnRelease = Widget.OnRelease
+  local OldOnAcquire = Widget.OnAcquire
+  local OldSetLabel  = Widget.SetLabel
+  local OldSetList   = Widget.SetList
+
+  Widget.OnRelease = function(self, ...)
+    RestorePullout(self)
+
+    -- Reset font size
+    WidgetUserData[self].FontObjectSize = nil
+
+    OldOnRelease(self, ...)
+  end
+  Widget.OnAcquire = function(self, ...)
+    -- Only call OnAcquire if there is no pullout created
+    -- This prevents two calls. Once during Create and
+    -- again when this custom control is created
+    if Widget.pullout == nil then
+      OldOnAcquire(self, ...)
+    end
+    SetupPullout(self)
+  end
+  Widget.SetLabel = function(self, ...)
+    local Text = ...
+    if Text then
+      OldSetLabel(self, Text)
+
+      -- Set font size
+      WidgetUserData[self].FontObjectSize = 'GameFontNormal'
+    end
+  end
+  Widget.SetList = function(self, ...)
+    OldSetList(self, ...)
+    -- Store original values in userdata
+    local UserData = WidgetUserData[self]
+    local ItemFonts = UserData.ItemFonts
+    if ItemFonts == nil then
+      ItemFonts = {}
+      UserData.ItemFonts = ItemFonts
+    end
+    -- Store old font objects. These gets restored in OnRelease()
+    local Items = Widget.pullout.items
+    for ItemFontIndex = 1, #Items do
+      local Text = Items[ItemFontIndex].text
+      ItemFonts[ItemFontIndex] = Text:GetFontObject()
+
+      local FontObjectSize = WidgetUserData[self].FontObjectSize
+      if FontObjectSize then
+        Text:SetFontObject(FontObjectSize)
+      end
+    end
+  end
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(DropdownSelectNormalWidgetType, DropdownSelectNormalConstructor, DropdownSelectWidgetVersion)
+
 --*****************************************************************************
 --
 -- EditBox_ReadOnly_Selected dialog control
@@ -1861,6 +1933,7 @@ AceGUI:RegisterWidgetType(DropdownSelectWidgetType, DropdownSelectConstructor, D
 -- Selects the text when the focus is gained
 -------------------------------------------------------------------------------
 local function EditBoxSelectedReadOnlyOnFocusGained(Frame)
+  Frame.ReadOnlyText = Frame:GetText()
   AceGUI:SetFocus(Frame.obj)
   Frame:HighlightText()
   Frame:SetCursorPosition(1000)

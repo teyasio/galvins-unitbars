@@ -15,7 +15,7 @@ local Main = GUB.Main
 local Bar = GUB.Bar
 
 -- tables
-local o = Options.o
+local o = Options
 local LSMDropdown = Options.LSMDropdown
 local FontStyleDropdown = Options.FontStyleDropdown
 local PositionDropdown = Options.PositionDropdown

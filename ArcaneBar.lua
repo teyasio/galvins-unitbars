@@ -8,11 +8,12 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
 
-local ConvertPowerType = Main.ConvertPowerType
+local ConvertPowerType = GUB.DefaultUB.ConvertPowerType
 
 -- localize some globals.
 local _, _G, print =
@@ -87,7 +88,7 @@ local ArcaneData = {
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.ArcaneBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.ArcaneBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -333,5 +334,5 @@ end
 --*****************************************************************************
 
 function Main.UnitBarsF.ArcaneBar:Enable(Enable)
-  Main:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
+  Util:RegEventFrame(Enable, self, 'UNIT_POWER_FREQUENT', self.Update, 'player')
 end

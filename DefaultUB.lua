@@ -9,8 +9,27 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
-GUB.DefaultUB = {}
-GUB.DefaultUB.Version = C_AddOns.GetAddOnMetadata(MyAddon, 'Version') * 100
+local DefaultUB = {}
+GUB.DefaultUB = DefaultUB
+DefaultUB.Version = C_AddOns.GetAddOnMetadata(MyAddon, 'Version') * 100
+
+GUB.Util = {}
+GUB.Main = {}
+GUB.Bar = {}
+GUB.HapBar = {}
+GUB.StaggerBar = {}
+GUB.AltPowerBar = {}
+GUB.RuneBar = {}
+GUB.ComboBar = {}
+GUB.HolyBar = {}
+GUB.ShardBar = {}
+GUB.FragmentBar = {}
+GUB.ChiBar = {}
+GUB.ArcaneBar = {}
+GUB.EssenceBar = {}
+GUB.Options = {}
+GUB.TextOptions = {}
+GUB.TriggerOptions = {}
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -224,7 +243,6 @@ GUB.DefaultUB.Version = C_AddOns.GetAddOnMetadata(MyAddon, 'Version') * 100
 --
 --   Data fed into SetClassStances
 --   ClassStances
---     OtherClasses               -- default setting true or false
 --     All                        -- default setting true or false
 --     Inverse                    -- default setting true or false
 --     ClassName                  -- default settting: string
@@ -242,13 +260,20 @@ GUB.DefaultUB.Version = C_AddOns.GetAddOnMetadata(MyAddon, 'Version') * 100
 --     All                        -- If true then matches for all classes and stances. Ignores stance checks
 --     Inverse                    -- Inverts the logic test for stances. Does the opposite
 --     ClassName                  -- Lower case except first letter. Used by options
---     OtherClasses               -- If checked, will treat classes with no stances as if they had a working stance
 --     [ClassName]                -- ClassName is all uppercase
 --       Spec                     -- Contains the selected player specializaion
 --       UseAll                   -- Boolean. If true then uses the All specialization
 --       [Spec#]
 --         [0]                    -- No Stance: True or false.
 --         [Stance Number]        -- All other stances: True or false. this stance is used appears in options
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- ConvertPowerType       - Table to convert a string powertype into a number
+-- ConvertPowerTypeL      - Same as ConvertPowerType except it only takes an index and contains
+--                          the power type in the current langauge of the client
+-- ConvertPowerTypeHAP    - Table used by InitializeColors()
+--                          Same as ConvertPowerType except only has power types for power bars in HAP
 -------------------------------------------------------------------------------
 local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBorderTexture = 'Blizzard Tooltip'
@@ -262,29 +287,86 @@ local DefaultAnimationType = 'alpha'
 local DefaultAnimationOutTime = 0.7
 local DefaultAnimationInTime = 0.30
 
-GUB.DefaultUB.InCombatOptionsMessage  = "Can't have options opened during combat"
-GUB.DefaultUB.InCombatOptionsMessage2 = 'Options will open after combat ends'
+DefaultUB.HyperlinkSt = 'spell:%s'
+DefaultUB.InCombatOptionsMessage  = "Can't have options opened during combat"
+DefaultUB.InCombatOptionsMessage2 = 'Options will open after combat ends'
+DefaultUB.NotUseSt = '------------------------------ NOT SELECTED' --'=========== NOT IN USE ==========='
+DefaultUB.NoTalentsSt = 'NO TALENTS'
 
-GUB.DefaultUB.DefaultBgTexture = DefaultBgTexture
-GUB.DefaultUB.DefaultBorderTexture = DefaultBorderTexture
-GUB.DefaultUB.DefaultStatusBarTexture = DefaultStatusBarTexture
-GUB.DefaultUB.DefaultSound = DefaultSound
-GUB.DefaultUB.DefaultSoundChannel = DefaultSoundChannel
-GUB.DefaultUB.DefaultFontType = UBFontType
+DefaultUB.DefaultBgTexture = DefaultBgTexture
+DefaultUB.DefaultBorderTexture = DefaultBorderTexture
+DefaultUB.DefaultStatusBarTexture = DefaultStatusBarTexture
+DefaultUB.DefaultSound = DefaultSound
+DefaultUB.DefaultSoundChannel = DefaultSoundChannel
+DefaultUB.DefaultFontType = UBFontType
+
+DefaultUB.ConvertPowerTypeL = {
+  [0] = MANA,
+  [1] = RAGE,
+  [2] = FOCUS,
+  [3] = ENERGY,
+  [4] = COMBO_POINTS,
+  [6] = RUNIC_POWER,
+  [7] = SOUL_SHARDS,
+  [8] = LUNAR_POWER, -- Converts to Astral Power
+  [9] = HOLY_POWER,
+  [11] = MAELSTROM_POWER,
+  [12] = CHI_POWER,
+  [13] = INSANITY_POWER,
+  [16] = ARCANE_CHARGES_POWER,
+  [17] = FURY,
+  [19] = POWER_TYPE_ESSENCE,
+}
+
+DefaultUB.ConvertPowerType = {
+  MANA           = 0,
+  RAGE           = 1,
+  FOCUS          = 2,
+  ENERGY         = 3,
+  COMBO_POINTS   = 4,
+  RUNIC_POWER    = 6,
+  SOUL_SHARDS    = 7,
+  LUNAR_POWER    = 8,
+  HOLY_POWER     = 9,
+  ALTERNATE      = 10,
+  MAELSTROM      = 11,
+  CHI            = 12,
+  INSANITY       = 13,
+  ARCANE_CHARGES = 16,
+  FURY           = 17,
+  PAIN           = 18, -- not used but unit power events still return it. So needs to be here
+  ESSENCE        = 19,
+}
+
+DefaultUB.ConvertPowerTypeHAP = {
+  MANA           = 0,
+  RAGE           = 1,
+  FOCUS          = 2,
+  ENERGY         = 3,
+  RUNIC_POWER    = 6,
+  LUNAR_POWER    = 8,
+  MAELSTROM      = 11,
+  INSANITY       = 13,
+  FURY           = 17,
+}
+
+DefaultUB.ConvertCombatColor = {
+  Hostile = 1, Attack = 2, Flagged = 3, Friendly = 4,
+}
 
 -- Default trigger array stuff
-GUB.DefaultUB.TriggerTalentsArray = {
+DefaultUB.TriggerTalentsArray = {
   SpellID = 0,
   Match = true,
   IsPvP = false,
   Minimized = false,
 }
-GUB.DefaultUB.TriggerConditionsArray = {
+DefaultUB.TriggerConditionsArray = {
   InputValueName = '', -- check triggers sets default
   Operator = '>',
   Value = 0,
 }
-GUB.DefaultUB.TriggerAurasArray = {
+DefaultUB.TriggerAurasArray = {
   Minimized = false,
   Inverse = false,
   Units = {'player'},
@@ -306,14 +388,14 @@ GUB.DefaultUB.TriggerAurasArray = {
 local DefaultTriggers = {
   Static = false,
   Disabled = false,
+  AnyActivations = false,
   SpecEnabled = false,
-  StanceEnabled = false,
-  OneTime = false,
-  -- ClassSpecs is deepcopied in down below in each bar
+  StancesEnabled = false,
+  -- ClassSpecs is deepcopied in. down below in each bar
   -- ClassSpecs = SetClassSpecs(ClassSpecs, false),
-  Talents    = { Disabled = false, All = false },
-  Conditions = { Disabled = false, All = false },
-  Auras      = { Disabled = false, All = false },
+  Talents    = { Enabled = false, All = false },
+  Auras      = { Enabled = false, All = false },
+  Conditions = { Enabled = false, All = false },
   Name = '',
   GroupNumber = 1,
   ObjectType = '',
@@ -325,9 +407,7 @@ local DefaultTriggers = {
   AnimateSpeed = 0.01,
   OffsetAll = true,
   TextLine = false,
-  AurasOn = false,
   ActiveAuras = false,
-  ConditionsOn = false,
 
   -- These are functions.  But functions can't be saved
   -- So set false as a default
@@ -338,6 +418,12 @@ local DefaultTriggers = {
 --Par3
 --Par4   These are not in defaults for nil default checks
 --       These are on the CheckTriggers exclude list
+
+-- These are temporary values used in CheckTriggers() and DoTriggers()
+  OneTime = false,
+  OtherActivations = false,
+  AurasEnabled = false,
+  ConditionsEnabled = false,
 }
 
 local abs, assert, format, pairs, ipairs, type, next =
@@ -362,10 +448,10 @@ for ClassIndex = 1, GetNumClasses() do
     end
   end
 end
-GUB.DefaultUB.ClassSpecializations = ClassSpecializations
+DefaultUB.ClassSpecializations = ClassSpecializations
 
 --[[
-GUB.DefaultUB.ClassSpecializations = {
+DefaultUB.ClassSpecializations = {
   DEATHKNIGHT = {'Blood', 'Frost', 'Unholy'},
   DEMONHUNTER = {'Havoc', 'Vengeance'},
   DRUID       = {'Balance', 'Feral', 'Guardian', 'Restoration'},
@@ -473,9 +559,9 @@ local SpellIDStances = { -- Stance#    -- ID
               [386196] =     3  },      --        Berserker stance
 }
 
-GUB.DefaultUB.ClassStanceNames = ClassStanceNames
-GUB.DefaultUB.FormIDStances = FormIDStances
-GUB.DefaultUB.SpellIDStances = SpellIDStances
+DefaultUB.ClassStanceNames = ClassStanceNames
+DefaultUB.FormIDStances = FormIDStances
+DefaultUB.SpellIDStances = SpellIDStances
 
 local function MergeTable(Source, Dest)
   for k, v in pairs(Dest) do
@@ -621,7 +707,7 @@ end
 --=============================================================================
 -- Default Profile Database
 --=============================================================================
-GUB.DefaultUB.Default = {
+DefaultUB.Default = {
   -- global can be seen by any character on the same account
   global = {
     ShowMessage = 0,
@@ -689,7 +775,7 @@ GUB.DefaultUB.Default = {
     Reset = {}
   },
 }
-local Profile = GUB.DefaultUB.Default.profile
+local Profile = DefaultUB.Default.profile
 
 -- for empty tables
 local T = true
@@ -702,7 +788,7 @@ local ClassSpecsAll = { -- This is used for all health and power bars
 }
 local ClassStances
 local ClassStancesHAP = { -- This is used for all health and power bars
-  All = true, Inverse = false, ClassName = '', OtherClasses = true,
+  All = true, Inverse = false, ClassName = '',
   DRUID   = { UseAll = true,
               [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T}, [4] = {T} },
   PALADIN = { UseAll = true,
@@ -1652,7 +1738,7 @@ ClassSpecs = {
   SHAMAN = { 1 },
 }
 ClassStances = {
-  All = false, Inverse = false, ClassName = '', OtherClasses = true,
+  All = false, Inverse = false, ClassName = '',
   DRUID  = { UseAll = false,
              [0] = {T}, [1] = { 100, 5 }, [2] = {F}, [3] = {F}, [4] = {100, 5} },
   PRIEST = { UseAll = false,
@@ -2357,7 +2443,7 @@ ClassSpecs = {
   ROGUE = {T}, DRUID = {T},
 }
 ClassStances = {
-  All = false, Inverse = false, ClassName = '', OtherClasses = false,
+  All = false, Inverse = false, ClassName = '',
   ROGUE = { UseAll = true,
             [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T}},
   DRUID = { UseAll = true,
@@ -2529,7 +2615,7 @@ ClassSpecs = {
   PALADIN = {T},
 }
 ClassStances = {
-  All = false, Inverse = false, ClassName = '', OtherClasses = false,
+  All = false, Inverse = false, ClassName = '',
   PALADIN = { UseAll = true,
               [0] = {T}, [1] = {T}, [2] = {T}, [3] = {T} },
 }
@@ -3538,7 +3624,7 @@ local HelpText = {}
 -- next line.
 --=============================================================================
 
-GUB.DefaultUB.HelpText = HelpText
+DefaultUB.HelpText = HelpText
 HelpText[1] = [[
 
 After making a lot of changes if you wish to start over you can reset default settings.  Just go to the bar in the bars menu.  Choose what to reset.  You may have to scroll down to see it.
@@ -3702,7 +3788,7 @@ By default this is not turned on.  Click enable to turn on.  Pick the class.  En
 -- Videos text
 local LinksText = {}
 
-GUB.DefaultUB.LinksText = LinksText
+DefaultUB.LinksText = LinksText
 LinksText[1] = [[
 Fragment Bar video:]]
 LinksText[#LinksText + 1] = [[https://youtu.be/snFdzm7c4M8]]
@@ -3738,12 +3824,21 @@ LinksText[#LinksText + 1] = [[https://wowpedia.fandom.com/wiki/UI_escape_sequenc
 -- Message Text
 local ChangesText = {}
 
-GUB.DefaultUB.ChangesText = ChangesText
+DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
-Version 9.00
-Updated for World of Warcraft version 11.x
 Some stuff may not work or broken. Please report bugs
-Work in progress
+
+Version 9.03
+|cff00ff00Triggers|r Some logic bugs fixed
+|cff00ff00Triggers|r has an any option for activations
+|cff00ff00Triggers|r Activation tabs shows a * for ones that are enabled
+|cff00ff00Triggers|r Talent menus for not in use been rolled into one menu with active talents. Scroll down the menu till you see not in use
+
+Version 9.01
+|cff00ff00Triggers|r Talents, Auras, and Conditions now have Enabled instead of Disabled. You'll need to set these options if triggers are not working
+
+Version 9.00
+Updated for world of warcraft version 11.x
 
 Version 8.18
 |cff00ff00Bars|r that are in floating mode will no longer keep shifting positon after each reload UI

@@ -9,6 +9,7 @@
 -------------------------------------------------------------------------------
 local MyAddon, GUB = ...
 
+local Util = GUB.Util
 local Main = GUB.Main
 local Bar = GUB.Bar
 local OT = Bar.TriggerObjectTypes
@@ -95,7 +96,7 @@ local GroupsInfoStagger = { -- BoxNumber, Name, ValueTypes
 -------------------------------------------------------------------------------
 -- Statuscheck    UnitBarsF function
 -------------------------------------------------------------------------------
-Main.UnitBarsF.StaggerBar.StatusCheck = GUB.Main.StatusCheck
+Main.UnitBarsF.StaggerBar.StatusCheck = Main.StatusCheck
 
 --*****************************************************************************
 --
@@ -391,7 +392,7 @@ function Main.UnitBarsF.StaggerBar:SetAttr(TableName, KeyName)
     BBar:SO('Layout', 'PauseTimerAutoHide', function(v)     BBar:DoOption('Layout', 'PauseTimer') end)
     BBar:SO('Layout', '_PauseCastTracker',  function(v)
       -- Need to do this here incase of profile change.
-      Main:SetCastTracker(self, 'fn', Casting)
+      Util:SetCastTracker(self, 'fn', Casting)
     end)
 
     BBar:SO('Background', 'BgTexture',     function(v, UB, OD) BBar:SetBackdrop(OD.p1, OD.p2, v) end)
